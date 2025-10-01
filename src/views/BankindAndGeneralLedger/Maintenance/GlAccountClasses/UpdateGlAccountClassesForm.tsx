@@ -1,144 +1,149 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
-    Box,
-    Stack,
-    Typography,
-    TextField,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
-    FormHelperText,
-    Button,
-    Paper,
-    useTheme,
-    useMediaQuery,
+  Box,
+  Stack,
+  Typography,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormHelperText,
+  Button,
+  Paper,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import theme from "../../../../theme";
+import { getChartTypes } from "../../../../api/GLAccountClasses/ChartTypeApi";
+import { getChartClass, updateChartClass } from "../../../../api/GLAccountClasses/ChartClassApi";
+import { useNavigate, useParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface GlAccountClassData {
-    id: string;
-    className: string;
-    classType: string;
+  cid: string;
+  class_name: string;
+  ctype: string;
+  inactive: boolean;
 }
 
 export default function UpdateGlAccountClassesForm() {
-    const [formData, setFormData] = useState<GlAccountClassData>({
-        id: "",
-        className: "",
-        classType: "",
-    });
+  const { id } = useParams<{ id: string }>();
+  const [formData, setFormData] = useState<GlAccountClassData>({
+    cid: "",
+    class_name: "",
+    ctype: "",
+    inactive: false,
+  });
 
-    const [errors, setErrors] = useState<Partial<GlAccountClassData>>({});
-    const muiTheme = useTheme();
-    const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const [errors, setErrors] = useState<Partial<GlAccountClassData>>({});
+  const [chartTypes, setChartTypes] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const muiTheme = useTheme();
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setFormData({ ...formData, [name]: value });
-        setErrors({ ...errors, [name]: "" });
-    };
+  useEffect(() => {
+    getChartTypes().then((res) => setChartTypes(res));
+    if (id) {
+      getChartClass(id).then((res) => setFormData(res));
+    }
+  }, [id]);
 
-    const handleSelectChange = (e: any) => {
-        const { name, value } = e.target;
-        setFormData({ ...formData, [name]: value });
-        setErrors({ ...errors, [name]: "" });
-    };
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    setErrors({ ...errors, [name]: "" });
+  };
 
-    const validate = () => {
-        const newErrors: Partial<GlAccountClassData> = {};
-        if (!formData.id) newErrors.id = "Class ID is required";
-        if (!formData.className) newErrors.className = "Class name is required";
-        if (!formData.classType) newErrors.classType = "Select class type";
+  const handleSelectChange = (e: any) => {
+    const { value } = e.target;
+    setFormData({ ...formData, ctype: value });
+    setErrors({ ...errors, ctype: "" });
+  };
 
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
-    };
+  const validate = () => {
+    const newErrors: Partial<GlAccountClassData> = {};
+    if (!formData.cid) newErrors.cid = "Class ID is required";
+    if (!formData.class_name) newErrors.class_name = "Class name is required";
+    if (formData.ctype === "") newErrors.ctype = "Select class type";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
-    const handleSubmit = () => {
-        if (validate()) {
-            console.log("Submitted GL Account Class:", formData);
-            alert("GL Account Class updated successfully!");
-        }
-    };
+  const handleSubmit = async () => {
+    if (!validate() || isSubmitting) return;
+    
+    setIsSubmitting(true);
+    try {
+      await updateChartClass(formData.cid, formData);
+      await queryClient.refetchQueries({ queryKey: ["glAccountClasses"] });
+      alert("GL Account Class updated successfully!");
+      navigate('/bankingandgeneralledger/maintenance/gl-account-classes');
+    } catch (error) {
+      alert("Failed to update GL Account Class");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-    return (
-        <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
-            <Paper
-                sx={{
-                    p: theme.spacing(3),
-                    maxWidth: "600px",
-                    width: "100%",
-                    boxShadow: 2,
-                    borderRadius: 2,
-                }}
-            >
-                <Typography variant="h6" sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}>
-                    Update GL Account Classes
-                </Typography>
+  return (
+    <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
+      <Paper sx={{ p: theme.spacing(3), maxWidth: "600px", width: "100%", boxShadow: 2, borderRadius: 2 }}>
+        <Typography variant="h6" sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}>
+          Update GL Account Classes
+        </Typography>
 
-                <Stack spacing={2}>
-                    <TextField
-                        label="ID"
-                        name="id"
-                        size="small"
-                        fullWidth
-                        value={formData.id}
-                        onChange={handleInputChange}
-                        error={!!errors.id}
-                        helperText={errors.id || " "}
-                    />
+        <Stack spacing={2}>
+          <TextField
+            label="ID"
+            name="cid"
+            size="small"
+            fullWidth
+            value={formData.cid}
+            onChange={handleInputChange}
+            error={!!errors.cid}
+            helperText={errors.cid || " "}
+          />
 
-                    <TextField
-                        label="Class Name"
-                        name="className"
-                        size="small"
-                        fullWidth
-                        value={formData.className}
-                        onChange={handleInputChange}
-                        error={!!errors.className}
-                        helperText={errors.className || " "}
-                    />
+          <TextField
+            label="Class Name"
+            name="class_name"
+            size="small"
+            fullWidth
+            value={formData.class_name}
+            onChange={handleInputChange}
+            error={!!errors.class_name}
+            helperText={errors.class_name || " "}
+          />
 
-                    <FormControl size="small" fullWidth error={!!errors.classType}>
-                        <InputLabel>Class Type</InputLabel>
-                        <Select
-                            name="subGroup"
-                            value={formData.classType}
-                            onChange={handleSelectChange}
-                            label="Sub Group"
-                        >
-                            <MenuItem value="Assets">Assets</MenuItem>
-                            <MenuItem value="Liabilities">Liabilities</MenuItem>
-                            <MenuItem value="Income">Income</MenuItem>
-                            <MenuItem value="Costs">Costs</MenuItem>
-                        </Select>
-                        <FormHelperText>{errors.classType || " "}</FormHelperText>
-                    </FormControl>
-
-                </Stack>
-
-                <Box
-                    sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        mt: 3,
-                        flexDirection: isMobile ? "column" : "row",
-                        gap: isMobile ? 2 : 0,
-                    }}
-                >
-                    <Button onClick={() => window.history.back()}>Back</Button>
-
-                    <Button
-                        variant="contained"
-                        fullWidth={isMobile}
-                        sx={{ backgroundColor: "var(--pallet-blue)" }}
-                        onClick={handleSubmit}
-                    >
-                        Update
-                    </Button>
-                </Box>
-            </Paper>
+          <FormControl size="small" fullWidth error={!!errors.ctype}>
+            <InputLabel>Class Type</InputLabel>
+            <Select name="ctype" value={formData.ctype} onChange={handleSelectChange} label="Class Type">
+              {chartTypes.map((type) => (
+                <MenuItem key={type.id} value={type.id}>
+                  {type.name}
+                </MenuItem>
+              ))}
+            </Select>
+            <FormHelperText>{errors.ctype || " "}</FormHelperText>
+          </FormControl>
         </Stack>
-    );
+
+        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3, flexDirection: isMobile ? "column" : "row", gap: isMobile ? 2 : 0 }}>
+          <Button onClick={() => window.history.back()}>Back</Button>
+          <Button 
+            variant="contained" 
+            fullWidth={isMobile} 
+            sx={{ backgroundColor: "var(--pallet-blue)" }} 
+            onClick={handleSubmit}
+            disabled={isSubmitting} // Disable while submitting
+          >
+            {isSubmitting ? "Updating..." : "Update"}
+          </Button>
+        </Box>
+      </Paper>
+    </Stack>
+  );
 }
