@@ -21,19 +21,15 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
 import theme from "../../../../theme";
 
-const getGlAccountClassesList = async () => [
-  { id: 1, className: "Assets", classType: "Assets", status: "Active", },
-  { id: 2, className: "Liabilities", classType: "Liabilities", status: "Active", },
-  { id: 3, className: "Income", classType: "Income", status: "Active", },
-  { id: 4, className: "Costs", classType: "Expense", status: "Inactive", },
-];
+import { getChartClasses, deleteChartClass } from "../../../../api/GLAccountClasses/ChartClassApi";
+import { getChartTypes } from "../../../../api/GLAccountClasses/ChartTypeApi";
 
 function GlAccountClassesTable() {
   const [page, setPage] = useState(0);
@@ -42,32 +38,48 @@ function GlAccountClassesTable() {
   const [showInactive, setShowInactive] = useState(false);
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: glAccountClassesData = [] } = useQuery({
     queryKey: ["glAccountClasses"],
-    queryFn: getGlAccountClassesList,
+    queryFn: getChartClasses,
   });
 
-  // Filter with search + showInactive toggle
-  const filteredClasses = useMemo(() => {
-    if (!glAccountClassesData) return [];
-    let filtered = glAccountClassesData;
+  const { data: chartTypesData = [] } = useQuery({
+    queryKey: ["chartTypes"],
+    queryFn: getChartTypes,
+  });
 
-    if (!showInactive) {
-      filtered = filtered.filter((item) => item.status === "Active");
-    }
+  // Map chart type names
+  const mappedClasses = useMemo(() => {
+  if (!glAccountClassesData || !chartTypesData) return [];
+  return glAccountClassesData.map((item) => {
+    const matchedType = chartTypesData.find(
+      (ct: any) => Number(ct.id) === Number(item.ctype)
+    );
+    return {
+      ...item,
+      classTypeName: matchedType ? matchedType.name : `Unknown (${item.ctype})`,
+    };
+  });
+}, [glAccountClassesData, chartTypesData]);
+
+
+  // Filter search + inactive toggle
+  const filteredClasses = useMemo(() => {
+    let filtered = mappedClasses;
+    if (!showInactive) filtered = filtered.filter((item) => !item.inactive);
 
     if (searchQuery.trim()) {
       const lowerQuery = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (item) =>
-          item.className.toLowerCase().includes(lowerQuery) ||
-          item.classType.toLowerCase().includes(lowerQuery)
+          (item.class_name ?? "").toLowerCase().includes(lowerQuery) ||
+          (item.classTypeName ?? "").toLowerCase().includes(lowerQuery)
       );
     }
-
     return filtered;
-  }, [glAccountClassesData, searchQuery, showInactive]);
+  }, [mappedClasses, searchQuery, showInactive]);
 
   const paginatedAccounts = useMemo(() => {
     if (rowsPerPage === -1) return filteredClasses;
@@ -75,13 +87,23 @@ function GlAccountClassesTable() {
   }, [filteredClasses, page, rowsPerPage]);
 
   const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChangeRowsPerPage = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
-  const handleDelete = (id: number) => {
-    alert(`Delete GL Account Class with id: ${id}`);
+  const handleDelete = async (cid: string) => {
+    if (window.confirm("Are you sure to delete this GL Account Class?")) {
+      try {
+        await deleteChartClass(cid);
+        alert("Deleted successfully!");
+        queryClient.invalidateQueries({ queryKey: ["glAccountClasses"] });
+      } catch (error) {
+        alert("Delete failed!");
+      }
+    }
   };
 
   const breadcrumbItems = [
@@ -113,16 +135,14 @@ function GlAccountClassesTable() {
           <Button
             variant="contained"
             color="primary"
-            onClick={() => navigate("/bankingandgeneralledger/maintenance/add-gl-account-classes")}
+            onClick={() =>
+              navigate("/bankingandgeneralledger/maintenance/add-gl-account-classes")
+            }
           >
             Add GL Account Classes
           </Button>
 
-          <Button
-            variant="outlined"
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate(-1)}
-          >
+          <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>
             Back
           </Button>
         </Stack>
@@ -150,11 +170,7 @@ function GlAccountClassesTable() {
         />
 
         <Box sx={{ width: isMobile ? "100%" : "300px" }}>
-          <SearchBar
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            placeholder="Search..."
-          />
+          <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} placeholder="Search..." />
         </Box>
       </Box>
 
@@ -177,11 +193,11 @@ function GlAccountClassesTable() {
 
             <TableBody>
               {paginatedAccounts.length > 0 ? (
-                paginatedAccounts.map((item, index) => (
-                  <TableRow key={item.id} hover>
-                    <TableCell>{item.id}</TableCell>
-                    <TableCell>{item.className}</TableCell>
-                    <TableCell>{item.classType}</TableCell>
+                paginatedAccounts.map((item) => (
+                  <TableRow key={item.cid} hover>
+                    <TableCell>{item.cid}</TableCell>
+                    <TableCell>{item.class_name}</TableCell>
+                    <TableCell>{item.classTypeName}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -189,7 +205,9 @@ function GlAccountClassesTable() {
                           size="small"
                           startIcon={<EditIcon />}
                           onClick={() =>
-                            navigate("/bankingandgeneralledger/maintenance/update-gl-account-classes")
+                            navigate(
+                              `/bankingandgeneralledger/maintenance/update-gl-account-classes/${item.cid}`
+                            )
                           }
                         >
                           Edit
@@ -199,7 +217,7 @@ function GlAccountClassesTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() => handleDelete(item.cid)}
                         >
                           Delete
                         </Button>
