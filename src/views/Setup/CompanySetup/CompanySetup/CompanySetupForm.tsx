@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Stack,
@@ -17,48 +17,55 @@ import {
   FormHelperText,
 } from "@mui/material";
 import theme from "../../../../theme";
-import DateRangePicker from "../../../../components/DateRangePicker";
 import { useForm } from "react-hook-form";
+import { createCompany } from "../../../../api/CompanySetup/CompanySetupApi";
+import { getCurrencies } from "../../../../api/Currency/currencyApi";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getSalesTypes } from "../../../../api/SalesMaintenance/salesService";
+import { useNavigate } from "react-router";
 
 interface CompanyFormData {
   name: string;
   address: string;
   domicile: string;
-  phone: string;
-  fax: string;
-  email: string;
-  bcc: string;
-  companyNumber: string;
-  gst: string;
-  homeCurrency: string;
-  deleteCompanyLogo: boolean;
-  companyLogoOnReports: boolean;
-  useBarcodesOnStocks: boolean;
-  autoIncreaseDocRef: boolean;
-  useLongDescriptions: boolean;
-  companyLogoOnView: boolean;
+  phone_number: string;
+  fax_number: string;
+  email_address: string;
+  bcc_address: string;
+  official_company_number: string;
+  GSTNo: string;
+  home_currency_id: string;
+  new_company_logo: string;
+  delete_company_logo: boolean;
+  timezone_on_reports: boolean;
+  company_logo_on_reports: boolean;
+  use_barcodes_on_stocks: boolean;
+  auto_increase_of_document_references: boolean;
+  use_dimensions_on_recurrent_invoices: boolean;
+  use_long_descriptions_on_invoices: boolean;
+  company_logo_on_views: boolean;
+
   databaseSchemeVersion: string;
-  timeZone: boolean;
-  dimension: boolean;
-  fiscalYear: string;
-  taxPeriods: string;
-  taxLastPeriod: string;
-  putAltTaxDoc: boolean;
-  suppressTaxDoc: boolean;
-  automaticRevaluationCurrency: boolean;
-  baseForAutoPriceCalculation: string;
-  addPriceFromStdCost: string;
-  roundCalculatedPrices: string;
-  manufacturing: boolean;
-  fixedAssets: boolean;
-  useDimensions: boolean;
-  uiShortName: boolean;
-  uiPrintDialog: boolean;
-  searchItems: boolean;
-  searchCustomers: boolean;
-  searchSuppliers: boolean;
-  loginTimeout: string;
-  maxDayRangeInDocuments: string;
+
+  fiscal_year_id: string;
+  tax_periods: string;
+  tax_last_period: string;
+  put_alternative_tax_include_on_docs: boolean;
+  suppress_tax_rates_on_docs: boolean;
+  automatic_revaluation_currency_accounts: boolean;
+  base_auto_price_calculation: string;
+  add_price_from_std_cost: string;
+  round_calculated_prices_to_nearest_cents: string;
+  manufacturing_enabled: boolean;
+  fixed_assets_enabled: boolean;
+  use_dimensions: boolean;
+  short_name_and_name_in_list: boolean;
+  open_print_dialog_direct_on_reports: boolean;
+  search_item_list: boolean;
+  search_customer_list: boolean;
+  search_supplier_list: boolean;
+  login_timeout_seconds: string;
+  max_day_range_in_documents_days: string;
 }
 
 export default function CompanySetupForm() {
@@ -66,56 +73,82 @@ export default function CompanySetupForm() {
     name: "",
     address: "",
     domicile: "",
-    phone: "",
-    fax: "",
-    email: "",
-    bcc: "",
-    companyNumber: "",
-    gst: "",
-    homeCurrency: "USD",
-    deleteCompanyLogo: false,
-    companyLogoOnReports: false,
-    useBarcodesOnStocks: false,
-    autoIncreaseDocRef: false,
-    useLongDescriptions: false,
-    companyLogoOnView: false,
+    phone_number: "",
+    fax_number: "",
+    email_address: "",
+    bcc_address: "",
+    official_company_number: "",
+    GSTNo: "",
+    home_currency_id: "",
+    new_company_logo: "",
+    delete_company_logo: false,
+    timezone_on_reports: false,
+    company_logo_on_reports: false,
+    use_barcodes_on_stocks: false,
+    auto_increase_of_document_references: false,
+    use_dimensions_on_recurrent_invoices: false,
+    use_long_descriptions_on_invoices: false,
+    company_logo_on_views: false,
     databaseSchemeVersion: "2.4.1",
-    timeZone: false,
-    dimension: false,
-    fiscalYear: "2021",
-    taxPeriods: "",
-    taxLastPeriod: "",
-    putAltTaxDoc: false,
-    suppressTaxDoc: false,
-    automaticRevaluationCurrency: false,
-    baseForAutoPriceCalculation: "",
-    addPriceFromStdCost: "",
-    roundCalculatedPrices: "",
-    manufacturing: false,
-    fixedAssets: false,
-    useDimensions: false,
-    uiShortName: false,
-    uiPrintDialog: false,
-    searchItems: false,
-    searchCustomers: false,
-    searchSuppliers: false,
-    loginTimeout: "",
-    maxDayRangeInDocuments: "",
+    fiscal_year_id: "",
+    tax_periods: "",
+    tax_last_period: "",
+    put_alternative_tax_include_on_docs: false,
+    suppress_tax_rates_on_docs: false,
+    automatic_revaluation_currency_accounts: false,
+    base_auto_price_calculation: "",
+    add_price_from_std_cost: "",
+    round_calculated_prices_to_nearest_cents: "",
+    manufacturing_enabled: false,
+    fixed_assets_enabled: false,
+    use_dimensions: false,
+    short_name_and_name_in_list: false,
+    open_print_dialog_direct_on_reports: false,
+    search_item_list: false,
+    search_customer_list: false,
+    search_supplier_list: false,
+    login_timeout_seconds: "",
+    max_day_range_in_documents_days: "",
   });
 
   const [errors, setErrors] = useState<Partial<CompanyFormData>>({});
+  const [currencies, setCurrencies] = useState<any[]>([]);
+  const [fiscalYears, setFiscalYears] = useState<any[]>([]);
+  const [salesTypes, setSalesTypes] = useState<any[]>([]);
+  const navigate = useNavigate();
 
-  const {
-    control,
-    register,
-    formState: { errors: formErrors },
-  } = useForm({
-    defaultValues: {
-      dateRangeFrom: null,
-      dateRangeTo: null,
-    },
-    mode: "onChange",
-  });
+  useEffect(() => {
+    const loadCurrencies = async () => {
+      try {
+        const data = await getCurrencies();
+        setCurrencies(data);
+      } catch (error) {
+        console.error("Failed to fetch currencies:", error);
+      }
+    };
+
+    const loadFiscalYears = async () => {
+      try {
+        const data = await getFiscalYears();
+        setFiscalYears(data);
+      } catch (error) {
+        console.error("Failed to fetch fiscal years:", error);
+      }
+    };
+
+    const loadSalesTypes = async () => {
+      try {
+        const data = await getSalesTypes();
+        setSalesTypes(data);
+      } catch (error) {
+        console.error("Failed to fetch sales types:", error);
+      }
+    };
+
+    loadCurrencies();
+    loadFiscalYears();
+    loadSalesTypes();
+  }, []);
 
   const validate = (): boolean => {
     const newErrors: Partial<CompanyFormData> = {};
@@ -123,43 +156,59 @@ export default function CompanySetupForm() {
     if (!formData.name) newErrors.name = "Company name is required";
     if (!formData.address) newErrors.address = "Address is required";
     if (!formData.domicile) newErrors.domicile = "Domicile is required";
-    if (!formData.phone) newErrors.phone = "Phone number is required";
-    else if (!/^[0-9]+$/.test(formData.phone)) newErrors.phone = "Invalid phone number";
-    if (!formData.email) newErrors.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = "Invalid email";
-    if (formData.bcc && !/\S+@\S+\.\S+/.test(formData.bcc)) newErrors.bcc = "Invalid email";
-    if (!formData.companyNumber) newErrors.companyNumber = "Company number is required";
-    if (!formData.homeCurrency) newErrors.homeCurrency = "Currency is required";
-    if (!formData.taxPeriods) newErrors.taxPeriods = "Tax periods required";
-    else if (!/^[0-9]+$/.test(formData.taxPeriods)) newErrors.taxPeriods = "Invalid number";
-    if (formData.taxLastPeriod && !/^[0-9]+$/.test(formData.taxLastPeriod))
-      newErrors.taxLastPeriod = "Invalid number";
-    if (!formData.baseForAutoPriceCalculation)
-      newErrors.baseForAutoPriceCalculation = "Select a base for pricing";
+    if (!formData.phone_number) newErrors.phone_number = "Phone number is required";
+    else if (!/^[0-9]+$/.test(formData.phone_number)) newErrors.phone_number = "Invalid phone number";
+    if (!formData.email_address) newErrors.email_address = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(formData.email_address)) newErrors.email_address = "Invalid email";
+    if (formData.bcc_address && !/\S+@\S+\.\S+/.test(formData.bcc_address)) newErrors.bcc_address = "Invalid email";
+    if (!formData.official_company_number) newErrors.official_company_number = "Company number is required";
+    if (!formData.home_currency_id) newErrors.home_currency_id = "Currency is required";
+    if (!formData.fiscal_year_id) newErrors.fiscal_year_id = "Fiscal year is required";
+    if (!formData.tax_periods) newErrors.tax_periods = "Tax periods required";
+    else if (!/^[0-9]+$/.test(formData.tax_periods)) newErrors.tax_periods = "Invalid number";
+    if (formData.tax_last_period && !/^[0-9]+$/.test(formData.tax_last_period))
+      newErrors.tax_last_period = "Invalid number";
+    if (!formData.base_auto_price_calculation)
+      newErrors.base_auto_price_calculation = "Select a base for pricing";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value, type, checked } = e.target as HTMLInputElement;
+  const handleChange = (event: any, param?: any) => {
+    const target = event.target;
+    const name = target?.name;
+    if (!name) return;
+
+    let value: string | boolean;
+    if (param !== undefined && typeof param === 'boolean') {
+      // Checkbox
+      value = param;
+    } else if (target.type === 'file') {
+      value = target.files ? target.files[0]?.name || '' : '';
+    } else {
+      value = target.value;
+    }
+
     setFormData({
       ...formData,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: value,
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const isValid = validate();
-    const hasDateErrors = !!(formErrors.dateRangeFrom || formErrors.dateRangeTo);
 
-    if (isValid && !hasDateErrors) {
-      const fiscalYearData = {
-        fiscalYearStart: control._formValues.dateRangeFrom,
-        fiscalYearEnd: control._formValues.dateRangeTo,
-      };
-      console.log("Submitted:", { ...formData, ...fiscalYearData });
-      alert("Company setup submitted successfully!");
+    if (isValid) {
+      try {
+        const payload = formData;
+
+        await createCompany(payload);
+        alert("Company setup created successfully!");
+      } catch (error: any) {
+        console.error(error);
+        alert("Failed to save company setup");
+      }
     }
   };
 
@@ -222,94 +271,94 @@ export default function CompanySetupForm() {
 
               <TextField
                 label="Phone Number"
-                name="phone"
+                name="phone_number"
                 size="small"
                 fullWidth
-                value={formData.phone}
+                value={formData.phone_number}
                 onChange={handleChange}
-                error={!!errors.phone}
-                helperText={errors.phone}
+                error={!!errors.phone_number}
+                helperText={errors.phone_number}
               />
 
               <TextField
                 label="Fax Number"
-                name="fax"
+                name="fax_number"
                 size="small"
                 fullWidth
-                value={formData.fax}
+                value={formData.fax_number}
                 onChange={handleChange}
               />
 
               <TextField
                 label="Email Address"
-                name="email"
+                name="email_address"
                 size="small"
                 fullWidth
-                value={formData.email}
+                value={formData.email_address}
                 onChange={handleChange}
-                error={!!errors.email}
-                helperText={errors.email}
+                error={!!errors.email_address}
+                helperText={errors.email_address}
               />
 
               <TextField
                 label="BCC Address for all outgoing mails"
-                name="bcc"
+                name="bcc_address"
                 size="small"
                 fullWidth
-                value={formData.bcc}
+                value={formData.bcc_address}
                 onChange={handleChange}
-                error={!!errors.bcc}
-                helperText={errors.bcc}
+                error={!!errors.bcc_address}
+                helperText={errors.bcc_address}
               />
 
               <TextField
                 label="Official Company Number"
-                name="companyNumber"
+                name="official_company_number"
                 size="small"
                 fullWidth
-                value={formData.companyNumber}
+                value={formData.official_company_number}
                 onChange={handleChange}
-                error={!!errors.companyNumber}
-                helperText={errors.companyNumber}
+                error={!!errors.official_company_number}
+                helperText={errors.official_company_number}
               />
 
               <TextField
                 label="GST Number"
-                name="gst"
+                name="GSTNo"
                 size="small"
                 fullWidth
-                value={formData.gst}
+                value={formData.GSTNo}
                 onChange={handleChange}
               />
 
-              <FormControl size="small" fullWidth error={!!errors.homeCurrency}>
+              <FormControl size="small" fullWidth error={!!errors.home_currency_id}>
                 <InputLabel>Home Currency</InputLabel>
                 <Select
-                  name="homeCurrency"
-                  value={formData.homeCurrency}
-                  onChange={(e) =>
-                    setFormData({ ...formData, homeCurrency: e.target.value })
-                  }
+                  name="home_currency_id"
+                  value={formData.home_currency_id}
+                  onChange={handleChange}
                   label="Home Currency"
                 >
-                  <MenuItem value="USD">US Dollars</MenuItem>
-                  <MenuItem value="LKR">Sri Lankan Rupees</MenuItem>
-                  <MenuItem value="EUR">Euros</MenuItem>
+                  {currencies.map((currency) => (
+                    <MenuItem key={currency.id} value={currency.id}>
+                      {currency.currency_name}
+                    </MenuItem>
+                  ))}
                 </Select>
-                <FormHelperText>{errors.homeCurrency}</FormHelperText>
+                <FormHelperText>{errors.home_currency_id}</FormHelperText>
               </FormControl>
 
               <Box sx={{ mt: 2 }}>
                 <Typography variant="body1">New Company Logo (.jpg)</Typography>
-                <input type="file" name="newCompanyLogo" onChange={handleChange} />
+                <input type="file" name="new_company_logo" onChange={handleChange} />
               </Box>
 
               <FormControlLabel
                 label="Delete Company Logo"
                 control={
                   <Checkbox
-                    name="deleteCompanyLogo"
-                    checked={formData.deleteCompanyLogo}
+                    name="delete_company_logo"
+                    checked={formData.delete_company_logo}
                     onChange={handleChange}
                   />
                 }
@@ -319,8 +368,8 @@ export default function CompanySetupForm() {
                 label="Time Zone on Reports"
                 control={
                   <Checkbox
-                    name="timeZone"
-                    checked={formData.timeZone}
+                    name="timezone_on_reports"
+                    checked={formData.timezone_on_reports}
                     onChange={handleChange}
                   />
                 }
@@ -329,9 +378,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.companyLogoOnReports}
+                    checked={formData.company_logo_on_reports}
                     onChange={handleChange}
-                    name="companyLogoOnReports"
+                    name="company_logo_on_reports"
                   />
                 }
                 label="Company Logo on Reports"
@@ -340,9 +389,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.useBarcodesOnStocks}
+                    checked={formData.use_barcodes_on_stocks}
                     onChange={handleChange}
-                    name="useBarcodesOnStocks"
+                    name="use_barcodes_on_stocks"
                   />
                 }
                 label="Use Barcodes on Stocks"
@@ -351,9 +400,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.autoIncreaseDocRef}
+                    checked={formData.auto_increase_of_document_references}
                     onChange={handleChange}
-                    name="autoIncreaseDocRef"
+                    name="auto_increase_of_document_references"
                   />
                 }
                 label="Auto Increase of Document References"
@@ -362,9 +411,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.dimension}
+                    checked={formData.use_dimensions_on_recurrent_invoices}
                     onChange={handleChange}
-                    name="dimension"
+                    name="use_dimensions_on_recurrent_invoices"
                   />
                 }
                 label="Use Dimensions on Recurrent Invoices"
@@ -373,9 +422,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.useLongDescriptions}
+                    checked={formData.use_long_descriptions_on_invoices}
                     onChange={handleChange}
-                    name="useLongDescriptions"
+                    name="use_long_descriptions_on_invoices"
                   />
                 }
                 label="Use Long Descriptions on Invoices"
@@ -384,9 +433,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.companyLogoOnView}
+                    checked={formData.company_logo_on_views}
                     onChange={handleChange}
-                    name="companyLogoOnView"
+                    name="company_logo_on_views"
                   />
                 }
                 label="Company Logo on Views"
@@ -410,41 +459,52 @@ export default function CompanySetupForm() {
               <Divider />
 
               <Typography variant="subtitle1">Fiscal Year</Typography>
-              <DateRangePicker
-                label="Fiscal Year"
-                control={control}
-                register={register}
-                errors={formErrors}
-              />
+
+              <FormControl size="small" fullWidth error={!!errors.fiscal_year_id}>
+                <InputLabel>Fiscal Year</InputLabel>
+                <Select
+                  name="fiscal_year_id"
+                  value={formData.fiscal_year_id}
+                  onChange={handleChange}
+                  label="Fiscal Year"
+                >
+                  {fiscalYears.map((fy) => (
+                    <MenuItem key={fy.id} value={fy.id}>
+                      {fy.fiscal_year_from} - {fy.fiscal_year_to}
+                    </MenuItem>
+                  ))}
+                </Select>
+                <FormHelperText>{errors.fiscal_year_id}</FormHelperText>
+              </FormControl>
 
               <TextField
                 label="Tax Periods (months)"
-                name="taxPeriods"
+                name="tax_periods"
                 size="small"
                 fullWidth
-                value={formData.taxPeriods}
+                value={formData.tax_periods}
                 onChange={handleChange}
-                error={!!errors.taxPeriods}
-                helperText={errors.taxPeriods}
+                error={!!errors.tax_periods}
+                helperText={errors.tax_periods}
               />
 
               <TextField
                 label="Last Tax Period (months back)"
-                name="taxLastPeriod"
+                name="tax_last_period"
                 size="small"
                 fullWidth
-                value={formData.taxLastPeriod}
+                value={formData.tax_last_period}
                 onChange={handleChange}
-                error={!!errors.taxLastPeriod}
-                helperText={errors.taxLastPeriod}
+                error={!!errors.tax_last_period}
+                helperText={errors.tax_last_period}
               />
 
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.putAltTaxDoc}
+                    checked={formData.put_alternative_tax_include_on_docs}
                     onChange={handleChange}
-                    name="putAltTaxDoc"
+                    name="put_alternative_tax_include_on_docs"
                   />
                 }
                 label="Put Alternative Tax Include on Docs"
@@ -453,9 +513,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.suppressTaxDoc}
+                    checked={formData.suppress_tax_rates_on_docs}
                     onChange={handleChange}
-                    name="suppressTaxDoc"
+                    name="suppress_tax_rates_on_docs"
                   />
                 }
                 label="Suppress Tax Rate on Docs"
@@ -464,9 +524,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.automaticRevaluationCurrency}
+                    checked={formData.automatic_revaluation_currency_accounts}
                     onChange={handleChange}
-                    name="automaticRevaluationCurrency"
+                    name="automatic_revaluation_currency_accounts"
                   />
                 }
                 label="Automatic Revaluation Currency Accounts"
@@ -476,41 +536,38 @@ export default function CompanySetupForm() {
                 Sales Pricing
               </Typography>
 
-              <FormControl size="small" fullWidth error={!!errors.baseForAutoPriceCalculation}>
+              <FormControl size="small" fullWidth error={!!errors.base_auto_price_calculation}>
                 <InputLabel>Base For Auto Price Calculation</InputLabel>
                 <Select
-                  name="baseForAutoPriceCalculation"
-                  value={formData.baseForAutoPriceCalculation}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      baseForAutoPriceCalculation: e.target.value,
-                    })
-                  }
+                  name="base_auto_price_calculation"
+                  value={formData.base_auto_price_calculation}
+                  onChange={handleChange}
                   label="Base For Auto Price Calculation"
                 >
-                  <MenuItem value="standardCost">Standard Cost</MenuItem>
-                  <MenuItem value="lastCost">Last Cost</MenuItem>
-                  <MenuItem value="averageCost">Average Cost</MenuItem>
+                  {salesTypes.map((st) => (
+                    <MenuItem key={st.id} value={st.id}>
+                      {st.typeName}
+                    </MenuItem>
+                  ))}
                 </Select>
-                <FormHelperText>{errors.baseForAutoPriceCalculation}</FormHelperText>
+                <FormHelperText>{errors.base_auto_price_calculation}</FormHelperText>
               </FormControl>
 
               <TextField
                 label="Add Price from Std Cost"
-                name="addPriceFromStdCost"
+                name="add_price_from_std_cost"
                 size="small"
                 fullWidth
-                value={formData.addPriceFromStdCost}
+                value={formData.add_price_from_std_cost}
                 onChange={handleChange}
               />
 
               <TextField
                 label="Round Calculated Prices to Nearest"
-                name="roundCalculatedPrices"
+                name="round_calculated_prices_to_nearest_cents"
                 size="small"
                 fullWidth
-                value={formData.roundCalculatedPrices}
+                value={formData.round_calculated_prices_to_nearest_cents}
                 onChange={handleChange}
               />
 
@@ -521,9 +578,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.manufacturing}
+                    checked={formData.manufacturing_enabled}
                     onChange={handleChange}
-                    name="manufacturing"
+                    name="manufacturing_enabled"
                   />
                 }
                 label="Manufacturing"
@@ -532,9 +589,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.fixedAssets}
+                    checked={formData.fixed_assets_enabled}
                     onChange={handleChange}
-                    name="fixedAssets"
+                    name="fixed_assets_enabled"
                   />
                 }
                 label="Fixed Assets"
@@ -543,9 +600,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.useDimensions}
+                    checked={formData.use_dimensions}
                     onChange={handleChange}
-                    name="useDimensions"
+                    name="use_dimensions"
                   />
                 }
                 label="Use Dimensions"
@@ -559,9 +616,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.uiShortName}
+                    checked={formData.short_name_and_name_in_list}
                     onChange={handleChange}
-                    name="uiShortName"
+                    name="short_name_and_name_in_list"
                   />
                 }
                 label="Short Name and Name in List"
@@ -570,9 +627,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.uiPrintDialog}
+                    checked={formData.open_print_dialog_direct_on_reports}
                     onChange={handleChange}
-                    name="uiPrintDialog"
+                    name="open_print_dialog_direct_on_reports"
                   />
                 }
                 label="Open Print Dialog Direct on Reports"
@@ -581,9 +638,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.searchItems}
+                    checked={formData.search_item_list}
                     onChange={handleChange}
-                    name="searchItems"
+                    name="search_item_list"
                   />
                 }
                 label="Search Item List"
@@ -592,9 +649,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.searchCustomers}
+                    checked={formData.search_customer_list}
                     onChange={handleChange}
-                    name="searchCustomers"
+                    name="search_customer_list"
                   />
                 }
                 label="Search Customer List"
@@ -603,9 +660,9 @@ export default function CompanySetupForm() {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={formData.searchSuppliers}
+                    checked={formData.search_supplier_list}
                     onChange={handleChange}
-                    name="searchSuppliers"
+                    name="search_supplier_list"
                   />
                 }
                 label="Search Supplier List"
@@ -613,19 +670,19 @@ export default function CompanySetupForm() {
 
               <TextField
                 label="Login Timeout (seconds)"
-                name="loginTimeout"
+                name="login_timeout_seconds"
                 size="small"
                 fullWidth
-                value={formData.loginTimeout}
+                value={formData.login_timeout_seconds}
                 onChange={handleChange}
               />
 
               <TextField
                 label="Max Day Range in Documents (days)"
-                name="maxDayRangeInDocuments"
+                name="max_day_range_in_documents_days"
                 size="small"
                 fullWidth
-                value={formData.maxDayRangeInDocuments}
+                value={formData.max_day_range_in_documents_days}
                 onChange={handleChange}
               />
             </Stack>
