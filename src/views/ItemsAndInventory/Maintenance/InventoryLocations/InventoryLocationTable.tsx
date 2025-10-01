@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -15,72 +15,58 @@ import {
   Typography,
   useMediaQuery,
   Theme,
-  Checkbox,
-  FormControlLabel,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
 import theme from "../../../../theme";
+import {
+  getInventoryLocations as fetchInventoryLocations,
+  deleteInventoryLocation,
+} from "../../../../api/InventoryLocation/InventoryLocationApi"; 
 
-// API function to get Inventory Locations
-const getInventoryLocations = async () => [
-  {
-    id: 1,
-    locationCode: "LOC001",
-    locationName: "Colombo Warehouse",
-    address: "No. 123, Colombo",
-    phone: "0112345678",
-    secondaryPhone: "0118765432",
-    status: "Active",
-  },
-  {
-    id: 2,
-    locationCode: "LOC002",
-    locationName: "Kandy Warehouse",
-    address: "No. 456, Kandy",
-    phone: "0812345678",
-    secondaryPhone: "",
-    status: "Inactive",
-  },
-];
-
-function InventoryLocationTable() {
+export default function InventoryLocationTable() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [locations, setLocations] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showInactive, setShowInactive] = useState(false);
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
-  const { data: locationsData = [] } = useQuery({
-    queryKey: ["inventoryLocations"],
-    queryFn: getInventoryLocations,
-  });
+  // Load data from backend
+  const loadData = async () => {
+    try {
+      const data = await fetchInventoryLocations();
+      setLocations(data);
+    } catch (error) {
+      console.error("Failed to fetch Inventory Locations:", error);
+    }
+  };
 
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Filtered locations (inactive check removed)
   const filteredLocations = useMemo(() => {
-    if (!locationsData) return [];
-    let filtered = locationsData;
-
-    if (!showInactive) filtered = filtered.filter((item) => item.status === "Active");
+    let data = locations; // Show all locations
 
     if (searchQuery.trim()) {
-      const lowerQuery = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (item) =>
-          item.locationCode.toLowerCase().includes(lowerQuery) ||
-          item.locationName.toLowerCase().includes(lowerQuery) ||
-          item.address.toLowerCase().includes(lowerQuery)
+      const lower = searchQuery.toLowerCase();
+      data = data.filter(
+        (loc) =>
+          loc.loc_code.toLowerCase().includes(lower) ||
+          loc.location_name.toLowerCase().includes(lower) ||
+          loc.delivery_address.toLowerCase().includes(lower)
       );
     }
 
-    return filtered;
-  }, [locationsData, searchQuery, showInactive]);
+    return data;
+  }, [locations, searchQuery]);
 
   const paginatedLocations = useMemo(() => {
     if (rowsPerPage === -1) return filteredLocations;
@@ -93,7 +79,18 @@ function InventoryLocationTable() {
     setPage(0);
   };
 
-  const handleDelete = (id: number) => alert(`Delete Location with id: ${id}`);
+  const handleDelete = async (id: number) => {
+    if (window.confirm("Are you sure you want to delete this inventory location?")) {
+      try {
+        await deleteInventoryLocation(id);
+        alert("Inventory location deleted successfully!");
+        loadData();
+      } catch (error) {
+        console.error(error);
+        alert("Failed to delete inventory location");
+      }
+    }
+  };
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
@@ -102,14 +99,13 @@ function InventoryLocationTable() {
 
   return (
     <Stack>
-      {/* Header with buttons */}
+      {/* Header */}
       <Box
         sx={{
           padding: theme.spacing(2),
           boxShadow: 2,
           marginY: 2,
           borderRadius: 1,
-          overflowX: "hidden",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -124,9 +120,7 @@ function InventoryLocationTable() {
           <Button
             variant="contained"
             color="primary"
-            onClick={() =>
-              navigate("/itemsandinventory/maintenance/add-inventory-location")
-            }
+            onClick={() => navigate("/itemsandinventory/maintenance/add-inventory-location")}
           >
             Add Location
           </Button>
@@ -137,34 +131,25 @@ function InventoryLocationTable() {
         </Stack>
       </Box>
 
-      {/* Search + Show Inactive Toggle */}
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          px: 2,
-          mb: 2,
-          width: "100%",
-          alignItems: "center",
-        }}
-      >
-        <FormControlLabel
-          control={<Checkbox checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />}
-          label="Show also Inactive"
-        />
-
-        <Box sx={{ width: isMobile ? "100%" : "300px" }}>
-          <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} placeholder="Search..." />
-        </Box>
-      </Box>
+      {/* Search */}
+      <Stack
+  direction="row"
+  spacing={2}
+  sx={{
+    px: 2,
+    mb: 2,
+    alignItems: "center",
+    justifyContent: "flex-end", // push to right
+  }}
+>
+  <Box sx={{ width: isMobile ? "100%" : "300px" }}>
+    <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} placeholder="Search..." />
+  </Box>
+</Stack>
 
       {/* Table */}
       <Stack sx={{ alignItems: "center" }}>
-        <TableContainer
-          component={Paper}
-          elevation={2}
-          sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}
-        >
+        <TableContainer component={Paper} elevation={2} sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}>
           <Table aria-label="inventory location table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
@@ -177,26 +162,23 @@ function InventoryLocationTable() {
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
-
             <TableBody>
               {paginatedLocations.length > 0 ? (
-                paginatedLocations.map((item, index) => (
-                  <TableRow key={item.id} hover>
+                paginatedLocations.map((loc, index) => (
+                  <TableRow key={loc.id} hover>
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                    <TableCell>{item.locationCode}</TableCell>
-                    <TableCell>{item.locationName}</TableCell>
-                    <TableCell>{item.address}</TableCell>
-                    <TableCell>{item.phone}</TableCell>
-                    <TableCell>{item.secondaryPhone}</TableCell>
+                    <TableCell>{loc.loc_code}</TableCell>
+                    <TableCell>{loc.location_name}</TableCell>
+                    <TableCell>{loc.delivery_address}</TableCell>
+                    <TableCell>{loc.phone}</TableCell>
+                    <TableCell>{loc.phone2}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
                           variant="contained"
                           size="small"
                           startIcon={<EditIcon />}
-                          onClick={() =>
-                            navigate("/itemsandinventory/maintenance/update-inventory-location")
-                          }
+                          onClick={() => navigate(`/itemsandinventory/maintenance/update-inventory-location/${loc.id}`)}
                         >
                           Edit
                         </Button>
@@ -205,7 +187,7 @@ function InventoryLocationTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() => handleDelete(loc.id)}
                         >
                           Delete
                         </Button>
@@ -221,7 +203,6 @@ function InventoryLocationTable() {
                 </TableRow>
               )}
             </TableBody>
-
             <TableFooter>
               <TableRow>
                 <TablePagination
@@ -243,5 +224,3 @@ function InventoryLocationTable() {
     </Stack>
   );
 }
-
-export default InventoryLocationTable;

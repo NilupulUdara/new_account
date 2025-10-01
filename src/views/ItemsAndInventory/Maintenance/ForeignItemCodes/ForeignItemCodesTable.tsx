@@ -16,6 +16,10 @@ import {
     useMediaQuery,
     Theme,
     TextField,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -33,32 +37,48 @@ const getForeignItemCodes = async () => [
     { id: 3, code: "555555555555", quantity: 200, units: "boxes", description: "Item 3", category: "Stationery" },
 ];
 
+// Mock API function for Items dropdown
+const getItems = async () => [
+    { id: "1", item_name: "Laptop" },
+    { id: "2", item_name: "Toy Car" },
+    { id: "3", item_name: "Notebook" },
+];
+
 function ForeignItemCodesTable() {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [searchQuery, setSearchQuery] = useState("");
+    const [selectedItem, setSelectedItem] = useState(""); // dropdown state
+
     const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
     const navigate = useNavigate();
 
-    //   const [data] = useState(getForeignItemCodes()); // Replace with useQuery if API exists
     const { data: foreignItemData = [] } = useQuery({
         queryKey: ["foreignItemCodes"],
         queryFn: getForeignItemCodes,
     });
 
-    // Filter with search
-    const filteredData = useMemo(() => {
-        if (!foreignItemData) return [];
-        if (!searchQuery.trim()) return foreignItemData;
+    const { data: items = [] } = useQuery({
+        queryKey: ["items"],
+        queryFn: getItems,
+    });
 
+    // Filter data based on selected item and search query
+   const filteredData = useMemo(() => {
+    if (!selectedItem) return []; // No data if item not selected
+    let result = foreignItemData.filter(item => item.id.toString() === selectedItem); // convert id to string
+    if (searchQuery.trim()) {
         const lowerQuery = searchQuery.toLowerCase();
-        return foreignItemData.filter(
+        result = result.filter(
             (item) =>
                 item.code.includes(lowerQuery) ||
                 item.description.toLowerCase().includes(lowerQuery) ||
                 item.category.toLowerCase().includes(lowerQuery)
         );
-    }, [foreignItemData, searchQuery]);
+    }
+    return result;
+}, [foreignItemData, selectedItem, searchQuery]);
+
 
     const paginatedData = useMemo(() => {
         if (rowsPerPage === -1) return filteredData;
@@ -92,12 +112,32 @@ function ForeignItemCodesTable() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
+                    flexWrap: "wrap",
+                    gap: 2,
                 }}
             >
                 <Box>
                     <PageTitle title="Foreign Item Codes" />
                     <Breadcrumb breadcrumbs={breadcrumbItems} />
                 </Box>
+
+                <Box sx={{ px: 2, mb: 2 }}>
+                    <FormControl sx={{ minWidth: 250 }}>
+                        <InputLabel>Select Item</InputLabel>
+                        <Select
+                            value={selectedItem}
+                            label="Select Item"
+                            onChange={(e) => setSelectedItem(e.target.value)}
+                        >
+                            {items.map((item) => (
+                                <MenuItem key={item.id} value={item.id}>
+                                    {item.item_name}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </Box>
+
                 <Stack direction="row" spacing={1}>
                     <Button
                         variant="contained"
@@ -113,99 +153,100 @@ function ForeignItemCodesTable() {
                 </Stack>
             </Box>
 
-            {/* Search */}
-            <Box sx={{ display: "flex", justifyContent: "flex-end", px: 2, mb: 2 }}>
-                <TextField
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search..."
-                    size="small"
-                />
-            </Box>
+            {/* Search bar only visible if item is selected */}
+            {selectedItem && (
+                <Box sx={{ display: "flex", justifyContent: "flex-end", px: 2, mb: 2 }}>
+                    <TextField
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search..."
+                        size="small"
+                    />
+                </Box>
+            )}
 
             {/* Table */}
-            <Stack sx={{ alignItems: "center" }}>
-                <TableContainer
-                    component={Paper}
-                    elevation={2}
-                    sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}
-                >
-                    <Table aria-label="foreign item codes table">
-                        <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
-                            <TableRow>
-                                <TableCell>No</TableCell>
-                                <TableCell>EAN/UPC Code</TableCell>
-                                <TableCell>Quantity</TableCell>
-                                <TableCell>Units</TableCell>
-                                <TableCell>Description</TableCell>
-                                <TableCell>Category</TableCell>
-                                <TableCell align="center">Actions</TableCell>
-                            </TableRow>
-                        </TableHead>
+            {selectedItem && (
+                <Stack sx={{ alignItems: "center" }}>
+                    <TableContainer
+                        component={Paper}
+                        elevation={2}
+                        sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}
+                    >
+                        <Table aria-label="foreign item codes table">
+                            <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
+                                <TableRow>
+                                    <TableCell>No</TableCell>
+                                    <TableCell>EAN/UPC Code</TableCell>
+                                    <TableCell>Quantity</TableCell>
+                                    <TableCell>Units</TableCell>
+                                    <TableCell>Description</TableCell>
+                                    <TableCell>Category</TableCell>
+                                    <TableCell align="center">Actions</TableCell>
+                                </TableRow>
+                            </TableHead>
 
-                        <TableBody>
-                            {paginatedData.length > 0 ? (
-                                paginatedData.map((item, index) => (
-                                    <TableRow key={item.id} hover>
-                                        <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                                        <TableCell>{item.code}</TableCell>
-                                        <TableCell>{item.quantity}</TableCell>
-                                        <TableCell>{item.units}</TableCell>
-                                        <TableCell>{item.description}</TableCell>
-                                        <TableCell>{item.category}</TableCell>
-                                        <TableCell align="center">
-                                            <Stack direction="row" spacing={1} justifyContent="center">
-                                                <Button
-                                                    variant="contained"
-                                                    size="small"
-                                                    startIcon={<EditIcon />}
-                                                    onClick={() => navigate(
-                                                        "/itemsandinventory/maintenance/update-foreign-item-codes"
-                                                            // `/inventory/update-item/${item.id}`
-                                                    )}
-                                                >
-                                                    Edit
-                                                </Button>
-                                                <Button
-                                                    variant="outlined"
-                                                    size="small"
-                                                    color="error"
-                                                    startIcon={<DeleteIcon />}
-                                                    onClick={() => handleDelete(item.id)}
-                                                >
-                                                    Delete
-                                                </Button>
-                                            </Stack>
+                            <TableBody>
+                                {paginatedData.length > 0 ? (
+                                    paginatedData.map((item, index) => (
+                                        <TableRow key={item.id} hover>
+                                            <TableCell>{page * rowsPerPage + index + 1}</TableCell>
+                                            <TableCell>{item.code}</TableCell>
+                                            <TableCell>{item.quantity}</TableCell>
+                                            <TableCell>{item.units}</TableCell>
+                                            <TableCell>{item.description}</TableCell>
+                                            <TableCell>{item.category}</TableCell>
+                                            <TableCell align="center">
+                                                <Stack direction="row" spacing={1} justifyContent="center">
+                                                    <Button
+                                                        variant="contained"
+                                                        size="small"
+                                                        startIcon={<EditIcon />}
+                                                        onClick={() => navigate("/itemsandinventory/maintenance/update-foreign-item-codes")}
+                                                    >
+                                                        Edit
+                                                    </Button>
+                                                    <Button
+                                                        variant="outlined"
+                                                        size="small"
+                                                        color="error"
+                                                        startIcon={<DeleteIcon />}
+                                                        onClick={() => handleDelete(item.id)}
+                                                    >
+                                                        Delete
+                                                    </Button>
+                                                </Stack>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={7} align="center">
+                                            <Typography variant="body2">No Records Found</Typography>
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={7} align="center">
-                                        <Typography variant="body2">No Records Found</Typography>
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
+                                )}
+                            </TableBody>
 
-                        <TableFooter>
-                            <TableRow>
-                                <TablePagination
-                                    rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                                    colSpan={7}
-                                    count={filteredData.length}
-                                    rowsPerPage={rowsPerPage}
-                                    page={page}
-                                    onPageChange={handleChangePage}
-                                    onRowsPerPageChange={handleChangeRowsPerPage}
-                                    showFirstButton
-                                    showLastButton
-                                />
-                            </TableRow>
-                        </TableFooter>
-                    </Table>
-                </TableContainer>
-            </Stack>
+                            <TableFooter>
+                                <TableRow>
+                                    <TablePagination
+                                        rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
+                                        colSpan={7}
+                                        count={filteredData.length}
+                                        rowsPerPage={rowsPerPage}
+                                        page={page}
+                                        onPageChange={handleChangePage}
+                                        onRowsPerPageChange={handleChangeRowsPerPage}
+                                        showFirstButton
+                                        showLastButton
+                                    />
+                                </TableRow>
+                            </TableFooter>
+                        </Table>
+                    </TableContainer>
+                </Stack>
+            )}
         </Stack>
     );
 }

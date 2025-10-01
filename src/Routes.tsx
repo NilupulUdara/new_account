@@ -75,7 +75,8 @@ import UpdateSalesGroupsForm from "./views/Sales/Maintenance/SalesGroups/UpdateS
 import SalesGroupsTable from "./views/Sales/Maintenance/SalesGroups/SalesGroupsTable";
 import Suppliers from "./views/Purchases/Maintenance/Suppliers/Suppliers";
 import GeneralSettingsForm from "./views/Sales/Maintenance/AddManageCustomers/GeneralSettingsForm/GeneralSettingsForm";
-import SupplierGeneralSettingsForm from "./views/Purchases/Maintenance/Suppliers/SupplierGeneralSettingsForm";
+import SupplierGeneralSettingsForm from "./views/Purchases/Maintenance/Suppliers/GeneralSettings/SupplierGeneralSettingsForm";
+import UpdateSupplierGeneralSettingsForm from "./views/Purchases/Maintenance/Suppliers/GeneralSettings/UpdateSupplierGeneralSettingsForm";
 import UnitsOfMeasureTable from "./views/ItemsAndInventory/Maintenance/UnitsOfMeasure/UnitsOfMeasureTable";
 import AddUnitsOfMeasureForm from "./views/ItemsAndInventory/Maintenance/UnitsOfMeasure/AddUnitsOfMeasureForm";
 import UpdateUnitsOfMeasureForm from "./views/ItemsAndInventory/Maintenance/UnitsOfMeasure/UpdateUnitsOfMeasureForm";
@@ -179,6 +180,10 @@ import InstallThemes from "./views/Setup/Maintenance/InstallActivateThemes/Insta
 import SoftwareUpdateTable from "./views/Setup/Maintenance/SoftwareUpgrade/SoftwareUpgrade";
 import InstallChartOfAccounts from "./views/Setup/Maintenance/InstallChartOfAccounts/InstallChartOfAccounts";
 import SystemDiagnostics from "./views/Setup/Maintenance/SystemDiagnostic/SystemDiagnostics";
+import UpdateGeneralSettingsForm from "./views/Sales/Maintenance/AddManageCustomers/GeneralSettingsForm/UpdateGeneralSettingsForm";
+import TransactionReferencesTable from "./views/Setup/CompanySetup/TransactionReferences/TransactionReferencesTable";
+import AddTransactionReferencesForm from "./views/Setup/CompanySetup/TransactionReferences/AddTransactionReferencesForm";
+import UpdateTransactionReferencesForm from "./views/Setup/CompanySetup/TransactionReferences/UpdateTransactionReferencesForm";
 
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
@@ -492,6 +497,10 @@ const AppRoutes = () => {
         element={withLayout(MainLayout, GeneralSettingsForm)}
       />
       <Route
+        path="/sales/maintenance/add-and-manage-customers/update-customer/:id"
+        element={withLayout(MainLayout, UpdateGeneralSettingsForm)}
+      />
+      <Route
         path="/sales/maintenance/add-and-manage-customers/contacts"
         element={withLayout(MainLayout, CustomersContactsTable)}
       />
@@ -631,6 +640,10 @@ const AppRoutes = () => {
       <Route
         path="/purchase/maintenance/suppliers/general-settings"
         element={withLayout(MainLayout, SupplierGeneralSettingsForm)}
+      />
+      <Route
+        path="/purchase/maintenance/suppliers/update/:id"
+        element={withLayout(MainLayout, UpdateSupplierGeneralSettingsForm)}
       />
       <Route
         path="/purchase/maintenance/suppliers/contacts"
@@ -779,7 +792,7 @@ const AppRoutes = () => {
         element={withLayout(MainLayout, AddInventoryLocationForm)}
       />
       <Route
-        path="/itemsandinventory/maintenance/update-inventory-location"
+        path="/itemsandinventory/maintenance/update-inventory-location/:id"
         element={withLayout(MainLayout, UpdateInventoryLocationForm)}
       />
       <Route
@@ -793,6 +806,22 @@ const AppRoutes = () => {
       <Route
         path="/itemsandinventory/maintenance/update-item-categories"
         element={withLayout(MainLayout, UpdateItemCategoriesForm)}
+      />
+      <Route
+        path="/itemsandinventory/maintenance/reorder-levels"
+        element={withLayout(MainLayout, ReOrderLevelsForm)}
+      />
+      <Route
+        path="/itemsandinventory/pricingandcosts/sales-pricing"
+        element={withLayout(MainLayout, SalesPricingTable)}
+      />
+      <Route
+        path="/itemsandinventory/pricingandcosts/purchasing-pricing"
+        element={withLayout(MainLayout, PurchasingPricingTable)}
+      />
+      <Route
+        path="/itemsandinventory/pricingandcosts/standard-costs"
+        element={withLayout(MainLayout, AddStandardCostForm)}
       />
 
       <Route
@@ -1063,6 +1092,19 @@ const AppRoutes = () => {
         path="/setup/companysetup/system-and-general-gl-setup"
         element={withLayout(MainLayout, SystemGLSetupForm)}
       />
+      <Route
+        path="/setup/companysetup/transaction-references"
+        element={withLayout(MainLayout, TransactionReferencesTable)}
+      />
+      <Route
+        path="/setup/companysetup/add-transaction-references"
+        element={withLayout(MainLayout, AddTransactionReferencesForm)}
+      />
+      <Route
+        path="/setup/companysetup/update-transaction-references"
+        element={withLayout(MainLayout, UpdateTransactionReferencesForm)}
+      />
+
 
       <Route
         path="/setup/miscellaneous"

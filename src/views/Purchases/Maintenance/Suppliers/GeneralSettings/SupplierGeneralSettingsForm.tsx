@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Stack,
@@ -14,11 +14,16 @@ import {
   FormControlLabel,
   Grid,
 } from "@mui/material";
-import theme from "../../../../theme";
-import { createSupplier } from "../../../../api/Supplier/SupplierApi";
+import theme from "../../../../../theme";
+import { createSupplier } from "../../../../../api/Supplier/SupplierApi";
+import { getSuppliers } from "../../../../../api/Supplier/SupplierApi";  
 import { useNavigate } from "react-router";
 
-export default function SupplierGeneralSettingsForm() {
+interface SupplierGeneralSettingProps {
+  supplierId?: string | number;
+}
+
+export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGeneralSettingProps) {
   const [formData, setFormData] = useState({
     supplierName: "",
     supplierShortName: "",
@@ -48,6 +53,21 @@ export default function SupplierGeneralSettingsForm() {
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const navigate = useNavigate();
+
+  const [customers, setCustomers] = useState<any[]>([]);
+
+  // Fetch customers on mount
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        const res = await getSuppliers(); // API should return a list of suppliers
+        setCustomers(res || []);
+      } catch (err) {
+        console.error("Failed to fetch customers", err);
+      }
+    };
+    fetchCustomers();
+  }, []);
 
   const handleChange = (field: string, value: string | boolean) => {
     setFormData({ ...formData, [field]: value });
@@ -182,9 +202,10 @@ export default function SupplierGeneralSettingsForm() {
           backgroundColor: theme.palette.background.paper,
         }}
       >
-        <Typography variant="h5" sx={{ mb: theme.spacing(3), textAlign: "center" }}>
-          Supplier Setup
-        </Typography>
+
+      <Typography variant="h5" sx={{ mb: theme.spacing(3), textAlign: "center" }}>
+        Supplier Setup
+      </Typography>
 
         <Grid container spacing={4}>
           {/* Basic Data */}
@@ -486,13 +507,13 @@ export default function SupplierGeneralSettingsForm() {
             gap: theme.spacing(2),
           }}
         >
-          <Button variant="outlined" fullWidth onClick={() => window.history.back()}>
+          <Button variant="outlined" 
+            onClick={() => window.history.back()}>
             Back
           </Button>
           <Button
             variant="contained"
             sx={{ backgroundColor: theme.palette.primary.main }}
-            fullWidth
             onClick={handleSubmit}
           >
             Add New Supplier Details

@@ -10,7 +10,11 @@ import {
 } from "@mui/material";
 import theme from "../../../../../theme";
 
-export default function UpdateCustomerBranchesGeneralSettingForm() {
+interface CustomerBranchesProps {
+  customerId?: string | number;
+}
+
+export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }: CustomerBranchesProps) {
   const [formData, setFormData] = useState({
     // Name and Contacts
     branchName: "",

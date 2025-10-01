@@ -23,6 +23,11 @@ import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import DatePickerComponent from "../../../../../components/DatePickerComponent";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+
+interface ItemTransactionProps {
+  itemId?: string | number;
+}
+
 // Mock API
 const getItemTransactions = async () => [
     {
@@ -51,7 +56,7 @@ const getItemTransactions = async () => [
     },
 ];
 
-export default function ItemTransactionsTable() {
+export default function ItemTransactionsTable({ itemId }: ItemTransactionProps) {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [transactions, setTransactions] = useState<any[]>([]);

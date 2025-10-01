@@ -26,34 +26,39 @@ import Breadcrumb from "../../../../../components/BreadCrumb";
 import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import SearchBar from "../../../../../components/SearchBar";
+import { getCustomerContacts } from "../../../../../api/Customer/AddCustomerApi";
+
+interface CustomerContacsProps {
+  customerId?: string | number;
+}
 
 // Mock API function
-const getContacts = async () => [
-  {
-    id: 1,
-    assignment: "Manager",
-    reference: "REF001",
-    fullName: "John Doe",
-    phone: "123456789",
-    secPhone: "987654321",
-    fax: "111222333",
-    email: "john@example.com",
-    inactive: false,
-  },
-  {
-    id: 2,
-    assignment: "Assistant",
-    reference: "REF002",
-    fullName: "Jane Smith",
-    phone: "555666777",
-    secPhone: "777666555",
-    fax: "444555666",
-    email: "jane@example.com",
-    inactive: true,
-  },
-];
+// const getContacts = async () => [
+//   {
+//     id: 1,
+//     assignment: "Manager",
+//     reference: "REF001",
+//     fullName: "John Doe",
+//     phone: "123456789",
+//     secPhone: "987654321",
+//     fax: "111222333",
+//     email: "john@example.com",
+//     inactive: false,
+//   },
+//   {
+//     id: 2,
+//     assignment: "Assistant",
+//     reference: "REF002",
+//     fullName: "Jane Smith",
+//     phone: "555666777",
+//     secPhone: "777666555",
+//     fax: "444555666",
+//     email: "jane@example.com",
+//     inactive: true,
+//   },
+// ];
 
-export default function CustomersContactsTable() {
+export default function CustomersContactsTable({ customerId }: CustomerContacsProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [contacts, setContacts] = useState<any[]>([]);
@@ -64,8 +69,22 @@ export default function CustomersContactsTable() {
 
   // Fetch contacts (mock API)
   useEffect(() => {
-    getContacts().then((data) => setContacts(data));
-  }, []);
+  const fetchContacts = async () => {
+    const data = await getCustomerContacts(customerId);
+    const mappedData = data.map((item: any) => ({
+      id: item.id,
+      reference: item.customer_short_name,
+      fullName: item.customer_name,
+      phone: item.phone,
+      secPhone: item.secondary_phone,
+      email: item.email,
+    }));
+    setContacts(mappedData);
+  };
+
+  fetchContacts();
+}, [customerId]);
+
 
   // Filter by inactive & search
   const filteredData = useMemo(() => {

@@ -27,6 +27,11 @@ import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import SearchBar from "../../../../../components/SearchBar";
 
+interface ContacsProps {
+  customerId?: string | number;
+}
+
+
 // Mock API function
 const getContacts = async () => [
   {
@@ -53,7 +58,7 @@ const getContacts = async () => [
   },
 ];
 
-export default function ContactsTable() {
+export default function ContactsTable({ customerId }: ContacsProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [contacts, setContacts] = useState<any[]>([]);

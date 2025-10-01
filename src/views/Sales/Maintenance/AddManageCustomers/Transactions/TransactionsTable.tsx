@@ -24,6 +24,10 @@ import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import DatePickerComponent from "../../../../../components/DatePickerComponent";
 
+interface TransactionsProps {
+  customerId?: string | number;
+}
+
 // Mock API
 const getTransactions = async () => [
   {
@@ -64,7 +68,7 @@ const getTransactions = async () => [
   },
 ];
 
-export default function TransactionsTable() {
+export default function TransactionsTable({ customerId }: TransactionsProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -183,17 +187,28 @@ export default function TransactionsTable() {
           value={filters.type}
           onChange={handleFilterChange}
         />
-        <DatePickerComponent
-          label="From Date"
-          value={filters.fromDate}
-          onChange={(date) => handleDateChange("fromDate", date)}
-        />
-        <DatePickerComponent
-          label="To Date"
-          value={filters.toDate}
-          onChange={(date) => handleDateChange("toDate", date)}
-        />
+
+        {/* From Date */}
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Typography variant="body2">From Date:</Typography>
+          <DatePickerComponent
+            label=""
+            value={filters.fromDate}
+            onChange={(date) => handleDateChange("fromDate", date)}
+          />
+        </Stack>
+
+        {/* To Date */}
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Typography variant="body2">To Date:</Typography>
+          <DatePickerComponent
+            label=""
+            value={filters.toDate}
+            onChange={(date) => handleDateChange("toDate", date)}
+          />
+        </Stack>
       </Stack>
+
 
       <Stack sx={{ alignItems: "center" }}>
         <TableContainer

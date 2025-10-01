@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Stack,
@@ -6,11 +6,13 @@ import {
   TextField,
   Button,
   Paper,
-  FormHelperText,
   useTheme,
   useMediaQuery,
+  CircularProgress,
 } from "@mui/material";
 import theme from "../../../../theme";
+import { useParams, useNavigate } from "react-router-dom";
+import { getInventoryLocation, updateInventoryLocation } from "../../../../api/InventoryLocation/InventoryLocationApi";
 
 interface InventoryLocationFormData {
   locationCode: string;
@@ -24,6 +26,9 @@ interface InventoryLocationFormData {
 }
 
 export default function UpdateInventoryLocationForm() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState<InventoryLocationFormData>({
     locationCode: "",
     locationName: "",
@@ -38,6 +43,34 @@ export default function UpdateInventoryLocationForm() {
   const [errors, setErrors] = useState<Partial<InventoryLocationFormData>>({});
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const [loading, setLoading] = useState(true);
+
+  // Fetch previous data
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!id) return;
+      try {
+        const data = await getInventoryLocation(Number(id));
+        console.log("Fetched data:", data); // check API response
+
+        setFormData({
+          locationCode: data.loc_code || "",
+          locationName: data.location_name || "",
+          contact: data.contact || "",
+          address: data.delivery_address || "",
+          telephone: data.phone || "",
+          secondaryTelephone: data.phone2 || "",
+          facsimile: data.fax || "",
+          email: data.email || "",
+        });
+      } catch (error) {
+        console.error("Failed to fetch Location:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -53,10 +86,12 @@ export default function UpdateInventoryLocationForm() {
     if (!formData.contact) newErrors.contact = "Contact is required";
     if (!formData.address) newErrors.address = "Address is required";
     if (!formData.telephone) newErrors.telephone = "Telephone number is required";
-    else if (!/^\d{10,15}$/.test(formData.telephone)) newErrors.telephone = "Enter a valid telephone number";
+    else if (!/^\d{10,15}$/.test(formData.telephone))
+      newErrors.telephone = "Enter a valid telephone number";
     if (formData.secondaryTelephone && !/^\d{10,15}$/.test(formData.secondaryTelephone))
       newErrors.secondaryTelephone = "Enter a valid secondary telephone number";
-    if (formData.facsimile && !/^\d+$/.test(formData.facsimile)) newErrors.facsimile = "Enter a valid facsimile number";
+    if (formData.facsimile && !/^\d+$/.test(formData.facsimile))
+      newErrors.facsimile = "Enter a valid facsimile number";
     if (!formData.email) newErrors.email = "Email is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "Enter a valid email";
 
@@ -64,12 +99,34 @@ export default function UpdateInventoryLocationForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
-    if (validate()) {
-      console.log("Submitted Data:", formData);
+  const handleSubmit = async () => {
+    if (!validate()) return;
+
+    try {
+      await updateInventoryLocation(Number(id), {
+        loc_code: formData.locationCode,
+        location_name: formData.locationName,
+        delivery_address: formData.address,
+        contact: formData.contact,
+        phone: formData.telephone,
+        phone2: formData.secondaryTelephone,
+        fax: formData.facsimile,
+        email: formData.email,
+      });
       alert("Inventory Location updated successfully!");
+      navigate(-1); // go back after successful update
+    } catch (error) {
+      console.error("Update failed:", error);
+      alert("Failed to update location.");
     }
   };
+
+  if (loading)
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" height="50vh">
+        <CircularProgress />
+      </Box>
+    );
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
@@ -187,7 +244,7 @@ export default function UpdateInventoryLocationForm() {
             gap: isMobile ? 2 : 0,
           }}
         >
-          <Button onClick={() => window.history.back()}>Back</Button>
+          <Button onClick={() => navigate(-1)}>Back</Button>
 
           <Button
             variant="contained"

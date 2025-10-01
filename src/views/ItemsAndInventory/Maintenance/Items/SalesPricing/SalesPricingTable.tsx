@@ -26,6 +26,10 @@ import PageTitle from "../../../../../components/PageTitle";
 import SearchBar from "../../../../../components/SearchBar";
 import { getSalesPricing, deleteSalesPricing } from "../../../../../api/SalesPricing/SalesPricingApi";
 
+interface ItemSalesPricingProps {
+  itemId?: string | number;
+}
+
 interface SalesPricing {
     id: number;
     currency: string;
@@ -33,7 +37,7 @@ interface SalesPricing {
     price: number;
 }
 
-function SalesPricingTable() {
+function SalesPricingTable({ itemId }: ItemSalesPricingProps) {
     const [salesData, setSalesData] = useState<SalesPricing[]>([]);
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(5);

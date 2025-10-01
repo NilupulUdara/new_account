@@ -12,13 +12,17 @@ import {
 import { useNavigate } from "react-router-dom";
 import theme from "../../../../../theme";
 
+interface ItemStandardCostProps {
+  itemId?: string | number;
+}
+
 interface StandardCostFormData {
   unitCost: string;
   referenceLine: string;
   memo: string;
 }
 
-export default function AddStandardCostForm() {
+export default function AddStandardCostForm({ itemId }: ItemStandardCostProps) {
   const [formData, setFormData] = useState<StandardCostFormData>({
     unitCost: "",
     referenceLine: "",

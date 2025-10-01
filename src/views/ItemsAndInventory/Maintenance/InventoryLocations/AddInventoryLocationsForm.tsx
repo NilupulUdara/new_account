@@ -11,6 +11,7 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import theme from "../../../../theme";
+import { createInventoryLocation } from "../../../../api/InventoryLocation/InventoryLocationApi";
 
 interface InventoryLocationFormData {
   locationCode: string;
@@ -64,10 +65,27 @@ export default function AddInventoryLocationForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (validate()) {
-      console.log("Submitted Data:", formData);
-      alert("Inventory Location added successfully!");
+      try {
+        const payload = {
+          loc_code: formData.locationCode,
+          location_name: formData.locationName,
+          delivery_address: formData.address,
+          contact: formData.contact,
+          phone: formData.telephone,
+          phone2: formData.secondaryTelephone,
+          fax: formData.facsimile,
+          email: formData.email,
+        };
+
+        await createInventoryLocation(payload);
+        alert("Inventory location created successfully!");
+        window.history.back();
+      } catch (error) {
+        console.error(error);
+        alert("Failed to create Inventory location");
+      }
     }
   };
 

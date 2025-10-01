@@ -17,7 +17,11 @@ import {
 } from "@mui/material";
 import theme from "../../../../../theme";
 
-export default function ItemsGeneralSettingsForm() {
+interface ItemGeneralSettingProps {
+  itemId?: string | number;
+}
+
+export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingProps) {
   const [formData, setFormData] = useState({
     itemCode: "",
     itemName: "",
@@ -288,13 +292,12 @@ export default function ItemsGeneralSettingsForm() {
             gap: theme.spacing(2),
           }}
         >
-          <Button variant="outlined" fullWidth onClick={() => window.history.back()}>
+          <Button variant="outlined" onClick={() => window.history.back()}>
             Back
           </Button>
           <Button
             variant="contained"
             sx={{ backgroundColor: theme.palette.primary.main }}
-            fullWidth
             onClick={handleSubmit}
           >
             Insert New Item

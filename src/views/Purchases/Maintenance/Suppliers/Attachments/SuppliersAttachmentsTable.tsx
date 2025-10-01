@@ -27,6 +27,10 @@ import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import SearchBar from "../../../../../components/SearchBar";
 
+interface SupplierAttachmentProps {
+  supplierId?: string | number;
+}
+
 // Mock API
 const getAttachments = async () => [
   {
@@ -49,7 +53,7 @@ const getAttachments = async () => [
   },
 ];
 
-export default function SuppliersAttachmentsTable() {
+export default function SuppliersAttachmentsTable({ supplierId }: SupplierAttachmentProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [attachments, setAttachments] = useState<any[]>([]);

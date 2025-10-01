@@ -17,7 +17,12 @@ import theme from "../../../../../theme";
 import { createCustomer } from "../../../../../api/Customer/AddCustomerApi";
 import { useNavigate } from "react-router";
 
-export default function GeneralSettingsForm() {
+interface GeneralSettingsFormProps {
+  customerId?: string | number;
+}
+
+
+export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormProps) {
   const [formData, setFormData] = useState({
     customerName: "",
     customerShortName: "",
@@ -484,13 +489,12 @@ export default function GeneralSettingsForm() {
             gap: theme.spacing(2),
           }}
         >
-          <Button variant="outlined" fullWidth onClick={() => window.history.back()}>
+          <Button variant="outlined" onClick={() => window.history.back()}>
             Back
           </Button>
           <Button
             variant="contained"
             sx={{ backgroundColor: theme.palette.primary.main }}
-            fullWidth
             onClick={handleSubmit}
           >
             Add New Customer

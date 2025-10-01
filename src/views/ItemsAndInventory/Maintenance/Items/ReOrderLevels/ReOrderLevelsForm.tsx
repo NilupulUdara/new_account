@@ -12,13 +12,17 @@ import {
 import { useNavigate } from "react-router-dom";
 import theme from "../../../../../theme";
 
+interface ItemReOderlevelProps {
+  itemId?: string | number;
+}
+
 interface ReOrderLevelsFormData {
   location: string;
   quantityOnHand: string;
   reorderLevel: string;
 }
 
-export default function ReOrderLevelsForm() {
+export default function ReOrderLevelsForm({ itemId }: ItemReOderlevelProps) {
   const [formData, setFormData] = useState<ReOrderLevelsFormData>({
     location: "Main Warehouse", // example pre-filled value
     quantityOnHand: "150", // example pre-filled value

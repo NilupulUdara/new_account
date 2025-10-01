@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -15,110 +15,104 @@ import {
   Typography,
   useMediaQuery,
   Theme,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import theme from "../../../../../theme";
-import Breadcrumb from "../../../../../components/BreadCrumb";
-import PageTitle from "../../../../../components/PageTitle";
-import SearchBar from "../../../../../components/SearchBar";
+import Breadcrumb from "../../../../components/BreadCrumb";
+import PageTitle from "../../../../components/PageTitle";
+import SearchBar from "../../../../components/SearchBar";
+import theme from "../../../../theme";
 
-interface ItemPurchasinPricingProps {
-  itemId?: string | number;
-}
+// Mock API function
+const getTransactionReferences = async () => [
+  {
+    id: 1,
+    transactionType: "Invoice",
+    prefix: "INV",
+    pattern: "INV-YYYY-MM-XXXX",
+    isDefault: true,
+    memo: "Used for customer invoices",
+  },
+  {
+    id: 2,
+    transactionType: "Receipt",
+    prefix: "REC",
+    pattern: "REC-YYYY-MM-XXXX",
+    isDefault: false,
+    memo: "Used for receipts",
+  },
+  {
+    id: 3,
+    transactionType: "Payment",
+    prefix: "PAY",
+    pattern: "PAY-YYYY-MM-XXXX",
+    isDefault: false,
+    memo: "Used for payments",
+  },
+];
 
-interface PurchasingPricing {
-  id: number;
-  supplier: string;
-  price: number;
-  currency: string;
-  supplierUnit: string;
-  conversionFactor: number;
-  supplierDescription: string;
-}
-
-function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
-  const [purchaseData, setPurchaseData] = useState<PurchasingPricing[]>([]);
+function TransactionReferencesTable() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [searchQuery, setSearchQuery] = useState("");
-  const navigate = useNavigate();
+  const [showDefault, setShowDefault] = useState(false);
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
+  const navigate = useNavigate();
 
-  // Dummy data
-  useEffect(() => {
-    const dummyData: PurchasingPricing[] = [
-      {
-        id: 1,
-        supplier: "ABC Traders",
-        price: 50,
-        currency: "USD",
-        supplierUnit: "Box",
-        conversionFactor: 10,
-        supplierDescription: "ABC Item 123",
-      },
-      {
-        id: 2,
-        supplier: "XYZ Supplies",
-        price: 45,
-        currency: "USD",
-        supplierUnit: "Pack",
-        conversionFactor: 5,
-        supplierDescription: "XYZ Special Pack",
-      },
-      {
-        id: 3,
-        supplier: "Global Imports",
-        price: 12000,
-        currency: "LKR",
-        supplierUnit: "Carton",
-        conversionFactor: 20,
-        supplierDescription: "Sri Lanka Carton",
-      },
-    ];
-    setPurchaseData(dummyData);
-  }, []);
+  const { data: transactionData = [] } = useQuery({
+    queryKey: ["transactionReferences"],
+    queryFn: getTransactionReferences,
+  });
 
-  // Filter by search
   const filteredData = useMemo(() => {
-    return purchaseData.filter((item) => {
-      return (
-        item.supplier.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.supplierDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.currency.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.price.toString().includes(searchQuery)
+    if (!transactionData) return [];
+    let filtered = transactionData;
+
+    if (showDefault) {
+      filtered = filtered.filter((item) => item.isDefault);
+    }
+
+    if (searchQuery.trim()) {
+      const lowerQuery = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (item) =>
+          item.transactionType.toLowerCase().includes(lowerQuery) ||
+          item.prefix.toLowerCase().includes(lowerQuery) ||
+          item.pattern.toLowerCase().includes(lowerQuery) ||
+          item.memo.toLowerCase().includes(lowerQuery)
       );
-    });
-  }, [purchaseData, searchQuery]);
+    }
+
+    return filtered;
+  }, [transactionData, searchQuery, showDefault]);
 
   const paginatedData = useMemo(() => {
     if (rowsPerPage === -1) return filteredData;
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [filteredData, page, rowsPerPage]);
 
-  const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
-  const handleChangeRowsPerPage = (
-    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
+  const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
   const handleDelete = (id: number) => {
-    if (window.confirm("Are you sure you want to delete this entry?")) {
-      setPurchaseData((prev) => prev.filter((item) => item.id !== id));
-    }
+    alert(`Delete Transaction Reference with id: ${id}`);
   };
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
-    { title: "Purchasing Pricing" },
+    { title: "Transaction References" },
   ];
 
   return (
-    <Stack spacing={2}>
+    <Stack>
       {/* Header */}
       <Box
         sx={{
@@ -126,13 +120,14 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
           boxShadow: 2,
           marginY: 2,
           borderRadius: 1,
+          overflowX: "hidden",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
         }}
       >
         <Box>
-          <PageTitle title="Purchasing Pricing" />
+          <PageTitle title="Transaction References" />
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
 
@@ -141,35 +136,51 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
             variant="contained"
             color="primary"
             onClick={() =>
-              navigate("/itemsandinventory/maintenance/items/add-purchasing-pricing")
+              navigate("/setup/companysetup/add-transaction-references")
             }
           >
-            Add Purchasing Pricing
+            Add Transaction Reference
           </Button>
 
           <Button
             variant="outlined"
             startIcon={<ArrowBackIcon />}
-            onClick={() => navigate("/itemsandinventory/maintenance/items")}
+            onClick={() => navigate(-1)}
           >
             Back
           </Button>
         </Stack>
       </Box>
 
-      {/* Search */}
-      <Stack
-        direction="row"
-        sx={{ px: 2, mb: 2, width: "100%", justifyContent: "flex-end" }}
+      {/* Search + Show Default Toggle */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          px: 2,
+          mb: 2,
+          width: "100%",
+          alignItems: "center",
+        }}
       >
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={showDefault}
+              onChange={(e) => setShowDefault(e.target.checked)}
+            />
+          }
+          label="Show only Default"
+        />
+
         <Box sx={{ width: isMobile ? "100%" : "300px" }}>
           <SearchBar
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            placeholder="Search Supplier, Description, Currency or Price..."
+            placeholder="Search..."
           />
         </Box>
-      </Stack>
+      </Box>
 
       {/* Table */}
       <Stack sx={{ alignItems: "center" }}>
@@ -178,16 +189,15 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
           elevation={2}
           sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}
         >
-          <Table aria-label="purchasing pricing table">
+          <Table aria-label="transaction references table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
                 <TableCell>No</TableCell>
-                <TableCell>Supplier</TableCell>
-                <TableCell>Price</TableCell>
-                <TableCell>Currency</TableCell>
-                <TableCell>Supplier's Unit</TableCell>
-                <TableCell>Conversion Factor</TableCell>
-                <TableCell>Supplier's Description</TableCell>
+                <TableCell>Transaction Type</TableCell>
+                <TableCell>Prefix</TableCell>
+                <TableCell>Pattern</TableCell>
+                <TableCell>Default</TableCell>
+                <TableCell>Memo</TableCell>
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -197,12 +207,13 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
                 paginatedData.map((item, index) => (
                   <TableRow key={item.id} hover>
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                    <TableCell>{item.supplier}</TableCell>
-                    <TableCell>{item.price}</TableCell>
-                    <TableCell>{item.currency}</TableCell>
-                    <TableCell>{item.supplierUnit}</TableCell>
-                    <TableCell>{item.conversionFactor}</TableCell>
-                    <TableCell>{item.supplierDescription}</TableCell>
+                    <TableCell>{item.transactionType}</TableCell>
+                    <TableCell>{item.prefix}</TableCell>
+                    <TableCell>{item.pattern}</TableCell>
+                    <TableCell>
+                      <Checkbox checked={item.isDefault} disabled />
+                    </TableCell>
+                    <TableCell>{item.memo}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -210,9 +221,7 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
                           size="small"
                           startIcon={<EditIcon />}
                           onClick={() =>
-                            navigate(
-                              `/itemsandinventory/maintenance/items/update-purchasing-pricing/${item.id}`
-                            )
+                            navigate("/setup/companysetup/update-transaction-references")
                           }
                         >
                           Edit
@@ -232,7 +241,7 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={7} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -243,7 +252,7 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={8}
+                  colSpan={7}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}
@@ -261,4 +270,4 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
   );
 }
 
-export default PurchasingPricingTable;
+export default TransactionReferencesTable;

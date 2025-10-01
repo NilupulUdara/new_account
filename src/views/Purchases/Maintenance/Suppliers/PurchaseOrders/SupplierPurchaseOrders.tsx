@@ -25,6 +25,11 @@ import Breadcrumb from "../../../../../components/BreadCrumb";
 import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import DatePickerComponent from "../../../../../components/DatePickerComponent";
+import { Grid } from "@mui/material";
+
+interface SupplierPurchaseOrderProps {
+    supplierId?: string | number;
+}
 
 // Mock API
 const getPurchaseOrders = async () => [
@@ -52,7 +57,7 @@ const getPurchaseOrders = async () => [
     },
 ];
 
-export default function SupplierPurchaseOrdersTable() {
+export default function SupplierPurchaseOrdersTable({ supplierId }: SupplierPurchaseOrderProps) {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
@@ -167,44 +172,65 @@ export default function SupplierPurchaseOrdersTable() {
                 </Stack>
             </Box>
 
-            {/* Search & Filter */}
-            <Stack
-                direction={isMobile ? "column" : "row"}
-                spacing={2}
-                sx={{ px: 2, mb: 2, alignItems: "center", flexWrap: "wrap" }}
-            >
-                <TextField
-                    label="#"
-                    name="order"
-                    size="small"
-                    value={searchFilters.order}
-                    onChange={handleFilterChange}
-                />
-                <DatePickerComponent
-                    label="From Date"
-                    value={searchFilters.fromDate}
-                    onChange={(date) => handleDateChange("fromDate", date)}
-                />
-                <DatePickerComponent
-                    label="To Date"
-                    value={searchFilters.toDate}
-                    onChange={(date) => handleDateChange("toDate", date)}
-                />
-                <TextField
-                    label="Location"
-                    name="location"
-                    size="small"
-                    value={searchFilters.location}
-                    onChange={handleFilterChange}
-                />
-                <TextField
-                    label="Item"
-                    name="item"
-                    size="small"
-                    value={searchFilters.item}
-                    onChange={handleFilterChange}
-                />
-            </Stack>
+            <Grid container spacing={2} sx={{ px: 2, mb: 2 }}>
+                {/* Order # */}
+                <Grid item xs={12} sm={2}>
+                    <TextField
+                        fullWidth
+                        label="#"
+                        name="order"
+                        size="small"
+                        value={searchFilters.order}
+                        onChange={handleFilterChange}
+                    />
+                </Grid>
+
+                {/* From Date */}
+                <Grid item xs={12} sm={3} sx={{ display: "flex", alignItems: "center" }}>
+                    <Typography variant="body2" sx={{ mr: 1 }}>From Date:</Typography>
+                    <DatePickerComponent
+                        label=""
+                        value={searchFilters.fromDate}
+                        onChange={(date) => handleDateChange("fromDate", date)}
+                    />
+                </Grid>
+
+                {/* To Date */}
+                <Grid item xs={12} sm={3} sx={{ display: "flex", alignItems: "center" }}>
+                    <Typography variant="body2" sx={{ mr: 1 }}>To Date:</Typography>
+                    <DatePickerComponent
+                        label=""
+                        value={searchFilters.toDate}
+                        onChange={(date) => handleDateChange("toDate", date)}
+                    />
+                </Grid>
+
+                {/* Location */}
+                <Grid item xs={12} sm={2}>
+                    <TextField
+                        fullWidth
+                        label="Location"
+                        name="location"
+                        size="small"
+                        value={searchFilters.location}
+                        onChange={handleFilterChange}
+                    />
+                </Grid>
+
+                {/* Item */}
+                <Grid item xs={12} sm={2}>
+                    <TextField
+                        fullWidth
+                        label="Item"
+                        name="item"
+                        size="small"
+                        value={searchFilters.item}
+                        onChange={handleFilterChange}
+                    />
+                </Grid>
+            </Grid>
+
+
 
             <Stack sx={{ alignItems: "center" }}>
                 <TableContainer component={Paper} elevation={2} sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}>

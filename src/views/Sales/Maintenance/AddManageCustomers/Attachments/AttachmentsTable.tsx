@@ -27,6 +27,10 @@ import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import SearchBar from "../../../../../components/SearchBar";
 
+interface AttachmentsProps {
+  customerId?: string | number;
+}
+
 // Mock API
 const getAttachments = async () => [
   {
@@ -49,7 +53,7 @@ const getAttachments = async () => [
   },
 ];
 
-export default function AttachmentsTable() {
+export default function AttachmentsTable({ customerId }: AttachmentsProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [attachments, setAttachments] = useState<any[]>([]);

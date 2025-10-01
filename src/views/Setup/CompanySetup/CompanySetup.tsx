@@ -44,12 +44,12 @@ function CompanySetup() {
       icon: <LocalShippingIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
       path: "/setup/companysetup/access-setup",
     },
-    {
-      text: "DISPLAY SETUP",
-      change: +36,
-      icon: <ReceiptIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      path: "/setup/companysetup/display-setup",
-    },
+    // {
+    //   text: "DISPLAY SETUP",
+    //   change: +36,
+    //   icon: <ReceiptIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
+    //   path: "/setup/companysetup/display-setup",
+    // },
     {
       text: "TRANSACTION REFERENCES",
       change: -14,

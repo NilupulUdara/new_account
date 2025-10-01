@@ -25,6 +25,10 @@ import Breadcrumb from "../../../../../components/BreadCrumb";
 import PageTitle from "../../../../../components/PageTitle";
 import SearchBar from "../../../../../components/SearchBar";
 
+interface ItemStatusProps {
+  itemId?: string | number;
+}
+
 interface Status {
     id: number;
     location: string;
@@ -35,7 +39,7 @@ interface Status {
     onOrder: number;
 }
 
-function StatusTable() {
+function StatusTable({ itemId }: ItemStatusProps) {
     const [statusData, setStatusData] = useState<Status[]>([]);
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(5);

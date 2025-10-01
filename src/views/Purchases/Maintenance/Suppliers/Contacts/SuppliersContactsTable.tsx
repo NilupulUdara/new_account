@@ -27,6 +27,10 @@ import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import SearchBar from "../../../../../components/SearchBar";
 
+interface SupplierContacsProps {
+  supplierId?: string | number;
+}
+
 // Mock API function
 const getContacts = async () => [
   {
@@ -53,7 +57,7 @@ const getContacts = async () => [
   },
 ];
 
-export default function SuppliersContactsTable() {
+export default function SuppliersContactsTable({ supplierId }: SupplierContacsProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [contacts, setContacts] = useState<any[]>([]);
