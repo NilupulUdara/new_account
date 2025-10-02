@@ -10,25 +10,28 @@ import {
   useTheme,
 } from "@mui/material";
 import theme from "../../../../theme";
-import { getShippingCompany, updateShippingCompany } from "../../../../api/ShippingCompany/ShippingCompanyApi";
+import {
+  getShippingCompany,
+  updateShippingCompany,
+} from "../../../../api/ShippingCompany/ShippingCompanyApi";
 import { useParams, useNavigate } from "react-router-dom";
 
 interface ShippingCompanyFormData {
-  name: string;
-  contactPerson: string;
-  phoneNumber: string;
-  secondaryNumber: string;
+  shipper_name: string;
+  contact: string;
+  phone: string;
+  phone2: string;
   address: string;
 }
 
 export default function UpdateShippingCompanyForm() {
-  const { id } = useParams<{ id: string }>();
+  const { shipper_id } = useParams<{ shipper_id: string }>();
   const navigate = useNavigate();
   const [formData, setFormData] = useState<ShippingCompanyFormData>({
-    name: "",
-    contactPerson: "",
-    phoneNumber: "",
-    secondaryNumber: "",
+    shipper_name: "",
+    contact: "",
+    phone: "",
+    phone2: "",
     address: "",
   });
 
@@ -38,17 +41,17 @@ export default function UpdateShippingCompanyForm() {
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
 
   useEffect(() => {
-    if (!id) return;
+    if (!shipper_id) return;
 
     const fetchCompany = async () => {
       try {
-        const res = await getShippingCompany(Number(id));
+        const res = await getShippingCompany(Number(shipper_id));
         if (res) {
           setFormData({
-            name: res.name || "",
-            contactPerson: res.contact_person || "",
-            phoneNumber: res.phone_number || "",
-            secondaryNumber: res.secondary_number || "",
+            shipper_name: res.shipper_name || "",
+            contact: res.contact || "",
+            phone: res.phone || "",
+            phone2: res.phone2 || "",
             address: res.address || "",
           });
         }
@@ -59,7 +62,7 @@ export default function UpdateShippingCompanyForm() {
     };
 
     fetchCompany();
-  }, [id]);
+  }, [shipper_id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -72,14 +75,14 @@ export default function UpdateShippingCompanyForm() {
   const validate = (): boolean => {
     const newErrors: Partial<ShippingCompanyFormData> = {};
 
-    if (!formData.name) newErrors.name = "Company name is required";
-    if (!formData.contactPerson) newErrors.contactPerson = "Contact person is required";
-    if (!formData.phoneNumber) newErrors.phoneNumber = "Phone number is required";
-    else if (!/^\d{10,15}$/.test(formData.phoneNumber))
-      newErrors.phoneNumber = "Phone number must be 10–15 digits";
+    if (!formData.shipper_name) newErrors.shipper_name = "Company name is required";
+    if (!formData.contact) newErrors.contact = "Contact person is required";
+    if (!formData.phone) newErrors.phone = "Phone number is required";
+    else if (!/^\d{10,15}$/.test(formData.phone))
+      newErrors.phone = "Phone number must be 10–15 digits";
 
-    if (formData.secondaryNumber && !/^\d{10,15}$/.test(formData.secondaryNumber))
-      newErrors.secondaryNumber = "Secondary number must be 10–15 digits";
+    if (formData.phone2 && !/^\d{10,15}$/.test(formData.phone2))
+      newErrors.phone2 = "Secondary number must be 10–15 digits";
 
     if (!formData.address) newErrors.address = "Address is required";
 
@@ -88,26 +91,18 @@ export default function UpdateShippingCompanyForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-//   const handleUpdate = async () => {
-//     if (!validate()) return;
+  const handleUpdate = async () => {
+    if (!validate()) return;
 
-//     try {
-//       const payload = {
-//         name: formData.name,
-//         contact_person: formData.contactPerson,
-//         phone_number: formData.phoneNumber,
-//         secondary_number: formData.secondaryNumber,
-//         address: formData.address,
-//       };
-
-//       await updateShippingCompany(Number(id), payload);
-//       alert("Shipping company updated successfully!");
-//       navigate("/setup/miscellaneous/shipping-company");
-//     } catch (error) {
-//       console.error(error);
-//       alert("Failed to update shipping company");
-//     }
-//   };
+    try {
+      await updateShippingCompany(Number(shipper_id), formData);
+      alert("Shipping company updated successfully!");
+      navigate("/setup/miscellaneous/shipping-company");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to update shipping company");
+    }
+  };
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
@@ -120,53 +115,56 @@ export default function UpdateShippingCompanyForm() {
           borderRadius: 2,
         }}
       >
-        <Typography variant="h6" sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}>
+        <Typography
+          variant="h6"
+          sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}
+        >
           Edit Shipping Company
         </Typography>
 
         <Stack spacing={2}>
           <TextField
             label="Company Name"
-            name="name"
+            name="shipper_name"
             size="small"
             fullWidth
-            value={formData.name}
+            value={formData.shipper_name}
             onChange={handleChange}
-            error={!!errors.name}
-            helperText={errors.name}
+            error={!!errors.shipper_name}
+            helperText={errors.shipper_name}
           />
 
           <TextField
             label="Contact Person"
-            name="contactPerson"
+            name="contact"
             size="small"
             fullWidth
-            value={formData.contactPerson}
+            value={formData.contact}
             onChange={handleChange}
-            error={!!errors.contactPerson}
-            helperText={errors.contactPerson}
+            error={!!errors.contact}
+            helperText={errors.contact}
           />
 
           <TextField
             label="Phone Number"
-            name="phoneNumber"
+            name="phone"
             size="small"
             fullWidth
-            value={formData.phoneNumber}
+            value={formData.phone}
             onChange={handleChange}
-            error={!!errors.phoneNumber}
-            helperText={errors.phoneNumber}
+            error={!!errors.phone}
+            helperText={errors.phone}
           />
 
           <TextField
             label="Secondary Number"
-            name="secondaryNumber"
+            name="phone2"
             size="small"
             fullWidth
-            value={formData.secondaryNumber}
+            value={formData.phone2}
             onChange={handleChange}
-            error={!!errors.secondaryNumber}
-            helperText={errors.secondaryNumber}
+            error={!!errors.phone2}
+            helperText={errors.phone2}
           />
 
           <TextField
@@ -192,7 +190,11 @@ export default function UpdateShippingCompanyForm() {
             gap: isMobile ? 2 : 0,
           }}
         >
-          <Button fullWidth={isMobile} variant="outlined" onClick={() => navigate(-1)}>
+          <Button
+            fullWidth={isMobile}
+            variant="outlined"
+            onClick={() => navigate(-1)}
+          >
             Back
           </Button>
 
@@ -200,7 +202,7 @@ export default function UpdateShippingCompanyForm() {
             variant="contained"
             fullWidth={isMobile}
             sx={{ backgroundColor: "var(--pallet-blue)" }}
-            // onClick={handleUpdate}
+            onClick={handleUpdate}
           >
             Update Company
           </Button>

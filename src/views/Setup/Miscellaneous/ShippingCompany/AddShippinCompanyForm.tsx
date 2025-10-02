@@ -10,22 +10,22 @@ import {
   useTheme,
 } from "@mui/material";
 import theme from "../../../../theme";
-import { createShippingCompany } from "../../../../api/ShippingCompany/ShippingCompanyApi"; 
+import { createShippingCompany } from "../../../../api/ShippingCompany/ShippingCompanyApi";
 
 interface ShippingCompanyFormData {
-  name: string;
-  contactPerson: string;
-  phoneNumber: string;
-  secondaryNumber: string;
+  shipper_name: string;
+  contact: string;
+  phone: string;
+  phone2: string;
   address: string;
 }
 
 export default function AddShippingCompanyForm() {
   const [formData, setFormData] = useState<ShippingCompanyFormData>({
-    name: "",
-    contactPerson: "",
-    phoneNumber: "",
-    secondaryNumber: "",
+    shipper_name: "",
+    contact: "",
+    phone: "",
+    phone2: "",
     address: "",
   });
 
@@ -45,14 +45,14 @@ export default function AddShippingCompanyForm() {
   const validate = (): boolean => {
     const newErrors: Partial<ShippingCompanyFormData> = {};
 
-    if (!formData.name) newErrors.name = "Company name is required";
-    if (!formData.contactPerson) newErrors.contactPerson = "Contact person is required";
-    if (!formData.phoneNumber) newErrors.phoneNumber = "Phone number is required";
-    else if (!/^\d{10,15}$/.test(formData.phoneNumber))
-      newErrors.phoneNumber = "Phone number must be 10–15 digits";
+    if (!formData.shipper_name) newErrors.shipper_name = "Company name is required";
+    if (!formData.contact) newErrors.contact = "Contact person is required";
+    if (!formData.phone) newErrors.phone = "Phone number is required";
+    else if (!/^\d{10,15}$/.test(formData.phone))
+      newErrors.phone = "Phone number must be 10–15 digits";
 
-    if (formData.secondaryNumber && !/^\d{10,15}$/.test(formData.secondaryNumber))
-      newErrors.secondaryNumber = "Secondary number must be 10–15 digits";
+    if (formData.phone2 && !/^\d{10,15}$/.test(formData.phone2))
+      newErrors.phone2 = "Secondary number must be 10–15 digits";
 
     if (!formData.address) newErrors.address = "Address is required";
 
@@ -65,15 +65,7 @@ export default function AddShippingCompanyForm() {
     if (!validate()) return;
 
     try {
-      const payload = {
-        name: formData.name,
-        contact_person: formData.contactPerson,
-        phone_number: formData.phoneNumber,
-        secondary_number: formData.secondaryNumber,
-        address: formData.address,
-      };
-
-       await createShippingCompany(payload);
+      await createShippingCompany(formData); // direct snake_case object
       alert("Shipping company created successfully!");
       window.history.back();
     } catch (error) {
@@ -93,53 +85,56 @@ export default function AddShippingCompanyForm() {
           borderRadius: 2,
         }}
       >
-        <Typography variant="h6" sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}>
+        <Typography
+          variant="h6"
+          sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}
+        >
           Add Shipping Company
         </Typography>
 
         <Stack spacing={2}>
           <TextField
             label="Company Name"
-            name="name"
+            name="shipper_name"
             size="small"
             fullWidth
-            value={formData.name}
+            value={formData.shipper_name}
             onChange={handleChange}
-            error={!!errors.name}
-            helperText={errors.name}
+            error={!!errors.shipper_name}
+            helperText={errors.shipper_name}
           />
 
           <TextField
             label="Contact Person"
-            name="contactPerson"
+            name="contact"
             size="small"
             fullWidth
-            value={formData.contactPerson}
+            value={formData.contact}
             onChange={handleChange}
-            error={!!errors.contactPerson}
-            helperText={errors.contactPerson}
+            error={!!errors.contact}
+            helperText={errors.contact}
           />
 
           <TextField
             label="Phone Number"
-            name="phoneNumber"
+            name="phone"
             size="small"
             fullWidth
-            value={formData.phoneNumber}
+            value={formData.phone}
             onChange={handleChange}
-            error={!!errors.phoneNumber}
-            helperText={errors.phoneNumber}
+            error={!!errors.phone}
+            helperText={errors.phone}
           />
 
           <TextField
             label="Secondary Number"
-            name="secondaryNumber"
+            name="phone2"
             size="small"
             fullWidth
-            value={formData.secondaryNumber}
+            value={formData.phone2}
             onChange={handleChange}
-            error={!!errors.secondaryNumber}
-            helperText={errors.secondaryNumber}
+            error={!!errors.phone2}
+            helperText={errors.phone2}
           />
 
           <TextField
@@ -165,7 +160,11 @@ export default function AddShippingCompanyForm() {
             gap: isMobile ? 2 : 0,
           }}
         >
-          <Button fullWidth={isMobile} variant="outlined" onClick={() => window.history.back()}>
+          <Button
+            fullWidth={isMobile}
+            variant="outlined"
+            onClick={() => window.history.back()}
+          >
             Back
           </Button>
 

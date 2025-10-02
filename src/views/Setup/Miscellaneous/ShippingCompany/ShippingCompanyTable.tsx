@@ -49,10 +49,10 @@ export default function ShippingCompanyTable() {
       const lower = searchQuery.toLowerCase();
       data = data.filter(
         (c) =>
-          c.name.toLowerCase().includes(lower) ||
-          c.contact_person.toLowerCase().includes(lower) ||
-          c.phone_number.toLowerCase().includes(lower) ||
-          c.secondary_number.toLowerCase().includes(lower) ||
+          c.shipper_name.toLowerCase().includes(lower) ||
+          c.contact.toLowerCase().includes(lower) ||
+          c.phone.toLowerCase().includes(lower) ||
+          c.phone2.toLowerCase().includes(lower) ||
           c.address.toLowerCase().includes(lower)
       );
     }
@@ -76,7 +76,7 @@ export default function ShippingCompanyTable() {
   const handleDelete = async (id: number) => {
     if (window.confirm("Are you sure you want to delete this company?")) {
       await deleteShippingCompany(id);
-      setCompanies((prev) => prev.filter((c) => c.id !== id));
+      setCompanies((prev) => prev.filter((c) => c.shipper_id !== id));
     }
   };
 
@@ -157,12 +157,12 @@ export default function ShippingCompanyTable() {
             </TableHead>
             <TableBody>
               {paginatedData.length > 0 ? (
-                paginatedData.map((company) => (
-                  <TableRow key={company.id} hover>
-                    <TableCell>{company.name}</TableCell>
-                    <TableCell>{company.contact_person}</TableCell>
-                    <TableCell>{company.phone_number}</TableCell>
-                    <TableCell>{company.secondary_number}</TableCell>
+                paginatedData.map((company, index) => (
+                  <TableRow key={company.shipper_id ?? index} hover>
+                    <TableCell>{company.shipper_name}</TableCell>
+                    <TableCell>{company.contact}</TableCell>
+                    <TableCell>{company.phone}</TableCell>
+                    <TableCell>{company.phone2}</TableCell>
                     <TableCell>{company.address}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
@@ -170,7 +170,7 @@ export default function ShippingCompanyTable() {
                           variant="contained"
                           size="small"
                           startIcon={<EditIcon />}
-                          onClick={() => navigate(`/setup/miscellaneous/update-shipping-company/${company.id}`)}
+                          onClick={() => navigate(`/setup/miscellaneous/update-shipping-company/${company.shipper_id}`)}
                         >
                           Edit
                         </Button>
@@ -179,7 +179,7 @@ export default function ShippingCompanyTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                        // onClick={() => handleDelete(company.id)}
+                          onClick={() => handleDelete(company.shipper_id)}
                         >
                           Delete
                         </Button>
