@@ -136,14 +136,6 @@ export default function AttachmentsTable({ customerId }: AttachmentsProps) {
           >
             Add Attachment
           </Button>
-
-          <Button
-            variant="outlined"
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate("/sales/maintenance/add-and-manage-customers")}
-          >
-            Back
-          </Button>
         </Stack>
       </Box>
 

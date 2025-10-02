@@ -14,98 +14,62 @@ import {
   Typography,
   useMediaQuery,
   Theme,
-  Checkbox,
-  FormControlLabel,
 } from "@mui/material";
 import { useMemo, useState, useEffect } from "react";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
-import Breadcrumb from "../../../../../components/BreadCrumb";
-import PageTitle from "../../../../../components/PageTitle";
-import theme from "../../../../../theme";
-import SearchBar from "../../../../../components/SearchBar";
-import { getCustomerContacts } from "../../../../../api/Customer/AddCustomerApi";
+import Breadcrumb from "../../../../components/BreadCrumb";
+import PageTitle from "../../../../components/PageTitle";
+import theme from "../../../../theme";
+import SearchBar from "../../../../components/SearchBar";
 
-interface CustomerContacsProps {
-  customerId?: string | number;
-}
+// Mock API
+const getContactCategories = async () => [
+  {
+    id: 1,
+    categoryType: "Customer",
+    categorySubType: "Retail",
+    shortName: "CUST-RET",
+    description: "Retail customers",
+  },
+  {
+    id: 2,
+    categoryType: "Supplier",
+    categorySubType: "Local",
+    shortName: "SUP-LOC",
+    description: "Local suppliers",
+  },
+];
 
-// Mock API function
-// const getContacts = async () => [
-//   {
-//     id: 1,
-//     assignment: "Manager",
-//     reference: "REF001",
-//     fullName: "John Doe",
-//     phone: "123456789",
-//     secPhone: "987654321",
-//     fax: "111222333",
-//     email: "john@example.com",
-//     inactive: false,
-//   },
-//   {
-//     id: 2,
-//     assignment: "Assistant",
-//     reference: "REF002",
-//     fullName: "Jane Smith",
-//     phone: "555666777",
-//     secPhone: "777666555",
-//     fax: "444555666",
-//     email: "jane@example.com",
-//     inactive: true,
-//   },
-// ];
-
-export default function CustomersContactsTable({ customerId }: CustomerContacsProps) {
+export default function ContactCategoryTable() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-  const [contacts, setContacts] = useState<any[]>([]);
-  const [showInactive, setShowInactive] = useState(false);
+  const [categories, setCategories] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
-  // Fetch contacts (mock API)
+  // Fetch data
   useEffect(() => {
-  const fetchContacts = async () => {
-    const data = await getCustomerContacts(customerId);
-    const mappedData = data.map((item: any) => ({
-      id: item.id,
-      reference: item.customer_short_name,
-      fullName: item.customer_name,
-      phone: item.phone,
-      secPhone: item.secondary_phone,
-      email: item.email,
-    }));
-    setContacts(mappedData);
-  };
+    getContactCategories().then((data) => setCategories(data));
+  }, []);
 
-  fetchContacts();
-}, [customerId]);
-
-
-  // Filter by inactive & search
+  // Filter data
   const filteredData = useMemo(() => {
-    let data = showInactive ? contacts : contacts.filter((c) => !c.inactive);
+    if (searchQuery.trim() === "") return categories;
 
-    if (searchQuery.trim() !== "") {
-      const lower = searchQuery.toLowerCase();
-      data = data.filter(
-        (c) =>
-          c.assignment.toLowerCase().includes(lower) ||
-          c.reference.toLowerCase().includes(lower) ||
-          c.fullName.toLowerCase().includes(lower) ||
-          c.phone.toLowerCase().includes(lower) ||
-          c.secPhone.toLowerCase().includes(lower) ||
-          c.fax.toLowerCase().includes(lower) ||
-          c.email.toLowerCase().includes(lower)
-      );
-    }
-
-    return data;
-  }, [contacts, showInactive, searchQuery]);
+    const lower = searchQuery.toLowerCase();
+    return categories.filter(
+      (c) =>
+        c.categoryType.toLowerCase().includes(lower) ||
+        c.categorySubType.toLowerCase().includes(lower) ||
+        c.shortName.toLowerCase().includes(lower) ||
+        c.description.toLowerCase().includes(lower) ||
+        c.id.toString().includes(lower)
+    );
+  }, [categories, searchQuery]);
 
   const paginatedData = useMemo(() => {
     if (rowsPerPage === -1) return filteredData;
@@ -121,12 +85,12 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
   };
 
   const handleDelete = (id: number) => {
-    alert(`Delete contact with id: ${id}`);
+    alert(`Delete category with id: ${id}`);
   };
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
-    { title: "Contacts" },
+    { title: "Contact Categories" },
   ];
 
   return (
@@ -144,7 +108,7 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
         }}
       >
         <Box>
-          <PageTitle title="Contacts" />
+          <PageTitle title="Contact Categories" />
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
 
@@ -152,71 +116,74 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
           <Button
             variant="contained"
             color="primary"
-            onClick={() => navigate("/sales/maintenance/add-and-manage-customers/add-customers-contacts")}
+            onClick={() => navigate("/setup/miscellaneous/add-contact-category")}
           >
-            Add Contact
+            Add Category
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate("/setup/miscellaneous")}
+          >
+            Back
           </Button>
         </Stack>
       </Box>
 
-      {/* Checkbox & Search */}
+      {/* Search */}
       <Stack
         direction={isMobile ? "column" : "row"}
         spacing={2}
-        sx={{ px: 2, mb: 2, alignItems: "center", justifyContent: "space-between" }}
+        sx={{ px: 2, mb: 2, alignItems: "center", justifyContent: "flex-end" }}
       >
-        <FormControlLabel
-          control={
-            <Checkbox checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-          }
-          label="Show Also Inactive"
-        />
-
         <Box sx={{ width: isMobile ? "100%" : "300px" }}>
           <SearchBar
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            placeholder="Search Contacts"
+            placeholder="Search Categories"
           />
         </Box>
       </Stack>
 
       <Stack sx={{ alignItems: "center" }}>
-        <TableContainer component={Paper} elevation={2} sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}>
-          <Table aria-label="contacts table">
+        <TableContainer
+          component={Paper}
+          elevation={2}
+          sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}
+        >
+          <Table aria-label="contact categories table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
-                <TableCell>Assignment</TableCell>
-                <TableCell>Reference</TableCell>
-                <TableCell>Full Name</TableCell>
-                <TableCell>Phone</TableCell>
-                <TableCell>Sec Phone</TableCell>
-                <TableCell>Fax</TableCell>
-                <TableCell>Email</TableCell>
+                <TableCell>#</TableCell>
+                <TableCell>Category Type</TableCell>
+                <TableCell>Category Sub Type</TableCell>
+                <TableCell>Short Name</TableCell>
+                <TableCell>Description</TableCell>
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {paginatedData.length > 0 ? (
-                paginatedData.map((contact) => (
-                  <TableRow key={contact.id} hover>
-                    <TableCell>{contact.assignment}</TableCell>
-                    <TableCell>{contact.reference}</TableCell>
-                    <TableCell>{contact.fullName}</TableCell>
-                    <TableCell>{contact.phone}</TableCell>
-                    <TableCell>{contact.secPhone}</TableCell>
-                    <TableCell>{contact.fax}</TableCell>
-                    <TableCell>{contact.email}</TableCell>
+                paginatedData.map((cat) => (
+                  <TableRow key={cat.id} hover>
+                    <TableCell>{cat.id}</TableCell>
+                    <TableCell>{cat.categoryType}</TableCell>
+                    <TableCell>{cat.categorySubType}</TableCell>
+                    <TableCell>{cat.shortName}</TableCell>
+                    <TableCell>{cat.description}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
                           variant="contained"
                           size="small"
                           startIcon={<EditIcon />}
-                          onClick={() => navigate(
-                            "/sales/maintenance/add-and-manage-customers/update-customers-contacts"
-                            // `/sales/maintenancne/update-contact/${contact.id}`
-                          )}
+                          onClick={() =>
+                            navigate(
+                              "/setup/miscellaneous/update-contact-category"
+                              // `/setup/miscellaneous/update-contact-category/${cat.id}`
+                            )
+                          }
                         >
                           Edit
                         </Button>
@@ -225,7 +192,7 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(contact.id)}
+                          onClick={() => handleDelete(cat.id)}
                         >
                           Delete
                         </Button>
@@ -235,7 +202,7 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={6} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -245,7 +212,7 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={8}
+                  colSpan={6}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}

@@ -42,11 +42,13 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
         creditLimit: "",
         paymentTerms: "",
         creditStatus: "",
+        dimension: "",
         generalNotes: "",
         defaultInventoryLocation: "",
         defaultShippingCompany: "",
         salesArea: "",
         taxGroup: "",
+        status: "",
     });
 
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -78,11 +80,13 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                         creditLimit: res.credit_limit || "",
                         paymentTerms: res.payment_terms || "",
                         creditStatus: res.credit_status || "",
+                        dimension: res.dimension || "",
                         generalNotes: res.general_notes || "",
                         defaultInventoryLocation: res.default_inventory_location || "",
                         defaultShippingCompany: res.default_shipping_company || "",
                         salesArea: res.sales_area || "",
                         taxGroup: res.tax_group || "",
+                        status: res.status || "",
                     });
                 }
             } catch (error) {
@@ -207,6 +211,7 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                 default_shipping_company: formData.defaultShippingCompany,
                 sales_area: formData.salesArea,
                 tax_group: formData.taxGroup,
+                status: formData.status,
             };
 
             await updateCustomer(customerIdToUse, payload);
@@ -320,56 +325,17 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                                 </Select>
                                 <FormHelperText>{errors.salesType || " "}</FormHelperText>
                             </FormControl>
-
-                            <Typography variant="subtitle1">Branch</Typography>
-                            <Divider />
-                            <TextField
-                                label="Phone"
-                                value={formData.phone}
-                                onChange={(e) => handleChange("phone", e.target.value)}
-                                fullWidth
-                                size="small"
-                                error={!!errors.phone}
-                                helperText={errors.phone || " "}
-                            />
-                            <TextField
-                                label="Secondary Phone"
-                                value={formData.secondaryPhone}
-                                onChange={(e) => handleChange("secondaryPhone", e.target.value)}
-                                fullWidth
-                                size="small"
-                                error={!!errors.secondaryPhone}
-                                helperText={errors.secondaryPhone || " "}
-                            />
-                            <TextField
-                                label="Email"
-                                value={formData.email}
-                                onChange={(e) => handleChange("email", e.target.value)}
-                                fullWidth
-                                size="small"
-                                error={!!errors.email}
-                                helperText={errors.email || " "}
-                            />
-                            <TextField
-                                label="Bank Account Number"
-                                value={formData.bankAccount}
-                                onChange={(e) => handleChange("bankAccount", e.target.value)}
-                                fullWidth
-                                size="small"
-                                error={!!errors.bankAccount}
-                                helperText={errors.bankAccount || " "}
-                            />
-                            <FormControl fullWidth size="small" error={!!errors.salesPerson}>
-                                <InputLabel>Sales Person</InputLabel>
+                            <FormControl fullWidth size="small" error={!!errors.salesType}>
+                                <InputLabel>Customer Status</InputLabel>
                                 <Select
-                                    value={formData.salesPerson}
-                                    onChange={(e) => handleChange("salesPerson", e.target.value)}
-                                    label="Sales Person"
+                                    value={formData.status}
+                                    onChange={(e) => handleChange("status", e.target.value)}
+                                    label="Customer Status"
                                 >
-                                    <MenuItem value="John Doe">John Doe</MenuItem>
-                                    <MenuItem value="Jane Smith">Jane Smith</MenuItem>
+                                    <MenuItem value="Active">Active</MenuItem>
+                                    <MenuItem value="Inactive">Inactive</MenuItem>
                                 </Select>
-                                <FormHelperText>{errors.salesPerson || " "}</FormHelperText>
+                                <FormHelperText>{errors.salesType || " "}</FormHelperText>
                             </FormControl>
                         </Stack>
                     </Grid>
@@ -432,6 +398,33 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                                 </Select>
                                 <FormHelperText>{errors.creditStatus || " "}</FormHelperText>
                             </FormControl>
+                            <FormControl fullWidth size="small" error={!!errors.creditStatus}>
+                                <InputLabel>Dimension 1</InputLabel>
+                                <Select
+                                    value={formData.dimension}
+                                    onChange={(e) => handleChange("dimension", e.target.value)}
+                                    label="Dimension 1"
+                                >
+                                    <MenuItem value="0">0</MenuItem>
+                                    <MenuItem value="1">1</MenuItem>
+                                </Select>
+                                <FormHelperText>{errors.dimension || " "}</FormHelperText>
+                            </FormControl>
+                            {/* Customer Branches */}
+                            <Box>
+                                <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+                                    <Typography variant="subtitle2">Customer Branches</Typography>
+                                    <Button
+                                        variant="text"
+                                        size="small"
+                                        onClick={() => navigate("/sales/maintenance/customer-branches")}
+                                        sx={{ textTransform: "none" }}
+                                    >
+                                        Add or Edit
+                                    </Button>
+                                </Box>
+                            </Box>
+
                             <TextField
                                 label="General Notes"
                                 value={formData.generalNotes}
@@ -444,72 +437,6 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                                 helperText={errors.generalNotes || " "}
                             />
 
-                            <Typography variant="subtitle1">Branch</Typography>
-                            <Divider />
-                            <FormControl
-                                fullWidth
-                                size="small"
-                                error={!!errors.defaultInventoryLocation}
-                            >
-                                <InputLabel>Default Inventory Location</InputLabel>
-                                <Select
-                                    value={formData.defaultInventoryLocation}
-                                    onChange={(e) =>
-                                        handleChange("defaultInventoryLocation", e.target.value)
-                                    }
-                                    label="Default Inventory Location"
-                                >
-                                    <MenuItem value="Warehouse 1">Warehouse 1</MenuItem>
-                                    <MenuItem value="Warehouse 2">Warehouse 2</MenuItem>
-                                </Select>
-                                <FormHelperText>
-                                    {errors.defaultInventoryLocation || " "}
-                                </FormHelperText>
-                            </FormControl>
-                            <FormControl
-                                fullWidth
-                                size="small"
-                                error={!!errors.defaultShippingCompany}
-                            >
-                                <InputLabel>Default Shipping Company</InputLabel>
-                                <Select
-                                    value={formData.defaultShippingCompany}
-                                    onChange={(e) =>
-                                        handleChange("defaultShippingCompany", e.target.value)
-                                    }
-                                    label="Default Shipping Company"
-                                >
-                                    <MenuItem value="DHL">DHL</MenuItem>
-                                    <MenuItem value="FedEx">FedEx</MenuItem>
-                                </Select>
-                                <FormHelperText>
-                                    {errors.defaultShippingCompany || " "}
-                                </FormHelperText>
-                            </FormControl>
-                            <FormControl fullWidth size="small" error={!!errors.salesArea}>
-                                <InputLabel>Sales Area</InputLabel>
-                                <Select
-                                    value={formData.salesArea}
-                                    onChange={(e) => handleChange("salesArea", e.target.value)}
-                                    label="Sales Area"
-                                >
-                                    <MenuItem value="North">North</MenuItem>
-                                    <MenuItem value="South">South</MenuItem>
-                                </Select>
-                                <FormHelperText>{errors.salesArea || " "}</FormHelperText>
-                            </FormControl>
-                            <FormControl fullWidth size="small" error={!!errors.taxGroup}>
-                                <InputLabel>Tax Group</InputLabel>
-                                <Select
-                                    value={formData.taxGroup}
-                                    onChange={(e) => handleChange("taxGroup", e.target.value)}
-                                    label="Tax Group"
-                                >
-                                    <MenuItem value="GST">GST</MenuItem>
-                                    <MenuItem value="VAT">VAT</MenuItem>
-                                </Select>
-                                <FormHelperText>{errors.taxGroup || " "}</FormHelperText>
-                            </FormControl>
                         </Stack>
                     </Grid>
                 </Grid>

@@ -162,16 +162,6 @@ export default function TransactionsTable({ customerId }: TransactionsProps) {
           <PageTitle title="Transactions" />
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
-
-        <Stack direction="row" spacing={1}>
-          <Button
-            variant="outlined"
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate("/sales/maintenance/add-and-manage-customers/")}
-          >
-            Back
-          </Button>
-        </Stack>
       </Box>
 
       {/* Search & Filter */}

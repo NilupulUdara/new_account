@@ -173,15 +173,7 @@ export default function SalesOrdersTable({ customerId }: SalesOrdersProps) {
                     <Breadcrumb breadcrumbs={breadcrumbItems} />
                 </Box>
 
-                <Stack direction="row" spacing={1}>
-                    <Button
-                        variant="outlined"
-                        startIcon={<ArrowBackIcon />}
-                        onClick={() => navigate("/sales/maintenance/add-and-manage-customers")}
-                    >
-                        Back
-                    </Button>
-                </Stack>
+                
             </Box>
 
             {/* Search & Filter */}

@@ -184,7 +184,21 @@ import UpdateGeneralSettingsForm from "./views/Sales/Maintenance/AddManageCustom
 import TransactionReferencesTable from "./views/Setup/CompanySetup/TransactionReferences/TransactionReferencesTable";
 import AddTransactionReferencesForm from "./views/Setup/CompanySetup/TransactionReferences/AddTransactionReferencesForm";
 import UpdateTransactionReferencesForm from "./views/Setup/CompanySetup/TransactionReferences/UpdateTransactionReferencesForm";
-
+import AddPaymentTermsForm from "./views/Setup/Miscellaneous/PaymentTerms/AddPaymentTermsForm";
+import UpdatePaymentTermsForm from "./views/Setup/Miscellaneous/PaymentTerms/UpdatePaymentTermsForm";
+import PaymentTermsTable from "./views/Setup/Miscellaneous/PaymentTerms/PaymentTermsTable";
+import ShippingCompanyTable from "./views/Setup/Miscellaneous/ShippingCompany/ShippingCompanyTable";
+import AddShippingCompanyForm from "./views/Setup/Miscellaneous/ShippingCompany/AddShippinCompanyForm";
+import UpdateShippingCompanyForm from "./views/Setup/Miscellaneous/ShippingCompany/UpdateShippinCompanyForm";
+import ContactCategoryTable from "./views/Setup/Miscellaneous/ContactCategories/ContactCategoryTable";
+import AddContactCategory from "./views/Setup/Miscellaneous/ContactCategories/AddContactCategoryForm";
+import UpdateContactCategory from "./views/Setup/Miscellaneous/ContactCategories/UpdateContactCategoryForm";
+import PrintersTable from "./views/Setup/Miscellaneous/Printers/PrintersTable";
+import AddPrintersForm from "./views/Setup/Miscellaneous/Printers/AddPrintersForm";
+import UpdatePrintersForm from "./views/Setup/Miscellaneous/Printers/UpdatePrintersForm";
+import PosTable from "./views/Setup/Miscellaneous/PointsOfSales/PosTable";
+import AddPosForm from "./views/Setup/Miscellaneous/PointsOfSales/AddPosForm";
+import UpdatePosForm from "./views/Setup/Miscellaneous/PointsOfSales/UpdatePosForm";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -275,16 +289,17 @@ function withoutLayout(Component: React.LazyExoticComponent<any>) {
 }
 
 const ProtectedRoute = () => {
-  const { user, status } = useCurrentUser();
+  const { data: user, status } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: validateUser,
+  });
 
-  if (status === "loading" || status === "idle" || status === "pending") {
-    return <PageLoader />;
-  }
-
+  // If no user is authenticated, redirect to the login page
   if (!user) {
-    return <Navigate to="/" />;
+    return <Navigate to="/" replace />;
   }
 
+  // If user is authenticated, render the child routes
   return <Outlet />;
 };
 
@@ -471,728 +486,787 @@ const AppRoutes = () => {
           // ]
         )}
       />
-
-      <Route
-        path="/sales/transactions"
-        element={withLayout(MainLayout, SalesTransactions)}
-      />
-      <Route
-        path="/sales/transactions/sales-quotation-entry"
-        element={withLayout(MainLayout, SalesQuotationEntry)}
-      />
-      <Route
-        path="/sales/inquiriesandreports"
-        element={withLayout(MainLayout, InquiriesAndReports)}
-      />
-      <Route
-        path="/sales/maintenance"
-        element={withLayout(MainLayout, Maintenance)}
-      />
-      <Route
-        path="/sales/maintenance/add-and-manage-customers"
-        element={withLayout(MainLayout, AddManageCutomers)}
-      />
-      <Route
-        path="/sales/maintenance/add-and-manage-customers/general-settings"
-        element={withLayout(MainLayout, GeneralSettingsForm)}
-      />
-      <Route
-        path="/sales/maintenance/add-and-manage-customers/update-customer/:id"
-        element={withLayout(MainLayout, UpdateGeneralSettingsForm)}
-      />
-      <Route
-        path="/sales/maintenance/add-and-manage-customers/contacts"
-        element={withLayout(MainLayout, CustomersContactsTable)}
-      />
-      <Route
-        path="/sales/maintenance/add-and-manage-customers/add-customers-contacts"
-        element={withLayout(MainLayout, AddCustomersContactsForm)}
-      />
-      <Route
-        path="/sales/maintenance/add-and-manage-customers/update-customers-contacts"
-        element={withLayout(MainLayout, UpdateCustomersContactsForm)}
-      />
-      <Route
-        path="/sales/maintenance/add-and-manage-customers/transactions"
-        element={withLayout(MainLayout, TransactionsTable)}
-      />
-      <Route
-        path="/sales/maintenance/add-and-manage-customers/sales-orders"
-        element={withLayout(MainLayout, SalesOrdersTable)}
-      />
-      <Route
-        path="/sales/maintenance/add-and-manage-customers/attachments"
-        element={withLayout(MainLayout, AttachmentsTable)}
-      />
-      <Route
-        path="/sales/maintenance/add-and-manage-customers/add-attachments"
-        element={withLayout(MainLayout, AddAttachmentsForm)}
-      />
-      <Route
-        path="/sales/maintenance/add-and-manage-customers/update-attachments"
-        element={withLayout(MainLayout, UpdateAttachmentsForm)}
-      />
-      <Route
-        path="/sales/maintenance/customer-branches"
-        element={withLayout(MainLayout, CustomersBranches)}
-      />
-      <Route
-        path="/sales/maintenance/customer-branches/general-settings"
-        element={withLayout(MainLayout, CustomerBranchesTable)}
-      />
-      <Route
-        path="/sales/maintenance/customer-branches/add-general-settings"
-        element={withLayout(MainLayout, AddCustomerBranchesGeneralSettingForm)}
-      />
-      <Route
-        path="/sales/maintenance/customer-branches/update-general-settings"
-        element={withLayout(MainLayout, UpdateCustomerBranchesGeneralSettingForm)}
-      />
-      <Route
-        path="/sales/maintenance/customer-branches/branches-contacts"
-        element={withLayout(MainLayout, ContactsTable)}
-      />
-      <Route
-        path="/sales/maintenance/customer-branches/add-customer-branches-contacts"
-        element={withLayout(MainLayout, AddContactsForm)}
-      />
-      <Route
-        path="/sales/maintenance/customer-branches/update-customer-branches-contacts"
-        element={withLayout(MainLayout, UpdateContactsForm)}
-      />
-      <Route
-        path="/sales/maintenance/sales-groups"
-        element={withLayout(MainLayout, SalesGroupsTable)}
-      />
-      <Route
-        path="/sales/maintenance/sales-groups/add-sales-groups"
-        element={withLayout(MainLayout, AddSalesGroupsForm)}
-      />
-      <Route
-        path="/sales/maintenance/sales-groups/update-sales-groups/:id"
-        element={withLayout(MainLayout, UpdateSalesGroupsForm)}
-      />
-      <Route
-        path="/sales/maintenance/sales-persons"
-        element={withLayout(MainLayout, SalesPersonTable)}
-      />
-      <Route
-        path="/sales/maintenance/sales-persons/add-sales-person"
-        element={withLayout(MainLayout, AddSalesPerson)}
-      />
-      <Route
-        path="/sales/maintenance/sales-persons/update-sales-person/:id"
-        element={withLayout(MainLayout, UpdateSalesPerson)}
-      /><Route
-        path="/sales/maintenance/sales-areas"
-        element={withLayout(MainLayout, SalesAreaTable)}
-      />
-      <Route
-        path="/sales/maintenance/sales-areas/add-sales-area"
-        element={withLayout(MainLayout, AddSalesAreaForm)}
-      />
-      <Route
-        path="/sales/maintenance/sales-areas/update-sales-area/:id"
-        element={withLayout(MainLayout, UpdateSalesAreaForm)}
-      />
-      <Route
-        path="/sales/maintenance/sales-types/"
-        element={withLayout(MainLayout, SalesTypesTable)}
-      />
-      <Route
-        path="/sales/maintenance/sales-areas/add-sales-types"
-        element={withLayout(MainLayout, AddSalesTypesForm)}
-      />
-      <Route
-        path="/sales/maintenance/sales-areas/update-sales-types/:id"
-        element={withLayout(MainLayout, UpdateSalesTypesForm)}
-      />
-      <Route
-        path="/sales/maintenance/credit-status-setup"
-        element={withLayout(MainLayout, CreditStatusTable)}
-      />
-      <Route
-        path="/sales/maintenance/credit-status-setup/add-credit-status"
-        element={withLayout(MainLayout, AddCreditStatusForm)}
-      />
-      <Route
-        path="/sales/maintenance/credit-status-setup/update-credit-status/:id"
-        element={withLayout(MainLayout, UpdateCreditStatusForm)}
-      />
-
-
-      <Route
-        path="/purchase/transactions"
-        element={withLayout(MainLayout, PurchaseTransactions)}
-      />
-      <Route
-        path="/purchase/inquiriesandreports"
-        element={withLayout(MainLayout, PurchaseInquiriesAndReports)}
-      />
-      <Route
-        path="/purchase/maintenance"
-        element={withLayout(MainLayout, PurchaseMaintenance)}
-      />
-      <Route
-        path="/purchase/maintenance/suppliers"
-        element={withLayout(MainLayout, Suppliers)}
-      />
-      <Route
-        path="/purchase/maintenance/suppliers/general-settings"
-        element={withLayout(MainLayout, SupplierGeneralSettingsForm)}
-      />
-      <Route
-        path="/purchase/maintenance/suppliers/update/:id"
-        element={withLayout(MainLayout, UpdateSupplierGeneralSettingsForm)}
-      />
-      <Route
-        path="/purchase/maintenance/suppliers/contacts"
-        element={withLayout(MainLayout, SuppliersContactsTable)}
-      />
-      <Route
-        path="/purchase/maintenance/suppliers/add-supplier-contact"
-        element={withLayout(MainLayout, AddSuppliersContactsForm)}
-      />
-      <Route
-        path="/purchase/maintenance/suppliers/update-supplier-contact"
-        element={withLayout(MainLayout, UpdateSuppliersContactsForm)}
-      />
-      <Route
-        path="/purchase/maintenance/suppliers/attachments"
-        element={withLayout(MainLayout, SuppliersAttachmentsTable)}
-      />
-      <Route
-        path="/purchase/maintenance/suppliers/add-attachments"
-        element={withLayout(MainLayout, AddSuppliersAttachmentsForm)}
-      />
-      <Route
-        path="/purchase/maintenance/suppliers/update-attachments"
-        element={withLayout(MainLayout, UpdateSuppliersAttachmentsForm)}
-      />
-      <Route
-        path="/purchase/maintenance/suppliers/transactions"
-        element={withLayout(MainLayout, SuppliersTransactionsTable)}
-      />
-      <Route
-        path="/purchase/maintenance/suppliers/purchases-orders"
-        element={withLayout(MainLayout, SupplierPurchaseOrdersTable)}
-      />
-
-      <Route
-        path="/itemsandinventory/transactions"
-        element={withLayout(MainLayout, ItemsTransactions)}
-      />
-      <Route
-        path="/itemsandinventory/inquiriesandreports"
-        element={withLayout(MainLayout, ItemsInquiriesAndReports)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance"
-        element={withLayout(MainLayout, ItemsMaintenance)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/units-of-measure"
-        element={withLayout(MainLayout, UnitsOfMeasureTable)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/units-of-measure/add-units-of-measure"
-        element={withLayout(MainLayout, AddUnitsOfMeasureForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/units-of-measure/update-units-of-measure/:id"
-        element={withLayout(MainLayout, UpdateUnitsOfMeasureForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/items"
-        element={withLayout(MainLayout, Items)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/items/general-settings"
-        element={withLayout(MainLayout, ItemsGeneralSettingsForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/items/sales-pricing"
-        element={withLayout(MainLayout, SalesPricingTable)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/items/add-sales-pricing"
-        element={withLayout(MainLayout, AddSalesPricingForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/items/update-sales-pricing/:id"
-        element={withLayout(MainLayout, UpdateSalesPricingForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/items/purchasing-pricing"
-        element={withLayout(MainLayout, PurchasingPricingTable)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/items/add-purchasing-pricing"
-        element={withLayout(MainLayout, AddPurchasingPricingForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/items/update-purchasing-pricing"
-        element={withLayout(MainLayout, UpdatePurchasePricingForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/items/standard-costs"
-        element={withLayout(MainLayout, AddStandardCostForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/items/reorder-levels"
-        element={withLayout(MainLayout, ReOrderLevelsForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/items/transactions"
-        element={withLayout(MainLayout, ItemTransactionsTable)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/items/status"
-        element={withLayout(MainLayout, StatusTable)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/items/attachments"
-        element={withLayout(MainLayout, ItemAttachmentsTable)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/items/add-attachments"
-        element={withLayout(MainLayout, AddItemAttachmentsForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/items/update-attachments"
-        element={withLayout(MainLayout, UpdateItemAttachmentsForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/update-units-of-measure"
-        element={withLayout(MainLayout, UpdateUnitsOfMeasureForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/foreign-item-codes"
-        element={withLayout(MainLayout, ForeignItemCodesTable)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/add-foreign-item-codes"
-        element={withLayout(MainLayout, AddForeignItemCodesForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/update-foreign-item-codes"
-        element={withLayout(MainLayout, UpdateForeignItemCodesForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/sales-kits"
-        element={withLayout(MainLayout, AddSalesKitsForm)}
-      />
-
-      <Route
-        path="/itemsandinventory/maintenance/inventory-locations"
-        element={withLayout(MainLayout, InventoryLocationTable)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/add-inventory-location"
-        element={withLayout(MainLayout, AddInventoryLocationForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/update-inventory-location/:id"
-        element={withLayout(MainLayout, UpdateInventoryLocationForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/item-categories"
-        element={withLayout(MainLayout, ItemCategoriesTable)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/add-item-categories"
-        element={withLayout(MainLayout, AddItemCategoriesForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/update-item-categories"
-        element={withLayout(MainLayout, UpdateItemCategoriesForm)}
-      />
-      <Route
-        path="/itemsandinventory/maintenance/reorder-levels"
-        element={withLayout(MainLayout, ReOrderLevelsForm)}
-      />
-      <Route
-        path="/itemsandinventory/pricingandcosts/sales-pricing"
-        element={withLayout(MainLayout, SalesPricingTable)}
-      />
-      <Route
-        path="/itemsandinventory/pricingandcosts/purchasing-pricing"
-        element={withLayout(MainLayout, PurchasingPricingTable)}
-      />
-      <Route
-        path="/itemsandinventory/pricingandcosts/standard-costs"
-        element={withLayout(MainLayout, AddStandardCostForm)}
-      />
-
-      <Route
-        path="/itemsandinventory/pricingandcosts"
-        element={withLayout(MainLayout, ItemsPricingAndCosts)}
-      />
-
-      <Route
-        path="/manufacturing/transactions"
-        element={withLayout(MainLayout, ManufacturingTransactions)}
-      />
-      <Route
-        path="/manufacturing/inquiriesandreports"
-        element={withLayout(MainLayout, ManufacturingInquiriesAndReports)}
-      />
-      <Route
-        path="/manufacturing/maintenance"
-        element={withLayout(MainLayout, ManufacturingMaintenance)}
-      />
-      <Route
-        path="/manufacturing/maintenance/work-centres"
-        element={withLayout(MainLayout, WorkCentresTable)}
-      />
-      <Route
-        path="/manufacturing/maintenance/add-work-centres"
-        element={withLayout(MainLayout, AddWorkCentresForm)}
-      />
-      <Route
-        path="/manufacturing/maintenance/update-work-centres/:id"
-        element={withLayout(MainLayout, UpdateWorkCentresForm)}
-      />
+      <Route element={<ProtectedRoute />}>
+        <Route
+          path="/sales/transactions"
+          element={withLayout(MainLayout, SalesTransactions)}
+        />
+        <Route
+          path="/sales/transactions/sales-quotation-entry"
+          element={withLayout(MainLayout, SalesQuotationEntry)}
+        />
+        <Route
+          path="/sales/inquiriesandreports"
+          element={withLayout(MainLayout, InquiriesAndReports)}
+        />
+        <Route
+          path="/sales/maintenance"
+          element={withLayout(MainLayout, Maintenance)}
+        />
+        <Route
+          path="/sales/maintenance/add-and-manage-customers"
+          element={withLayout(MainLayout, AddManageCutomers)}
+        />
+        <Route
+          path="/sales/maintenance/add-and-manage-customers/general-settings"
+          element={withLayout(MainLayout, GeneralSettingsForm)}
+        />
+        <Route
+          path="/sales/maintenance/add-and-manage-customers/update-customer/:id"
+          element={withLayout(MainLayout, UpdateGeneralSettingsForm)}
+        />
+        <Route
+          path="/sales/maintenance/add-and-manage-customers/contacts"
+          element={withLayout(MainLayout, CustomersContactsTable)}
+        />
+        <Route
+          path="/sales/maintenance/add-and-manage-customers/add-customers-contacts"
+          element={withLayout(MainLayout, AddCustomersContactsForm)}
+        />
+        <Route
+          path="/sales/maintenance/add-and-manage-customers/update-customers-contacts"
+          element={withLayout(MainLayout, UpdateCustomersContactsForm)}
+        />
+        <Route
+          path="/sales/maintenance/add-and-manage-customers/transactions"
+          element={withLayout(MainLayout, TransactionsTable)}
+        />
+        <Route
+          path="/sales/maintenance/add-and-manage-customers/sales-orders"
+          element={withLayout(MainLayout, SalesOrdersTable)}
+        />
+        <Route
+          path="/sales/maintenance/add-and-manage-customers/attachments"
+          element={withLayout(MainLayout, AttachmentsTable)}
+        />
+        <Route
+          path="/sales/maintenance/add-and-manage-customers/add-attachments"
+          element={withLayout(MainLayout, AddAttachmentsForm)}
+        />
+        <Route
+          path="/sales/maintenance/add-and-manage-customers/update-attachments"
+          element={withLayout(MainLayout, UpdateAttachmentsForm)}
+        />
+        <Route
+          path="/sales/maintenance/customer-branches"
+          element={withLayout(MainLayout, CustomersBranches)}
+        />
+        <Route
+          path="/sales/maintenance/customer-branches/general-settings"
+          element={withLayout(MainLayout, CustomerBranchesTable)}
+        />
+        <Route
+          path="/sales/maintenance/customer-branches/add-general-settings"
+          element={withLayout(MainLayout, AddCustomerBranchesGeneralSettingForm)}
+        />
+        <Route
+          path="/sales/maintenance/customer-branches/update-general-settings"
+          element={withLayout(MainLayout, UpdateCustomerBranchesGeneralSettingForm)}
+        />
+        <Route
+          path="/sales/maintenance/customer-branches/branches-contacts"
+          element={withLayout(MainLayout, ContactsTable)}
+        />
+        <Route
+          path="/sales/maintenance/customer-branches/add-customer-branches-contacts"
+          element={withLayout(MainLayout, AddContactsForm)}
+        />
+        <Route
+          path="/sales/maintenance/customer-branches/update-customer-branches-contacts"
+          element={withLayout(MainLayout, UpdateContactsForm)}
+        />
+        <Route
+          path="/sales/maintenance/sales-groups"
+          element={withLayout(MainLayout, SalesGroupsTable)}
+        />
+        <Route
+          path="/sales/maintenance/sales-groups/add-sales-groups"
+          element={withLayout(MainLayout, AddSalesGroupsForm)}
+        />
+        <Route
+          path="/sales/maintenance/sales-groups/update-sales-groups/:id"
+          element={withLayout(MainLayout, UpdateSalesGroupsForm)}
+        />
+        <Route
+          path="/sales/maintenance/sales-persons"
+          element={withLayout(MainLayout, SalesPersonTable)}
+        />
+        <Route
+          path="/sales/maintenance/sales-persons/add-sales-person"
+          element={withLayout(MainLayout, AddSalesPerson)}
+        />
+        <Route
+          path="/sales/maintenance/sales-persons/update-sales-person/:id"
+          element={withLayout(MainLayout, UpdateSalesPerson)}
+        /><Route
+          path="/sales/maintenance/sales-areas"
+          element={withLayout(MainLayout, SalesAreaTable)}
+        />
+        <Route
+          path="/sales/maintenance/sales-areas/add-sales-area"
+          element={withLayout(MainLayout, AddSalesAreaForm)}
+        />
+        <Route
+          path="/sales/maintenance/sales-areas/update-sales-area/:id"
+          element={withLayout(MainLayout, UpdateSalesAreaForm)}
+        />
+        <Route
+          path="/sales/maintenance/sales-types/"
+          element={withLayout(MainLayout, SalesTypesTable)}
+        />
+        <Route
+          path="/sales/maintenance/sales-areas/add-sales-types"
+          element={withLayout(MainLayout, AddSalesTypesForm)}
+        />
+        <Route
+          path="/sales/maintenance/sales-areas/update-sales-types/:id"
+          element={withLayout(MainLayout, UpdateSalesTypesForm)}
+        />
+        <Route
+          path="/sales/maintenance/credit-status-setup"
+          element={withLayout(MainLayout, CreditStatusTable)}
+        />
+        <Route
+          path="/sales/maintenance/credit-status-setup/add-credit-status"
+          element={withLayout(MainLayout, AddCreditStatusForm)}
+        />
+        <Route
+          path="/sales/maintenance/credit-status-setup/update-credit-status/:id"
+          element={withLayout(MainLayout, UpdateCreditStatusForm)}
+        />
 
 
-      <Route
-        path="/fixedassets/transactions"
-        element={withLayout(MainLayout, FixedAssestsTransactions)}
-      />
-      <Route
-        path="/fixedassets/inquiriesandreports"
-        element={withLayout(MainLayout, FixedAssestsInquiriesAndReports)}
-      />
-      <Route
-        path="/fixedassets/maintenance"
-        element={withLayout(MainLayout, FixedAssestsMaintenance)}
-      />
-      <Route
-        path="/fixedassets/maintenance/fixed-asset-locations"
-        element={withLayout(MainLayout, FixedAssetsLocationsTable)}
-      />
-      <Route
-        path="/fixedassets/maintenance/add-fixed-asset-location"
-        element={withLayout(MainLayout, AddFixedAssetsLocations)}
-      />
-      <Route
-        path="/fixedassets/maintenance/update-fixed-asset-location/:id"
-        element={withLayout(MainLayout, UpdateFixedAssetsLocations)}
-      />
+        <Route
+          path="/purchase/transactions"
+          element={withLayout(MainLayout, PurchaseTransactions)}
+        />
+        <Route
+          path="/purchase/inquiriesandreports"
+          element={withLayout(MainLayout, PurchaseInquiriesAndReports)}
+        />
+        <Route
+          path="/purchase/maintenance"
+          element={withLayout(MainLayout, PurchaseMaintenance)}
+        />
+        <Route
+          path="/purchase/maintenance/suppliers"
+          element={withLayout(MainLayout, Suppliers)}
+        />
+        <Route
+          path="/purchase/maintenance/suppliers/general-settings"
+          element={withLayout(MainLayout, SupplierGeneralSettingsForm)}
+        />
+        <Route
+          path="/purchase/maintenance/suppliers/update/:id"
+          element={withLayout(MainLayout, UpdateSupplierGeneralSettingsForm)}
+        />
+        <Route
+          path="/purchase/maintenance/suppliers/contacts"
+          element={withLayout(MainLayout, SuppliersContactsTable)}
+        />
+        <Route
+          path="/purchase/maintenance/suppliers/add-supplier-contact"
+          element={withLayout(MainLayout, AddSuppliersContactsForm)}
+        />
+        <Route
+          path="/purchase/maintenance/suppliers/update-supplier-contact"
+          element={withLayout(MainLayout, UpdateSuppliersContactsForm)}
+        />
+        <Route
+          path="/purchase/maintenance/suppliers/attachments"
+          element={withLayout(MainLayout, SuppliersAttachmentsTable)}
+        />
+        <Route
+          path="/purchase/maintenance/suppliers/add-attachments"
+          element={withLayout(MainLayout, AddSuppliersAttachmentsForm)}
+        />
+        <Route
+          path="/purchase/maintenance/suppliers/update-attachments"
+          element={withLayout(MainLayout, UpdateSuppliersAttachmentsForm)}
+        />
+        <Route
+          path="/purchase/maintenance/suppliers/transactions"
+          element={withLayout(MainLayout, SuppliersTransactionsTable)}
+        />
+        <Route
+          path="/purchase/maintenance/suppliers/purchases-orders"
+          element={withLayout(MainLayout, SupplierPurchaseOrdersTable)}
+        />
 
-      <Route
-        path="/dimension/transactions"
-        element={withLayout(MainLayout, DimensionTransactions)}
-      />
-      <Route
-        path="/dimension/inquiriesandreports"
-        element={withLayout(MainLayout, DimensionInquiriesAndReports)}
-      />
-      <Route
-        path="/dimension/maintenance"
-        element={withLayout(MainLayout, DimensionMaintenance)}
-      />
-      <Route
-        path="/dimension/maintenance/dimension-tags"
-        element={withLayout(MainLayout, DimensionTagsTable)}
-      />
-      <Route
-        path="/dimension/maintenance/add-dimension-tags"
-        element={withLayout(MainLayout, AddDimensionTagsForm)}
-      />
-      <Route
-        path="/dimension/maintenance/update-dimension-tags/:id"
-        element={withLayout(MainLayout, UpdateDimensionTagsForm)}
-      />
+        <Route
+          path="/itemsandinventory/transactions"
+          element={withLayout(MainLayout, ItemsTransactions)}
+        />
+        <Route
+          path="/itemsandinventory/inquiriesandreports"
+          element={withLayout(MainLayout, ItemsInquiriesAndReports)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance"
+          element={withLayout(MainLayout, ItemsMaintenance)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/units-of-measure"
+          element={withLayout(MainLayout, UnitsOfMeasureTable)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/units-of-measure/add-units-of-measure"
+          element={withLayout(MainLayout, AddUnitsOfMeasureForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/units-of-measure/update-units-of-measure/:id"
+          element={withLayout(MainLayout, UpdateUnitsOfMeasureForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items"
+          element={withLayout(MainLayout, Items)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/general-settings"
+          element={withLayout(MainLayout, ItemsGeneralSettingsForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/sales-pricing"
+          element={withLayout(MainLayout, SalesPricingTable)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/add-sales-pricing"
+          element={withLayout(MainLayout, AddSalesPricingForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/update-sales-pricing/:id"
+          element={withLayout(MainLayout, UpdateSalesPricingForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/purchasing-pricing"
+          element={withLayout(MainLayout, PurchasingPricingTable)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/add-purchasing-pricing"
+          element={withLayout(MainLayout, AddPurchasingPricingForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/update-purchasing-pricing"
+          element={withLayout(MainLayout, UpdatePurchasePricingForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/standard-costs"
+          element={withLayout(MainLayout, AddStandardCostForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/reorder-levels"
+          element={withLayout(MainLayout, ReOrderLevelsForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/transactions"
+          element={withLayout(MainLayout, ItemTransactionsTable)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/status"
+          element={withLayout(MainLayout, StatusTable)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/attachments"
+          element={withLayout(MainLayout, ItemAttachmentsTable)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/add-attachments"
+          element={withLayout(MainLayout, AddItemAttachmentsForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/update-attachments"
+          element={withLayout(MainLayout, UpdateItemAttachmentsForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/update-units-of-measure"
+          element={withLayout(MainLayout, UpdateUnitsOfMeasureForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/foreign-item-codes"
+          element={withLayout(MainLayout, ForeignItemCodesTable)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/add-foreign-item-codes"
+          element={withLayout(MainLayout, AddForeignItemCodesForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/update-foreign-item-codes"
+          element={withLayout(MainLayout, UpdateForeignItemCodesForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/sales-kits"
+          element={withLayout(MainLayout, AddSalesKitsForm)}
+        />
 
-      <Route
-        path="/bankingandgeneralledger/transactions"
-        element={withLayout(MainLayout, BankingTransactions)}
-      />
-      <Route
-        path="/bankingandgeneralledger/inquiriesandreports"
-        element={withLayout(MainLayout, BankingInquiriesAndReports)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance"
-        element={withLayout(MainLayout, BankingMaintenance)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/bank-accounts"
-        element={withLayout(MainLayout, BankAccountsTable)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/add-bank-accounts"
-        element={withLayout(MainLayout, AddBankAccountsForm)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/update-bank-accounts"
-        element={withLayout(MainLayout, UpdateBankAccountsForm)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/account-tags"
-        element={withLayout(MainLayout, AccountTagsTable)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/add-account-tags"
-        element={withLayout(MainLayout, AddAccountTagsForm)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/exchange-rates"
-        element={withLayout(MainLayout, ExchangeRateTable)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/add-exchange-rate"
-        element={withLayout(MainLayout, AddExchangeRateForm)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/update-exchange-rate"
-        element={withLayout(MainLayout, UpdateExchangeRateForm)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/gl-accounts"
-        element={withLayout(MainLayout, AddGlAccount)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/update-account-tags/:id"
-        element={withLayout(MainLayout, UpdateAccountTagsForm)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/currencies"
-        element={withLayout(MainLayout, CurrenciesTable)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/add-currency"
-        element={withLayout(MainLayout, AddCurrencies)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/update-currency/:id"
-        element={withLayout(MainLayout, UpdateCurrencies)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/quick-entries"
-        element={withLayout(MainLayout, QuickEntriesTable)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/add-quick-entry"
-        element={withLayout(MainLayout, AddQuickEntriesForm)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/update-quick-entry"
-        element={withLayout(MainLayout, UpdateQuickEntriesForm)}
-      />
-      
-      <Route
-        path="/bankingandgeneralledger/maintenance/gl-account-groups"
-        element={withLayout(MainLayout, GlAccountGroupsTable)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/add-gl-account-groups"
-        element={withLayout(MainLayout, AddGlAccountGroupsForm)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/update-gl-account-groups"
-        element={withLayout(MainLayout, UpdateGlAccountGroupsForm)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/gl-account-classes"
-        element={withLayout(MainLayout, GlAccountClassesTable)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/add-gl-account-classes"
-        element={withLayout(MainLayout, AddGlAccountClassesForm)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/update-gl-account-classes/:id"
-        element={withLayout(MainLayout, UpdateGlAccountClassesForm)}
-      />
-      <Route
-        path="/bankingandgeneralledger/maintenance/revaluation-of-currency-accounts"
-        element={withLayout(MainLayout, RevaluateCurrenciesForm)}
-      />
+        <Route
+          path="/itemsandinventory/maintenance/inventory-locations"
+          element={withLayout(MainLayout, InventoryLocationTable)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/add-inventory-location"
+          element={withLayout(MainLayout, AddInventoryLocationForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/update-inventory-location/:id"
+          element={withLayout(MainLayout, UpdateInventoryLocationForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/item-categories"
+          element={withLayout(MainLayout, ItemCategoriesTable)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/add-item-categories"
+          element={withLayout(MainLayout, AddItemCategoriesForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/update-item-categories"
+          element={withLayout(MainLayout, UpdateItemCategoriesForm)}
+        />
+        <Route
+          path="/itemsandinventory/maintenance/reorder-levels"
+          element={withLayout(MainLayout, ReOrderLevelsForm)}
+        />
+        <Route
+          path="/itemsandinventory/pricingandcosts/sales-pricing"
+          element={withLayout(MainLayout, SalesPricingTable)}
+        />
+        <Route
+          path="/itemsandinventory/pricingandcosts/purchasing-pricing"
+          element={withLayout(MainLayout, PurchasingPricingTable)}
+        />
+        <Route
+          path="/itemsandinventory/pricingandcosts/standard-costs"
+          element={withLayout(MainLayout, AddStandardCostForm)}
+        />
 
-      <Route
-        path="/setup/companysetup"
-        element={withLayout(MainLayout, CompanySetup)}
-      />
-      <Route
-        path="/setup/companysetup/company-setup"
-        element={withLayout(MainLayout, CompanySetupForm)}
-      />
-      <Route
-        path="/setup/companysetup/user-account-setup"
-        element={withLayout(MainLayout, UserManagementTable)}
-      />
-      <Route
-        path="/setup/companysetup/add-user"
-        element={withLayout(MainLayout, AddUserForm)}
-      />
-      <Route
-        path="/setup/companysetup/update-user/:id"
-        element={withLayout(MainLayout, UpdateUserForm)}
-      />
-      <Route
-        path="setup/companysetup/access-setup"
-        element={withLayout(MainLayout, AddUserAccessForm)}
-      />
-      <Route
-        path="setup/companysetup/edit-access-setup"
-        element={withLayout(MainLayout, UpdateUserAccessForm)}
-      />
+        <Route
+          path="/itemsandinventory/pricingandcosts"
+          element={withLayout(MainLayout, ItemsPricingAndCosts)}
+        />
 
-      <Route
-        path="/setup/companysetup/fiscal-years"
-        element={withLayout(MainLayout, FiscalYearTable)}
-      />
-      <Route
-        path="/setup/companysetup/add-fiscal-year"
-        element={withLayout(MainLayout, AddFiscalYear)}
-      />
-      <Route
-        path="/setup/companysetup/update-fiscal-year/:id"
-        element={withLayout(MainLayout, UpdateFiscalYear)}
-      />
-      <Route
-        path="/setup/companysetup/tax-groups"
-        element={withLayout(MainLayout, TaxGroupsTable)}
-      />
-      <Route
-        path="/setup/companysetup/add-tax-groups"
-        element={withLayout(MainLayout, AddTaxGroupsForm)}
-      />
-      <Route
-        path="/setup/companysetup/update-tax-groups/:id"
-        element={withLayout(MainLayout, UpdateTaxGroupsForm)}
-      />
-      <Route
-        path="/setup/companysetup/taxes"
-        element={withLayout(MainLayout, TaxTypesTable)}
-      />
-      <Route
-        path="/setup/companysetup/add-tax-types"
-        element={withLayout(MainLayout, AddTaxTypes)}
-      />
-      <Route
-        path="/setup/companysetup/update-tax-types/:id"
-        element={withLayout(MainLayout, UpdateTaxTypes)}
-      />
-      <Route
-        path="/setup/companysetup/item-tax-types"
-        element={withLayout(MainLayout, ItemTaxTypesTable)}
-      />
-      <Route
-        path="/setup/companysetup/add-item-tax-types"
-        element={withLayout(MainLayout, AddItemTaxTypes)}
-      />
-      <Route
-        path="/setup/companysetup/update-item-tax-types/:id"
-        element={withLayout(MainLayout, UpdateItemTaxTypes)}
-      />
-      <Route
-        path="/setup/companysetup/system-and-general-gl-setup"
-        element={withLayout(MainLayout, SystemGLSetupForm)}
-      />
-      <Route
-        path="/setup/companysetup/transaction-references"
-        element={withLayout(MainLayout, TransactionReferencesTable)}
-      />
-      <Route
-        path="/setup/companysetup/add-transaction-references"
-        element={withLayout(MainLayout, AddTransactionReferencesForm)}
-      />
-      <Route
-        path="/setup/companysetup/update-transaction-references"
-        element={withLayout(MainLayout, UpdateTransactionReferencesForm)}
-      />
+        <Route
+          path="/manufacturing/transactions"
+          element={withLayout(MainLayout, ManufacturingTransactions)}
+        />
+        <Route
+          path="/manufacturing/inquiriesandreports"
+          element={withLayout(MainLayout, ManufacturingInquiriesAndReports)}
+        />
+        <Route
+          path="/manufacturing/maintenance"
+          element={withLayout(MainLayout, ManufacturingMaintenance)}
+        />
+        <Route
+          path="/manufacturing/maintenance/work-centres"
+          element={withLayout(MainLayout, WorkCentresTable)}
+        />
+        <Route
+          path="/manufacturing/maintenance/add-work-centres"
+          element={withLayout(MainLayout, AddWorkCentresForm)}
+        />
+        <Route
+          path="/manufacturing/maintenance/update-work-centres/:id"
+          element={withLayout(MainLayout, UpdateWorkCentresForm)}
+        />
 
 
-      <Route
-        path="/setup/miscellaneous"
-        element={withLayout(MainLayout, Miscellaneous)}
-      />
-      <Route
-        path="/setup/maintenance"
-        element={withLayout(MainLayout, SetupMaintenance)}
-      />
-      <Route
-        path="/setup/maintenance/install-chart-of-accounts"
-        element={withLayout(MainLayout, InstallChartOfAccounts)}
-      />
-      <Route
-        path="/setup/maintenance/void-a-transaction"
-        element={withLayout(MainLayout, VoidTransactionTable)}
-      />
-      <Route
-        path="/setup/maintenance/add-void-a-transaction"
-        element={withLayout(MainLayout, VoidTransaction)}
-      />
-      <Route
-        path="/setup/maintenance/view-or-print-transaction"
-        element={withLayout(MainLayout, ViewPrintTransactions)}
-      />
-      <Route
-        path="/setup/maintenance/attach-documents"
-        element={withLayout(MainLayout, DocumentsTable)}
-      />
-      <Route
-        path="/setup/maintenance/add-document"
-        element={withLayout(MainLayout, AddDocumentsForm)}
-      />
-      <Route
-        path="/setup/maintenance/update-document"
-        element={withLayout(MainLayout, UpdateDocumentsForm)}
-      />
-      <Route
-        path="/setup/maintenance/backup-and-restore"
-        element={withLayout(MainLayout, BackupRestore)}
-      />
-      <Route
-        path="/setup/maintenance/create-update-companies"
-        element={withLayout(MainLayout, CompanyTable)}
-      />
-      <Route
-        path="/setup/maintenance/add-company"
-        element={withLayout(MainLayout, AddCompanyForm)}
-      />
-      <Route
-        path="/setup/maintenance/update-company"
-        element={withLayout(MainLayout, UpdateCompanyForm)}
-      />
-      <Route
-        path="/setup/maintenance/install-languages"
-        element={withLayout(MainLayout, LanguagesTable)}
-      />
-      <Route
-        path="/setup/maintenance/add-language"
-        element={withLayout(MainLayout, AddLanguagesForm)}
-      />
-      <Route
-        path="/setup/maintenance/update-language"
-        element={withLayout(MainLayout, UpdateLanguagesForm)}
-      />
-      <Route
-        path="/setup/maintenance/install-extensions"
-        element={withLayout(MainLayout, InstallExtensions)}
-      />
-      <Route
-        path="/setup/maintenance/install-themes"
-        element={withLayout(MainLayout, InstallThemes)}
-      />
-      <Route
-        path="/setup/maintenance/software-upgrade"
-        element={withLayout(MainLayout, SoftwareUpdateTable)}
-      />
-      <Route
-        path="/setup/maintenance/system-diagnostics"
-        element={withLayout(MainLayout, SystemDiagnostics)}
-      />
+        <Route
+          path="/fixedassets/transactions"
+          element={withLayout(MainLayout, FixedAssestsTransactions)}
+        />
+        <Route
+          path="/fixedassets/inquiriesandreports"
+          element={withLayout(MainLayout, FixedAssestsInquiriesAndReports)}
+        />
+        <Route
+          path="/fixedassets/maintenance"
+          element={withLayout(MainLayout, FixedAssestsMaintenance)}
+        />
+        <Route
+          path="/fixedassets/maintenance/fixed-asset-locations"
+          element={withLayout(MainLayout, FixedAssetsLocationsTable)}
+        />
+        <Route
+          path="/fixedassets/maintenance/add-fixed-asset-location"
+          element={withLayout(MainLayout, AddFixedAssetsLocations)}
+        />
+        <Route
+          path="/fixedassets/maintenance/update-fixed-asset-location/:id"
+          element={withLayout(MainLayout, UpdateFixedAssetsLocations)}
+        />
+
+        <Route
+          path="/dimension/transactions"
+          element={withLayout(MainLayout, DimensionTransactions)}
+        />
+        <Route
+          path="/dimension/inquiriesandreports"
+          element={withLayout(MainLayout, DimensionInquiriesAndReports)}
+        />
+        <Route
+          path="/dimension/maintenance"
+          element={withLayout(MainLayout, DimensionMaintenance)}
+        />
+        <Route
+          path="/dimension/maintenance/dimension-tags"
+          element={withLayout(MainLayout, DimensionTagsTable)}
+        />
+        <Route
+          path="/dimension/maintenance/add-dimension-tags"
+          element={withLayout(MainLayout, AddDimensionTagsForm)}
+        />
+        <Route
+          path="/dimension/maintenance/update-dimension-tags/:id"
+          element={withLayout(MainLayout, UpdateDimensionTagsForm)}
+        />
+
+        <Route
+          path="/bankingandgeneralledger/transactions"
+          element={withLayout(MainLayout, BankingTransactions)}
+        />
+        <Route
+          path="/bankingandgeneralledger/inquiriesandreports"
+          element={withLayout(MainLayout, BankingInquiriesAndReports)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance"
+          element={withLayout(MainLayout, BankingMaintenance)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/bank-accounts"
+          element={withLayout(MainLayout, BankAccountsTable)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/add-bank-accounts"
+          element={withLayout(MainLayout, AddBankAccountsForm)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/update-bank-accounts"
+          element={withLayout(MainLayout, UpdateBankAccountsForm)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/account-tags"
+          element={withLayout(MainLayout, AccountTagsTable)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/add-account-tags"
+          element={withLayout(MainLayout, AddAccountTagsForm)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/exchange-rates"
+          element={withLayout(MainLayout, ExchangeRateTable)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/add-exchange-rate"
+          element={withLayout(MainLayout, AddExchangeRateForm)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/update-exchange-rate"
+          element={withLayout(MainLayout, UpdateExchangeRateForm)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/gl-accounts"
+          element={withLayout(MainLayout, AddGlAccount)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/update-account-tags/:id"
+          element={withLayout(MainLayout, UpdateAccountTagsForm)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/currencies"
+          element={withLayout(MainLayout, CurrenciesTable)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/add-currency"
+          element={withLayout(MainLayout, AddCurrencies)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/update-currency/:id"
+          element={withLayout(MainLayout, UpdateCurrencies)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/quick-entries"
+          element={withLayout(MainLayout, QuickEntriesTable)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/add-quick-entry"
+          element={withLayout(MainLayout, AddQuickEntriesForm)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/update-quick-entry"
+          element={withLayout(MainLayout, UpdateQuickEntriesForm)}
+        />
+
+        <Route
+          path="/bankingandgeneralledger/maintenance/gl-account-groups"
+          element={withLayout(MainLayout, GlAccountGroupsTable)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/add-gl-account-groups"
+          element={withLayout(MainLayout, AddGlAccountGroupsForm)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/update-gl-account-groups"
+          element={withLayout(MainLayout, UpdateGlAccountGroupsForm)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/gl-account-classes"
+          element={withLayout(MainLayout, GlAccountClassesTable)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/add-gl-account-classes"
+          element={withLayout(MainLayout, AddGlAccountClassesForm)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/update-gl-account-classes/:id"
+          element={withLayout(MainLayout, UpdateGlAccountClassesForm)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/revaluation-of-currency-accounts"
+          element={withLayout(MainLayout, RevaluateCurrenciesForm)}
+        />
+
+        <Route
+          path="/setup/companysetup"
+          element={withLayout(MainLayout, CompanySetup)}
+        />
+        <Route
+          path="/setup/companysetup/company-setup"
+          element={withLayout(MainLayout, CompanySetupForm)}
+        />
+        <Route
+          path="/setup/companysetup/user-account-setup"
+          element={withLayout(MainLayout, UserManagementTable)}
+        />
+        <Route
+          path="/setup/companysetup/add-user"
+          element={withLayout(MainLayout, AddUserForm)}
+        />
+        <Route
+          path="/setup/companysetup/update-user/:id"
+          element={withLayout(MainLayout, UpdateUserForm)}
+        />
+        <Route
+          path="setup/companysetup/access-setup"
+          element={withLayout(MainLayout, AddUserAccessForm)}
+        />
+        <Route
+          path="setup/companysetup/edit-access-setup"
+          element={withLayout(MainLayout, UpdateUserAccessForm)}
+        />
+
+        <Route
+          path="/setup/companysetup/fiscal-years"
+          element={withLayout(MainLayout, FiscalYearTable)}
+        />
+        <Route
+          path="/setup/companysetup/add-fiscal-year"
+          element={withLayout(MainLayout, AddFiscalYear)}
+        />
+        <Route
+          path="/setup/companysetup/update-fiscal-year/:id"
+          element={withLayout(MainLayout, UpdateFiscalYear)}
+        />
+        <Route
+          path="/setup/companysetup/tax-groups"
+          element={withLayout(MainLayout, TaxGroupsTable)}
+        />
+        <Route
+          path="/setup/companysetup/add-tax-groups"
+          element={withLayout(MainLayout, AddTaxGroupsForm)}
+        />
+        <Route
+          path="/setup/companysetup/update-tax-groups/:id"
+          element={withLayout(MainLayout, UpdateTaxGroupsForm)}
+        />
+        <Route
+          path="/setup/companysetup/taxes"
+          element={withLayout(MainLayout, TaxTypesTable)}
+        />
+        <Route
+          path="/setup/companysetup/add-tax-types"
+          element={withLayout(MainLayout, AddTaxTypes)}
+        />
+        <Route
+          path="/setup/companysetup/update-tax-types/:id"
+          element={withLayout(MainLayout, UpdateTaxTypes)}
+        />
+        <Route
+          path="/setup/companysetup/item-tax-types"
+          element={withLayout(MainLayout, ItemTaxTypesTable)}
+        />
+        <Route
+          path="/setup/companysetup/add-item-tax-types"
+          element={withLayout(MainLayout, AddItemTaxTypes)}
+        />
+        <Route
+          path="/setup/companysetup/update-item-tax-types/:id"
+          element={withLayout(MainLayout, UpdateItemTaxTypes)}
+        />
+        <Route
+          path="/setup/companysetup/system-and-general-gl-setup"
+          element={withLayout(MainLayout, SystemGLSetupForm)}
+        />
+        <Route
+          path="/setup/companysetup/transaction-references"
+          element={withLayout(MainLayout, TransactionReferencesTable)}
+        />
+        <Route
+          path="/setup/companysetup/add-transaction-references"
+          element={withLayout(MainLayout, AddTransactionReferencesForm)}
+        />
+        <Route
+          path="/setup/companysetup/update-transaction-references"
+          element={withLayout(MainLayout, UpdateTransactionReferencesForm)}
+        />
 
 
-      <Route
-        path="/dashboard"
-        element={withLayout(MainLayout, Dashboard)}
-      />
+        <Route
+          path="/setup/miscellaneous"
+          element={withLayout(MainLayout, Miscellaneous)}
+        />
+        <Route
+          path="/setup/maintenance"
+          element={withLayout(MainLayout, SetupMaintenance)}
+        />
+        <Route
+          path="/setup/maintenance/install-chart-of-accounts"
+          element={withLayout(MainLayout, InstallChartOfAccounts)}
+        />
+        <Route
+          path="/setup/maintenance/void-a-transaction"
+          element={withLayout(MainLayout, VoidTransactionTable)}
+        />
+        <Route
+          path="/setup/maintenance/add-void-a-transaction"
+          element={withLayout(MainLayout, VoidTransaction)}
+        />
+        <Route
+          path="/setup/maintenance/view-or-print-transaction"
+          element={withLayout(MainLayout, ViewPrintTransactions)}
+        />
+        <Route
+          path="/setup/maintenance/attach-documents"
+          element={withLayout(MainLayout, DocumentsTable)}
+        />
+        <Route
+          path="/setup/maintenance/add-document"
+          element={withLayout(MainLayout, AddDocumentsForm)}
+        />
+        <Route
+          path="/setup/maintenance/update-document"
+          element={withLayout(MainLayout, UpdateDocumentsForm)}
+        />
+        <Route
+          path="/setup/maintenance/backup-and-restore"
+          element={withLayout(MainLayout, BackupRestore)}
+        />
+        <Route
+          path="/setup/maintenance/create-update-companies"
+          element={withLayout(MainLayout, CompanyTable)}
+        />
+        <Route
+          path="/setup/maintenance/add-company"
+          element={withLayout(MainLayout, AddCompanyForm)}
+        />
+        <Route
+          path="/setup/maintenance/update-company"
+          element={withLayout(MainLayout, UpdateCompanyForm)}
+        />
+        <Route
+          path="/setup/maintenance/install-languages"
+          element={withLayout(MainLayout, LanguagesTable)}
+        />
+        <Route
+          path="/setup/maintenance/add-language"
+          element={withLayout(MainLayout, AddLanguagesForm)}
+        />
+        <Route
+          path="/setup/maintenance/update-language"
+          element={withLayout(MainLayout, UpdateLanguagesForm)}
+        />
+        <Route
+          path="/setup/maintenance/install-extensions"
+          element={withLayout(MainLayout, InstallExtensions)}
+        />
+        <Route
+          path="/setup/maintenance/install-themes"
+          element={withLayout(MainLayout, InstallThemes)}
+        />
+        <Route
+          path="/setup/maintenance/software-upgrade"
+          element={withLayout(MainLayout, SoftwareUpdateTable)}
+        />
+        <Route
+          path="/setup/maintenance/system-diagnostics"
+          element={withLayout(MainLayout, SystemDiagnostics)}
+        />
+        <Route
+          path="/setup/miscellaneous/payment-terms"
+          element={withLayout(MainLayout, PaymentTermsTable)}
+        />
+        <Route
+          path="/setup/miscellaneous/add-payment-term"
+          element={withLayout(MainLayout, AddPaymentTermsForm)}
+        />
+        <Route
+          path="/setup/miscellaneous/update-payment-term/"
+          element={withLayout(MainLayout, UpdatePaymentTermsForm)}
+        />
+        <Route
+          path="/setup/miscellaneous/shipping-company"
+          element={withLayout(MainLayout, ShippingCompanyTable)}
+        />
+        <Route
+          path="/setup/miscellaneous/add-shipping-company"
+          element={withLayout(MainLayout, AddShippingCompanyForm)}
+        />
+        <Route
+          path="/setup/miscellaneous/contact-categories"
+          element={withLayout(MainLayout, ContactCategoryTable)}
+        />
+        <Route
+          path="/setup/miscellaneous/add-contact-category"
+          element={withLayout(MainLayout, AddContactCategory)}
+        />
+        <Route
+          path="/setup/miscellaneous/update-contact-category/"
+          element={withLayout(MainLayout, UpdateContactCategory)}
+        />
+        <Route
+          path="/setup/miscellaneous/update-shipping-company"
+          element={withLayout(MainLayout, UpdateShippingCompanyForm)}
+        />
+        <Route
+          path="/setup/miscellaneous/printers"
+          element={withLayout(MainLayout, PrintersTable)}
+        />
+        <Route
+          path="/setup/miscellaneous/add-printer"
+          element={withLayout(MainLayout, AddPrintersForm)}
+        />
+        <Route
+          path="/setup/miscellaneous/update-printer"
+          element={withLayout(MainLayout, UpdatePrintersForm)}
+        />
+        <Route
+          path="/setup/miscellaneous/point-of-sale"
+          element={withLayout(MainLayout, PosTable)}
+        />
+        <Route
+          path="/setup/miscellaneous/add-point-of-sale"
+          element={withLayout(MainLayout, AddPosForm)}
+        />
+        <Route
+          path="/setup/miscellaneous/update-point-of-sale/"
+          element={withLayout(MainLayout, UpdatePosForm)}
+        />
 
+        <Route
+          path="/dashboard"
+          element={withLayout(MainLayout, Dashboard)}
+        />
+      </Route>
     </Routes>
   );
 };

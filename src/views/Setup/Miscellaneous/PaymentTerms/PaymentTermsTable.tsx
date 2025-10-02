@@ -22,111 +22,68 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
-import Breadcrumb from "../../../../../components/BreadCrumb";
-import PageTitle from "../../../../../components/PageTitle";
-import theme from "../../../../../theme";
-import SearchBar from "../../../../../components/SearchBar";
-import { getCustomerContacts } from "../../../../../api/Customer/AddCustomerApi";
+import Breadcrumb from "../../../../components/BreadCrumb";
+import PageTitle from "../../../../components/PageTitle";
+import theme from "../../../../theme";
+import SearchBar from "../../../../components/SearchBar";
+// import { getPaymentTerms, deletePaymentTerm } from "../../../../api/PaymentTerms/paymentTermsServices";
 
-interface CustomerContacsProps {
-  customerId?: string | number;
-}
-
-// Mock API function
-// const getContacts = async () => [
-//   {
-//     id: 1,
-//     assignment: "Manager",
-//     reference: "REF001",
-//     fullName: "John Doe",
-//     phone: "123456789",
-//     secPhone: "987654321",
-//     fax: "111222333",
-//     email: "john@example.com",
-//     inactive: false,
-//   },
-//   {
-//     id: 2,
-//     assignment: "Assistant",
-//     reference: "REF002",
-//     fullName: "Jane Smith",
-//     phone: "555666777",
-//     secPhone: "777666555",
-//     fax: "444555666",
-//     email: "jane@example.com",
-//     inactive: true,
-//   },
-// ];
-
-export default function CustomersContactsTable({ customerId }: CustomerContacsProps) {
+export default function PaymentTermsTable() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-  const [contacts, setContacts] = useState<any[]>([]);
+  const [paymentTerms, setPaymentTerms] = useState<any[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
-  // Fetch contacts (mock API)
-  useEffect(() => {
-  const fetchContacts = async () => {
-    const data = await getCustomerContacts(customerId);
-    const mappedData = data.map((item: any) => ({
-      id: item.id,
-      reference: item.customer_short_name,
-      fullName: item.customer_name,
-      phone: item.phone,
-      secPhone: item.secondary_phone,
-      email: item.email,
-    }));
-    setContacts(mappedData);
-  };
+//   useEffect(() => {
+//     getPaymentTerms().then((data) => setPaymentTerms(data));
+//   }, []);
 
-  fetchContacts();
-}, [customerId]);
-
-
-  // Filter by inactive & search
   const filteredData = useMemo(() => {
-    let data = showInactive ? contacts : contacts.filter((c) => !c.inactive);
+    let data = showInactive ? paymentTerms : paymentTerms.filter((p) => !p.inactive);
 
     if (searchQuery.trim() !== "") {
       const lower = searchQuery.toLowerCase();
       data = data.filter(
-        (c) =>
-          c.assignment.toLowerCase().includes(lower) ||
-          c.reference.toLowerCase().includes(lower) ||
-          c.fullName.toLowerCase().includes(lower) ||
-          c.phone.toLowerCase().includes(lower) ||
-          c.secPhone.toLowerCase().includes(lower) ||
-          c.fax.toLowerCase().includes(lower) ||
-          c.email.toLowerCase().includes(lower)
+        (p) =>
+          p.description.toLowerCase().includes(lower) ||
+          p.payment_type.toLowerCase().includes(lower) ||
+          String(p.due_after).toLowerCase().includes(lower)
       );
     }
 
     return data;
-  }, [contacts, showInactive, searchQuery]);
+  }, [paymentTerms, showInactive, searchQuery]);
 
   const paginatedData = useMemo(() => {
     if (rowsPerPage === -1) return filteredData;
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [page, rowsPerPage, filteredData]);
 
-  const handleChangePage = (event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) =>
-    setPage(newPage);
+  const handleChangePage = (
+    event: React.MouseEvent<HTMLButtonElement> | null,
+    newPage: number
+  ) => setPage(newPage);
 
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChangeRowsPerPage = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
-  const handleDelete = (id: number) => {
-    alert(`Delete contact with id: ${id}`);
-  };
+//   const handleDelete = async (id: number) => {
+//     if (window.confirm("Are you sure you want to delete this payment term?")) {
+//       await deletePaymentTerm(id);
+//       setPaymentTerms((prev) => prev.filter((p) => p.id !== id));
+//     }
+//   };
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
-    { title: "Contacts" },
+    { title: "Payment Terms" },
   ];
 
   return (
@@ -144,7 +101,7 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
         }}
       >
         <Box>
-          <PageTitle title="Contacts" />
+          <PageTitle title="Payment Terms" />
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
 
@@ -152,14 +109,21 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
           <Button
             variant="contained"
             color="primary"
-            onClick={() => navigate("/sales/maintenance/add-and-manage-customers/add-customers-contacts")}
+            onClick={() => navigate("/setup/miscellaneous/add-payment-term")}
           >
-            Add Contact
+            Add Payment Term
+          </Button>
+
+          <Button
+            variant="outlined"
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate("/setup/miscellaneous")}
+          >
+            Back
           </Button>
         </Stack>
       </Box>
 
-      {/* Checkbox & Search */}
       <Stack
         direction={isMobile ? "column" : "row"}
         spacing={2}
@@ -167,7 +131,10 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
       >
         <FormControlLabel
           control={
-            <Checkbox checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
+            <Checkbox
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+            />
           }
           label="Show Also Inactive"
         />
@@ -176,47 +143,40 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
           <SearchBar
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            placeholder="Search Contacts"
+            placeholder="Search Description, Type, Due After"
           />
         </Box>
       </Stack>
 
       <Stack sx={{ alignItems: "center" }}>
-        <TableContainer component={Paper} elevation={2} sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}>
-          <Table aria-label="contacts table">
+        <TableContainer
+          component={Paper}
+          elevation={2}
+          sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}
+        >
+          <Table aria-label="payment terms table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
-                <TableCell>Assignment</TableCell>
-                <TableCell>Reference</TableCell>
-                <TableCell>Full Name</TableCell>
-                <TableCell>Phone</TableCell>
-                <TableCell>Sec Phone</TableCell>
-                <TableCell>Fax</TableCell>
-                <TableCell>Email</TableCell>
+                <TableCell>Description</TableCell>
+                <TableCell>Type</TableCell>
+                <TableCell>Due After / Date</TableCell>
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {paginatedData.length > 0 ? (
-                paginatedData.map((contact) => (
-                  <TableRow key={contact.id} hover>
-                    <TableCell>{contact.assignment}</TableCell>
-                    <TableCell>{contact.reference}</TableCell>
-                    <TableCell>{contact.fullName}</TableCell>
-                    <TableCell>{contact.phone}</TableCell>
-                    <TableCell>{contact.secPhone}</TableCell>
-                    <TableCell>{contact.fax}</TableCell>
-                    <TableCell>{contact.email}</TableCell>
+                paginatedData.map((term) => (
+                  <TableRow key={term.id} hover>
+                    <TableCell>{term.description}</TableCell>
+                    <TableCell>{term.payment_type}</TableCell>
+                    <TableCell>{term.due_after}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
                           variant="contained"
                           size="small"
                           startIcon={<EditIcon />}
-                          onClick={() => navigate(
-                            "/sales/maintenance/add-and-manage-customers/update-customers-contacts"
-                            // `/sales/maintenancne/update-contact/${contact.id}`
-                          )}
+                          onClick={() => navigate(`/setup/miscellaneous/update-payment-term/${term.id}`)}
                         >
                           Edit
                         </Button>
@@ -225,7 +185,7 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(contact.id)}
+                        //   onClick={() => handleDelete(term.id)}
                         >
                           Delete
                         </Button>
@@ -235,7 +195,7 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={4} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -245,7 +205,7 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={8}
+                  colSpan={4}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}

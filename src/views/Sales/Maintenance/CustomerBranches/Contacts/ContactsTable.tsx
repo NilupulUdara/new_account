@@ -142,14 +142,6 @@ export default function ContactsTable({ customerId }: ContacsProps) {
           >
             Add Contact
           </Button>
-
-          <Button
-            variant="outlined"
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate("/sales/maintenance/customer-branches/")}
-          >
-            Back
-          </Button>
         </Stack>
       </Box>
 

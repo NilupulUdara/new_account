@@ -143,14 +143,6 @@ export default function CustomerBranchesTable() {
           >
             Add Branch
           </Button>
-
-          <Button
-            variant="outlined"
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate("/sales/maintenance/customer-branches/")}
-          >
-            Back
-          </Button>
         </Stack>
       </Box>
 

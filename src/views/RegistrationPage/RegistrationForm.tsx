@@ -1,35 +1,44 @@
 import {
   Box,
   Checkbox,
-  CircularProgress,
   FormControlLabel,
   Stack,
   TextField,
   Typography,
   useMediaQuery,
   useTheme,
-  Autocomplete,
 } from "@mui/material";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import companyLogo from "../../assets/company-logo.jpg";
 import groupLogo from "../../assets/group-logo.png";
-import { useForm, Controller } from "react-hook-form";
 import CustomButton from "../../components/CustomButton";
 import LoginIcon from "@mui/icons-material/Login";
 import { useSnackbar } from "notistack";
 import { useNavigate } from "react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { registerUser } from "../../api/userApi";
-import SwitchButton from "../../components/SwitchButton";
-import AutoCheckBox from "../../components/AutoCheckbox";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { createUser } from "../../api/UserManagement/userManagement";
 
-//API Imports
-import { departmentSchema, fetchDepartmentData } from "../../api/departmentApi";
-import { factorySchema, fetchFactoryData } from "../../api/factoryApi";
-import {
-  jobPositionSchema,
-  fetchJobPositionData,
-} from "../../api/jobPositionApi";
+// API Imports
+import { fetchDepartmentData } from "../../api/departmentApi";
+import { fetchFactoryData } from "../../api/factoryApi";
+import { fetchJobPositionData } from "../../api/jobPositionApi";
+
+interface UserFormData {
+  firstName: string;
+  lastName: string;
+  department: string;
+  epf: string;
+  telephone: string;
+  address: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  role: string;
+  status: string;
+  jobPosition?: string;
+  assignedFactory?: any[];
+  employeeNumber?: string;
+}
 
 function RegistrationForm() {
   const theme = useTheme();
@@ -37,104 +46,107 @@ function RegistrationForm() {
   const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [selectedFactories, setSelectedFactories] = useState([]);
+
+  const [formData, setFormData] = useState<UserFormData>({
+    firstName: "",
+    lastName: "",
+    department: "",
+    epf: "",
+    telephone: "",
+    address: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    role: "",
+    status: "",
+    jobPosition: "",
+    assignedFactory: [],
+    employeeNumber: "",
+  });
+
+  const [errors, setErrors] = useState<Partial<UserFormData>>({});
   const [showPassword, setShowPassword] = useState(false);
 
-  //API Fetch Data
-  // const [departments, setDepartments] = useState<departmentSchema[]>([]);
-  // const [factory, setFactory] = useState<factorySchema[]>([]);
-  // const [jobPositions, setJobPositions] = useState<jobPositionSchema[]>([]);
-
-  const { data: departments, isFetched: isDepartmentsFetched } = useQuery({
+  const { data: departments } = useQuery({
     queryKey: ["departments"],
     queryFn: fetchDepartmentData,
   });
 
-  const { data: factories, isFetched: isFactoryFetched } = useQuery({
+  const { data: factories } = useQuery({
     queryKey: ["factories"],
     queryFn: fetchFactoryData,
   });
 
-  const { data: jobPositions, isFetched: isJobPositionsFetched } = useQuery({
+  const { data: jobPositions } = useQuery({
     queryKey: ["jobPositions"],
     queryFn: fetchJobPositionData,
   });
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    watch,
-    control,
-  } = useForm({
-    mode: "all",
-    defaultValues: {
-      email: "",
-      password: "",
-      mobileNumber: null,
-      name: "",
-      confirmPassword: "",
-      isCompanyEmployee: false,
-      jobPosition: "",
-      department: "",
-      assignedFactory: selectedFactories,
-      employeeNumber: "",
-    },
-  });
-
-  const isNotEmployee = watch("isCompanyEmployee");
-  const userPassword = watch("password");
-
-  const { mutate: registrationMutation, isPending } = useMutation({
-    mutationFn: registerUser,
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["current-user"] });
-      localStorage.setItem("token", data?.access_token);
-      enqueueSnackbar("Account Created Successfully!", { variant: "success" });
-      navigate("/home");
-    },
-    onError: (error: any) => {
-      console.log(error);
-      enqueueSnackbar(error?.data?.message ?? `Registration Failed`, {
-        variant: "error",
-      });
-    },
-  });
-
-  const onRegistrationSubmit = (data) => {
-    if (data.isCompanyEmployee && data.assignedFactory.length === 0) {
-      enqueueSnackbar("Please select at least one factory.", {
-        variant: "error",
-      });
-      return;
-    }
-    registrationMutation(data);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
   };
 
-  //API functions to get data
-  // useEffect(() => {
-  //   async function getDepartments() {
-  //     const data = await fetchDepartmentData();
-  //     setDepartments(data);
-  //   }
-  //   getDepartments();
-  // }, []);
+  const validate = () => {
+    const newErrors: Partial<UserFormData> = {};
 
-  // useEffect(() => {
-  //   async function getFactory() {
-  //     const data = await fetchFactoryData();
-  //     setFactory(data);
-  //   }
-  //   getFactory();
-  // }, []);
+    if (!formData.firstName) newErrors.firstName = "First name is required";
+    if (!formData.lastName) newErrors.lastName = "Last name is required";
+    if (!formData.department) newErrors.department = "Department is required";
+    if (!formData.epf) newErrors.epf = "EPF is required";
+    if (!formData.telephone) newErrors.telephone = "Telephone is required";
+    if (!formData.address) newErrors.address = "Address is required";
+    if (!formData.email) newErrors.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(formData.email))
+      newErrors.email = "Email is invalid";
+    if (!formData.password) newErrors.password = "Password is required";
+    else if (formData.password.length < 6)
+      newErrors.password = "Password must be at least 6 characters";
+    if (!formData.confirmPassword)
+      newErrors.confirmPassword = "Please confirm your password";
+    else if (formData.password !== formData.confirmPassword)
+      newErrors.confirmPassword = "Passwords do not match";
+    if (!formData.role) newErrors.role = "Role is required";
+    if (!formData.status) newErrors.status = "Status is required";
 
-  // useEffect(() => {
-  //   async function getJobPosition() {
-  //     const data = await fetchJobPositionData();
-  //     setJobPositions(data);
-  //   }
-  //   getJobPosition();
-  // }, []);
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const registrationMutation = useMutation({
+    mutationFn: createUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      enqueueSnackbar("User created successfully!", { variant: "success" });
+      navigate("/dashboard");
+    },
+    onError: (err: any) => {
+      enqueueSnackbar("Error creating user: " + JSON.stringify(err), {
+        variant: "error",
+      });
+    },
+  });
+
+  const handleSubmit = () => {
+    if (validate()) {
+      const payload = {
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        department: formData.department,
+        epf: formData.epf,
+        telephone: formData.telephone,
+        address: formData.address,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        status: formData.status,
+        job_position: formData.jobPosition,
+        assigned_factory: formData.assignedFactory,
+        employee_number: formData.employeeNumber,
+      };
+      registrationMutation.mutate(payload);
+    }
+  };
 
   return (
     <Stack
@@ -146,12 +158,12 @@ function RegistrationForm() {
       }}
     >
       <Box>
-        <img src={companyLogo} alt="logo" height={"65em"} />
+        <img src={companyLogo} alt="logo" height={"65px"} />
         <img
           src={groupLogo}
           alt="logo"
           style={{ marginLeft: "1rem" }}
-          height={"45em"}
+          height={"45px"}
         />
       </Box>
       <Box>
@@ -159,319 +171,158 @@ function RegistrationForm() {
           Create an account to access the platform
         </Typography>
       </Box>
-      <form onSubmit={handleSubmit(onRegistrationSubmit)}>
-        <TextField
-          required
-          id="name"
-          label="Name"
-          error={!!errors.name}
-          fullWidth
-          size="small"
-          sx={{ marginTop: "1rem" }}
-          helperText={errors.name ? errors.name.message : ""}
-          {...register("name", {
-            required: {
-              value: true,
-              message: "Required",
-            },
-            pattern: {
-              value: /^[a-zA-Z\s]+$/,
-              message: "Name must contain only letters and spaces",
-            },
-          })}
-        />
 
+      <Stack spacing={2}>
+        {/* TextFields */}
         <TextField
-          required
-          id="email"
-          label="Email Address"
-          placeholder="sample@company.com"
+          label="First Name"
+          name="firstName"
+          size="small"
+          fullWidth
+          value={formData.firstName}
+          onChange={handleInputChange}
+          error={!!errors.firstName}
+          helperText={errors.firstName}
+        />
+        <TextField
+          label="Last Name"
+          name="lastName"
+          size="small"
+          fullWidth
+          value={formData.lastName}
+          onChange={handleInputChange}
+          error={!!errors.lastName}
+          helperText={errors.lastName}
+        />
+        <TextField
+          label="Department"
+          name="department"
+          size="small"
+          fullWidth
+          value={formData.department}
+          onChange={handleInputChange}
+          error={!!errors.department}
+          helperText={errors.department}
+        />
+        <TextField
+          label="EPF"
+          name="epf"
+          size="small"
+          fullWidth
+          value={formData.epf}
+          onChange={handleInputChange}
+          error={!!errors.epf}
+          helperText={errors.epf}
+        />
+        <TextField
+          label="Telephone Number"
+          name="telephone"
+          size="small"
+          fullWidth
+          value={formData.telephone}
+          onChange={handleInputChange}
+          error={!!errors.telephone}
+          helperText={errors.telephone}
+        />
+        <TextField
+          label="Address"
+          name="address"
+          size="small"
+          fullWidth
+          value={formData.address}
+          onChange={handleInputChange}
+          error={!!errors.address}
+          helperText={errors.address}
+        />
+        <TextField
+          label="Email"
+          name="email"
+          size="small"
+          fullWidth
+          value={formData.email}
+          onChange={handleInputChange}
           error={!!errors.email}
-          fullWidth
-          type="email"
-          size="small"
-          sx={{ marginTop: "1rem" }}
-          {...register("email", {
-            required: {
-              value: true,
-              message: "Email is required",
-            },
-            minLength: {
-              value: 5,
-              message: "Email must be at least 5 characters long",
-            },
-            maxLength: {
-              value: 320,
-              message: "Email cannot exceed 320 characters long",
-            },
-            pattern: {
-              value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-              message: "Invalid email format",
-            },
-          })}
-          helperText={errors.email ? errors.email.message : ""}
+          helperText={errors.email}
         />
-
         <TextField
-          required
-          id="password"
           label="Password"
+          name="password"
           type={showPassword ? "text" : "password"}
           size="small"
           fullWidth
-          sx={{ marginTop: "1rem" }}
+          value={formData.password}
+          onChange={handleInputChange}
           error={!!errors.password}
-          {...register("password", {
-            required: {
-              value: true,
-              message: "Password is required",
-            },
-            minLength: {
-              value: 6,
-              message: "Password must be at least 6 characters long",
-            },
-            maxLength: {
-              value: 128,
-              message: "Password cannot exceed 128 characters long",
-            },
-          })}
-          helperText={errors.password ? errors.password.message : ""}
+          helperText={errors.password}
         />
-
         <TextField
-          required
-          id="confirmPassword"
           label="Confirm Password"
-          type={"password"}
+          name="confirmPassword"
+          type="password"
           size="small"
           fullWidth
-          helperText={
-            errors.confirmPassword ? errors.confirmPassword.message : ""
-          }
-          sx={{ marginTop: "1rem" }}
+          value={formData.confirmPassword}
+          onChange={handleInputChange}
           error={!!errors.confirmPassword}
-          {...register("confirmPassword", {
-            required: {
-              value: true,
-              message: "Confirm Password is required",
-            },
-            validate: {
-              matchesPreviousPassword: (value) =>
-                value === userPassword || "Passwords do not match",
-            },
-          })}
+          helperText={errors.confirmPassword}
         />
-
-        <Box>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={showPassword}
-                onChange={(e) => setShowPassword(e.target.checked)}
-                size="small"
-              />
-            }
-            label="Show Password"
-            sx={{
-              "& .MuiTypography-body1": {
-                fontSize: "0.85rem",
-              },
-              marginTop: "1rem",
-            }}
-          />
-        </Box>
-
-        <TextField
-          required
-          id="mobileNumber"
-          label="Mobile Number"
-          type="tel"
-          error={!!errors.mobileNumber}
-          fullWidth
-          size="small"
-          sx={{ marginTop: "1rem" }}
-          helperText={
-            typeof errors.mobileNumber?.message === "string"
-              ? errors.mobileNumber.message
-              : ""
-          }
-          {...register("mobileNumber", {
-            required: {
-              value: true,
-              message: "Mobile number is required",
-            },
-            minLength: {
-              value: 6,
-              message: "Mobile number must be at least 6 digits",
-            },
-            maxLength: {
-              value: 16,
-              message: "Mobile number cannot exceed 16 digits",
-            },
-            pattern: {
-              value: /^[0-9]+$/,
-              message: "Enter a valid mobile number (digits only)",
-            },
-          })}
-        />
-
-        <Box sx={{ marginTop: "2rem" }}>
-          <Controller
-            control={control}
-            name={"isCompanyEmployee"}
-            render={({ field }) => {
-              return (
-                <SwitchButton
-                  label="Is Company Employee"
-                  onChange={field.onChange}
-                  value={field.value}
-                />
-              );
-            }}
-          />
-        </Box>
-
-        {isNotEmployee ? (
-          <Stack
-            sx={{
-              display: "flex",
-            }}
-          >
-            {isDepartmentsFetched && departments && (
-              <Autocomplete
-                {...register("department", { required: true })}
-                size="small"
-                options={
-                  departments?.map((supplierType) => supplierType.department) ||
-                  []
-                }
-                sx={{}}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    required
-                    error={!!errors.department}
-                    label="Department"
-                    name="department"
-                  />
-                )}
-              />
-            )}
-            {isJobPositionsFetched && jobPositions && (
-              <Autocomplete
-                {...register("jobPosition", { required: true })}
-                size="small"
-                options={
-                  jobPositions?.map(
-                    (supplierType) => supplierType.jobPosition
-                  ) || []
-                }
-                sx={{ marginTop: "1rem" }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    required
-                    error={!!errors.jobPosition}
-                    label="Job Position"
-                    name="jobPosition"
-                  />
-                )}
-              />
-            )}
-
-            {isFactoryFetched && factories && (
-              // <AutoCheckBox
-              //   {...register("assignedFactory", { required: true })}
-              //   control={control}
-              //   limitTags={1}
-              //   name="assignedFactory"
-              //   options={factories}
-              //   selectedValues={selectedFactories}
-              //   setSelectedValues={setSelectedFactories}
-              //   label="Assigned Factories"
-              //   placeholder="Select factories"
-              // />
-
-              <Box sx={{ marginTop: "1rem" }}>
-                <AutoCheckBox
-                  {...register("assignedFactory", { required: true })}
-                  control={control}
-                  required={true}
-                  name="assignedFactory"
-                  label="Assigned Factories"
-                  options={factories}
-                  selectedValues={selectedFactories}
-                  setSelectedValues={setSelectedFactories}
-                  getOptionLabel={(option) => option.factoryName}
-                  getOptionValue={(option) => option.factoryName}
-                  placeholder="Choose Factories"
-                  limitTags={2}
-                />
-              </Box>
-            )}
-
-            <TextField
-              required
-              id="employeeNumber"
-              label="Employee Number"
-              error={!!errors.employeeNumber}
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={showPassword}
+              onChange={(e) => setShowPassword(e.target.checked)}
               size="small"
-              sx={{ marginTop: "1rem" }}
-              {...register("employeeNumber", {
-                required: {
-                  value: true,
-                  message: "Employee Number is required",
-                },
-                pattern: {
-                  value: /^[a-zA-Z0-9]+$/,
-                  message:
-                    "Employee Number must contain only letters and numbers",
-                },
-              })}
-              helperText={
-                errors.employeeNumber ? errors.employeeNumber.message : ""
-              }
             />
-          </Stack>
-        ) : null}
+          }
+          label="Show Password"
+        />
 
+        {/* Role & Status */}
+        <TextField
+          label="Role"
+          name="role"
+          size="small"
+          fullWidth
+          value={formData.role}
+          onChange={handleInputChange}
+          error={!!errors.role}
+          helperText={errors.role}
+        />
+        <TextField
+          label="Status"
+          name="status"
+          size="small"
+          fullWidth
+          value={formData.status}
+          onChange={handleInputChange}
+          error={!!errors.status}
+          helperText={errors.status}
+        />
+
+        {/* Buttons */}
         <Box
           sx={{
-            marginTop: "1.6rem",
             display: "flex",
             justifyContent: "space-between",
+            mt: 3,
           }}
         >
           <CustomButton
-            type="submit"
             variant="contained"
-            sx={{
-              backgroundColor: "var(--pallet-blue)",
-            }}
-            size="medium"
-            disabled={isPending}
-            startIcon={
-              isPending ? (
-                <CircularProgress color="inherit" size={"1rem"} />
-              ) : (
-                <LoginIcon />
-              )
-            }
+            onClick={handleSubmit}
+            startIcon={<LoginIcon />}
           >
             Create Account
           </CustomButton>
           <CustomButton
             variant="text"
-            sx={{
-              color: "var(--pallet-orange)",
-            }}
-            size="medium"
             onClick={() => navigate("/")}
+            sx={{ color: "var(--pallet-orange)" }}
           >
             Login to an existing account
           </CustomButton>
         </Box>
-      </form>
+      </Stack>
     </Stack>
   );
 }

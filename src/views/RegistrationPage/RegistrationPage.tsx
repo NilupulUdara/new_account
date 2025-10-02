@@ -22,7 +22,7 @@ function RegistrationPage() {
   }
 
   if (user) {
-    navigate("/home");
+    navigate("/dashboard");
   }
 
   return (

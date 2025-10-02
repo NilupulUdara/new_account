@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Stack,
@@ -15,6 +15,8 @@ import {
 } from "@mui/material";
 import theme from "../../../../../theme";
 import { createCustomer } from "../../../../../api/Customer/AddCustomerApi";
+import { getCurrencies, Currency } from "../../../../../api/Currency/currencyApi";
+import { getSalesPerson } from "../../../../../api/SalesPerson/SalesPersonApi";
 import { useNavigate } from "react-router";
 
 interface GeneralSettingsFormProps {
@@ -32,12 +34,13 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
     salesType: "",
     phone: "",
     secondaryPhone: "",
-    faxNumber: "",  
+    faxNumber: "",
     email: "",
     bankAccount: "",
     salesPerson: "",
     discountPercent: "",
     promptPaymentDiscount: "",
+    dimension: "",
     creditLimit: "",
     paymentTerms: "",
     creditStatus: "",
@@ -48,12 +51,17 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
     taxGroup: "",
   });
 
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  useEffect(() => {
+    getCurrencies().then(setCurrencies);
+  }, []);
+
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const navigate = useNavigate();
   const handleChange = (field: string, value: string) => {
     setFormData({ ...formData, [field]: value });
     if (errors[field]) {
-      setErrors({ ...errors, [field]: "" }); 
+      setErrors({ ...errors, [field]: "" });
     }
   };
 
@@ -183,6 +191,7 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
         salesPerson: "",
         discountPercent: "",
         promptPaymentDiscount: "",
+        dimension: "",
         creditLimit: "",
         paymentTerms: "",
         creditStatus: "",
@@ -271,9 +280,14 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   onChange={(e) => handleChange("currency", e.target.value)}
                   label="Currency"
                 >
-                  <MenuItem value="USD">USD</MenuItem>
-                  <MenuItem value="LKR">LKR</MenuItem>
-                  <MenuItem value="EUR">EUR</MenuItem>
+                  {currencies.map((currency) => (
+                    <MenuItem
+                      key={currency.id}
+                      value={currency.currency_abbreviation}
+                    >
+                      {currency.currency_abbreviation} ({currency.currency_symbol}) - {currency.currency_name}
+                    </MenuItem>
+                  ))}
                 </Select>
                 <FormHelperText>{errors.currency || " "}</FormHelperText>
               </FormControl>
@@ -409,6 +423,18 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   <MenuItem value="Under Review">Under Review</MenuItem>
                 </Select>
                 <FormHelperText>{errors.creditStatus || " "}</FormHelperText>
+              </FormControl>
+              <FormControl fullWidth size="small" error={!!errors.creditStatus}>
+                <InputLabel>Dimension 1</InputLabel>
+                <Select
+                  value={formData.dimension}
+                  onChange={(e) => handleChange("dimension", e.target.value)}
+                  label="Dimension 1"
+                >
+                  <MenuItem value="0">0</MenuItem>
+                  <MenuItem value="1">1</MenuItem>
+                </Select>
+                <FormHelperText>{errors.dimension || " "}</FormHelperText>
               </FormControl>
               <TextField
                 label="General Notes"
