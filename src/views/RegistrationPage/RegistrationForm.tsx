@@ -1,7 +1,12 @@
 import {
   Box,
   Checkbox,
+  FormControl,
   FormControlLabel,
+  FormHelperText,
+  InputLabel,
+  MenuItem,
+  Select,
   Stack,
   TextField,
   Typography,
@@ -46,6 +51,9 @@ function RegistrationForm() {
   const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const roleOptions = ["Admin", "Manager", "Employee"];
+  const statusOptions = ["active", "inactive"];
 
   const [formData, setFormData] = useState<UserFormData>({
     firstName: "",
@@ -278,26 +286,40 @@ function RegistrationForm() {
         />
 
         {/* Role & Status */}
-        <TextField
-          label="Role"
-          name="role"
-          size="small"
-          fullWidth
-          value={formData.role}
-          onChange={handleInputChange}
-          error={!!errors.role}
-          helperText={errors.role}
-        />
-        <TextField
-          label="Status"
-          name="status"
-          size="small"
-          fullWidth
-          value={formData.status}
-          onChange={handleInputChange}
-          error={!!errors.status}
-          helperText={errors.status}
-        />
+        <FormControl fullWidth size="small" error={!!errors.role}>
+          <InputLabel>Role</InputLabel>
+          <Select
+            name="role"
+            value={formData.role}
+            onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+            label="Role"
+          >
+            {roleOptions.map((role) => (
+              <MenuItem key={role} value={role}>
+                {role}
+              </MenuItem>
+            ))}
+          </Select>
+          {errors.role && <FormHelperText>{errors.role}</FormHelperText>}
+        </FormControl>
+
+        <FormControl fullWidth size="small" error={!!errors.status}>
+          <InputLabel>Status</InputLabel>
+          <Select
+            name="status"
+            value={formData.status}
+            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+            label="Status"
+          >
+            {statusOptions.map((status) => (
+              <MenuItem key={status} value={status}>
+                {status}
+              </MenuItem>
+            ))}
+          </Select>
+          {errors.status && <FormHelperText>{errors.status}</FormHelperText>}
+        </FormControl>
+
 
         {/* Buttons */}
         <Box
