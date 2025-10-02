@@ -15,19 +15,19 @@ export const getShippingCompanies = async () => {
 };
 
 // Get single Shipping Company by ID
-export const getShippingCompany = async (id: number) => {
-  const response = await axios.get(`${API_URL}/${id}`);
+export const getShippingCompany = async (shipper_id: number) => {
+  const response = await axios.get(`${API_URL}/${shipper_id}`);
   return response.data;
 };
 
 // Update Shipping Company
-export const updateShippingCompany = async (id: number, data: any) => {
-  const response = await axios.put(`${API_URL}/${id}`, data);
+export const updateShippingCompany = async (shipper_id: number, data: any) => {
+  const response = await axios.put(`${API_URL}/${shipper_id}`, data);
   return response.data;
 };
 
 // Delete Shipping Company
-export const deleteShippingCompany = async (id: number) => {
-  const response = await axios.delete(`${API_URL}/${id}`);
+export const deleteShippingCompany = async (shipper_id: number) => {
+  const response = await axios.delete(`${API_URL}/${shipper_id}`);
   return response.data;
 };

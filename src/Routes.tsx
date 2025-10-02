@@ -1210,7 +1210,7 @@ const AppRoutes = () => {
           element={withLayout(MainLayout, AddPaymentTermsForm)}
         />
         <Route
-          path="/setup/miscellaneous/update-payment-term/"
+          path="/setup/miscellaneous/update-payment-term/:id"
           element={withLayout(MainLayout, UpdatePaymentTermsForm)}
         />
         <Route
@@ -1234,7 +1234,7 @@ const AppRoutes = () => {
           element={withLayout(MainLayout, UpdateContactCategory)}
         />
         <Route
-          path="/setup/miscellaneous/update-shipping-company"
+          path="/setup/miscellaneous/update-shipping-company/:shipper_id"
           element={withLayout(MainLayout, UpdateShippingCompanyForm)}
         />
         <Route
