@@ -32,6 +32,7 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
     salesType: "",
     phone: "",
     secondaryPhone: "",
+    faxNumber: "",  
     email: "",
     bankAccount: "",
     salesPerson: "",
@@ -148,6 +149,7 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
         sales_type: formData.salesType,
         phone: formData.phone,
         secondary_phone: formData.secondaryPhone,
+        fax_number: formData.faxNumber,
         email: formData.email,
         bank_account: formData.bankAccount,
         sales_person: formData.salesPerson,
@@ -175,6 +177,7 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
         salesType: "",
         phone: "",
         secondaryPhone: "",
+        faxNumber: "",
         email: "",
         bankAccount: "",
         salesPerson: "",
@@ -306,6 +309,15 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                 size="small"
                 error={!!errors.secondaryPhone}
                 helperText={errors.secondaryPhone || " "}
+              />
+              <TextField
+                label="Fax Number"
+                value={formData.secondaryPhone}
+                onChange={(e) => handleChange("faxNumber", e.target.value)}
+                fullWidth
+                size="small"
+                error={!!errors.faxNumber}
+                helperText={errors.faxNumber || " "}
               />
               <TextField
                 label="Email"
