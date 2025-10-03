@@ -17,7 +17,7 @@ function LoginPage() {
 
   const { user, status } = useCurrentUser();
 
-  if (status === "loading" || status === "idle" || status === "pending") {
+  if (status === "loading" || status === "idle") {
     return <PageLoader />;
   }
 

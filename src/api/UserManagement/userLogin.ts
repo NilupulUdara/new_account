@@ -5,11 +5,13 @@ const API_URL = "http://localhost:8000/api";
 export const login = async (data: { email: string; password: string }) => {
   try {
     const response = await axios.post(`${API_URL}/login`, data);
+    const token = response.data.token; // adjust if backend returns access_token
 
-    return {
-      ...response.data,
-      access_token: response.data.token,
-    };
+    if (token) {
+      localStorage.setItem("token", token); // persist token
+    }
+
+    return { ...response.data, access_token: token };
   } catch (error: any) {
     console.error(error.response?.data || error);
     throw error.response?.data || error;

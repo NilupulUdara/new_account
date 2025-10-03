@@ -19,7 +19,7 @@ import ForgotPasswordDialog from "./ForgotPasswordDialog";
 import { useSnackbar } from "notistack";
 import { useNavigate } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-//import { login } from "../../api/userApi";
+// import { login } from "../../api/userApi";
 import { login } from "../../api/UserManagement/userLogin";
 
 function LoginForm() {
@@ -46,19 +46,20 @@ function LoginForm() {
   });
 
   const { mutate: loginMutation, isPending } = useMutation({
-    mutationFn: login,
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["current-user"] });
-      localStorage.setItem("token", data?.access_token);
-      enqueueSnackbar("Welcome Back!", { variant: "success" });
-      navigate("/dashboard");
-    },
-    onError: () => {
-      enqueueSnackbar(`Login Failed`, {
-        variant: "error",
-      });
-    },
-  });
+  mutationFn: login,
+  onSuccess: (data) => {
+    // Store token in localStorage
+    localStorage.setItem("token", data.access_token);
+    // Optionally store user in React Query cache
+    queryClient.setQueryData(["current-user"], data.user);
+
+    enqueueSnackbar("Welcome Back!", { variant: "success" });
+    navigate("/dashboard");
+  },
+  onError: () => {
+    enqueueSnackbar("Login Failed", { variant: "error" });
+  },
+});
 
   const onLoginSubmit = (data: { email: string; password: string }) => {
     loginMutation(data);

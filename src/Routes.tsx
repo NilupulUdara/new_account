@@ -1,5 +1,5 @@
 import React, { Suspense, useMemo } from "react";
-import { Navigate, Outlet, Route, Routes } from "react-router";
+import { Navigate, Outlet, Route, Routes, useLocation } from "react-router";
 import MainLayout from "./components/Layout/MainLayout";
 import PageLoader from "./components/PageLoader";
 import useCurrentUser from "./hooks/useCurrentUser";
@@ -200,6 +200,7 @@ import PosTable from "./views/Setup/Miscellaneous/PointsOfSales/PosTable";
 import AddPosForm from "./views/Setup/Miscellaneous/PointsOfSales/AddPosForm";
 import UpdatePosForm from "./views/Setup/Miscellaneous/PointsOfSales/UpdatePosForm";
 
+
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
   () => import("./views/RegistrationPage/RegistrationPage")
@@ -289,17 +290,21 @@ function withoutLayout(Component: React.LazyExoticComponent<any>) {
 }
 
 const ProtectedRoute = () => {
+  const location = useLocation();
   const { data: user, status } = useQuery({
     queryKey: ["current-user"],
     queryFn: validateUser,
   });
 
-  // If no user is authenticated, redirect to the login page
+  // While checking user, show loader
+  
+
+  // If no user, redirect to login and save the page they tried to access
   if (!user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/" replace state={{ from: location }} />;
   }
 
-  // If user is authenticated, render the child routes
+  // If user exists, render child routes
   return <Outlet />;
 };
 

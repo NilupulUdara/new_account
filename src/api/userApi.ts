@@ -2,6 +2,7 @@ import axios from "axios";
 import { z } from "zod";
 import { PermissionKeysObjectSchema } from "../views/Administration/SectionList";
 import { StorageFileSchema } from "../utils/StorageFiles.util";
+import api from "./apiClient";
 
 export const userRoleSchema = z.object({
   id: z.number(),
@@ -71,18 +72,9 @@ export const passwordResetSchema = z.object({
 
 export type PasswordReset = z.infer<typeof passwordResetSchema>;
 
-export async function login({
-  email,
-  password,
-}: {
-  email: string;
-  password: string;
-}) {
-  const res = await axios.post("/api/login", {
-    email,
-    password,
-  });
-  return res.data;
+export async function login({ email, password }: { email: string; password: string }) {
+  const res = await api.post("/login", { email, password });
+  return res.data as { access_token: string; user: User };
 }
 
 export async function userPasswordReset(data: PasswordReset) {
@@ -128,8 +120,8 @@ export async function registerUser({
   return res.data;
 }
 
-export async function validateUser() {
-  const res = await axios.get("/api/user");
+export async function validateUser(): Promise<User> {
+  const res = await api.get("/api/user");
   return res.data;
 }
 
