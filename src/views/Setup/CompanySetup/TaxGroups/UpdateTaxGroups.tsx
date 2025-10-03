@@ -61,7 +61,7 @@ export default function UpdateTaxGroupsForm() {
 
   useEffect(() => {
     if (id) {
-      getTaxGroup(id).then((data) => {
+      getTaxGroup(Number(id)).then((data) => {
         setFormData({
           description: data.description,
           tax: data.tax,
@@ -79,7 +79,7 @@ export default function UpdateTaxGroupsForm() {
           tax: formData.tax,
           shipping_tax: Number(formData.shippingTax),
         };
-        await updateTaxGroup(id, payload);
+        await updateTaxGroup(Number(id), payload);
         alert("Tax Group updated successfully!");
         window.history.back();
       } catch (error) {

@@ -15,10 +15,18 @@ import {
 } from "@mui/material";
 import theme from "../../../../../theme";
 import { createCustomer } from "../../../../../api/Customer/AddCustomerApi";
+import {createCustomerContact} from "../../../../../api/Customer/CustomerContactApi";
 import { getCurrencies, Currency } from "../../../../../api/Currency/currencyApi";
-import { getSalesPerson } from "../../../../../api/SalesPerson/SalesPersonApi";
 import { useNavigate } from "react-router";
-
+import {
+  getSalesTypes, SalesType,
+  getSalesAreas, SalesArea
+} from "../../../../../api/SalesMaintenance/salesService";
+import { getSalesPersons, SalesPerson } from "../../../../../api/SalesPerson/SalesPersonApi";
+import { getInventoryLocations, InventoryLocation } from "../../../../../api/InventoryLocation/InventoryLocationApi";
+import { getShippingCompanies, ShippingCompany } from "../../../../../api/ShippingCompany/ShippingCompanyApi";
+import { getTaxGroups, TaxGroup } from "../../../../../api/Tax/taxServices";
+import { getCreditStatusSetups, CreditStatusSetup } from "../../../../../api/CreditStatusSetup/CreditStatusSetupApi";
 interface GeneralSettingsFormProps {
   customerId?: string | number;
 }
@@ -55,6 +63,41 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
   useEffect(() => {
     getCurrencies().then(setCurrencies);
   }, []);
+
+  const [salesTypes, setSalesTypes] = useState<SalesType[]>([]);
+  useEffect(() => {
+    getSalesTypes().then(setSalesTypes);
+  }, [])
+
+  const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
+  useEffect(() => {
+    getSalesPersons().then(setSalesPersons);
+  }, [])
+
+  const [salesAreas, setSalesAreas] = useState<SalesArea[]>([]);
+  useEffect(() => {
+    getSalesAreas().then(setSalesAreas);
+  }, [])
+
+  const [InventoryLocations, setInventoryLocations] = useState<InventoryLocation[]>([]);
+  useEffect(() => {
+    getInventoryLocations().then(setInventoryLocations);
+  }, [])
+
+  const [ShippingCompanies, setShippingCompanies] = useState<ShippingCompany[]>([]);
+  useEffect(() => {
+    getShippingCompanies().then(setShippingCompanies);
+  }, [])
+
+  const [TaxGroups, setTaxGroups] = useState<TaxGroup[]>([]);
+  useEffect(() => {
+    getTaxGroups().then(setTaxGroups);
+  }, [])
+
+  const [CreditStatusSetups, setCreditStatusSetups] = useState<CreditStatusSetup[]>([]);
+  useEffect(() => {
+    getCreditStatusSetups().then(setCreditStatusSetups);
+  }, [])
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const navigate = useNavigate();
@@ -285,7 +328,7 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                       key={currency.id}
                       value={currency.currency_abbreviation}
                     >
-                      {currency.currency_abbreviation} ({currency.currency_symbol}) - {currency.currency_name}
+                      {currency.currency_name}
                     </MenuItem>
                   ))}
                 </Select>
@@ -298,8 +341,14 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   onChange={(e) => handleChange("salesType", e.target.value)}
                   label="Sales Type / Price List"
                 >
-                  <MenuItem value="Retail">Retail</MenuItem>
-                  <MenuItem value="Wholesale">Wholesale</MenuItem>
+                  {salesTypes.map((salesType) => (
+                    <MenuItem
+                      key={salesType.id}
+                      value={salesType.typeName}
+                    >
+                      {salesType.typeName}
+                    </MenuItem>
+                  ))}
                 </Select>
                 <FormHelperText>{errors.salesType || " "}</FormHelperText>
               </FormControl>
@@ -358,8 +407,14 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   onChange={(e) => handleChange("salesPerson", e.target.value)}
                   label="Sales Person"
                 >
-                  <MenuItem value="John Doe">John Doe</MenuItem>
-                  <MenuItem value="Jane Smith">Jane Smith</MenuItem>
+                  {salesPersons.map((salesPerson) => (
+                    <MenuItem
+                      key={salesPerson.id}
+                      value={salesPerson.name}
+                    >
+                      {salesPerson.name}
+                    </MenuItem>
+                  ))}
                 </Select>
                 <FormHelperText>{errors.salesPerson || " "}</FormHelperText>
               </FormControl>
@@ -419,8 +474,14 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   onChange={(e) => handleChange("creditStatus", e.target.value)}
                   label="Credit Status"
                 >
-                  <MenuItem value="Good History">Good History</MenuItem>
-                  <MenuItem value="Under Review">Under Review</MenuItem>
+                  {CreditStatusSetups.map((CreditStatusSetup) => (
+                    <MenuItem
+                      key={CreditStatusSetup.id}
+                      value={CreditStatusSetup.reason_description}
+                    >
+                      {CreditStatusSetup.reason_description}
+                    </MenuItem>
+                  ))}
                 </Select>
                 <FormHelperText>{errors.creditStatus || " "}</FormHelperText>
               </FormControl>
@@ -463,8 +524,14 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   }
                   label="Default Inventory Location"
                 >
-                  <MenuItem value="Warehouse 1">Warehouse 1</MenuItem>
-                  <MenuItem value="Warehouse 2">Warehouse 2</MenuItem>
+                  {InventoryLocations.map((InventoryLocation) => (
+                    <MenuItem
+                      key={InventoryLocation.id}
+                      value={InventoryLocation.location_name}
+                    >
+                      {InventoryLocation.location_name}
+                    </MenuItem>
+                  ))}
                 </Select>
                 <FormHelperText>
                   {errors.defaultInventoryLocation || " "}
@@ -483,8 +550,14 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   }
                   label="Default Shipping Company"
                 >
-                  <MenuItem value="DHL">DHL</MenuItem>
-                  <MenuItem value="FedEx">FedEx</MenuItem>
+                  {ShippingCompanies.map((ShippingCompanie) => (
+                    <MenuItem
+                      key={ShippingCompanie.shipper_id}
+                      value={ShippingCompanie.shipper_name}
+                    >
+                      {ShippingCompanie.shipper_name}
+                    </MenuItem>
+                  ))}
                 </Select>
                 <FormHelperText>
                   {errors.defaultShippingCompany || " "}
@@ -497,8 +570,14 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   onChange={(e) => handleChange("salesArea", e.target.value)}
                   label="Sales Area"
                 >
-                  <MenuItem value="North">North</MenuItem>
-                  <MenuItem value="South">South</MenuItem>
+                  {salesAreas.map((salesArea) => (
+                    <MenuItem
+                      key={salesArea.id}
+                      value={salesArea.name}
+                    >
+                      {salesArea.name}
+                    </MenuItem>
+                  ))}
                 </Select>
                 <FormHelperText>{errors.salesArea || " "}</FormHelperText>
               </FormControl>
@@ -509,8 +588,14 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   onChange={(e) => handleChange("taxGroup", e.target.value)}
                   label="Tax Group"
                 >
-                  <MenuItem value="GST">GST</MenuItem>
-                  <MenuItem value="VAT">VAT</MenuItem>
+                  {TaxGroups.map((TaxGroup) => (
+                    <MenuItem
+                      key={TaxGroup.id}
+                      value={TaxGroup.description}
+                    >
+                      {TaxGroup.description}
+                    </MenuItem>
+                  ))}
                 </Select>
                 <FormHelperText>{errors.taxGroup || " "}</FormHelperText>
               </FormControl>

@@ -65,7 +65,7 @@ export default function AddCreditStatusForm() {
           try {
             const payload = {
               reason_description: formData.description,
-              disallow_invoices: formData.disallowInvoicing === "yes" ? 1 : 0,
+              disallow_invoices: formData.disallowInvoicing === "yes" ? true : false,
             };
     
             await createCreditStatusSetup(payload);

@@ -60,58 +60,49 @@ export const deleteTaxType = async (id: string | number) => {
 //TAX GROUPS API
 const TAX_GROUPS_API_URL = "http://localhost:8000/api/tax-groups";
 
-export const createTaxGroup = async (taxGroupData: any) => {
-  try {
-    const response = await axios.post(TAX_GROUPS_API_URL, taxGroupData);
-    return response.data;
-  } catch (error: any) {
-    console.error(error.response?.data || error);
-    throw error.response?.data || error;
-  }
+export interface TaxGroup {
+  id?: number;               // optional for create
+  description: string;
+  tax: boolean;
+  shipping_tax: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// --------------------
+// API Functions
+// --------------------
+
+// Create Tax Group
+export const createTaxGroup = async (data: TaxGroup): Promise<TaxGroup> => {
+  const response = await axios.post<TaxGroup>(TAX_GROUPS_API_URL, data);
+  return response.data;
 };
 
-export const getTaxGroups = async () => {
-  try {
-    const response = await axios.get(TAX_GROUPS_API_URL);
-    return response.data;
-  } catch (error: any) {
-    console.error(error.response?.data || error);
-    throw error.response?.data || error;
-  }
+// Get all Tax Groups
+export const getTaxGroups = async (): Promise<TaxGroup[]> => {
+  const response = await axios.get<TaxGroup[]>(TAX_GROUPS_API_URL);
+  return response.data;
 };
 
-export const getTaxGroup = async (id: string | number) => {
-  try {
-    const response = await axios.get(`${TAX_GROUPS_API_URL}/${id}`);
-    return response.data;
-  } catch (error: any) {
-    console.error(error.response?.data || error);
-    throw error.response?.data || error;
-  }
+// Get single Tax Group by ID
+export const getTaxGroup = async (id: number): Promise<TaxGroup> => {
+  const response = await axios.get<TaxGroup>(`${TAX_GROUPS_API_URL}/${id}`);
+  return response.data;
 };
 
+// Update Tax Group
 export const updateTaxGroup = async (
-  id: string | number,
-  taxGroupData: any
-) => {
-  try {
-    const response = await axios.put(
-      `${TAX_GROUPS_API_URL}/${id}`,
-      taxGroupData
-    );
-    return response.data;
-  } catch (error: any) {
-    console.error(error.response?.data || error);
-    throw error.response?.data || error;
-  }
+  id: number,
+  data: TaxGroup
+): Promise<TaxGroup> => {
+  const response = await axios.put<TaxGroup>(`${TAX_GROUPS_API_URL}/${id}`, data);
+  return response.data;
 };
 
-export const deleteTaxGroup = async (id: string | number) => {
-  try {
-    const response = await axios.delete(`${TAX_GROUPS_API_URL}/${id}`);
-    return response.data;
-  } catch (error: any) {
-    console.error(error.response?.data || error);
-    throw error.response?.data || error;
-  }
+// Delete Tax Group
+export const deleteTaxGroup = async (id: number): Promise<{ success: boolean }> => {
+  const response = await axios.delete<{ success: boolean }>(`${TAX_GROUPS_API_URL}/${id}`);
+  return response.data;
 };
+

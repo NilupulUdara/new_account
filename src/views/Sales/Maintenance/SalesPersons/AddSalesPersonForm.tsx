@@ -20,7 +20,7 @@ interface SalesPersonFormData {
   fax: string;
   email: string;
   provision: string;
-  turnoverBreakPoint: string;
+  turnover_break_point: string;
   provision2: string;
 }
 
@@ -31,7 +31,7 @@ export default function AddSalesPerson() {
     fax: "",
     email: "",
     provision: "",
-    turnoverBreakPoint: "",
+    turnover_break_point: "",
     provision2: "",
   });
 
@@ -62,8 +62,8 @@ export default function AddSalesPerson() {
       newErrors.email = "Invalid email address";
     }
     if (!formData.provision) newErrors.provision = "Provision is required";
-    if (!formData.turnoverBreakPoint)
-      newErrors.turnoverBreakPoint = "Turnover Break Pt Level is required";
+    if (!formData.turnover_break_point)
+      newErrors.turnover_break_point = "Turnover Break Pt Level is required";
     if (!formData.provision2) newErrors.provision2 = "Provision 2 is required";
 
     setErrors(newErrors);
@@ -78,9 +78,9 @@ export default function AddSalesPerson() {
           telephone: formData.telephone,
           fax: formData.fax,
           email: formData.email,
-          provision: formData.provision,
-          turnover_break_point: formData.turnoverBreakPoint,
-          provision2: formData.provision2
+          provision: Number(formData.provision),
+          turnover_break_point: Number(formData.turnover_break_point),
+          provision2: Number(formData.provision2),
         };
 
         const salesPerson = await createSalesPerson(payload);
@@ -93,7 +93,7 @@ export default function AddSalesPerson() {
           fax: "",
           email: "",
           provision: "",
-          turnoverBreakPoint: "",
+          turnover_break_point: "",
           provision2: "",
         });
 
@@ -169,6 +169,7 @@ export default function AddSalesPerson() {
           <TextField
             label="Provision (%)"
             name="provision"
+            type="number"
             size="small"
             fullWidth
             value={formData.provision}
@@ -179,18 +180,19 @@ export default function AddSalesPerson() {
 
           <TextField
             label="Turnover Break Pt Level"
-            name="turnoverBreakPoint"
+            name="turnover_break_point"
             size="small"
             fullWidth
-            value={formData.turnoverBreakPoint}
+            value={formData.turnover_break_point}
             onChange={handleInputChange}
-            error={!!errors.turnoverBreakPoint}
-            helperText={errors.turnoverBreakPoint}
+            error={!!errors.turnover_break_point}
+            helperText={errors.turnover_break_point}
           />
 
           <TextField
             label="Provision 2 (%)"
             name="provision2"
+            type="number"
             size="small"
             fullWidth
             value={formData.provision2}

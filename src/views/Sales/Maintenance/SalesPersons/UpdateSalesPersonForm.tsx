@@ -20,7 +20,7 @@ interface SalesPersonFormData {
   fax: string;
   email: string;
   provision: string;
-  turnoverBreakPoint: string;
+  turnover_break_point: string;
   provision2: string;
 }
 
@@ -31,7 +31,7 @@ export default function UpdateSalesPerson() {
     fax: "",
     email: "",
     provision: "",
-    turnoverBreakPoint: "",
+    turnover_break_point: "",
     provision2: "",
   });
 
@@ -52,7 +52,7 @@ export default function UpdateSalesPerson() {
           fax: salesPerson.fax,
           email: salesPerson.email,
           provision: salesPerson.provision?.toString() || "",
-          turnoverBreakPoint: salesPerson.turnover_break_point?.toString() || "",
+          turnover_break_point: salesPerson.turnover_break_point?.toString() || "",
           provision2: salesPerson.provision2?.toString() || "",
         });
       });
@@ -79,8 +79,8 @@ export default function UpdateSalesPerson() {
       newErrors.email = "Invalid email address";
     }
     if (!formData.provision) newErrors.provision = "Provision is required";
-    if (!formData.turnoverBreakPoint)
-      newErrors.turnoverBreakPoint = "Turnover Break Pt Level is required";
+    if (!formData.turnover_break_point)
+      newErrors.turnover_break_point = "Turnover Break Pt Level is required";
     if (!formData.provision2) newErrors.provision2 = "Provision 2 is required";
 
     setErrors(newErrors);
@@ -95,9 +95,9 @@ export default function UpdateSalesPerson() {
           telephone: formData.telephone,
           fax: formData.fax,
           email: formData.email,
-          provision: parseFloat(formData.provision),
-          turnover_break_point: parseFloat(formData.turnoverBreakPoint),
-          provision2: parseFloat(formData.provision2),
+          provision: Number(formData.provision),
+          turnover_break_point: Number(formData.turnover_break_point),
+          provision2: Number(formData.provision2),
         };
 
         const updated = await updateSalesPerson(id, payload);
@@ -176,6 +176,7 @@ export default function UpdateSalesPerson() {
           <TextField
             label="Provision (%)"
             name="provision"
+            type="number"
             size="small"
             fullWidth
             value={formData.provision}
@@ -189,15 +190,16 @@ export default function UpdateSalesPerson() {
             name="turnoverBreakPoint"
             size="small"
             fullWidth
-            value={formData.turnoverBreakPoint}
+            value={formData.turnover_break_point}
             onChange={handleInputChange}
-            error={!!errors.turnoverBreakPoint}
-            helperText={errors.turnoverBreakPoint}
+            error={!!errors.turnover_break_point}
+            helperText={errors.turnover_break_point}
           />
 
           <TextField
             label="Provision 2 (%)"
             name="provision2"
+            type="number"
             size="small"
             fullWidth
             value={formData.provision2}

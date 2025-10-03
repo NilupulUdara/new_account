@@ -43,7 +43,7 @@ export default function UpdateCreditStatusForm() {
     const fetchData = async () => {
       if (!id) return;
       try {
-        const data = await getCreditStatusSetup(id);
+        const data = await getCreditStatusSetup(Number(id));
         setFormData({
           description: data.reason_description,
           disallowInvoicing: data.disallow_invoices ? "yes" : "no",
@@ -85,12 +85,12 @@ export default function UpdateCreditStatusForm() {
     if (validate()) {
       const payload = {
         reason_description: formData.description,
-        disallow_invoices: formData.disallowInvoicing === "yes" ? 1 : 0,
+        disallow_invoices: formData.disallowInvoicing === "yes" ? true : false,
       };
 
       try {
         setLoading(true);
-        await updateCreditStatusSetup(id, payload);
+        await updateCreditStatusSetup(Number(id), payload);
         alert("Credit status setup updated successfully!");
         window.history.back();
       } catch (error) {

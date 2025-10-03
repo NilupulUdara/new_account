@@ -1,11 +1,18 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/credit-status-setup"; 
+const API_URL = "http://localhost:8000/api/credit-status-setup";
+
+// Interface for CreditStatusSetup
+export interface CreditStatusSetup {
+  id?: number; 
+  reason_description: string;
+  disallow_invoices: boolean;
+}
 
 // Create CreditStatusSetup
-export const createCreditStatusSetup = async (itemCreditStatusSetupData: any) => {
+export const createCreditStatusSetup = async (data: CreditStatusSetup) => {
   try {
-    const response = await axios.post(API_URL, itemCreditStatusSetupData);
+    const response = await axios.post(API_URL, data);
     return response.data;
   } catch (error: any) {
     console.error(error.response?.data || error);
@@ -14,7 +21,7 @@ export const createCreditStatusSetup = async (itemCreditStatusSetupData: any) =>
 };
 
 // Get all CreditStatusSetups
-export const getCreditStatusSetups = async () => {
+export const getCreditStatusSetups = async (): Promise<CreditStatusSetup[]> => {
   try {
     const response = await axios.get(API_URL);
     return response.data;
@@ -25,7 +32,7 @@ export const getCreditStatusSetups = async () => {
 };
 
 // Get single CreditStatusSetup by ID
-export const getCreditStatusSetup = async (id: string | number) => {
+export const getCreditStatusSetup = async (id: number): Promise<CreditStatusSetup> => {
   try {
     const response = await axios.get(`${API_URL}/${id}`);
     return response.data;
@@ -36,9 +43,9 @@ export const getCreditStatusSetup = async (id: string | number) => {
 };
 
 // Update CreditStatusSetup
-export const updateCreditStatusSetup = async (id: string | number, itemCreditStatusSetupData: any) => {
+export const updateCreditStatusSetup = async (id: number, data: CreditStatusSetup) => {
   try {
-    const response = await axios.put(`${API_URL}/${id}`, itemCreditStatusSetupData);
+    const response = await axios.put(`${API_URL}/${id}`, data);
     return response.data;
   } catch (error: any) {
     console.error(error.response?.data || error);
@@ -47,7 +54,7 @@ export const updateCreditStatusSetup = async (id: string | number, itemCreditSta
 };
 
 // Delete CreditStatusSetup
-export const deleteCreditStatusSetup = async (id: string | number) => {
+export const deleteCreditStatusSetup = async (id: number) => {
   try {
     const response = await axios.delete(`${API_URL}/${id}`);
     return response.data;
