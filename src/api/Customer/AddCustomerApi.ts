@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/customers";
+const API_URL = "http://localhost:8000/api/debtors-master";
 
 // ✅ Create
 export const createCustomer = async (customerData: any) => {

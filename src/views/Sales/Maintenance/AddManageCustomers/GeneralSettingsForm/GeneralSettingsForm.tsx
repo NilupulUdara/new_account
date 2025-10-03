@@ -185,73 +185,62 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
   };
 
   const handleSubmit = async () => {
-    if (!validate()) {
-      alert("Please fix validation errors before submitting.");
-      return;
-    }
+  if (!validate()) {
+    alert("Please fix validation errors before submitting.");
+    return;
+  }
 
-    try {
-      const payload = {
-        customer_name: formData.customerName,
-        customer_short_name: formData.customerShortName,
-        address: formData.address,
-        gst_number: formData.gstNumber,
-        currency: formData.currency,
-        sales_type: formData.salesType,
-        phone: formData.phone,
-        secondary_phone: formData.secondaryPhone,
-        fax_number: formData.faxNumber,
-        email: formData.email,
-        bank_account: formData.bankAccount,
-        sales_person: formData.salesPerson,
-        discount_percent: formData.discountPercent,
-        prompt_payment_discount: formData.promptPaymentDiscount,
-        credit_limit: formData.creditLimit,
-        payment_terms: formData.paymentTerms,
-        credit_status: formData.creditStatus,
-        general_notes: formData.generalNotes,
-        default_inventory_location: formData.defaultInventoryLocation,
-        default_shipping_company: formData.defaultShippingCompany,
-        sales_area: formData.salesArea,
-        tax_group: formData.taxGroup,
-      };
+  try {
+    // Map correctly for debtors_master
+    const customerPayload = {
+      name: formData.customerName,
+      debtor_ref: formData.customerShortName,
+      address: formData.address,
+      gst: formData.gstNumber,
+      curr_code: formData.currency, // already abbreviation
+      sales_type: Number(formData.salesType), // must be ID
+      credit_status: Number(formData.creditStatus), // must be ID
+      payment_terms: Number(formData.paymentTerms), // must be ID
+      discount: Number(formData.discountPercent) || 0,
+      pymt_discount: Number(formData.promptPaymentDiscount) || 0,
+      credit_limit: Number(formData.creditLimit) || 1000,
+      notes: formData.generalNotes,
+      dimension_id: Number(formData.dimension) || 0,
+      dimension2_id: 0,
+      inactive: 0,
+    };
 
-      await createCustomer(payload);
-      alert("Customer created successfully");
+    // Map correctly for crm_persons (contacts)
+    const contactPayload = {
+      ref: formData.customerShortName,
+      name: formData.customerName,
+      address: formData.address,
+      phone: formData.phone,
+      phone2: formData.secondaryPhone,
+      fax: formData.faxNumber,
+      email: formData.email,
+      notes: formData.generalNotes,
+      inactive: 0,
+    };
 
-      setFormData({
-        customerName: "",
-        customerShortName: "",
-        address: "",
-        gstNumber: "",
-        currency: "",
-        salesType: "",
-        phone: "",
-        secondaryPhone: "",
-        faxNumber: "",
-        email: "",
-        bankAccount: "",
-        salesPerson: "",
-        discountPercent: "",
-        promptPaymentDiscount: "",
-        dimension: "",
-        creditLimit: "",
-        paymentTerms: "",
-        creditStatus: "",
-        generalNotes: "",
-        defaultInventoryLocation: "",
-        defaultShippingCompany: "",
-        salesArea: "",
-        taxGroup: "",
-      });
+    // First create customer (main)
+    const customer = await createCustomer(customerPayload);
 
-      navigate("/sales/maintenance/add-and-manage-customers");
+    // Then create contact (use returned customer_ref or debtor_no if needed)
+    await createCustomerContact({
+      ...contactPayload,
+      ref: customer.debtor_ref, // link them
+    });
 
-    } catch (error: any) {
-      console.error("Error creating customer:", error);
-      alert("Failed to save customer. See console for details.");
-    }
-  };
+    alert("Customer created successfully");
+    navigate("/sales/maintenance/add-and-manage-customers");
+
+  } catch (error: any) {
+    console.error("Error creating customer:", error.response?.data || error);
+    alert("Failed to save customer. See console for details.");
+  }
+};
+
 
   return (
     <Stack alignItems="center" sx={{ p: { xs: 2, md: 3 } }}>
@@ -344,7 +333,7 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   {salesTypes.map((salesType) => (
                     <MenuItem
                       key={salesType.id}
-                      value={salesType.typeName}
+                      value={salesType.id}
                     >
                       {salesType.typeName}
                     </MenuItem>
@@ -477,7 +466,7 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   {CreditStatusSetups.map((CreditStatusSetup) => (
                     <MenuItem
                       key={CreditStatusSetup.id}
-                      value={CreditStatusSetup.reason_description}
+                      value={CreditStatusSetup.id}
                     >
                       {CreditStatusSetup.reason_description}
                     </MenuItem>
@@ -527,7 +516,7 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   {InventoryLocations.map((InventoryLocation) => (
                     <MenuItem
                       key={InventoryLocation.id}
-                      value={InventoryLocation.location_name}
+                      value={InventoryLocation.id}
                     >
                       {InventoryLocation.location_name}
                     </MenuItem>
@@ -573,7 +562,7 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   {salesAreas.map((salesArea) => (
                     <MenuItem
                       key={salesArea.id}
-                      value={salesArea.name}
+                      value={salesArea.id}
                     >
                       {salesArea.name}
                     </MenuItem>
