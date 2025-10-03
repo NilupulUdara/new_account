@@ -33,7 +33,7 @@ const AddAndManageCustomers = () => {
   const [tabValue, setTabValue] = useState(0);
 
   // Customer dropdown state
-  const [customers, setCustomers] = useState<{ id: string | number; customer_name: string }[]>([]);
+  const [customers, setCustomers] = useState<{ debtor_no: string | number; name: string }[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string | number>("new"); // default 'new'
 
   // Fetch customers from database
@@ -89,8 +89,8 @@ const AddAndManageCustomers = () => {
               + Add New Customer
             </MenuItem>
             {customers.map((customer) => (
-              <MenuItem key={customer.id} value={customer.id}>
-                {customer.customer_name}
+              <MenuItem key={customer.debtor_no} value={customer.debtor_no}>
+                {customer.name}
               </MenuItem>
             ))}
           </Select>
