@@ -54,14 +54,14 @@ export default function DashboardCard({ text, icon, change, onClick }: Dashboard
             color="text.secondary"
             sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}
           >
-            compared last…
+            {/* compared last… */}
             <span
               style={{
                 fontWeight: "bold",
                 color: change >= 0 ? "green" : "red",
               }}
             >
-              {change >= 0 ? `+${change}% ↑` : `${change}% ↓`}
+              {/* {change >= 0 ? `+${change}% ↑` : `${change}% ↓`} */}
             </span>
           </Typography>
         )}

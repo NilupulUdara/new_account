@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Stack,
@@ -7,8 +7,22 @@ import {
   Button,
   Divider,
   Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormHelperText,
 } from "@mui/material";
 import theme from "../../../../../theme";
+import {
+  getSalesTypes, SalesType,
+  getSalesAreas, SalesArea
+} from "../../../../../api/SalesMaintenance/salesService";
+import { getSalesPersons, SalesPerson } from "../../../../../api/SalesPerson/SalesPersonApi";
+import { getInventoryLocations, InventoryLocation } from "../../../../../api/InventoryLocation/InventoryLocationApi";
+import { getShippingCompanies, ShippingCompany } from "../../../../../api/ShippingCompany/ShippingCompanyApi";
+import { getTaxGroups, TaxGroup } from "../../../../../api/Tax/taxServices";
+import { CustomerBranch, getBranch, updateBranch } from "../../../../../api/CustomerBranch/CustomerBranchApi";
 
 interface CustomerBranchesProps {
   customerId?: string | number;
@@ -35,14 +49,6 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
     promptPaymentDiscount: "",
     bankAccountNumber: "",
 
-    // General Contact Data
-    contactPerson: "",
-    phoneNumber: "",
-    secondaryPhoneNumber: "",
-    faxNumber: "",
-    email: "",
-    documentLanguage: "",
-
     // Addresses
     mailingAddress: "",
     billingAddress: "",
@@ -50,6 +56,69 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  const [salesTypes, setSalesTypes] = useState<SalesType[]>([]);
+  useEffect(() => {
+    getSalesTypes().then(setSalesTypes);
+  }, [])
+
+  const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
+  useEffect(() => {
+    getSalesPersons().then(setSalesPersons);
+  }, [])
+
+  const [salesAreas, setSalesAreas] = useState<SalesArea[]>([]);
+  useEffect(() => {
+    getSalesAreas().then(setSalesAreas);
+  }, [])
+
+  const [InventoryLocations, setInventoryLocations] = useState<InventoryLocation[]>([]);
+  useEffect(() => {
+    getInventoryLocations().then(setInventoryLocations);
+  }, [])
+
+  const [ShippingCompanies, setShippingCompanies] = useState<ShippingCompany[]>([]);
+  useEffect(() => {
+    getShippingCompanies().then(setShippingCompanies);
+  }, [])
+
+  const [TaxGroups, setTaxGroups] = useState<TaxGroup[]>([]);
+  useEffect(() => {
+    getTaxGroups().then(setTaxGroups);
+  }, [])
+
+  useEffect(() => {
+    if (!customerId) return;
+
+    const fetchBranch = async () => {
+      try {
+        const data = await getBranch(customerId);
+        setFormData({
+          branchName: data.br_name,
+          branchShortName: data.branch_ref,
+          salesPerson: String(data.sales_person),
+          salesArea: String(data.sales_area || ""),
+          salesGroup: String(data.sales_group),
+          defaultInventoryLocation: data.inventory_location,
+          defaultShippingCompany: String(data.shipping_company),
+          taxGroup: String(data.tax_group || ""),
+          salesAccount: data.sales_account,
+          salesDiscountAccount: data.sales_discount_account,
+          accountsReceivable: data.receivables_account,
+          promptPaymentDiscount: data.payment_discount_account,
+          bankAccountNumber: data.bank_account || "",
+          mailingAddress: data.br_post_address,
+          billingAddress: data.br_address,
+          generalNotes: data.notes,  
+        });
+      } catch (error) {
+        console.error("Failed to fetch branch data", error);
+      }
+    };
+
+    fetchBranch();
+  }, [customerId]);
+
 
   const handleChange = (field: string, value: string) => {
     setFormData({ ...formData, [field]: value });
@@ -95,25 +164,6 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
     if (!formData.bankAccountNumber.trim())
       tempErrors.bankAccountNumber = "Bank Account Number is required";
 
-    // General Contact Data
-    if (!formData.contactPerson.trim())
-      tempErrors.contactPerson = "Contact Person is required";
-    if (!formData.phoneNumber.trim())
-      tempErrors.phoneNumber = "Phone Number is required";
-    else if (!phoneRegex.test(formData.phoneNumber))
-      tempErrors.phoneNumber = "Enter a valid 10-digit phone number";
-    if (formData.secondaryPhoneNumber.trim() &&
-      !phoneRegex.test(formData.secondaryPhoneNumber))
-      tempErrors.secondaryPhoneNumber =
-        "Enter a valid 10-digit secondary phone number";
-    if (formData.faxNumber.trim() && !faxRegex.test(formData.faxNumber))
-      tempErrors.faxNumber = "Enter a valid fax number (6–15 digits)";
-    if (!formData.email.trim()) tempErrors.email = "Email is required";
-    else if (!emailRegex.test(formData.email))
-      tempErrors.email = "Enter a valid email address";
-    if (!formData.documentLanguage.trim())
-      tempErrors.documentLanguage = "Document Language is required";
-
     // Addresses
     if (!formData.mailingAddress.trim())
       tempErrors.mailingAddress = "Mailing Address is required";
@@ -126,12 +176,38 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
     return Object.keys(tempErrors).length === 0;
   };
 
-  const handleSubmit = () => {
-    if (validate()) {
-      console.log("Submitted Branch:", formData);
-      alert("Branch settings saved!");
+  const handleSubmit = async () => {
+    if (!validate()) return;
+
+    const payload: CustomerBranch = {
+      br_name: formData.branchName,
+      branch_ref: formData.branchShortName,
+      sales_person: Number(formData.salesPerson),
+      sales_area: Number(formData.salesArea),
+      sales_group: Number(formData.salesGroup),
+      inventory_location: formData.defaultInventoryLocation,
+      shipping_company: Number(formData.defaultShippingCompany),
+      tax_group: Number(formData.taxGroup),
+      sales_account: formData.salesAccount,
+      sales_discount_account: formData.salesDiscountAccount,
+      receivables_account: formData.accountsReceivable,
+      payment_discount_account: formData.promptPaymentDiscount,
+      bank_account: formData.bankAccountNumber,
+      br_post_address: formData.mailingAddress,
+      br_address: formData.billingAddress,
+      notes: formData.generalNotes,
+      inactive: false,
+    };
+
+    try {
+      await updateBranch(customerId!, payload);
+      alert("Branch updated successfully!");
+    } catch (error) {
+      console.error("Update failed", error);
+      alert("Failed to update branch.");
     }
   };
+
 
   return (
     <Stack alignItems="center" sx={{ p: { xs: 2, md: 3 } }}>
@@ -149,7 +225,7 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
           variant="h5"
           sx={{ mb: theme.spacing(3), textAlign: "center" }}
         >
-          Customer Branch Setup
+          Update Customer Branch Setup
         </Typography>
 
         <Grid container spacing={4}>
@@ -186,25 +262,127 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
               <Stack spacing={2}>
                 <Typography variant="subtitle1">Sales</Typography>
                 <Divider />
-                {[
-                  "salesPerson",
-                  "salesArea",
-                  "salesGroup",
-                  "defaultInventoryLocation",
-                  "defaultShippingCompany",
-                  "taxGroup",
-                ].map((field) => (
-                  <TextField
-                    key={field}
-                    label={field.replace(/([A-Z])/g, " $1")}
-                    value={formData[field as keyof typeof formData]}
-                    onChange={(e) => handleChange(field, e.target.value)}
-                    size="small"
-                    fullWidth
-                    error={!!errors[field]}
-                    helperText={errors[field]}
-                  />
-                ))}
+                <FormControl size="small" fullWidth error={!!errors.salesPerson}>
+                  <InputLabel>Sales Person</InputLabel>
+                  <Select
+                    value={formData.salesPerson}
+                    label="Sales Person"
+                    onChange={(e) => handleChange("salesPerson", e.target.value)}
+                  >
+                    {salesPersons.map((person) => (
+                      <MenuItem key={person.id} value={person.id}>
+                        {person.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  {errors.salesPerson && (
+                    <Typography variant="caption" color="error">
+                      {errors.salesPerson}
+                    </Typography>
+                  )}
+                </FormControl>
+
+                {/* Sales Area */}
+                <FormControl size="small" fullWidth error={!!errors.salesArea}>
+                  <InputLabel>Sales Area</InputLabel>
+                  <Select
+                    value={formData.salesArea}
+                    label="Sales Area"
+                    onChange={(e) => handleChange("salesArea", e.target.value)}
+                  >
+                    {salesAreas.map((area) => (
+                      <MenuItem key={area.id} value={area.id}>
+                        {area.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  {errors.salesArea && (
+                    <Typography variant="caption" color="error">
+                      {errors.salesArea}
+                    </Typography>
+                  )}
+                </FormControl>
+
+                <FormControl fullWidth size="small" error={!!errors.creditStatus}>
+                  <InputLabel>Sales Group</InputLabel>
+                  <Select
+                    value={formData.salesGroup}
+                    onChange={(e) => handleChange("salesGroup", e.target.value)}
+                    label="Sales Group"
+                  >
+                    <MenuItem value="mall">Small</MenuItem>
+                    <MenuItem value="medium">Medium</MenuItem>
+                    <MenuItem value="large">Large</MenuItem>
+                  </Select>
+                  <FormHelperText>{errors.salesGroup || " "}</FormHelperText>
+                </FormControl>
+
+                {/* Default Inventory Location */}
+                <FormControl size="small" fullWidth error={!!errors.defaultInventoryLocation}>
+                  <InputLabel>Default Inventory Location</InputLabel>
+                  <Select
+                    value={formData.defaultInventoryLocation}
+                    label="Default Inventory Location"
+                    onChange={(e) =>
+                      handleChange("defaultInventoryLocation", e.target.value)
+                    }
+                  >
+                    {InventoryLocations.map((loc) => (
+                      <MenuItem key={loc.id} value={loc.id}>
+                        {loc.location_name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  {errors.defaultInventoryLocation && (
+                    <Typography variant="caption" color="error">
+                      {errors.defaultInventoryLocation}
+                    </Typography>
+                  )}
+                </FormControl>
+
+                {/* Default Shipping Company */}
+                <FormControl size="small" fullWidth error={!!errors.defaultShippingCompany}>
+                  <InputLabel>Default Shipping Company</InputLabel>
+                  <Select
+                    value={formData.defaultShippingCompany}
+                    label="Default Shipping Company"
+                    onChange={(e) =>
+                      handleChange("defaultShippingCompany", e.target.value)
+                    }
+                  >
+                    {ShippingCompanies.map((ship) => (
+                      <MenuItem key={ship.shipper_id} value={ship.shipper_name}>
+                        {ship.shipper_name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  {errors.defaultShippingCompany && (
+                    <Typography variant="caption" color="error">
+                      {errors.defaultShippingCompany}
+                    </Typography>
+                  )}
+                </FormControl>
+
+                {/* Tax Group */}
+                <FormControl size="small" fullWidth error={!!errors.taxGroup}>
+                  <InputLabel>Tax Group</InputLabel>
+                  <Select
+                    value={formData.taxGroup}
+                    label="Tax Group"
+                    onChange={(e) => handleChange("taxGroup", e.target.value)}
+                  >
+                    {TaxGroups.map((tax) => (
+                      <MenuItem key={tax.id} value={tax.description}>
+                        {tax.description}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  {errors.taxGroup && (
+                    <Typography variant="caption" color="error">
+                      {errors.taxGroup}
+                    </Typography>
+                  )}
+                </FormControl>
               </Stack>
             </Stack>
           </Grid>
@@ -216,32 +394,73 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
               <Stack spacing={2}>
                 <Typography variant="subtitle1">GL Accounts</Typography>
                 <Divider />
-                {[
-                  "salesAccount",
-                  "salesDiscountAccount",
-                  "accountsReceivable",
-                  "promptPaymentDiscount",
-                  "bankAccountNumber",
-                ].map((field) => (
-                  <TextField
-                    key={field}
-                    label={field.replace(/([A-Z])/g, " $1")}
-                    value={formData[field as keyof typeof formData]}
-                    onChange={(e) => handleChange(field, e.target.value)}
-                    size="small"
-                    fullWidth
-                    error={!!errors[field]}
-                    helperText={errors[field]}
-                  />
-                ))}
+                <FormControl fullWidth size="small">
+                  <InputLabel>Sales Account</InputLabel>
+                  <Select
+                    value={formData.salesAccount}
+                    onChange={(e) => handleChange("salesAccount", e.target.value)}
+                    label="Sales Account"
+                  >
+                    <MenuItem value="sales_revenue">Sales Revenue</MenuItem>
+                    <MenuItem value="product_sales">Product Sales</MenuItem>
+                    <MenuItem value="service_income">Service Income</MenuItem>
+                  </Select>
+                </FormControl>
+
+                {/* Sales Discount Account */}
+                <FormControl fullWidth size="small">
+                  <InputLabel>Sales Discount Account</InputLabel>
+                  <Select
+                    value={formData.salesDiscountAccount}
+                    onChange={(e) => handleChange("salesDiscountAccount", e.target.value)}
+                    label="Sales Discount Account"
+                  >
+                    <MenuItem value="discount_allowed">Discount Allowed</MenuItem>
+                    <MenuItem value="seasonal_discount">Seasonal Discount</MenuItem>
+                    <MenuItem value="volume_discount">Volume Discount</MenuItem>
+                  </Select>
+                </FormControl>
+
+                {/* Accounts Receivable */}
+                <FormControl fullWidth size="small">
+                  <InputLabel>Accounts Receivable</InputLabel>
+                  <Select
+                    value={formData.accountsReceivable}
+                    onChange={(e) => handleChange("accountsReceivable", e.target.value)}
+                    label="Accounts Receivable"
+                  >
+                    <MenuItem value="domestic_receivable">Domestic Receivable</MenuItem>
+                    <MenuItem value="foreign_receivable">Foreign Receivable</MenuItem>
+                  </Select>
+                </FormControl>
+
+                {/* Prompt Payment Discount */}
+                <FormControl fullWidth size="small">
+                  <InputLabel>Prompt Payment Discount</InputLabel>
+                  <Select
+                    value={formData.promptPaymentDiscount}
+                    onChange={(e) => handleChange("promptPaymentDiscount", e.target.value)}
+                    label="Prompt Payment Discount"
+                  >
+                    <MenuItem value="early_payment_discount">Early Payment Discount</MenuItem>
+                    <MenuItem value="cash_discount">Cash Discount</MenuItem>
+                  </Select>
+                </FormControl>
+
+                {/* Bank Account Number - Keep as TextField */}
+                <TextField
+                  label="Bank Account Number"
+                  value={formData.bankAccountNumber}
+                  onChange={(e) => handleChange("bankAccountNumber", e.target.value)}
+                  fullWidth
+                  size="small"
+                  error={!!errors.bankAccountNumber}
+                  helperText={errors.bankAccountNumber || " "}
+                />
               </Stack>
 
               {/* General Contact Data */}
               <Stack spacing={2}>
-                <Typography variant="subtitle1">
-                  General Contact Data
-                </Typography>
-                <Divider />
 
                 <Typography variant="subtitle1">Addresses</Typography>
                 <Divider />

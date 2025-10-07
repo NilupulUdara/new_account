@@ -10,6 +10,7 @@ import {
   useMediaQuery,
   MenuItem,
 } from "@mui/material";
+import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
 
 interface AddCustomersContactsData {
   firstName: string;
@@ -65,11 +66,26 @@ export default function AddCustomersContactsForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (validate()) {
-      console.log("Submitted Contact:", formData);
-      alert("Contact added successfully!");
-      // axios.post("/api/supplier-contacts", formData)
+      try{
+        const payload ={
+          ref: formData.reference,
+          name: formData.firstName,
+          name2: formData.lastName,
+          address: formData.address,
+          phone: formData.phone,
+          phone2: formData.secondaryPhone,
+          fax: formData.fax,
+          email: formData.email,
+          lang: formData.documentLanguage,
+          notes: formData.notes
+        }
+        await createCustomerContact(payload);
+        alert("Contact created");
+      }catch(error){
+        alert("failed");
+      }
     }
   };
 

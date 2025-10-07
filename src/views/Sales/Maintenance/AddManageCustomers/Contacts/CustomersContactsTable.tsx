@@ -26,7 +26,7 @@ import Breadcrumb from "../../../../../components/BreadCrumb";
 import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import SearchBar from "../../../../../components/SearchBar";
-import { getCustomerContacts } from "../../../../../api/Customer/AddCustomerApi";
+import { getCustomerContacts } from "../../../../../api/Customer/CustomerContactApi";
 
 interface CustomerContacsProps {
   customerId?: string | number;
@@ -73,8 +73,8 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
     const data = await getCustomerContacts(customerId);
     const mappedData = data.map((item: any) => ({
       id: item.id,
-      reference: item.customer_short_name,
-      fullName: item.customer_name,
+      reference: item.ref,
+      fullName: item.name,
       phone: item.phone,
       secPhone: item.secondary_phone,
       email: item.email,

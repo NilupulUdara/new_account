@@ -20,61 +20,90 @@ import {
 import { useMemo, useState, useEffect } from "react";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../../components/BreadCrumb";
 import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import SearchBar from "../../../../../components/SearchBar";
+import { getBranches, deleteBranch } from "../../../../../api/CustomerBranch/CustomerBranchApi";
 
-// Mock API function
-const getBranches = async () => [
-  {
-    id: 1,
-    shortName: "B001",
-    name: "Main Branch",
-    contact: "John Doe",
-    salesPerson: "Alice",
-    area: "Colombo",
-    phone: "1234567890",
-    fax: "111222333",
-    email: "main@example.com",
-    taxGroup: "TG01",
-    inactive: false,
-  },
-  {
-    id: 2,
-    shortName: "B002",
-    name: "Kandy Branch",
-    contact: "Jane Smith",
-    salesPerson: "Bob",
-    area: "Kandy",
-    phone: "9876543210",
-    fax: "444555666",
-    email: "kandy@example.com",
-    taxGroup: "TG02",
-    inactive: true,
-  },
-];
+interface CustomerBranchesTableProps {
+  customerId: number;
+}
 
-export default function CustomerBranchesTable() {
+export interface CustomerBranch {
+  branch_code: number;
+  debtor_no: number;
+  br_name: string;
+  branch_ref: string;
+  br_address: string;
+  sales_area?: number;
+  sales_person: number;
+  inventory_location: string;
+  tax_group?: number;
+  sales_account: string;
+  sales_discount_account: string;
+  receivables_account: string;
+  payment_discount_account: string;
+  shipping_company: number;
+  br_post_address: string;
+  sales_group: number;
+  notes: string;
+  bank_account?: string;
+  inactive: boolean;
+}
+
+interface MappedBranch {
+  id: number;
+  shortName: string;
+  name: string;
+  contact: string;
+  salesPerson: string;
+  area: string;
+  phone: string;
+  fax: string;
+  email: string;
+  taxGroup: string;
+  inactive: boolean;
+}
+
+export default function CustomerBranchesTable({ customerId }: CustomerBranchesTableProps) {
+  const [branches, setBranches] = useState<MappedBranch[]>([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-  const [branches, setBranches] = useState<any[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
-  // Fetch branches (mock API)
   useEffect(() => {
-    getBranches().then((data) => setBranches(data));
-  }, []);
+    const loadBranches = async () => {
+      try {
+        const data: CustomerBranch[] = await getBranches(customerId);
+        const mapped: MappedBranch[] = data.map((b) => ({
+          id: b.branch_code,
+          shortName: b.branch_ref,
+          name: b.br_name,
+          contact: "", // Add contact if available in backend
+          salesPerson: String(b.sales_person),
+          area: String(b.sales_area || ""),
+          phone: "", // Add phone if available
+          fax: "",   // Add fax if available
+          email: "", // Add email if available
+          taxGroup: String(b.tax_group || ""),
+          inactive: b.inactive,
+        }));
+        setBranches(mapped);
+      } catch (error) {
+        console.error("Failed to fetch branches:", error);
+      }
+    };
 
-  // Filter by inactive & search
+    if(customerId) loadBranches();
+  }, [customerId]);
+
   const filteredData = useMemo(() => {
     let data = showInactive ? branches : branches.filter((b) => !b.inactive);
-
     if (searchQuery.trim() !== "") {
       const lower = searchQuery.toLowerCase();
       data = data.filter(
@@ -90,7 +119,6 @@ export default function CustomerBranchesTable() {
           b.taxGroup.toLowerCase().includes(lower)
       );
     }
-
     return data;
   }, [branches, showInactive, searchQuery]);
 
@@ -107,8 +135,16 @@ export default function CustomerBranchesTable() {
     setPage(0);
   };
 
-  const handleDelete = (id: number) => {
-    alert(`Delete branch with id: ${id}`);
+  const handleDelete = async (id: number) => {
+    if (!window.confirm("Are you sure you want to delete this branch?")) return;
+    try {
+      await deleteBranch(id);
+      setBranches((prev) => prev.filter((b) => b.id !== id));
+      alert("Branch deleted successfully");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to delete branch");
+    }
   };
 
   const breadcrumbItems = [
@@ -158,13 +194,8 @@ export default function CustomerBranchesTable() {
           }
           label="Show Also Inactive"
         />
-
         <Box sx={{ width: isMobile ? "100%" : "300px" }}>
-          <SearchBar
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            placeholder="Search Branches"
-          />
+          <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} placeholder="Search Branches" />
         </Box>
       </Stack>
 
@@ -185,6 +216,7 @@ export default function CustomerBranchesTable() {
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
+
             <TableBody>
               {paginatedData.length > 0 ? (
                 paginatedData.map((branch) => (
@@ -204,9 +236,9 @@ export default function CustomerBranchesTable() {
                           variant="contained"
                           size="small"
                           startIcon={<EditIcon />}
-                          onClick={() => navigate(
-                            "/sales/maintenance/customer-branches/update-general-settings"
-                          )}
+                          onClick={() =>
+                            navigate(`/sales/maintenance/customer-branches/update-general-settings/${branch.id}`)
+                          }
                         >
                           Edit
                         </Button>
@@ -231,6 +263,7 @@ export default function CustomerBranchesTable() {
                 </TableRow>
               )}
             </TableBody>
+
             <TableFooter>
               <TableRow>
                 <TablePagination

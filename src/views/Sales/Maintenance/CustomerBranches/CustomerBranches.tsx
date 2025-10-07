@@ -14,7 +14,6 @@ import {
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
-
 // Import your branch-specific components
 import CustomerBranchesTable from "./GeneralSettings/CustomerBranchesTable";
 import ContactsTable from "./Contacts/ContactsTable";
@@ -29,7 +28,7 @@ const CustomersBranches = () => {
   const [tabValue, setTabValue] = useState(0);
 
   // Customer dropdown state
-  const [customers, setCustomers] = useState<{ id: string | number; customer_name: string }[]>([]);
+  const [customers, setCustomers] = useState<{ debtor_no: string | number; name: string }[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string | number>("new"); // default 'new'
 
   // Fetch customers from database
@@ -58,7 +57,7 @@ const CustomersBranches = () => {
 
   return (
     <Stack sx={{ minHeight: "100vh", backgroundColor: "#f0f0f0", p: { xs: 2, sm: 3, md: 5 } }} spacing={3}>
-      
+
       {/* Header + Dropdown + Back */}
       <Box
         sx={{
@@ -81,12 +80,9 @@ const CustomersBranches = () => {
             label="Select Customer"
             onChange={(e) => handleCustomerChange(e.target.value)}
           >
-            <MenuItem value="new" key="new">
-              + Add New Customer
-            </MenuItem>
             {customers.map((customer) => (
-              <MenuItem key={customer.id} value={customer.id}>
-                {customer.customer_name}
+              <MenuItem key={customer.debtor_no} value={customer.debtor_no}>
+                {customer.name}
               </MenuItem>
             ))}
           </Select>
@@ -115,10 +111,10 @@ const CustomersBranches = () => {
       {/* Tab Panels */}
       <TabPanel value={tabValue} index={0}>
         {selectedCustomer === "new" ? (
-          <CustomerBranchesTable />
-        ) : (
-          <UpdateGeneralSettingsForm customerId={selectedCustomer} />
-        )}
+  <CustomerBranchesTable />
+) : (
+  <UpdateGeneralSettingsForm customerId={selectedCustomer} />
+)}
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>

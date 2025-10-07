@@ -16,7 +16,7 @@ export const createCustomerContact = async (contactData: any) => {
 // ✅ Get all contacts for a specific customer
 export const getCustomerContacts = async (customerId: string | number) => {
   try {
-    const response = await axios.get(`${API_URL}/customer/${customerId}`);
+    const response = await axios.get(API_URL);
     return response.data;
   } catch (error: any) {
     console.error("Failed to fetch contacts:", error.response?.data || error);

@@ -27,6 +27,7 @@ import { getInventoryLocations, InventoryLocation } from "../../../../../api/Inv
 import { getShippingCompanies, ShippingCompany } from "../../../../../api/ShippingCompany/ShippingCompanyApi";
 import { getTaxGroups, TaxGroup } from "../../../../../api/Tax/taxServices";
 import { getCreditStatusSetups, CreditStatusSetup } from "../../../../../api/CreditStatusSetup/CreditStatusSetupApi";
+import { createBranch } from "../../../../../api/CustomerBranch/CustomerBranchApi";
 interface GeneralSettingsFormProps {
   customerId?: string | number;
 }
@@ -184,23 +185,23 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async () => {
+ const handleSubmit = async () => {
   if (!validate()) {
     alert("Please fix validation errors before submitting.");
     return;
   }
 
   try {
-    // Map correctly for debtors_master
+    // 1️⃣ Prepare customer payload
     const customerPayload = {
       name: formData.customerName,
       debtor_ref: formData.customerShortName,
       address: formData.address,
       gst: formData.gstNumber,
-      curr_code: formData.currency, // already abbreviation
-      sales_type: Number(formData.salesType), // must be ID
-      credit_status: Number(formData.creditStatus), // must be ID
-      payment_terms: Number(formData.paymentTerms), // must be ID
+      curr_code: formData.currency, // abbreviation
+      sales_type: Number(formData.salesType), // ID
+      credit_status: Number(formData.creditStatus), // ID
+      payment_terms: Number(formData.paymentTerms), // ID
       discount: Number(formData.discountPercent) || 0,
       pymt_discount: Number(formData.promptPaymentDiscount) || 0,
       credit_limit: Number(formData.creditLimit) || 1000,
@@ -210,9 +211,34 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
       inactive: 0,
     };
 
-    // Map correctly for crm_persons (contacts)
+    // 2️⃣ Create main customer
+    const customer = await createCustomer(customerPayload);
+
+    // 3️⃣ Prepare branch payload with IDs mapped correctly
+    const branchPayload = {
+      debtor_no: customer.debtor_no,
+      br_name: `${formData.customerName} Main Branch`,
+      branch_ref: formData.customerShortName,
+      br_address: formData.address,
+      sales_person: salesPersons.find(sp => sp.name === formData.salesPerson)?.id || null,
+      sales_area: Number(formData.salesArea),
+      phone: formData.phone,
+      fax: formData.faxNumber,
+      email: formData.email,
+      tax_group: TaxGroups.find(t => t.description === formData.taxGroup)?.id || null,
+      inventory_location: Number(formData.defaultInventoryLocation),
+      default_shipping_company: ShippingCompanies.find(
+        s => s.shipper_name === formData.defaultShippingCompany
+      )?.shipper_id || null,
+      inactive: false,
+    };
+
+    // 4️⃣ Create branch
+    await createBranch(branchPayload);
+
+    // 5️⃣ Prepare contact payload
     const contactPayload = {
-      ref: formData.customerShortName,
+      ref: customer.debtor_ref, // link to customer
       name: formData.customerName,
       address: formData.address,
       phone: formData.phone,
@@ -223,23 +249,18 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
       inactive: 0,
     };
 
-    // First create customer (main)
-    const customer = await createCustomer(customerPayload);
+    // 6️⃣ Create contact
+    await createCustomerContact(contactPayload);
 
-    // Then create contact (use returned customer_ref or debtor_no if needed)
-    await createCustomerContact({
-      ...contactPayload,
-      ref: customer.debtor_ref, // link them
-    });
-
-    alert("Customer created successfully");
+    alert("Customer and branch created successfully");
     navigate("/sales/maintenance/add-and-manage-customers");
 
   } catch (error: any) {
-    console.error("Error creating customer:", error.response?.data || error);
-    alert("Failed to save customer. See console for details.");
+    console.error("Error creating customer or branch:", error.response?.data || error);
+    alert("Failed to save customer/branch. See console for details.");
   }
 };
+
 
 
   return (
@@ -364,7 +385,7 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
               />
               <TextField
                 label="Fax Number"
-                value={formData.secondaryPhone}
+                value={formData.faxNumber}
                 onChange={(e) => handleChange("faxNumber", e.target.value)}
                 fullWidth
                 size="small"
@@ -516,7 +537,7 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   {InventoryLocations.map((InventoryLocation) => (
                     <MenuItem
                       key={InventoryLocation.id}
-                      value={InventoryLocation.id}
+                      value={String(InventoryLocation.loc_code)}
                     >
                       {InventoryLocation.location_name}
                     </MenuItem>
