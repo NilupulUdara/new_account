@@ -226,7 +226,7 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
       fax: formData.faxNumber,
       email: formData.email,
       tax_group: TaxGroups.find(t => t.description === formData.taxGroup)?.id || null,
-      inventory_location: Number(formData.defaultInventoryLocation),
+      inventory_location: formData.defaultInventoryLocation,
       default_shipping_company: ShippingCompanies.find(
         s => s.shipper_name === formData.defaultShippingCompany
       )?.shipper_id || null,
@@ -537,7 +537,7 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   {InventoryLocations.map((InventoryLocation) => (
                     <MenuItem
                       key={InventoryLocation.id}
-                      value={String(InventoryLocation.loc_code)}
+                      value={InventoryLocation.loc_code}
                     >
                       {InventoryLocation.location_name}
                     </MenuItem>
