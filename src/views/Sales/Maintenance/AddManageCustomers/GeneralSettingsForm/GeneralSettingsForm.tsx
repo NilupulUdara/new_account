@@ -192,7 +192,6 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
   }
 
   try {
-    // 1️⃣ Prepare customer payload
     const customerPayload = {
       name: formData.customerName,
       debtor_ref: formData.customerShortName,
@@ -211,10 +210,8 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
       inactive: 0,
     };
 
-    // 2️⃣ Create main customer
     const customer = await createCustomer(customerPayload);
 
-    // 3️⃣ Prepare branch payload with IDs mapped correctly
     const branchPayload = {
       debtor_no: customer.debtor_no,
       br_name: `${formData.customerName} Main Branch`,
@@ -233,10 +230,8 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
       inactive: false,
     };
 
-    // 4️⃣ Create branch
     await createBranch(branchPayload);
 
-    // 5️⃣ Prepare contact payload
     const contactPayload = {
       ref: customer.debtor_ref, // link to customer
       name: formData.customerName,
@@ -249,7 +244,6 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
       inactive: 0,
     };
 
-    // 6️⃣ Create contact
     await createCustomerContact(contactPayload);
 
     alert("Customer and branch created successfully");

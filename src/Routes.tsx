@@ -561,11 +561,11 @@ const AppRoutes = () => {
           element={withLayout(MainLayout, CustomerBranchesTable)}
         />
         <Route
-          path="/sales/maintenance/customer-branches/add-general-settings"
+          path="/sales/maintenance/customer-branches/add-general-settings/:id"
           element={withLayout(MainLayout, AddCustomerBranchesGeneralSettingForm)}
         />
         <Route
-          path="/sales/maintenance/customer-branches/update-general-settings"
+          path="/sales/maintenance/customer-branches/update-general-settings/:branchCode"
           element={withLayout(MainLayout, UpdateCustomerBranchesGeneralSettingForm)}
         />
         <Route

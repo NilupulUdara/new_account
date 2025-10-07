@@ -1,6 +1,7 @@
 import axios from "axios";
 
 export interface CustomerBranch {
+  debtor_no?: number;
   br_name: string;
   branch_ref: string;
   sales_person: number;

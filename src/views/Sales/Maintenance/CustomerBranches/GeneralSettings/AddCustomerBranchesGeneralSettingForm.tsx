@@ -33,10 +33,10 @@ export default function AddCustomerBranchesGeneralSettingForm() {
 
 
   const [formData, setFormData] = useState({
-    debtor_no: "",          // <-- Required by backend
+    debtor_no: customerId,   
     branchName: "",
     branchShortName: "",
-    branch_ref: "",          // <-- Required by backend
+    branch_ref: "",          
     salesPerson: "",
     salesArea: "",
     salesGroup: "",
@@ -137,7 +137,7 @@ export default function AddCustomerBranchesGeneralSettingForm() {
   if (validate()) {
     try {
       const payload = {
-        debtor_no: customerId, 
+        debtor_no: formData.debtor_no,
         br_name: formData.branchName,
         branch_ref: formData.branchShortName,
         salesman: formData.salesPerson ? Number(formData.salesPerson) : null,
@@ -353,9 +353,9 @@ export default function AddCustomerBranchesGeneralSettingForm() {
                     onChange={(e) => handleChange("salesAccount", e.target.value)}
                     label="Sales Account"
                   >
-                    <MenuItem value="sales_revenue">Sales Revenue</MenuItem>
-                    <MenuItem value="product_sales">Product Sales</MenuItem>
-                    <MenuItem value="service_income">Service Income</MenuItem>
+                    <MenuItem value="sales">Sales</MenuItem>
+                    <MenuItem value="product">Product</MenuItem>
+                    <MenuItem value="service">Service</MenuItem>
                   </Select>
                 </FormControl>
 
@@ -366,9 +366,9 @@ export default function AddCustomerBranchesGeneralSettingForm() {
                     onChange={(e) => handleChange("salesDiscountAccount", e.target.value)}
                     label="Sales Discount Account"
                   >
-                    <MenuItem value="discount_allowed">Discount Allowed</MenuItem>
-                    <MenuItem value="seasonal_discount">Seasonal Discount</MenuItem>
-                    <MenuItem value="volume_discount">Volume Discount</MenuItem>
+                    <MenuItem value="discount">Discount</MenuItem>
+                    <MenuItem value="seasonal">Seasonal</MenuItem>
+                    <MenuItem value="volume">Volume</MenuItem>
                   </Select>
                 </FormControl>
 
@@ -379,8 +379,8 @@ export default function AddCustomerBranchesGeneralSettingForm() {
                     onChange={(e) => handleChange("accountsReceivable", e.target.value)}
                     label="Accounts Receivable"
                   >
-                    <MenuItem value="domestic_receivable">Domestic Receivable</MenuItem>
-                    <MenuItem value="foreign_receivable">Foreign Receivable</MenuItem>
+                    <MenuItem value="domestic">Domestic</MenuItem>
+                    <MenuItem value="foreign">Foreign</MenuItem>
                   </Select>
                 </FormControl>
 
@@ -391,8 +391,8 @@ export default function AddCustomerBranchesGeneralSettingForm() {
                     onChange={(e) => handleChange("promptPaymentDiscount", e.target.value)}
                     label="Prompt Payment Discount"
                   >
-                    <MenuItem value="early_payment_discount">Early Payment Discount</MenuItem>
-                    <MenuItem value="cash_discount">Cash Discount</MenuItem>
+                    <MenuItem value="early">Early</MenuItem>
+                    <MenuItem value="cash">Cash</MenuItem>
                   </Select>
                 </FormControl>
 

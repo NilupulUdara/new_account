@@ -14,6 +14,7 @@ import {
   FormHelperText,
 } from "@mui/material";
 import theme from "../../../../../theme";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   getSalesTypes, SalesType,
   getSalesAreas, SalesArea
@@ -24,32 +25,25 @@ import { getShippingCompanies, ShippingCompany } from "../../../../../api/Shippi
 import { getTaxGroups, TaxGroup } from "../../../../../api/Tax/taxServices";
 import { CustomerBranch, getBranch, updateBranch } from "../../../../../api/CustomerBranch/CustomerBranchApi";
 
-interface CustomerBranchesProps {
-  customerId?: string | number;
-}
+export default function UpdateCustomerBranchesGeneralSettingForm() {
+  const { branchCode } = useParams<{ branchCode: string }>();
+  const navigate = useNavigate();
 
-export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }: CustomerBranchesProps) {
   const [formData, setFormData] = useState({
-    // Name and Contacts
+    debtor_no: "",
     branchName: "",
     branchShortName: "",
-
-    // Sales
     salesPerson: "",
     salesArea: "",
     salesGroup: "",
     defaultInventoryLocation: "",
     defaultShippingCompany: "",
     taxGroup: "",
-
-    // GL Accounts
     salesAccount: "",
     salesDiscountAccount: "",
     accountsReceivable: "",
     promptPaymentDiscount: "",
     bankAccountNumber: "",
-
-    // Addresses
     mailingAddress: "",
     billingAddress: "",
     generalNotes: "",
@@ -57,59 +51,45 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
+  // Fetch dropdown data
   const [salesTypes, setSalesTypes] = useState<SalesType[]>([]);
-  useEffect(() => {
-    getSalesTypes().then(setSalesTypes);
-  }, [])
-
+  useEffect(() => { getSalesTypes().then(setSalesTypes); }, []);
   const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
-  useEffect(() => {
-    getSalesPersons().then(setSalesPersons);
-  }, [])
-
+  useEffect(() => { getSalesPersons().then(setSalesPersons); }, []);
   const [salesAreas, setSalesAreas] = useState<SalesArea[]>([]);
-  useEffect(() => {
-    getSalesAreas().then(setSalesAreas);
-  }, [])
-
+  useEffect(() => { getSalesAreas().then(setSalesAreas); }, []);
   const [InventoryLocations, setInventoryLocations] = useState<InventoryLocation[]>([]);
-  useEffect(() => {
-    getInventoryLocations().then(setInventoryLocations);
-  }, [])
-
+  useEffect(() => { getInventoryLocations().then(setInventoryLocations); }, []);
   const [ShippingCompanies, setShippingCompanies] = useState<ShippingCompany[]>([]);
-  useEffect(() => {
-    getShippingCompanies().then(setShippingCompanies);
-  }, [])
-
+  useEffect(() => { getShippingCompanies().then(setShippingCompanies); }, []);
   const [TaxGroups, setTaxGroups] = useState<TaxGroup[]>([]);
-  useEffect(() => {
-    getTaxGroups().then(setTaxGroups);
-  }, [])
+  useEffect(() => { getTaxGroups().then(setTaxGroups); }, []);
 
+  // Fetch branch data
   useEffect(() => {
-    if (!customerId) return;
+    if (!branchCode) return;
 
     const fetchBranch = async () => {
       try {
-        const data = await getBranch(customerId);
+        const data = await getBranch(branchCode);
         setFormData({
-          branchName: data.br_name,
-          branchShortName: data.branch_ref,
-          salesPerson: String(data.sales_person),
+          debtor_no: data.debtor_no || "",
+          branchName: data.br_name || "",
+          branchShortName: data.branch_ref || "",
+          salesPerson: String(data.sales_person || ""),
           salesArea: String(data.sales_area || ""),
-          salesGroup: String(data.sales_group),
-          defaultInventoryLocation: data.inventory_location,
-          defaultShippingCompany: String(data.shipping_company),
+          salesGroup: String(data.sales_group || ""),
+          defaultInventoryLocation: String(data.inventory_location || ""),
+          defaultShippingCompany: String(data.shipping_company || ""),
           taxGroup: String(data.tax_group || ""),
-          salesAccount: data.sales_account,
-          salesDiscountAccount: data.sales_discount_account,
-          accountsReceivable: data.receivables_account,
-          promptPaymentDiscount: data.payment_discount_account,
+          salesAccount: data.sales_account || "",
+          salesDiscountAccount: data.sales_discount_account || "",
+          accountsReceivable: data.receivables_account || "",
+          promptPaymentDiscount: data.payment_discount_account || "",
           bankAccountNumber: data.bank_account || "",
-          mailingAddress: data.br_post_address,
-          billingAddress: data.br_address,
-          generalNotes: data.notes,  
+          mailingAddress: data.br_post_address || "",
+          billingAddress: data.br_address || "",
+          generalNotes: data.notes || "",
         });
       } catch (error) {
         console.error("Failed to fetch branch data", error);
@@ -117,8 +97,7 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
     };
 
     fetchBranch();
-  }, [customerId]);
-
+  }, [branchCode]);
 
   const handleChange = (field: string, value: string) => {
     setFormData({ ...formData, [field]: value });
@@ -127,50 +106,23 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
 
   const validate = () => {
     const tempErrors: { [key: string]: string } = {};
-    const phoneRegex = /^[0-9]{10}$/;
-    const faxRegex = /^[0-9]{6,15}$/;
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    // Name and Contacts
-    if (!formData.branchName.trim())
-      tempErrors.branchName = "Branch Name is required";
-    if (!formData.branchShortName.trim())
-      tempErrors.branchShortName = "Branch Short Name is required";
-
-    // Sales
-    if (!formData.salesPerson.trim())
-      tempErrors.salesPerson = "Sales Person is required";
-    if (!formData.salesArea.trim())
-      tempErrors.salesArea = "Sales Area is required";
-    if (!formData.salesGroup.trim())
-      tempErrors.salesGroup = "Sales Group is required";
-    if (!formData.defaultInventoryLocation.trim())
-      tempErrors.defaultInventoryLocation = "Default Inventory Location is required";
-    if (!formData.defaultShippingCompany.trim())
-      tempErrors.defaultShippingCompany = "Default Shipping Company is required";
-    if (!formData.taxGroup.trim())
-      tempErrors.taxGroup = "Tax Group is required";
-
-    // GL Accounts
-    if (!formData.salesAccount.trim())
-      tempErrors.salesAccount = "Sales Account is required";
-    if (!formData.salesDiscountAccount.trim())
-      tempErrors.salesDiscountAccount = "Sales Discount Account is required";
-    if (!formData.accountsReceivable.trim())
-      tempErrors.accountsReceivable = "Accounts Receivable is required";
-    if (!formData.promptPaymentDiscount.trim())
-      tempErrors.promptPaymentDiscount =
-        "Prompt Payment Discount Account is required";
-    if (!formData.bankAccountNumber.trim())
-      tempErrors.bankAccountNumber = "Bank Account Number is required";
-
-    // Addresses
-    if (!formData.mailingAddress.trim())
-      tempErrors.mailingAddress = "Mailing Address is required";
-    if (!formData.billingAddress.trim())
-      tempErrors.billingAddress = "Billing Address is required";
-    if (!formData.generalNotes.trim())
-      tempErrors.generalNotes = "General Notes are required";
+    if (!formData.branchName.trim()) tempErrors.branchName = "Branch Name is required";
+    if (!formData.branchShortName.trim()) tempErrors.branchShortName = "Branch Short Name is required";
+    if (!formData.salesPerson.trim()) tempErrors.salesPerson = "Sales Person is required";
+    if (!formData.salesArea.trim()) tempErrors.salesArea = "Sales Area is required";
+    if (!formData.salesGroup.trim()) tempErrors.salesGroup = "Sales Group is required";
+    if (!formData.defaultInventoryLocation.trim()) tempErrors.defaultInventoryLocation = "Default Inventory Location is required";
+    if (!formData.defaultShippingCompany.trim()) tempErrors.defaultShippingCompany = "Default Shipping Company is required";
+    if (!formData.taxGroup.trim()) tempErrors.taxGroup = "Tax Group is required";
+    if (!formData.salesAccount.trim()) tempErrors.salesAccount = "Sales Account is required";
+    if (!formData.salesDiscountAccount.trim()) tempErrors.salesDiscountAccount = "Sales Discount Account is required";
+    if (!formData.accountsReceivable.trim()) tempErrors.accountsReceivable = "Accounts Receivable is required";
+    if (!formData.promptPaymentDiscount.trim()) tempErrors.promptPaymentDiscount = "Prompt Payment Discount Account is required";
+    if (!formData.bankAccountNumber.trim()) tempErrors.bankAccountNumber = "Bank Account Number is required";
+    if (!formData.mailingAddress.trim()) tempErrors.mailingAddress = "Mailing Address is required";
+    if (!formData.billingAddress.trim()) tempErrors.billingAddress = "Billing Address is required";
+    if (!formData.generalNotes.trim()) tempErrors.generalNotes = "General Notes are required";
 
     setErrors(tempErrors);
     return Object.keys(tempErrors).length === 0;
@@ -178,8 +130,13 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
 
   const handleSubmit = async () => {
     if (!validate()) return;
+    if (!branchCode) {
+      alert("Branch code is missing.");
+      return;
+    }
 
     const payload: CustomerBranch = {
+      ...(formData.debtor_no && { debtor_no: Number(formData.debtor_no) }),
       br_name: formData.branchName,
       branch_ref: formData.branchShortName,
       sales_person: Number(formData.salesPerson),
@@ -200,31 +157,26 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
     };
 
     try {
-      await updateBranch(customerId!, payload);
+      await updateBranch(branchCode, payload);
       alert("Branch updated successfully!");
+      navigate(-1);
     } catch (error) {
       console.error("Update failed", error);
       alert("Failed to update branch.");
     }
   };
 
-
   return (
     <Stack alignItems="center" sx={{ p: { xs: 2, md: 3 } }}>
-      <Box
-        sx={{
-          width: "100%",
-          maxWidth: "1200px",
-          p: theme.spacing(3),
-          boxShadow: theme.shadows[2],
-          borderRadius: theme.shape.borderRadius,
-          backgroundColor: theme.palette.background.paper,
-        }}
-      >
-        <Typography
-          variant="h5"
-          sx={{ mb: theme.spacing(3), textAlign: "center" }}
-        >
+      <Box sx={{
+        width: "100%",
+        maxWidth: "1200px",
+        p: theme.spacing(3),
+        boxShadow: theme.shadows[2],
+        borderRadius: theme.shape.borderRadius,
+        backgroundColor: theme.palette.background.paper,
+      }}>
+        <Typography variant="h5" sx={{ mb: theme.spacing(3), textAlign: "center" }}>
           Update Customer Branch Setup
         </Typography>
 
@@ -262,15 +214,16 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
               <Stack spacing={2}>
                 <Typography variant="subtitle1">Sales</Typography>
                 <Divider />
+                {/* Sales Person */}
                 <FormControl size="small" fullWidth error={!!errors.salesPerson}>
                   <InputLabel>Sales Person</InputLabel>
                   <Select
                     value={formData.salesPerson}
                     label="Sales Person"
-                    onChange={(e) => handleChange("salesPerson", e.target.value)}
+                    onChange={(e) => handleChange("salesPerson", String(e.target.value))}
                   >
                     {salesPersons.map((person) => (
-                      <MenuItem key={person.id} value={person.id}>
+                      <MenuItem key={person.id} value={String(person.id)}>
                         {person.name}
                       </MenuItem>
                     ))}
@@ -288,10 +241,10 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
                   <Select
                     value={formData.salesArea}
                     label="Sales Area"
-                    onChange={(e) => handleChange("salesArea", e.target.value)}
+                    onChange={(e) => handleChange("salesArea", String(e.target.value))}
                   >
                     {salesAreas.map((area) => (
-                      <MenuItem key={area.id} value={area.id}>
+                      <MenuItem key={area.id} value={String(area.id)}>
                         {area.name}
                       </MenuItem>
                     ))}
@@ -303,11 +256,12 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
                   )}
                 </FormControl>
 
-                <FormControl fullWidth size="small" error={!!errors.creditStatus}>
+                {/* Sales Group */}
+                <FormControl fullWidth size="small" error={!!errors.salesGroup}>
                   <InputLabel>Sales Group</InputLabel>
                   <Select
                     value={formData.salesGroup}
-                    onChange={(e) => handleChange("salesGroup", e.target.value)}
+                    onChange={(e) => handleChange("salesGroup", String(e.target.value))}
                     label="Sales Group"
                   >
                     <MenuItem value="mall">Small</MenuItem>
@@ -324,11 +278,11 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
                     value={formData.defaultInventoryLocation}
                     label="Default Inventory Location"
                     onChange={(e) =>
-                      handleChange("defaultInventoryLocation", e.target.value)
+                      handleChange("defaultInventoryLocation", String(e.target.value))
                     }
                   >
                     {InventoryLocations.map((loc) => (
-                      <MenuItem key={loc.id} value={loc.id}>
+                      <MenuItem key={loc.loc_code} value={loc.loc_code}>
                         {loc.location_name}
                       </MenuItem>
                     ))}
@@ -347,11 +301,11 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
                     value={formData.defaultShippingCompany}
                     label="Default Shipping Company"
                     onChange={(e) =>
-                      handleChange("defaultShippingCompany", e.target.value)
+                      handleChange("defaultShippingCompany", String(e.target.value))
                     }
                   >
                     {ShippingCompanies.map((ship) => (
-                      <MenuItem key={ship.shipper_id} value={ship.shipper_name}>
+                      <MenuItem key={ship.shipper_id} value={String(ship.shipper_id)}>
                         {ship.shipper_name}
                       </MenuItem>
                     ))}
@@ -369,10 +323,10 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
                   <Select
                     value={formData.taxGroup}
                     label="Tax Group"
-                    onChange={(e) => handleChange("taxGroup", e.target.value)}
+                    onChange={(e) => handleChange("taxGroup", String(e.target.value))}
                   >
                     {TaxGroups.map((tax) => (
-                      <MenuItem key={tax.id} value={tax.description}>
+                      <MenuItem key={tax.id} value={String(tax.id)}>
                         {tax.description}
                       </MenuItem>
                     ))}
@@ -401,13 +355,12 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
                     onChange={(e) => handleChange("salesAccount", e.target.value)}
                     label="Sales Account"
                   >
-                    <MenuItem value="sales_revenue">Sales Revenue</MenuItem>
-                    <MenuItem value="product_sales">Product Sales</MenuItem>
-                    <MenuItem value="service_income">Service Income</MenuItem>
+                    <MenuItem value="sales">Sales</MenuItem>
+                    <MenuItem value="product">Product</MenuItem>
+                    <MenuItem value="service">Service</MenuItem>
                   </Select>
                 </FormControl>
 
-                {/* Sales Discount Account */}
                 <FormControl fullWidth size="small">
                   <InputLabel>Sales Discount Account</InputLabel>
                   <Select
@@ -415,13 +368,12 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
                     onChange={(e) => handleChange("salesDiscountAccount", e.target.value)}
                     label="Sales Discount Account"
                   >
-                    <MenuItem value="discount_allowed">Discount Allowed</MenuItem>
-                    <MenuItem value="seasonal_discount">Seasonal Discount</MenuItem>
-                    <MenuItem value="volume_discount">Volume Discount</MenuItem>
+                    <MenuItem value="discount">Discount</MenuItem>
+                    <MenuItem value="seasonal">Seasonal</MenuItem>
+                    <MenuItem value="volume">Volume</MenuItem>
                   </Select>
                 </FormControl>
 
-                {/* Accounts Receivable */}
                 <FormControl fullWidth size="small">
                   <InputLabel>Accounts Receivable</InputLabel>
                   <Select
@@ -429,12 +381,11 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
                     onChange={(e) => handleChange("accountsReceivable", e.target.value)}
                     label="Accounts Receivable"
                   >
-                    <MenuItem value="domestic_receivable">Domestic Receivable</MenuItem>
-                    <MenuItem value="foreign_receivable">Foreign Receivable</MenuItem>
+                    <MenuItem value="domestic">Domestic</MenuItem>
+                    <MenuItem value="foreign">Foreign</MenuItem>
                   </Select>
                 </FormControl>
 
-                {/* Prompt Payment Discount */}
                 <FormControl fullWidth size="small">
                   <InputLabel>Prompt Payment Discount</InputLabel>
                   <Select
@@ -442,12 +393,11 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
                     onChange={(e) => handleChange("promptPaymentDiscount", e.target.value)}
                     label="Prompt Payment Discount"
                   >
-                    <MenuItem value="early_payment_discount">Early Payment Discount</MenuItem>
-                    <MenuItem value="cash_discount">Cash Discount</MenuItem>
+                    <MenuItem value="early">Early</MenuItem>
+                    <MenuItem value="cash">Cash</MenuItem>
                   </Select>
                 </FormControl>
 
-                {/* Bank Account Number - Keep as TextField */}
                 <TextField
                   label="Bank Account Number"
                   value={formData.bankAccountNumber}
@@ -459,9 +409,8 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
                 />
               </Stack>
 
-              {/* General Contact Data */}
+              {/* Addresses */}
               <Stack spacing={2}>
-
                 <Typography variant="subtitle1">Addresses</Typography>
                 <Divider />
                 {["mailingAddress", "billingAddress", "generalNotes"].map(
@@ -480,13 +429,11 @@ export default function UpdateCustomerBranchesGeneralSettingForm({ customerId }:
                     />
                   )
                 )}
-
               </Stack>
             </Stack>
           </Grid>
         </Grid>
 
-        {/* Action Buttons */}
         <Box
           sx={{
             display: "flex",

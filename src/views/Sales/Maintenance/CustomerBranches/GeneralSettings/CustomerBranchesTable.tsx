@@ -179,7 +179,7 @@ export default function CustomerBranchesTable({ customerId }: CustomerBranchesTa
           <Button
             variant="contained"
             color="primary"
-            onClick={() => navigate("/sales/maintenance/customer-branches/add-general-settings")}
+            onClick={() => navigate(`/sales/maintenance/customer-branches/add-general-settings/${customerId}`)}
           >
             Add Branch
           </Button>
