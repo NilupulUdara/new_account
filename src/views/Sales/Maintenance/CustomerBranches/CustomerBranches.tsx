@@ -88,6 +88,7 @@ const CustomersBranches = () => {
           </Select>
         </FormControl>
 
+
         {/* Back Button */}
         <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate("/sales/maintenance")}>
           Back
@@ -110,15 +111,16 @@ const CustomersBranches = () => {
 
       {/* Tab Panels */}
       <TabPanel value={tabValue} index={0}>
-        {selectedCustomer === "new" ? (
-  <CustomerBranchesTable />
-) : (
-  <UpdateGeneralSettingsForm customerId={selectedCustomer} />
-)}
+        {selectedCustomer && (
+          <CustomerBranchesTable customerId={selectedCustomer} />
+        )}
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
-        {selectedCustomer !== "new" && <ContactsTable customerId={selectedCustomer} />}
+        {selectedCustomer && 
+        (
+        <ContactsTable customerId={selectedCustomer} />
+        )}
       </TabPanel>
     </Stack>
   );

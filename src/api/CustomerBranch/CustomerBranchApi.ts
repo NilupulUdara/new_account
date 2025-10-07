@@ -34,9 +34,11 @@ export const createBranch = async (branchData: any) => {
 };
 
 // ✅ Get all branches
-export const getBranches = async (customerId?: number) => {
+export const getBranches = async (customerId?: string | number) => {
   try {
-    const response = await axios.get(API_URL);
+    const response = await axios.get(API_URL, {
+      params: { debtor_no: customerId }, // send customer_id as query param
+    });
     return response.data;
   } catch (error: any) {
     console.error(error.response?.data || error);

@@ -28,7 +28,7 @@ import SearchBar from "../../../../../components/SearchBar";
 import { getBranches, deleteBranch } from "../../../../../api/CustomerBranch/CustomerBranchApi";
 
 interface CustomerBranchesTableProps {
-  customerId: number;
+  customerId: string | number;
 }
 
 export interface CustomerBranch {
@@ -80,16 +80,19 @@ export default function CustomerBranchesTable({ customerId }: CustomerBranchesTa
     const loadBranches = async () => {
       try {
         const data: CustomerBranch[] = await getBranches(customerId);
-        const mapped: MappedBranch[] = data.map((b) => ({
+        // filter branches by selected customer
+        const filtered = data.filter(b => b.debtor_no === customerId);
+        // map only the filtered branches
+        const mapped: MappedBranch[] = filtered.map((b) => ({
           id: b.branch_code,
           shortName: b.branch_ref,
           name: b.br_name,
-          contact: "", // Add contact if available in backend
+          contact: "",
           salesPerson: String(b.sales_person),
           area: String(b.sales_area || ""),
-          phone: "", // Add phone if available
-          fax: "",   // Add fax if available
-          email: "", // Add email if available
+          phone: "",
+          fax: "",
+          email: "",
           taxGroup: String(b.tax_group || ""),
           inactive: b.inactive,
         }));
@@ -99,8 +102,9 @@ export default function CustomerBranchesTable({ customerId }: CustomerBranchesTa
       }
     };
 
-    if(customerId) loadBranches();
+    if (customerId) loadBranches();
   }, [customerId]);
+
 
   const filteredData = useMemo(() => {
     let data = showInactive ? branches : branches.filter((b) => !b.inactive);
