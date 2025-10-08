@@ -11,6 +11,7 @@ import {
   MenuItem,
 } from "@mui/material";
 import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
+import { useNavigate } from "react-router";
 
 interface AddCustomersContactsData {
   firstName: string;
@@ -44,6 +45,7 @@ export default function AddCustomersContactsForm() {
   const [errors, setErrors] = useState<Partial<Record<keyof AddCustomersContactsData, string>>>({});
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const navigate = useNavigate();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -83,6 +85,7 @@ export default function AddCustomersContactsForm() {
         }
         await createCustomerContact(payload);
         alert("Contact created");
+        navigate('/sales/maintenance/add-and-manage-customers');
       }catch(error){
         alert("failed");
       }

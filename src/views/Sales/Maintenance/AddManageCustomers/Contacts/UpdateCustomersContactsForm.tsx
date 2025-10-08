@@ -10,6 +10,9 @@ import {
   useMediaQuery,
   MenuItem,
 } from "@mui/material";
+import { useParams, useNavigate } from "react-router";
+import { updateCustomerContact, getCustomerContacts } from "../../../../../api/Customer/CustomerContactApi";
+import { useEffect } from "react";
 
 interface UpdateCustomersContactsData {
   firstName: string;
@@ -43,6 +46,8 @@ export default function UpdateCustomersContactsForm() {
   const [errors, setErrors] = useState<Partial<Record<keyof UpdateCustomersContactsData, string>>>({});
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const { id } = useParams();
+  const navigate = useNavigate();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -65,13 +70,61 @@ export default function UpdateCustomersContactsForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  useEffect(() => {
+    const fetchContact = async () => {
+      try {
+        const allContacts = await getCustomerContacts(""); // or customerId if available
+        const contact = allContacts.find((c: any) => c.id === Number(id));
+        if (contact) {
+          setFormData({
+            firstName: contact.name || "",
+            lastName: contact.name2 || "",
+            reference: contact.ref || "",
+            contactActiveFor: contact.assignment || "",
+            phone: contact.phone || "",
+            secondaryPhone: contact.phone2 || "",
+            fax: contact.fax || "",
+            email: contact.email || "",
+            address: contact.address || "",
+            documentLanguage: contact.lang || "",
+            notes: contact.notes || "",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch contact:", err);
+      }
+    };
+
+    if (id) fetchContact();
+  }, [id]);
+
+
+  const handleSubmit = async () => {
     if (validate()) {
-      console.log("Submitted Contact:", formData);
-      alert("Contact updated successfully!");
-      // axios.post("/api/supplier-contacts", formData)
+      try {
+        await updateCustomerContact(id!, {
+          name: formData.firstName,
+          name2: formData.lastName,
+          ref: formData.reference,
+          assignment: formData.contactActiveFor,
+          phone: formData.phone,
+          phone2: formData.secondaryPhone,
+          fax: formData.fax,
+          email: formData.email,
+          address: formData.address,
+          lang: formData.documentLanguage,
+          notes: formData.notes,
+        });
+
+        alert("Contact updated successfully!");
+        navigate("/sales/maintenance/add-and-manage-customers");
+      } catch (error) {
+        console.error("Update failed:", error);
+        alert("Failed to update contact. Please try again.");
+      }
     }
   };
+
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>

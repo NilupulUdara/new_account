@@ -19,6 +19,7 @@ import { useNavigate, useParams } from "react-router";
 import { getCurrencies } from "../../../../../api/Currency/currencyApi";
 import { getSalesTypes } from "../../../../../api/SalesMaintenance/salesService";
 import { getCreditStatusSetups } from "../../../../../api/CreditStatusSetup/CreditStatusSetupApi";
+// import { getPaymentTerms } from "../../../../../api/PaymentTerms/paymentTermsApi";
 
 interface GeneralSettingsFormProps {
     customerId?: string | number;
@@ -39,6 +40,11 @@ interface CreditStatusSetup {
     id: number;
     reason_description: string;
 }
+
+// interface PaymentTerm {
+//     id: number;
+//     term_name: string; // or whatever the display field is
+// }
 
 export default function UpdateGeneralSettingsForm({ customerId }: GeneralSettingsFormProps) {
     const { id } = useParams(); // get id from route if not passed as prop
@@ -78,6 +84,7 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
     const [currencies, setCurrencies] = useState<Currency[]>([]);
     const [salesTypes, setSalesTypes] = useState<SalesType[]>([]);
     const [creditStatusSetups, setCreditStatusSetups] = useState<CreditStatusSetup[]>([]);
+    // const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
 
     const navigate = useNavigate();
 
@@ -88,6 +95,7 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                     getCurrencies(),
                     getSalesTypes(),
                     getCreditStatusSetups()
+                    // getPaymentTerms(),
                 ]);
 
                 // Map API responses to local interfaces
@@ -100,6 +108,12 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                     id: item.id,
                     reason_description: item.reason_description
                 })) || [];
+
+                // const mappedPaymentTerms = (paymentRes as any[]).map((item: any) => ({
+                //     id: item.id,
+                //     term_name: item.term_name
+                // })) || [];
+                // setPaymentTerms(mappedPaymentTerms);
 
                 setCurrencies(mappedCurrencies);
                 setSalesTypes(mappedSalesTypes);
@@ -121,6 +135,9 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                         } else {
                             creditStatusName = mappedCreditStatuses[0]?.reason_description || '';
                         }
+
+                        // const paymentTermObj = paymentRes.find((pt: any) => pt.id === Number(customerRes.payment_terms));
+                        // const paymentTermName = paymentTermObj?.term_name || 'Cash Only'; // fallback
 
                         // Currency uses abbreviation directly
                         const currencyCode = customerRes.curr_code || mappedCurrencies[0]?.currency_abbreviation || "";
@@ -148,7 +165,7 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                             defaultShippingCompany: customerRes.default_shipping_company || "",
                             salesArea: customerRes.sales_area || "",
                             taxGroup: customerRes.tax_group || "",
-                            status: customerRes.inactive ? "Inactive" : "Active", // Assuming boolean inactive
+                            status: customerRes.inactive ? "Inactive" : "Active",
                         });
                     }
                 }
@@ -188,25 +205,25 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
         if (!formData.salesType) newErrors.salesType = "Sales Type is required";
 
         // Contact
-        if (!formData.phone.trim()) newErrors.phone = "Phone is required";
-        else if (!/^\d{10,15}$/.test(formData.phone))
-            newErrors.phone = "Phone must be 10–15 digits";
+        // if (!formData.phone.trim()) newErrors.phone = "Phone is required";
+        // else if (!/^\d{10,15}$/.test(formData.phone))
+        //     newErrors.phone = "Phone must be 10–15 digits";
 
-        if (formData.secondaryPhone && !/^\d{10,15}$/.test(formData.secondaryPhone))
-            newErrors.secondaryPhone = "Secondary Phone must be 10–15 digits";
+        // if (formData.secondaryPhone && !/^\d{10,15}$/.test(formData.secondaryPhone))
+        //     newErrors.secondaryPhone = "Secondary Phone must be 10–15 digits";
 
-        if (!formData.email.trim()) newErrors.email = "Email is required";
-        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
-            newErrors.email = "Enter a valid email";
+        // if (!formData.email.trim()) newErrors.email = "Email is required";
+        // else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
+        //     newErrors.email = "Enter a valid email";
 
-        // Bank
-        if (!formData.bankAccount.trim())
-            newErrors.bankAccount = "Bank Account Number is required";
-        else if (!/^\d+$/.test(formData.bankAccount))
-            newErrors.bankAccount = "Bank Account must be numeric";
+        // // Bank
+        // if (!formData.bankAccount.trim())
+        //     newErrors.bankAccount = "Bank Account Number is required";
+        // else if (!/^\d+$/.test(formData.bankAccount))
+        //     newErrors.bankAccount = "Bank Account must be numeric";
 
-        if (!formData.salesPerson)
-            newErrors.salesPerson = "Sales Person is required";
+        // if (!formData.salesPerson)
+        //     newErrors.salesPerson = "Sales Person is required";
 
         // Sales fields
         if (formData.discountPercent && isNaN(Number(formData.discountPercent)))
@@ -222,23 +239,23 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
         if (formData.creditLimit && isNaN(Number(formData.creditLimit)))
             newErrors.creditLimit = "Credit Limit must be a number";
 
-        if (!formData.paymentTerms)
-            newErrors.paymentTerms = "Payment Terms are required";
+        // if (!formData.paymentTerms)
+        //     newErrors.paymentTerms = "Payment Terms are required";
 
-        if (!formData.creditStatus)
-            newErrors.creditStatus = "Credit Status is required";
+        // if (!formData.creditStatus)
+        //     newErrors.creditStatus = "Credit Status is required";
 
         // Notes
         if (!formData.generalNotes.trim())
             newErrors.generalNotes = "General Notes are required";
 
         // Branch settings
-        if (!formData.defaultInventoryLocation)
-            newErrors.defaultInventoryLocation = "Inventory Location is required";
-        if (!formData.defaultShippingCompany)
-            newErrors.defaultShippingCompany = "Shipping Company is required";
-        if (!formData.salesArea) newErrors.salesArea = "Sales Area is required";
-        if (!formData.taxGroup) newErrors.taxGroup = "Tax Group is required";
+        // if (!formData.defaultInventoryLocation)
+        //     newErrors.defaultInventoryLocation = "Inventory Location is required";
+        // if (!formData.defaultShippingCompany)
+        //     newErrors.defaultShippingCompany = "Shipping Company is required";
+        // if (!formData.salesArea) newErrors.salesArea = "Sales Area is required";
+        // if (!formData.taxGroup) newErrors.taxGroup = "Tax Group is required";
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -252,29 +269,34 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
         }
 
         try {
+            // Map form names back to IDs for backend expectations
+            const salesTypeId = salesTypes.find(st => st.typeName === formData.salesType)?.id;
+            const creditStatusId = creditStatusSetups.find(cs => cs.reason_description === formData.creditStatus)?.id;
+            // const paymentTermsId = paymentTerms.find(pt => pt.term_name === formData.paymentTerms)?.id;
+
             const payload = {
-                customer_name: formData.customerName,
-                customer_short_name: formData.customerShortName,
+                name: formData.customerName,
+                debtor_ref: formData.customerShortName,
                 address: formData.address,
-                gst_number: formData.gstNumber,
-                currency: formData.currency,
-                sales_type: formData.salesType,
+                gst: formData.gstNumber,
+                curr_code: formData.currency,
+                sales_type: salesTypeId,
                 phone: formData.phone,
-                secondary_phone: formData.secondaryPhone,
+                phone2: formData.secondaryPhone,
                 email: formData.email,
                 bank_account: formData.bankAccount,
                 sales_person: formData.salesPerson,
-                discount_percent: formData.discountPercent,
-                prompt_payment_discount: formData.promptPaymentDiscount,
+                discount: formData.discountPercent,
+                pymt_discount: formData.promptPaymentDiscount,
                 credit_limit: formData.creditLimit,
                 payment_terms: formData.paymentTerms,
-                credit_status: formData.creditStatus,
-                general_notes: formData.generalNotes,
+                credit_status: creditStatusId,
+                notes: formData.generalNotes,
                 default_inventory_location: formData.defaultInventoryLocation,
                 default_shipping_company: formData.defaultShippingCompany,
                 sales_area: formData.salesArea,
                 tax_group: formData.taxGroup,
-                status: formData.status,
+                inactive: formData.status === "Inactive",
             };
 
             await updateCustomer(customerIdToUse, payload);
@@ -449,8 +471,14 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                                     onChange={(e) => handleChange("paymentTerms", e.target.value)}
                                     label="Payment Terms"
                                 >
+                                    {/* TODO: Replace hardcoded with mapped paymentTerms */}
                                     <MenuItem value="Cash Only">Cash Only</MenuItem>
                                     <MenuItem value="Credit 30 Days">Credit 30 Days</MenuItem>
+                                    {/* {paymentTerms.map((pt) => (
+                                        <MenuItem key={pt.id} value={pt.term_name}>
+                                            {pt.term_name}
+                                        </MenuItem>
+                                    ))} */}
                                 </Select>
                                 <FormHelperText>{errors.paymentTerms || " "}</FormHelperText>
                             </FormControl>
