@@ -26,37 +26,11 @@ import Breadcrumb from "../../../../../components/BreadCrumb";
 import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import SearchBar from "../../../../../components/SearchBar";
-import { getCustomerContacts } from "../../../../../api/Customer/CustomerContactApi";
+import { getCustomerContacts, deleteCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
 
 interface CustomerContacsProps {
   customerId?: string | number;
 }
-
-// Mock API function
-// const getContacts = async () => [
-//   {
-//     id: 1,
-//     assignment: "Manager",
-//     reference: "REF001",
-//     fullName: "John Doe",
-//     phone: "123456789",
-//     secPhone: "987654321",
-//     fax: "111222333",
-//     email: "john@example.com",
-//     inactive: false,
-//   },
-//   {
-//     id: 2,
-//     assignment: "Assistant",
-//     reference: "REF002",
-//     fullName: "Jane Smith",
-//     phone: "555666777",
-//     secPhone: "777666555",
-//     fax: "444555666",
-//     email: "jane@example.com",
-//     inactive: true,
-//   },
-// ];
 
 export default function CustomersContactsTable({ customerId }: CustomerContacsProps) {
   const [page, setPage] = useState(0);
@@ -76,7 +50,8 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
       reference: item.ref,
       fullName: item.name,
       phone: item.phone,
-      secPhone: item.secondary_phone,
+      secPhone: item.phone2,
+      fax: item.fax,
       email: item.email,
     }));
     setContacts(mappedData);
@@ -120,8 +95,17 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
     setPage(0);
   };
 
-  const handleDelete = (id: number) => {
-    alert(`Delete contact with id: ${id}`);
+  const handleDelete = async (id: number) => {
+    if (window.confirm("Are you sure you want to delete this contact?")) {
+      try {
+        await deleteCustomerContact(id);
+        setContacts((prev) => prev.filter((contact) => contact.id !== id));
+        alert("Contact deleted successfully!");
+      } catch (error) {
+        console.error("Delete failed:", error);
+        alert("Failed to delete contact. Please try again.");
+      }
+    }
   };
 
   const breadcrumbItems = [
@@ -214,7 +198,7 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
                           size="small"
                           startIcon={<EditIcon />}
                           onClick={() => navigate(
-                            "/sales/maintenance/add-and-manage-customers/update-customers-contacts"
+                            `/sales/maintenance/add-and-manage-customers/update-customers-contacts/${contact.id}`
                             // `/sales/maintenancne/update-contact/${contact.id}`
                           )}
                         >

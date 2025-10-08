@@ -529,7 +529,7 @@ const AppRoutes = () => {
           element={withLayout(MainLayout, AddCustomersContactsForm)}
         />
         <Route
-          path="/sales/maintenance/add-and-manage-customers/update-customers-contacts"
+          path="/sales/maintenance/add-and-manage-customers/update-customers-contacts/:id"
           element={withLayout(MainLayout, UpdateCustomersContactsForm)}
         />
         <Route
