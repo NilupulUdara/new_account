@@ -11,6 +11,8 @@ import {
 } from "@mui/material";
 import { createTag } from "../../../../api/DimensionTag/DimensionTagApi";
 import { useNavigate } from "react-router-dom";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface DimensionTagData {
   tagName: string;
@@ -18,6 +20,9 @@ interface DimensionTagData {
 }
 
 export default function AddDimensionTagsForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<DimensionTagData>({
     tagName: "",
     tagDescription: "",
@@ -46,9 +51,13 @@ export default function AddDimensionTagsForm() {
     if (validate()) {
       try {
         await createTag(formData);
-        alert("Dimension Tag added successfully!");
-        navigate("/dimension/maintenance/dimension-tags");
+        setOpen(true);
       } catch (error) {
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to add Tag Please try again."
+        );
+        setErrorOpen(true);
         console.error("Error adding tag:", error);
       }
     }
@@ -104,6 +113,19 @@ export default function AddDimensionTagsForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Dimension Tag has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

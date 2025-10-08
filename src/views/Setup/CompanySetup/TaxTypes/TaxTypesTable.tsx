@@ -1,136 +1,63 @@
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import Paper from "@mui/material/Paper";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
-  Button,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   TableFooter,
   TablePagination,
+  Paper,
+  Button,
   Typography,
   useMediaQuery,
   Theme,
   Checkbox,
   FormControlLabel,
 } from "@mui/material";
-import { useMemo, useState, useEffect } from "react";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
-import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import theme from "../../../../theme";
 import { getTaxTypes, deleteTaxType } from "../../../../api/Tax/taxServices";
-
-// Mock API function
-// const getTaxGroups = async () => [
-//   {
-//     id: 1,
-//     description: "Standard Tax",
-//     defaultRate: 15,
-//     salesGlAccount: "4000 - Sales Revenue",
-//     purchasingGlAccount: "5000 - Purchase Expenses",
-//     inactive: false,
-//   },
-//   {
-//     id: 2,
-//     description: "Reduced Tax",
-//     defaultRate: 8,
-//     salesGlAccount: "4010 - Services Revenue",
-//     purchasingGlAccount: "5010 - Freight Expenses",
-//     inactive: true,
-//   },
-//   {
-//     id: 3,
-//     description: "Standard Tax",
-//     defaultRate: 15,
-//     salesGlAccount: "4020 - Sales Revenue",
-//     purchasingGlAccount: "5020 - Purchase Expenses",
-//     inactive: false,
-//   },
-//   {
-//     id: 4,
-//     description: "Reduced Tax",
-//     defaultRate: 8,
-//     salesGlAccount: "4030 - Services Revenue",
-//     purchasingGlAccount: "5030 - Freight Expenses",
-//     inactive: true,
-//   },
-//   {
-//     id: 5,
-//     description: "Standard Tax",
-//     defaultRate: 15,
-//     salesGlAccount: "4040 - Sales Revenue",
-//     purchasingGlAccount: "5040 - Purchase Expenses",
-//     inactive: false,
-//   },
-//   {
-//     id: 6,
-//     description: "Reduced Tax",
-//     defaultRate: 8,
-//     salesGlAccount: "4010 - Services Revenue",
-//     purchasingGlAccount: "5010 - Freight Expenses",
-//     inactive: true,
-//   },
-//   {
-//     id: 7,
-//     description: "Standard Tax",
-//     defaultRate: 15,
-//     salesGlAccount: "4000 - Sales Revenue",
-//     purchasingGlAccount: "5000 - Purchase Expenses",
-//     inactive: false,
-//   },
-//   {
-//     id: 8,
-//     description: "Reduced Tax",
-//     defaultRate: 8,
-//     salesGlAccount: "4010 - Services Revenue",
-//     purchasingGlAccount: "5010 - Freight Expenses",
-//     inactive: true,
-//   },
-//   {
-//     id: 9,
-//     description: "Standard Tax",
-//     defaultRate: 15,
-//     salesGlAccount: "4000 - Sales Revenue",
-//     purchasingGlAccount: "5000 - Purchase Expenses",
-//     inactive: false,
-//   },
-//   {
-//     id: 10,
-//     description: "Reduced Tax",
-//     defaultRate: 8,
-//     salesGlAccount: "4010 - Services Revenue",
-//     purchasingGlAccount: "5010 - Freight Expenses",
-//     inactive: true,
-//   },
-// ];
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function TaxGroupTable() {
+  const [taxGroups, setTaxGroups] = useState<any[]>([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-  const [taxGroups, setTaxGroups] = useState<any[]>([]);
-  const [showInactive, setShowInactive] = useState(false); // global checkbox
-  const [searchQuery, setSearchQuery] = useState(""); // search state
+  const [showInactive, setShowInactive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
-  // Fetch data (simulate API)
-  // useState(() => {
-  //   getTaxGroups().then((data) => setTaxGroups(data));
-  // });
+  // Load tax groups
+  const loadTaxGroups = async () => {
+    try {
+      const data = await getTaxTypes();
+      setTaxGroups(data);
+    } catch (error) {
+      console.error("Error fetching tax types:", error);
+    }
+  };
 
   useEffect(() => {
-    getTaxTypes().then((data) => setTaxGroups(data));
+    loadTaxGroups();
   }, []);
 
-  // Filter rows based on global checkbox and search query
+  // Filter data by inactive and search query
   const filteredData = useMemo(() => {
     let data = showInactive ? taxGroups : taxGroups.filter((g) => !g.inactive);
 
@@ -147,27 +74,33 @@ export default function TaxGroupTable() {
     return data;
   }, [taxGroups, showInactive, searchQuery]);
 
+  // Pagination
   const paginatedData = useMemo(() => {
     if (rowsPerPage === -1) return filteredData;
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  }, [page, rowsPerPage, filteredData]);
+  }, [filteredData, page, rowsPerPage]);
 
-  const handleChangePage = (
-    event: React.MouseEvent<HTMLButtonElement> | null,
-    newPage: number
-  ) => setPage(newPage);
+  const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
 
-  const handleChangeRowsPerPage = (
-    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this tax type?")) {
-      await deleteTaxType(id);
-      setTaxGroups((prev) => prev.filter((g) => g.id !== id));
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    try {
+      await deleteTaxType(selectedId);
+      setOpenDeleteModal(false);
+      setSelectedId(null);
+      loadTaxGroups();
+    } catch (error) {
+      console.error("Error deleting tax type:", error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to delete tax type Please try again."
+      );
+      setErrorOpen(true);
     }
   };
 
@@ -178,13 +111,13 @@ export default function TaxGroupTable() {
 
   return (
     <Stack>
+      {/* Header */}
       <Box
         sx={{
           padding: theme.spacing(2),
           boxShadow: 2,
           marginY: 2,
           borderRadius: 1,
-          overflowX: "hidden",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -203,7 +136,6 @@ export default function TaxGroupTable() {
           >
             Add Tax Types
           </Button>
-
           <Button
             variant="outlined"
             startIcon={<ArrowBackIcon />}
@@ -214,7 +146,7 @@ export default function TaxGroupTable() {
         </Stack>
       </Box>
 
-      {/* Global checkbox & Search Bar */}
+      {/* Checkbox & Search */}
       <Stack
         direction={isMobile ? "column" : "row"}
         spacing={2}
@@ -229,7 +161,6 @@ export default function TaxGroupTable() {
           }
           label="Show Also Inactive"
         />
-
         <Box sx={{ width: isMobile ? "100%" : "300px" }}>
           <SearchBar
             searchQuery={searchQuery}
@@ -239,6 +170,7 @@ export default function TaxGroupTable() {
         </Box>
       </Stack>
 
+      {/* Table */}
       <Stack sx={{ alignItems: "center" }}>
         <TableContainer
           component={Paper}
@@ -269,7 +201,9 @@ export default function TaxGroupTable() {
                           variant="contained"
                           size="small"
                           startIcon={<EditIcon />}
-                          onClick={() => navigate(`/setup/companysetup/update-tax-types/${group.id}`)}
+                          onClick={() =>
+                            navigate(`/setup/companysetup/update-tax-types/${group.id}`)
+                          }
                         >
                           Edit
                         </Button>
@@ -278,7 +212,10 @@ export default function TaxGroupTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(group.id)}
+                          onClick={() => {
+                            setSelectedId(group.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -302,16 +239,31 @@ export default function TaxGroupTable() {
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}
-                  showFirstButton
-                  showLastButton
                   onPageChange={handleChangePage}
                   onRowsPerPageChange={handleChangeRowsPerPage}
+                  showFirstButton
+                  showLastButton
                 />
               </TableRow>
             </TableFooter>
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* Delete Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Tax Type"
+        content="Are you sure you want to delete this tax type? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedId(null)}
+        deleteFunc={handleDelete}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

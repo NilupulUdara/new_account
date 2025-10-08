@@ -28,8 +28,15 @@ import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
 import { getSalesAreas, deleteSalesArea, SalesArea } from "../../../../api/SalesMaintenance/salesService";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 function SalesAreaTable() {
+
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedAreaId, setSelectedAreaId] = useState<number | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [searchQuery, setSearchQuery] = useState("");
@@ -79,17 +86,25 @@ function SalesAreaTable() {
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this area?")) {
-      try {
-          await deleteSalesArea(id);
-          queryClient.invalidateQueries({ queryKey: ["salesAreas"] });
-      } catch (error) {
-          console.error("Error deleting sales type:", error);
-          alert("Failed to delete. Please try again.");
-      }
+  const handleDelete = async () => {
+    if (!selectedAreaId) return;
+
+    try {
+      await deleteSalesArea(selectedAreaId);
+      queryClient.invalidateQueries({ queryKey: ["salesAreas"] });
+    } catch (error) {
+      console.error("Failed to delete sales area:", error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to delete Sales Area Please try again."
+      );
+      setErrorOpen(true);
+    } finally {
+      setOpenDeleteModal(false);
+      setSelectedAreaId(null);
     }
   };
+
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
@@ -205,10 +220,14 @@ function SalesAreaTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(area.id!)}
+                          onClick={() => {
+                            setSelectedAreaId(area.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
+
                       </Stack>
                     </TableCell>
                   </TableRow>
@@ -240,6 +259,20 @@ function SalesAreaTable() {
           </Table>
         </TableContainer>
       </Stack>
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Sales Area"
+        content="Are you sure you want to delete this Sales Area? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedAreaId(null)}
+        deleteFunc={handleDelete}
+        onSuccess={() => console.log("Sales Area deleted successfully!")}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

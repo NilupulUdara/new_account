@@ -13,6 +13,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import theme from "../../../../theme";
 import { useNavigate, useParams } from "react-router";
 import { getSalesPerson, updateSalesPerson } from "../../../../api/SalesPerson/SalesPersonApi";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface SalesPersonFormData {
   name: string;
@@ -25,6 +27,10 @@ interface SalesPersonFormData {
 }
 
 export default function UpdateSalesPerson() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const [formData, setFormData] = useState<SalesPersonFormData>({
     name: "",
     telephone: "",
@@ -101,13 +107,16 @@ export default function UpdateSalesPerson() {
         };
 
         const updated = await updateSalesPerson(id, payload);
-        alert("Sales Person updated successfully!");
 
         queryClient.invalidateQueries({ queryKey: ["sales_people"] });
-        navigate("/sales/maintenance/sales-persons");
+        setOpen(true);
       } catch (err: any) {
         console.error("Error updating sales person:", err);
-        alert("Error updating sales person: " + JSON.stringify(err));
+        setErrorMessage(
+          err?.response?.data?.message ||
+          "Failed to update Sales Person Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -222,6 +231,19 @@ export default function UpdateSalesPerson() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Sales Group has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

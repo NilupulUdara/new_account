@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Box,
   Button,
@@ -19,62 +19,90 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import theme from "../../../../theme";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
+import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
-import { getFiscalYears, deleteFiscalYear } from "../../../../api/FiscalYear/FiscalYearApi";
+import {
+  getFiscalYears,
+  deleteFiscalYear,
+} from "../../../../api/FiscalYear/FiscalYearApi";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
-function FiscalYearTable() {
+export default function FiscalYearTable() {
+  const [fiscalYears, setFiscalYears] = useState<any[]>([]);
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [searchQuery, setSearchQuery] = useState("");
-  const navigate = useNavigate();
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
+  const navigate = useNavigate();
 
-  const { data: fiscalYears = [], refetch, isFetching } = useQuery({
-    queryKey: ["fiscalYears"],
-    queryFn: getFiscalYears,
-  });
+  const loadData = async () => {
+    try {
+      const data = await getFiscalYears();
+      setFiscalYears(data);
+    } catch (error) {
+      console.error("Failed to fetch fiscal years:", error);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const filteredData = useMemo(() => {
+    if (!searchQuery.trim()) return fiscalYears;
+    const lower = searchQuery.toLowerCase();
     return fiscalYears.filter((fy) => {
-      const begin = fy.fiscal_year_from ?? "";
-      const end = fy.fiscal_year_to ?? "";
+      const from = new Date(fy.fiscal_year_from).toLocaleDateString();
+      const to = new Date(fy.fiscal_year_to).toLocaleDateString();
       const closed = fy.isClosed ? "yes" : "no";
-
       return (
-        begin.includes(searchQuery) ||
-        end.includes(searchQuery) ||
-        closed.includes(searchQuery.toLowerCase())
+        from.toLowerCase().includes(lower) ||
+        to.toLowerCase().includes(lower) ||
+        closed.includes(lower)
       );
     });
   }, [fiscalYears, searchQuery]);
-
 
   const paginatedData = useMemo(() => {
     if (rowsPerPage === -1) return filteredData;
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [filteredData, page, rowsPerPage]);
 
-  const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChangePage = (
+    _event: React.MouseEvent<HTMLButtonElement> | null,
+    newPage: number
+  ) => setPage(newPage);
+
+  const handleChangeRowsPerPage = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this fiscal year?")) {
-      try {
-        await deleteFiscalYear(id);
-        alert("Fiscal year deleted successfully!");
-        refetch();
-      } catch (err) {
-        console.error(err);
-        alert("Failed to delete fiscal year");
-      }
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    try {
+      await deleteFiscalYear(selectedId);
+      setFiscalYears((prev) => prev.filter((fy) => fy.id !== selectedId));
+    } catch (error) {
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to delet fiscal year Please try again."
+      );
+      setErrorOpen(true);
+      console.error("Error deleting fiscal year:", error);
+    } finally {
+      setOpenDeleteModal(false);
+      setSelectedId(null);
     }
   };
 
@@ -85,6 +113,7 @@ function FiscalYearTable() {
 
   return (
     <Stack>
+      {/* Header */}
       <Box
         sx={{
           padding: theme.spacing(2),
@@ -121,6 +150,7 @@ function FiscalYearTable() {
         </Stack>
       </Box>
 
+      {/* Search Bar */}
       <Box
         sx={{
           display: "flex",
@@ -140,6 +170,7 @@ function FiscalYearTable() {
         </Box>
       </Box>
 
+      {/* Table */}
       <Stack sx={{ alignItems: "center" }}>
         <TableContainer
           component={Paper}
@@ -162,8 +193,12 @@ function FiscalYearTable() {
                 paginatedData.map((fy, index) => (
                   <TableRow key={fy.id} hover>
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                    <TableCell>{new Date(fy.fiscal_year_from).toLocaleDateString()}</TableCell>
-                    <TableCell>{new Date(fy.fiscal_year_to).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      {new Date(fy.fiscal_year_from).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(fy.fiscal_year_to).toLocaleDateString()}
+                    </TableCell>
                     <TableCell>{fy.isClosed ? "Yes" : "No"}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
@@ -171,7 +206,11 @@ function FiscalYearTable() {
                           variant="contained"
                           size="small"
                           startIcon={<EditIcon />}
-                          onClick={() => navigate(`/setup/companysetup/update-fiscal-year/${fy.id}`)}
+                          onClick={() =>
+                            navigate(
+                              `/setup/companysetup/update-fiscal-year/${fy.id}`
+                            )
+                          }
                         >
                           Edit
                         </Button>
@@ -180,7 +219,10 @@ function FiscalYearTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(fy.id)}
+                          onClick={() => {
+                            setSelectedId(fy.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -191,9 +233,7 @@ function FiscalYearTable() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={5} align="center">
-                    <Typography variant="body2">
-                      {isFetching ? "Loading..." : "No Records Found"}
-                    </Typography>
+                    <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
               )}
@@ -207,18 +247,34 @@ function FiscalYearTable() {
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}
-                  onPageChange={handleChangePage}
-                  onRowsPerPageChange={handleChangeRowsPerPage}
                   showFirstButton
                   showLastButton
+                  onPageChange={handleChangePage}
+                  onRowsPerPageChange={handleChangeRowsPerPage}
                 />
               </TableRow>
             </TableFooter>
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* ✅ Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Fiscal Year"
+        content="Are you sure you want to delete this Fiscal Year? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedId(null)}
+        deleteFunc={handleDelete}
+        onSuccess={() => {
+          console.log("Fiscal year deleted successfully!");
+        }}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }
-
-export default FiscalYearTable;

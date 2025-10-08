@@ -19,6 +19,8 @@ import theme from "../../../../theme";
 import { createUser } from "../../../../api/UserManagement/userManagement";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface UserFormData {
   id: string;
@@ -36,6 +38,9 @@ interface UserFormData {
 }
 
 export default function AddUserForm() {
+  const [open, setOpen] = useState(false);
+    const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<UserFormData>({
     id: "",
     firstName: "",
@@ -125,13 +130,16 @@ export default function AddUserForm() {
 
         const user = await createUser(payload);
         console.log("User created:", user);
-        alert("User created successfully!");
+         setOpen(true);
         queryClient.invalidateQueries({ queryKey: ["users"] });
         queryClient.refetchQueries({ queryKey: ["users"] });
-        navigate("/setup/companysetup/user-account-setup");
         setErrors({});
       } catch (err: any) {
-        alert("Error creating user: " + JSON.stringify(err));
+         setErrorMessage(
+          err?.response?.data?.message ||
+          "Failed to add User Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -307,6 +315,19 @@ export default function AddUserForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+              open={open}
+              title="Success"
+              content="User has been added successfully!"
+              addFunc={async () => { }}
+              handleClose={() => setOpen(false)}
+              onSuccess={() => window.history.back()}
+            />
+            <ErrorModal
+              open={errorOpen}
+              onClose={() => setErrorOpen(false)}
+              message={errorMessage}
+            />
     </Stack>
   );
 }

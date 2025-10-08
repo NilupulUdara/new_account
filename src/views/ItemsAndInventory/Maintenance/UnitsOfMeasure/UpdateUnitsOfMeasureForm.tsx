@@ -19,6 +19,8 @@ import {
 import theme from "../../../../theme";
 import { getItemUnit, updateItemUnit } from "../../../../api/ItemUnit/ItemUnitApi";
 import { useParams, useNavigate } from "react-router-dom";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface UnitsOfMeasureFormData {
   unitAbbreviation: string;
@@ -27,6 +29,9 @@ interface UnitsOfMeasureFormData {
 }
 
 export default function UpdateUnitsOfMeasureForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const { id } = useParams<{ id: string }>();
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
@@ -59,7 +64,11 @@ export default function UpdateUnitsOfMeasureForm() {
         });
       } catch (error) {
         console.error("Failed to fetch Item Unit:", error);
-        alert("Failed to load unit data. Please check backend.");
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to load Item unit Please try again."
+        );
+        setErrorOpen(true);
       } finally {
         setFetching(false);
       }
@@ -98,14 +107,21 @@ export default function UpdateUnitsOfMeasureForm() {
     try {
       setLoading(true);
       await updateItemUnit(Number(id), payload);
-      alert("Item Unit updated successfully!");
-      navigate(-1);
+      setOpen(true);
     } catch (error: any) {
       console.error(error);
       if (error?.message?.includes("UniqueConstraintViolation")) {
-        alert("Unit abbreviation or name already exists!");
+        setErrorMessage(
+          "Unit abbreviation or name already exists!"
+        );
+        setErrorOpen(true);
+        // alert("Unit abbreviation or name already exists!");
       } else {
-        alert("Failed to update Item Unit. Check console for details.");
+         setErrorMessage(
+          "Failed to update Item Unit."
+        );
+        setErrorOpen(true);
+        // alert("Failed to update Item Unit. Check console for details.");
       }
     } finally {
       setLoading(false);
@@ -201,6 +217,18 @@ export default function UpdateUnitsOfMeasureForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Units of Measure has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

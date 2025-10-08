@@ -15,6 +15,8 @@ import theme from "../../../../theme";
 import { createSalesType } from "../../../../api/SalesMaintenance/salesService";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface SalesTypeFormData {
   salesTypeName: string;
@@ -23,6 +25,9 @@ interface SalesTypeFormData {
 }
 
 export default function AddSalesTypesForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<SalesTypeFormData>({
     salesTypeName: "",
     calculationFactor: "",
@@ -69,12 +74,16 @@ export default function AddSalesTypesForm() {
         });
 
         queryClient.invalidateQueries({ queryKey: ["salesTypes"] });
-        
-        alert("Sales Type added successfully!");
-        navigate("/sales/maintenance/sales-types"); // Navigate directly instead of using history.back
+
+        setOpen(true);
+
       } catch (error) {
         console.error(error);
-        alert("Failed to add Sales Type");
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to add Sales Type Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -152,6 +161,20 @@ export default function AddSalesTypesForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Sales types has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

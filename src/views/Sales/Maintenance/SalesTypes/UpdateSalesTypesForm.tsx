@@ -15,6 +15,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import theme from "../../../../theme";
 import { getSalesType, updateSalesType, SalesType } from "../../../../api/SalesMaintenance/salesService";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface SalesTypeFormData {
   salesTypeName: string;
@@ -23,6 +25,10 @@ interface SalesTypeFormData {
 }
 
 export default function UpdateSalesTypesForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const { id } = useParams<{ id: string }>();
   const [formData, setFormData] = useState<SalesTypeFormData>({
     salesTypeName: "",
@@ -85,12 +91,16 @@ export default function UpdateSalesTypesForm() {
         });
 
         queryClient.invalidateQueries({ queryKey: ["salesTypes"] });
-        
-        alert("Sales Type updated successfully!");
-        navigate("/sales/maintenance/sales-types");
+
+        setOpen(true);
+
       } catch (error) {
         console.error(error);
-        alert("Failed to update Sales Type");
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to add Sales Type Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -166,6 +176,18 @@ export default function UpdateSalesTypesForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Sales type has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

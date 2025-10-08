@@ -14,6 +14,8 @@ import {
 import theme from "../../../../theme";
 import { getItemTaxType, updateItemTaxType } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
 import { useParams, useNavigate } from "react-router-dom";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface ItemTaxTypeFormData {
   description: string;
@@ -25,6 +27,9 @@ interface UpdateItemTaxTypesProps {
 }
 
 export default function UpdateItemTaxTypes() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const { id } = useParams<{ id: string }>();
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
@@ -80,11 +85,14 @@ export default function UpdateItemTaxTypes() {
       try {
         setLoading(true);
         await updateItemTaxType(id, payload);
-        alert("Item Tax Type updated successfully!");
-        window.history.back();
+        setOpen(true);
       } catch (error) {
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update item tax type Please try again."
+        );
+        setErrorOpen(true);
         console.error(error);
-        alert("Failed to update Item Tax Type");
       } finally {
         setLoading(false);
       }
@@ -161,6 +169,18 @@ export default function UpdateItemTaxTypes() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Item Tax Type has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

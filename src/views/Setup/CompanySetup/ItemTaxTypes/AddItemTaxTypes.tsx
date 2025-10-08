@@ -13,6 +13,8 @@ import {
 } from "@mui/material";
 import theme from "../../../../theme";
 import { createItemTaxType } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface ItemTaxTypeFormData {
   description: string;
@@ -20,6 +22,9 @@ interface ItemTaxTypeFormData {
 }
 
 export default function AddItemTaxTypes() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
 
@@ -58,11 +63,14 @@ export default function AddItemTaxTypes() {
         };
 
         await createItemTaxType(payload);
-        alert("Item Tax Type created successfully!");
-        window.history.back();
+        setOpen(true);
       } catch (error) {
         console.error(error);
-        alert("Failed to create Item Tax Type");
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to add Item Tax Type Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -136,6 +144,19 @@ export default function AddItemTaxTypes() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Item Tax Type has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

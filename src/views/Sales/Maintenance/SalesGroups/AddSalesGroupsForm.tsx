@@ -12,12 +12,16 @@ import {
 import theme from "../../../../theme";
 import { createSalesGroup } from "../../../../api/SalesMaintenance/salesService";
 import { useQueryClient } from "@tanstack/react-query";
-
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 interface SalesGroupFormData {
   groupName: string;
 }
 
 export default function AddSalesGroupsForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<SalesGroupFormData>({
     groupName: "",
   });
@@ -46,11 +50,14 @@ export default function AddSalesGroupsForm() {
       try {
         await createSalesGroup({ name: formData.groupName });
         queryClient.invalidateQueries({ queryKey: ["salesGroups"] });
-        alert("Sales Group added successfully!");
-        window.history.back();
+        setOpen(true);
       } catch (error) {
         console.error(error);
-        alert("Failed to add Sales Group");
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to add Sales Group Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -107,6 +114,20 @@ export default function AddSalesGroupsForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Sales Group has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

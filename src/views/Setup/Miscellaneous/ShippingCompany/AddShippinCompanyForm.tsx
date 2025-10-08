@@ -11,6 +11,8 @@ import {
 } from "@mui/material";
 import theme from "../../../../theme";
 import { createShippingCompany } from "../../../../api/ShippingCompany/ShippingCompanyApi";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface ShippingCompanyFormData {
   shipper_name: string;
@@ -21,6 +23,9 @@ interface ShippingCompanyFormData {
 }
 
 export default function AddShippingCompanyForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<ShippingCompanyFormData>({
     shipper_name: "",
     contact: "",
@@ -66,11 +71,14 @@ export default function AddShippingCompanyForm() {
 
     try {
       await createShippingCompany(formData); // direct snake_case object
-      alert("Shipping company created successfully!");
-      window.history.back();
+      setOpen(true);
     } catch (error) {
       console.error(error);
-      alert("Failed to create shipping company");
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to add shipping company Please try again."
+      );
+      setErrorOpen(true);
     }
   };
 
@@ -178,6 +186,19 @@ export default function AddShippingCompanyForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Tax Group has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

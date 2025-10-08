@@ -28,8 +28,17 @@ import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
 import { getSalesGroups, deleteSalesGroup, SalesGroup } from "../../../../api/SalesMaintenance/salesService";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 function SalesGroupsTable() {
+
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [searchQuery, setSearchQuery] = useState("");
@@ -78,18 +87,25 @@ function SalesGroupsTable() {
     setPage(0);
   };
 
-  const handleDelete = async (id?: number) => {
-    if (!id) return;
-    if (window.confirm("Are you sure you want to delete this Sales Group?")) {
-      try {
-        await deleteSalesGroup(id);
-        queryClient.invalidateQueries({ queryKey: ["salesGroups"] });
-      } catch (error) {
-        console.error(error);
-        alert("Failed to delete. Please try again.");
-      }
+  const handleDelete = async () => {
+    if (!selectedGroupId) return;
+
+    try {
+      await deleteSalesGroup(selectedGroupId);
+      queryClient.invalidateQueries({ queryKey: ["salesGroups"] });
+    } catch (error) {
+      console.error("Failed to delete Sales Group:", error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to delete. Please try again."
+      );
+      setErrorOpen(true);
+    } finally {
+      setOpenDeleteModal(false);
+      setSelectedGroupId(null);
     }
   };
+
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
@@ -204,10 +220,14 @@ function SalesGroupsTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(group.id)}
+                          onClick={() => {
+                            setSelectedGroupId(group.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
+
                       </Stack>
                     </TableCell>
                   </TableRow>
@@ -239,6 +259,22 @@ function SalesGroupsTable() {
           </Table>
         </TableContainer>
       </Stack>
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Sales Group"
+        content="Are you sure you want to delete this Sales Group? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedGroupId(null)}
+        deleteFunc={handleDelete}
+        onSuccess={() => {
+          console.log("Sales Group deleted successfully!");
+        }}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

@@ -1,14 +1,23 @@
 import React, { useEffect, useMemo, useState } from "react";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import TableFooter from "@mui/material/TableFooter";
-import TablePagination from "@mui/material/TablePagination";
-import Paper from "@mui/material/Paper";
-import { Box, Stack, Button, Typography, Checkbox, FormControlLabel, useMediaQuery, Theme } from "@mui/material";
+import {
+  Box,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TableFooter,
+  TablePagination,
+  Paper,
+  Button,
+  Typography,
+  Checkbox,
+  FormControlLabel,
+  useMediaQuery,
+  Theme,
+} from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -17,38 +26,9 @@ import theme from "../../../../theme";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import { getCurrencies, deleteCurrency } from "../../../../api/Currency/currencyApi";
-
-// Mock API function for currency data
-// const getCurrencies = async () => [
-//   {
-//     id: 1,
-//     currencyAbbreviation: "USD",
-//     currencySymbol: "$",
-//     currencyName: "US Dollar",
-//     hundredthsName: "Cents",
-//     country: "United States",
-//     autoExchangeRateUpdate: true,
-//   },
-//   {
-//     id: 2,
-//     currencyAbbreviation: "LKR",
-//     currencySymbol: "Rs",
-//     currencyName: "Sri Lankan Rupee",
-//     hundredthsName: "Cents",
-//     country: "Sri Lanka",
-//     autoExchangeRateUpdate: false,
-//   },
-//   {
-//     id: 3,
-//     currencyAbbreviation: "EUR",
-//     currencySymbol: "€",
-//     currencyName: "Euro",
-//     hundredthsName: "Cents",
-//     country: "European Union",
-//     autoExchangeRateUpdate: true,
-//   },
-// ];
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function CurrenciesTable() {
   const [currencies, setCurrencies] = useState<any[]>([]);
@@ -56,19 +36,28 @@ export default function CurrenciesTable() {
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [showAll, setShowAll] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
-  // Fetch data
-  // useState(() => {
-  //   getCurrencies().then((data) => setCurrencies(data));
-  // });
+  // Load currencies
+  const loadCurrencies = async () => {
+    try {
+      const data = await getCurrencies();
+      setCurrencies(data);
+    } catch (error) {
+      console.error("Error fetching currencies:", error);
+    }
+  };
 
   useEffect(() => {
-    getCurrencies().then((data) => setCurrencies(data));
+    loadCurrencies();
   }, []);
 
-  // Filter based on autoExchangeRateUpdate and search
+  // Filter and search
   const filteredData = useMemo(() => {
     let data = showAll ? currencies : currencies.filter((c) => c.auto_exchange_rate_update);
 
@@ -90,17 +79,27 @@ export default function CurrenciesTable() {
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [filteredData, page, rowsPerPage]);
 
-  const handleChangePage = (event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) => setPage(newPage);
+  const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
 
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this currency?")) {
-      await deleteCurrency(id);
-      setCurrencies((prev) => prev.filter((c) => c.id !== id));
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    try {
+      await deleteCurrency(selectedId);
+      setOpenDeleteModal(false);
+      setSelectedId(null);
+      loadCurrencies();
+    } catch (error) {
+      console.error("Error deleting currency:", error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to delete currency Please try again."
+      );
+      setErrorOpen(true);
     }
   };
 
@@ -154,29 +153,19 @@ export default function CurrenciesTable() {
         spacing={2}
         sx={{ px: 2, mb: 2, alignItems: "center", justifyContent: isMobile ? "flex-start" : "space-between" }}
       >
-        {/* Checkbox on left */}
         <FormControlLabel
           control={<Checkbox checked={!showAll} onChange={(e) => setShowAll(!e.target.checked)} />}
           label="Show Only Auto Exchange Rate Enabled"
         />
 
-        {/* SearchBar on right */}
-        <Box sx={{ ml: isMobile ? 0 : "auto" }}>
-          <SearchBar
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            placeholder="Search..."
-          />
+        <Box sx={{ ml: isMobile ? 0 : "auto", width: isMobile ? "100%" : "300px" }}>
+          <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} placeholder="Search..." />
         </Box>
       </Stack>
 
       {/* Table */}
       <Stack sx={{ alignItems: "center" }}>
-        <TableContainer
-          component={Paper}
-          elevation={2}
-          sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}
-        >
+        <TableContainer component={Paper} elevation={2} sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}>
           <Table aria-label="currencies table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
@@ -216,7 +205,10 @@ export default function CurrenciesTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(currency.id)}
+                          onClick={() => {
+                            setSelectedId(currency.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -240,16 +232,31 @@ export default function CurrenciesTable() {
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}
-                  showFirstButton
-                  showLastButton
                   onPageChange={handleChangePage}
                   onRowsPerPageChange={handleChangeRowsPerPage}
+                  showFirstButton
+                  showLastButton
                 />
               </TableRow>
             </TableFooter>
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Currency"
+        content="Are you sure you want to delete this currency? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedId(null)}
+        deleteFunc={handleDelete}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

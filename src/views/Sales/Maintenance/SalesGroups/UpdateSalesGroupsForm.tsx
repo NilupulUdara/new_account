@@ -13,12 +13,16 @@ import theme from "../../../../theme";
 import { getSalesGroup, updateSalesGroup } from "../../../../api/SalesMaintenance/salesService";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 interface SalesGroupFormData {
   groupName: string;
 }
 
 export default function UpdateSalesGroupsForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const { id } = useParams<{ id: string }>();
   const [formData, setFormData] = useState<SalesGroupFormData>({
     groupName: "",
@@ -35,7 +39,11 @@ export default function UpdateSalesGroupsForm() {
       .then((res) => setFormData({ groupName: res.name }))
       .catch((err) => {
         console.error(err);
-        alert("Failed to load Sales Group");
+        setErrorMessage(
+          err?.response?.data?.message ||
+          "Failed to load sales group Please try again."
+        );
+        setErrorOpen(true);
       });
   }, [id]);
 
@@ -61,11 +69,14 @@ export default function UpdateSalesGroupsForm() {
       try {
         await updateSalesGroup(Number(id), { name: formData.groupName });
         queryClient.invalidateQueries({ queryKey: ["salesGroups"] });
-        alert("Sales Group updated successfully!");
-        navigate("/sales/maintenance/sales-groups");
+        setOpen(true);
       } catch (error) {
         console.error(error);
-        alert("Failed to update Sales Group");
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update Sales Group Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -122,6 +133,19 @@ export default function UpdateSalesGroupsForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Sales Group has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

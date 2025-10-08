@@ -13,6 +13,8 @@ import {
 import theme from "../../../../theme";
 import { useParams, useNavigate } from "react-router-dom";
 import { getInventoryLocation, updateInventoryLocation } from "../../../../api/InventoryLocation/InventoryLocationApi";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface InventoryLocationFormData {
   locationCode: string;
@@ -26,6 +28,9 @@ interface InventoryLocationFormData {
 }
 
 export default function UpdateInventoryLocationForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -64,7 +69,11 @@ export default function UpdateInventoryLocationForm() {
           email: data.email || "",
         });
       } catch (error) {
-        console.error("Failed to fetch Location:", error);
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update Inventory location Please try again."
+        );
+        setErrorOpen(true);
       } finally {
         setLoading(false);
       }
@@ -113,11 +122,14 @@ export default function UpdateInventoryLocationForm() {
         fax: formData.facsimile,
         email: formData.email,
       });
-      alert("Inventory Location updated successfully!");
-      navigate(-1); // go back after successful update
+      setOpen(true);
     } catch (error) {
       console.error("Update failed:", error);
-      alert("Failed to update location.");
+      setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update Inventory location Please try again."
+        );
+        setErrorOpen(true);
     }
   };
 
@@ -256,6 +268,18 @@ export default function UpdateInventoryLocationForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Inventory Location has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

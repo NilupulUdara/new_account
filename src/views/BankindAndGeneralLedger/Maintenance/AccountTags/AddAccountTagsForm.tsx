@@ -10,9 +10,11 @@ import {
   useTheme,
 } from "@mui/material";
 import theme from "../../../../theme";
-import { createAccountTag } from "../../../../api/AccountTag/AccountTagsApi"; 
+import { createAccountTag } from "../../../../api/AccountTag/AccountTagsApi";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface AccountTagsFormData {
   tagName: string;
@@ -20,6 +22,9 @@ interface AccountTagsFormData {
 }
 
 export default function AddAccountTagsForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<AccountTagsFormData>({
     tagName: "",
     tagDescription: "",
@@ -58,15 +63,14 @@ export default function AddAccountTagsForm() {
         name: formData.tagName,
         description: formData.tagDescription,
         type: 1,
-        inactive: false, 
+        inactive: false,
       };
 
       const tag = await createAccountTag(payload);
 
-      alert("Account Tag added successfully!");
-      console.log("Created tag:", tag);
-
       queryClient.invalidateQueries({ queryKey: ["accountTags"] });
+
+      setOpen(true);
 
       setFormData({
         tagName: "",
@@ -74,9 +78,12 @@ export default function AddAccountTagsForm() {
       });
       setErrors({});
 
-      navigate("/bankingandgeneralledger/maintenance/account-tags");
     } catch (err: any) {
-      alert("Error creating account tag: " + JSON.stringify(err));
+      setErrorMessage(
+        err?.response?.data?.message ||
+        "Failed to add Tag Please try again."
+      );
+      setErrorOpen(true);
     }
   };
 
@@ -151,6 +158,19 @@ export default function AddAccountTagsForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Tax Group has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

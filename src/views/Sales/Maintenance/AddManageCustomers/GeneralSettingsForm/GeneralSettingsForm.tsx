@@ -15,7 +15,7 @@ import {
 } from "@mui/material";
 import theme from "../../../../../theme";
 import { createCustomer } from "../../../../../api/Customer/AddCustomerApi";
-import {createCustomerContact} from "../../../../../api/Customer/CustomerContactApi";
+import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
 import { getCurrencies, Currency } from "../../../../../api/Currency/currencyApi";
 import { useNavigate } from "react-router";
 import {
@@ -28,12 +28,17 @@ import { getShippingCompanies, ShippingCompany } from "../../../../../api/Shippi
 import { getTaxGroups, TaxGroup } from "../../../../../api/Tax/taxServices";
 import { getCreditStatusSetups, CreditStatusSetup } from "../../../../../api/CreditStatusSetup/CreditStatusSetupApi";
 import { createBranch } from "../../../../../api/CustomerBranch/CustomerBranchApi";
+import ErrorModal from "../../../../../components/ErrorModal";
+import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
 interface GeneralSettingsFormProps {
   customerId?: string | number;
 }
 
 
 export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormProps) {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState({
     customerName: "",
     customerShortName: "",
@@ -185,75 +190,80 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
     return Object.keys(newErrors).length === 0;
   };
 
- const handleSubmit = async () => {
-  if (!validate()) {
-    alert("Please fix validation errors before submitting.");
-    return;
-  }
+  const handleSubmit = async () => {
+    if (!validate()) {
+      setErrorMessage(
+        "Please fix validation errors before submitting."
+      );
+      setErrorOpen(true);
+      return;
+    }
 
-  try {
-    const customerPayload = {
-      name: formData.customerName,
-      debtor_ref: formData.customerShortName,
-      address: formData.address,
-      gst: formData.gstNumber,
-      curr_code: formData.currency, // abbreviation
-      sales_type: Number(formData.salesType), // ID
-      credit_status: Number(formData.creditStatus), // ID
-      payment_terms: Number(formData.paymentTerms), // ID
-      discount: Number(formData.discountPercent) || 0,
-      pymt_discount: Number(formData.promptPaymentDiscount) || 0,
-      credit_limit: Number(formData.creditLimit) || 1000,
-      notes: formData.generalNotes,
-      dimension_id: Number(formData.dimension) || 0,
-      dimension2_id: 0,
-      inactive: 0,
-    };
+    try {
+      const customerPayload = {
+        name: formData.customerName,
+        debtor_ref: formData.customerShortName,
+        address: formData.address,
+        gst: formData.gstNumber,
+        curr_code: formData.currency, // abbreviation
+        sales_type: Number(formData.salesType), // ID
+        credit_status: Number(formData.creditStatus), // ID
+        payment_terms: Number(formData.paymentTerms), // ID
+        discount: Number(formData.discountPercent) || 0,
+        pymt_discount: Number(formData.promptPaymentDiscount) || 0,
+        credit_limit: Number(formData.creditLimit) || 1000,
+        notes: formData.generalNotes,
+        dimension_id: Number(formData.dimension) || 0,
+        dimension2_id: 0,
+        inactive: 0,
+      };
 
-    const customer = await createCustomer(customerPayload);
+      const customer = await createCustomer(customerPayload);
 
-    const branchPayload = {
-      debtor_no: customer.debtor_no,
-      br_name: `${formData.customerName} Main Branch`,
-      branch_ref: formData.customerShortName,
-      br_address: formData.address,
-      sales_person: salesPersons.find(sp => sp.name === formData.salesPerson)?.id || null,
-      sales_area: Number(formData.salesArea),
-      phone: formData.phone,
-      fax: formData.faxNumber,
-      email: formData.email,
-      tax_group: TaxGroups.find(t => t.description === formData.taxGroup)?.id || null,
-      inventory_location: formData.defaultInventoryLocation,
-      default_shipping_company: ShippingCompanies.find(
-        s => s.shipper_name === formData.defaultShippingCompany
-      )?.shipper_id || null,
-      inactive: false,
-    };
+      const branchPayload = {
+        debtor_no: customer.debtor_no,
+        br_name: `${formData.customerName} Main Branch`,
+        branch_ref: formData.customerShortName,
+        br_address: formData.address,
+        sales_person: salesPersons.find(sp => sp.name === formData.salesPerson)?.id || null,
+        sales_area: Number(formData.salesArea),
+        phone: formData.phone,
+        fax: formData.faxNumber,
+        email: formData.email,
+        tax_group: TaxGroups.find(t => t.description === formData.taxGroup)?.id || null,
+        inventory_location: formData.defaultInventoryLocation,
+        default_shipping_company: ShippingCompanies.find(
+          s => s.shipper_name === formData.defaultShippingCompany
+        )?.shipper_id || null,
+        inactive: false,
+      };
 
-    await createBranch(branchPayload);
+      await createBranch(branchPayload);
 
-    const contactPayload = {
-      ref: customer.debtor_ref, // link to customer
-      name: formData.customerName,
-      address: formData.address,
-      phone: formData.phone,
-      phone2: formData.secondaryPhone,
-      fax: formData.faxNumber,
-      email: formData.email,
-      notes: formData.generalNotes,
-      inactive: 0,
-    };
+      const contactPayload = {
+        ref: customer.debtor_ref, // link to customer
+        name: formData.customerName,
+        address: formData.address,
+        phone: formData.phone,
+        phone2: formData.secondaryPhone,
+        fax: formData.faxNumber,
+        email: formData.email,
+        notes: formData.generalNotes,
+        inactive: 0,
+      };
 
-    await createCustomerContact(contactPayload);
+      await createCustomerContact(contactPayload);
+      setOpen(true);
 
-    alert("Customer and branch created successfully");
-    navigate("/sales/maintenance/add-and-manage-customers");
-
-  } catch (error: any) {
-    console.error("Error creating customer or branch:", error.response?.data || error);
-    alert("Failed to save customer/branch. See console for details.");
-  }
-};
+    } catch (error: any) {
+      console.error("Error creating customer or branch:", error.response?.data || error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to add Sales Group Please try again."
+      );
+      setErrorOpen(true);
+    }
+  };
 
 
 
@@ -628,6 +638,20 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
           </Button>
         </Box>
       </Box>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Customer has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

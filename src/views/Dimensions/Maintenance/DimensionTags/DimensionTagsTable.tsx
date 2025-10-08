@@ -24,13 +24,19 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import { getTags, deleteTag } from "../../../../api/DimensionTag/DimensionTagApi";
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function DimensionTagsTable() {
   const [tags, setTags] = useState<any[]>([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [searchQuery, setSearchQuery] = useState("");
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
@@ -63,22 +69,27 @@ export default function DimensionTagsTable() {
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [filteredData, page, rowsPerPage]);
 
-  const handleChangePage = (event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) =>
-    setPage(newPage);
+  const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
 
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this tag?")) {
-      try {
-        await deleteTag(id);
-        loadTags();
-      } catch (error) {
-        console.error("Error deleting tag:", error);
-      }
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    try {
+      await deleteTag(selectedId);
+      setOpenDeleteModal(false);
+      setSelectedId(null);
+      loadTags();
+    } catch (error) {
+      console.error("Error deleting tag:", error);
+       setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to delete tag Please try again."
+        );
+        setErrorOpen(true);
     }
   };
 
@@ -89,6 +100,7 @@ export default function DimensionTagsTable() {
 
   return (
     <Stack>
+      {/* Header */}
       <Box
         sx={{
           padding: theme.spacing(2),
@@ -132,20 +144,13 @@ export default function DimensionTagsTable() {
         sx={{ px: 2, mb: 2, alignItems: "center", justifyContent: "flex-end" }}
       >
         <Box sx={{ width: isMobile ? "100%" : "300px" }}>
-          <SearchBar
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            placeholder="Search Tags"
-          />
+          <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} placeholder="Search Tags" />
         </Box>
       </Stack>
 
+      {/* Table */}
       <Stack sx={{ alignItems: "center" }}>
-        <TableContainer
-          component={Paper}
-          elevation={2}
-          sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}
-        >
+        <TableContainer component={Paper} elevation={2} sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}>
           <Table aria-label="dimension tags table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
@@ -177,7 +182,10 @@ export default function DimensionTagsTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(tag.id)}
+                          onClick={() => {
+                            setSelectedId(tag.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -201,16 +209,31 @@ export default function DimensionTagsTable() {
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}
-                  showFirstButton
-                  showLastButton
                   onPageChange={handleChangePage}
                   onRowsPerPageChange={handleChangeRowsPerPage}
+                  showFirstButton
+                  showLastButton
                 />
               </TableRow>
             </TableFooter>
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Tag"
+        content="Are you sure you want to delete this tag? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedId(null)}
+        deleteFunc={handleDelete}
+      />
+      <ErrorModal
+              open={errorOpen}
+              onClose={() => setErrorOpen(false)}
+              message={errorMessage}
+            />
     </Stack>
   );
 }

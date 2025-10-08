@@ -18,6 +18,8 @@ import {
 import theme from "../../../../theme";
 import { getCreditStatusSetup, updateCreditStatusSetup } from "../../../../api/CreditStatusSetup/CreditStatusSetupApi";
 import { useParams, useNavigate } from "react-router-dom";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 interface CreditStatusFormData {
   description: string;
   disallowInvoicing: string; // "yes" or "no"
@@ -28,6 +30,9 @@ interface UpdateCreditStatusProps {
 }
 
 export default function UpdateCreditStatusForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const { id } = useParams<{ id: string }>();
   const [formData, setFormData] = useState<CreditStatusFormData>({
     description: "",
@@ -49,7 +54,11 @@ export default function UpdateCreditStatusForm() {
           disallowInvoicing: data.disallow_invoices ? "yes" : "no",
         });
       } catch (error) {
-        console.error("Failed to fetch Item Tax Type:", error);
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update Credit Status Please try again."
+        );
+        setErrorOpen(true);
       }
     };
     fetchData();
@@ -91,11 +100,9 @@ export default function UpdateCreditStatusForm() {
       try {
         setLoading(true);
         await updateCreditStatusSetup(Number(id), payload);
-        alert("Credit status setup updated successfully!");
-        window.history.back();
+        setOpen(true);
       } catch (error) {
         console.error(error);
-        alert("Failed to updated Credit status setup");
       } finally {
         setLoading(false);
       }
@@ -157,6 +164,18 @@ export default function UpdateCreditStatusForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Credit Status has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

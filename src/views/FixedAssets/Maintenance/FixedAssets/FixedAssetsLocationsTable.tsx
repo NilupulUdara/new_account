@@ -26,14 +26,21 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import { getLocations, deleteLocation } from "../../../../api/FixedAssetsLocation/FixedAssetsLocationApi";
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function FixedAssetsLocationsTable() {
   const [page, setPage] = useState(0);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [locations, setLocations] = useState<any[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
@@ -65,7 +72,6 @@ export default function FixedAssetsLocationsTable() {
           l.id.toString().includes(lower)
       );
     }
-
     return data;
   }, [locations, showInactive, searchQuery]);
 
@@ -74,24 +80,27 @@ export default function FixedAssetsLocationsTable() {
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [page, rowsPerPage, filteredData]);
 
-  const handleChangePage = (event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) =>
-    setPage(newPage);
+  const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
 
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
+  const handleChangeRowsPerPage = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setRowsPerPage(parseInt(e.target.value, 10));
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this location?")) {
-      try {
-        await deleteLocation(id);
-        loadLocations();
-        alert("Location deleted successfully!");
-      } catch (error) {
-        console.error("Delete failed", error);
-        alert("Failed to delete location.");
-      }
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    try {
+      await deleteLocation(selectedId);
+      setOpenDeleteModal(false);
+      setSelectedId(null);
+      loadLocations();
+    } catch (error) {
+      console.error("Delete failed", error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to delete location Please try again."
+      );
+      setErrorOpen(true);
     }
   };
 
@@ -102,7 +111,7 @@ export default function FixedAssetsLocationsTable() {
 
   return (
     <Stack>
-      {/* header and actions */}
+      {/* Header */}
       <Box
         sx={{
           padding: theme.spacing(2),
@@ -139,7 +148,7 @@ export default function FixedAssetsLocationsTable() {
         </Stack>
       </Box>
 
-      {/* Checkbox & Search */}
+      {/* Checkbox + Search */}
       <Stack
         direction={isMobile ? "column" : "row"}
         spacing={2}
@@ -151,13 +160,8 @@ export default function FixedAssetsLocationsTable() {
           }
           label="Show Also Inactive"
         />
-
         <Box sx={{ width: isMobile ? "100%" : "300px" }}>
-          <SearchBar
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            placeholder="Search Locations"
-          />
+          <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} placeholder="Search Locations" />
         </Box>
       </Stack>
 
@@ -192,7 +196,9 @@ export default function FixedAssetsLocationsTable() {
                           variant="contained"
                           size="small"
                           startIcon={<EditIcon />}
-                          onClick={() => navigate(`/fixedassets/maintenance/update-fixed-asset-location/${loc.id}`)}
+                          onClick={() =>
+                            navigate(`/fixedassets/maintenance/update-fixed-asset-location/${loc.id}`)
+                          }
                         >
                           Edit
                         </Button>
@@ -201,7 +207,10 @@ export default function FixedAssetsLocationsTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(loc.id)}
+                          onClick={() => {
+                            setSelectedId(loc.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -225,16 +234,31 @@ export default function FixedAssetsLocationsTable() {
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}
-                  showFirstButton
-                  showLastButton
                   onPageChange={handleChangePage}
                   onRowsPerPageChange={handleChangeRowsPerPage}
+                  showFirstButton
+                  showLastButton
                 />
               </TableRow>
             </TableFooter>
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Location"
+        content="Are you sure you want to delete this location? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedId(null)}
+        deleteFunc={handleDelete}
+      />
+      <ErrorModal
+              open={errorOpen}
+              onClose={() => setErrorOpen(false)}
+              message={errorMessage}
+            />
     </Stack>
   );
 }

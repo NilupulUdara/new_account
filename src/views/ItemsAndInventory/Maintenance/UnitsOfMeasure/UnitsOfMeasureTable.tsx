@@ -15,7 +15,6 @@ import {
   Typography,
   useMediaQuery,
   Theme,
-  TextField,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -26,12 +25,18 @@ import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import { getItemUnits, deleteItemUnit } from "../../../../api/ItemUnit/ItemUnitApi";
 import SearchBar from "../../../../components/SearchBar";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function UnitsOfMeasureTable() {
   const [unitsData, setUnitsData] = useState<any[]>([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [searchQuery, setSearchQuery] = useState("");
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | string | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
@@ -42,7 +47,11 @@ export default function UnitsOfMeasureTable() {
       setUnitsData(data);
     } catch (error) {
       console.error("Failed to fetch Units of Measure:", error);
-      alert("Failed to load units. Please check backend.");
+       setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to load units Please try again."
+        );
+        setErrorOpen(true);
     }
   };
 
@@ -73,16 +82,20 @@ export default function UnitsOfMeasureTable() {
     setPage(0);
   };
 
-  const handleDelete = async (id: number | string) => {
-    if (window.confirm("Are you sure you want to delete this unit?")) {
-      try {
-        await deleteItemUnit(id);
-        alert("Unit deleted successfully!");
-        loadData();
-      } catch (error) {
-        console.error(error);
-        alert("Failed to delete unit");
-      }
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    try {
+      await deleteItemUnit(selectedId);
+      setOpenDeleteModal(false);
+      setSelectedId(null);
+      loadData();
+    } catch (error) {
+      console.error(error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to delete item unit Please try again."
+      );
+      setErrorOpen(true);
     }
   };
 
@@ -127,7 +140,6 @@ export default function UnitsOfMeasureTable() {
       </Box>
 
       {/* Search */}
-      {/* Search Bar at the top-right */}
       <Box sx={{ display: "flex", justifyContent: "flex-end", width: "100%", mb: 2 }}>
         <Box sx={{ width: isMobile ? "150px" : "250px" }}>
           <SearchBar
@@ -178,7 +190,10 @@ export default function UnitsOfMeasureTable() {
                         size="small"
                         color="error"
                         startIcon={<DeleteIcon />}
-                        onClick={() => handleDelete(item.id)}
+                        onClick={() => {
+                          setSelectedId(item.id);
+                          setOpenDeleteModal(true);
+                        }}
                       >
                         Delete
                       </Button>
@@ -212,6 +227,21 @@ export default function UnitsOfMeasureTable() {
           </TableFooter>
         </Table>
       </TableContainer>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Unit"
+        content="Are you sure you want to delete this unit? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedId(null)}
+        deleteFunc={handleDelete}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

@@ -17,6 +17,8 @@ import {
 } from "@mui/material";
 import theme from "../../../../theme";
 import { createCreditStatusSetup } from "../../../../api/CreditStatusSetup/CreditStatusSetupApi";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface CreditStatusFormData {
   description: string;
@@ -24,6 +26,9 @@ interface CreditStatusFormData {
 }
 
 export default function AddCreditStatusForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<CreditStatusFormData>({
     description: "",
     disallowInvoicing: "",
@@ -61,22 +66,25 @@ export default function AddCreditStatusForm() {
   };
 
   const handleSubmit = async () => {
-        if (validate()) {
-          try {
-            const payload = {
-              reason_description: formData.description,
-              disallow_invoices: formData.disallowInvoicing === "yes" ? true : false,
-            };
-    
-            await createCreditStatusSetup(payload);
-            alert("Credit Status Setup created successfully!");
-            window.history.back();
-          } catch (error) {
-            console.error(error);
-            alert("Failed to create Credit Status Setup");
-          }
-        }
-      };
+    if (validate()) {
+      try {
+        const payload = {
+          reason_description: formData.description,
+          disallow_invoices: formData.disallowInvoicing === "yes" ? true : false,
+        };
+
+        await createCreditStatusSetup(payload);
+        setOpen(true);
+      } catch (error) {
+        console.error(error);
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to add Credit Status Please try again."
+        );
+        setErrorOpen(true);
+      }
+    }
+  };
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
@@ -133,6 +141,19 @@ export default function AddCreditStatusForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Credit status has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

@@ -15,6 +15,8 @@ import theme from "../../../../theme";
 import { useQueryClient } from "@tanstack/react-query";
 import { getCurrency, updateCurrency } from "../../../../api/Currency/currencyApi";
 import { useParams, useNavigate } from "react-router-dom";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface CurrenciesFormData {
   currencyAbbreviation: string;
@@ -26,6 +28,9 @@ interface CurrenciesFormData {
 }
 
 export default function UpdateCurrencies() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const queryClient = useQueryClient();
@@ -102,14 +107,15 @@ export default function UpdateCurrencies() {
 
       const updatedCurrency = await updateCurrency(Number(id), payload);
 
-      alert("Currency updated successfully!");
-      console.log("Updated currency:", updatedCurrency);
-
       queryClient.invalidateQueries({ queryKey: ["currencies"] });
-      navigate("/bankingandgeneralledger/maintenance/currencies");
+      setOpen(true);
     } catch (err: any) {
+      setErrorMessage(
+        err?.response?.data?.message ||
+        "Failed to update currency Please try again."
+      );
+      setErrorOpen(true);
       console.error("Error updating currency:", err);
-      alert("Error updating currency: " + JSON.stringify(err));
     }
   };
 
@@ -227,6 +233,18 @@ export default function UpdateCurrencies() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Currency has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

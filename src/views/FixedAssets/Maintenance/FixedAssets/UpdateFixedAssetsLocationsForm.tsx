@@ -11,6 +11,8 @@ import {
 } from "@mui/material";
 import { getLocation, updateLocation } from "../../../../api/FixedAssetsLocation/FixedAssetsLocationApi";
 import { useParams, useNavigate } from "react-router-dom";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface FixedAssetsLocationData {
   locationCode: string;
@@ -24,6 +26,9 @@ interface FixedAssetsLocationData {
 }
 
 export default function UpdateFixedAssetsLocations() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<FixedAssetsLocationData>({
     locationCode: "",
     locationName: "",
@@ -87,11 +92,14 @@ export default function UpdateFixedAssetsLocations() {
     if (validate() && id) {
       try {
         await updateLocation(id, formData);
-        alert("Fixed Assets Location updated successfully!");
-        navigate("/fixedassets/maintenance/fixed-asset-locations");
+        setOpen(true);
       } catch (error) {
         console.error("Update failed", error);
-        alert("Failed to update location.");
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update location Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -148,6 +156,18 @@ export default function UpdateFixedAssetsLocations() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Fixed Asset Location has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+              open={errorOpen}
+              onClose={() => setErrorOpen(false)}
+              message={errorMessage}
+            />
     </Stack>
   );
 }

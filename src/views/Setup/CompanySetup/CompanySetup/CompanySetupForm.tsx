@@ -23,6 +23,8 @@ import { getCurrencies } from "../../../../api/Currency/currencyApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { getSalesTypes } from "../../../../api/SalesMaintenance/salesService";
 import { useNavigate } from "react-router";
+import ErrorModal from "../../../../components/ErrorModal";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 
 interface CompanyFormData {
   name: string;
@@ -116,7 +118,9 @@ export default function CompanySetupForm() {
   const [fiscalYears, setFiscalYears] = useState<any[]>([]);
   const [salesTypes, setSalesTypes] = useState<any[]>([]);
   const navigate = useNavigate();
-
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+ const [open, setOpen] = useState(false);
   useEffect(() => {
     const loadCurrencies = async () => {
       try {
@@ -204,10 +208,14 @@ export default function CompanySetupForm() {
         const payload = formData;
 
         await createCompany(payload);
-        alert("Company setup created successfully!");
+        setOpen(true);
       } catch (error: any) {
         console.error(error);
-        alert("Failed to save company setup");
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to save company setup Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -713,6 +721,19 @@ export default function CompanySetupForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+              open={open}
+              title="Success"
+              content="Company setup has been added successfully!"
+              addFunc={async () => { }}
+              handleClose={() => setOpen(false)}
+              onSuccess={() => window.history.back()}
+            />
+      <ErrorModal
+              open={errorOpen}
+              onClose={() => setErrorOpen(false)}
+              message={errorMessage}
+            />
     </Stack>
   );
 }

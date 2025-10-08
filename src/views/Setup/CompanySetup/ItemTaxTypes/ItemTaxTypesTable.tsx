@@ -27,23 +27,28 @@ import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
 import {
-  getItemTaxTypes as fetchItemTaxTypes,
+  getItemTaxTypes,
   deleteItemTaxType,
-} from "../../../../api/ItemTaxType/ItemTaxTypeApi"; // adjust the path
+} from "../../../../api/ItemTaxType/ItemTaxTypeApi";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function ItemTaxTypesTable() {
+  const [itemTaxTypes, setItemTaxTypes] = useState<any[]>([]);
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-  const [itemTaxTypes, setItemTaxTypes] = useState<any[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
-  // Fetch data from backend
   const loadData = async () => {
     try {
-      const data = await fetchItemTaxTypes();
+      const data = await getItemTaxTypes();
       setItemTaxTypes(data);
     } catch (error) {
       console.error("Failed to fetch Item Tax Types:", error);
@@ -54,19 +59,16 @@ export default function ItemTaxTypesTable() {
     loadData();
   }, []);
 
-  // Filtered data
   const filteredData = useMemo(() => {
-    let data = showInactive ? itemTaxTypes : itemTaxTypes.filter((g) => !g.inactive);
-
+    let data = showInactive ? itemTaxTypes : itemTaxTypes.filter((t) => !t.inactive);
     if (searchQuery.trim() !== "") {
       const lower = searchQuery.toLowerCase();
       data = data.filter(
-        (g) =>
-          g.description?.toLowerCase().includes(lower) ||
-          (g.isFullyTaxExempt ? "yes" : "no").includes(lower)
+        (t) =>
+          t.name?.toLowerCase().includes(lower) ||
+          (t.exempt ? "yes" : "no").includes(lower)
       );
     }
-
     return data;
   }, [itemTaxTypes, showInactive, searchQuery]);
 
@@ -87,16 +89,21 @@ export default function ItemTaxTypesTable() {
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this item tax type?")) {
-      try {
-        await deleteItemTaxType(id);
-        alert("Item Tax Type deleted successfully!");
-        loadData(); // refresh table
-      } catch (error) {
-        console.error(error);
-        alert("Failed to delete Item Tax Type");
-      }
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    try {
+      await deleteItemTaxType(selectedId);
+      setItemTaxTypes((prev) => prev.filter((i) => i.id !== selectedId));
+    } catch (error) {
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to delete item tax type Please try again."
+      );
+      setErrorOpen(true);
+
+    } finally {
+      setOpenDeleteModal(false);
+      setSelectedId(null);
     }
   };
 
@@ -178,7 +185,7 @@ export default function ItemTaxTypesTable() {
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
                 <TableCell>Description</TableCell>
-                <TableCell>Tax Exempt</TableCell>
+                <TableCell align="center">Tax Exempt</TableCell>
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -187,7 +194,7 @@ export default function ItemTaxTypesTable() {
                 paginatedData.map((item) => (
                   <TableRow key={item.id} hover>
                     <TableCell>{item.name}</TableCell>
-                    <TableCell>{item.exempt ? "Yes" : "No"}</TableCell>
+                    <TableCell align="center">{item.exempt ? "Yes" : "No"}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -205,7 +212,10 @@ export default function ItemTaxTypesTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() => {
+                            setSelectedId(item.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -239,6 +249,24 @@ export default function ItemTaxTypesTable() {
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* ✅ Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Item Tax Type"
+        content="Are you sure you want to delete this Item Tax Type? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedId(null)}
+        deleteFunc={handleDelete}
+        onSuccess={() => {
+          console.log("Item Tax Type deleted successfully!");
+        }}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

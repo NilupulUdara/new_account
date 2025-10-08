@@ -13,12 +13,15 @@ import theme from "../../../../theme";
 import { createSalesArea } from "../../../../api/SalesMaintenance/salesService";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { setSourceMapsEnabled } from "process";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 
 interface SalesAreaFormData {
   name: string;
 }
 
 export default function AddSalesAreaForm() {
+  const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState<SalesAreaFormData>({
     name: "",
   });
@@ -47,8 +50,7 @@ export default function AddSalesAreaForm() {
     if (validate()) {
       await createSalesArea(formData);
       queryClient.invalidateQueries({ queryKey: ["salesAreas"] });
-      alert("Sales Area added successfully!");
-      navigate("/sales/maintenance/sales-areas");
+      setOpen(true);
     }
   };
 
@@ -93,6 +95,14 @@ export default function AddSalesAreaForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+              open={open}
+              title="Success"
+              content="Sales area has been added successfully!"
+              addFunc={async () => {}} 
+              handleClose={() => setOpen(false)} 
+              onSuccess={() => window.history.back()}
+            />
     </Stack>
   );
 }

@@ -15,6 +15,8 @@ import theme from "../../../../theme";
 import { createCurrency } from "../../../../api/Currency/currencyApi";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface CurrenciesFormData {
   currencyAbbreviation: string;
@@ -26,6 +28,9 @@ interface CurrenciesFormData {
 }
 
 export default function AddCurrencies() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<CurrenciesFormData>({
     currencyAbbreviation: "",
     currencySymbol: "",
@@ -87,13 +92,10 @@ export default function AddCurrencies() {
       };
 
       const currency = await createCurrency(payload);
-
-      alert("Currency added successfully!");
-      console.log("Created currency:", currency);
-
       // Refresh query
       queryClient.invalidateQueries({ queryKey: ["currencies"] });
 
+      setOpen(true);
       // Reset form
       setFormData({
         currencyAbbreviation: "",
@@ -104,10 +106,12 @@ export default function AddCurrencies() {
         autoExchangeRateUpdate: false,
       });
       setErrors({});
-
-      navigate("/bankingandgeneralledger/maintenance/currencies");
     } catch (err: any) {
-      alert("Error creating currency: " + JSON.stringify(err));
+      setErrorMessage(
+        err?.response?.data?.message ||
+        "Failed to add currency Please try again."
+      );
+      setErrorOpen(true);
     }
   };
 
@@ -223,6 +227,19 @@ export default function AddCurrencies() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Currency has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

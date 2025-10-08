@@ -26,14 +26,24 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
-import { getShippingCompanies, deleteShippingCompany } from "../../../../api/ShippingCompany/ShippingCompanyApi";
+import {
+  getShippingCompanies,
+  deleteShippingCompany,
+} from "../../../../api/ShippingCompany/ShippingCompanyApi";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function ShippingCompanyTable() {
   const [page, setPage] = useState(0);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [companies, setCompanies] = useState<any[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
+
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
@@ -65,18 +75,34 @@ export default function ShippingCompanyTable() {
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [page, rowsPerPage, filteredData]);
 
-  const handleChangePage = (event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) =>
-    setPage(newPage);
+  const handleChangePage = (
+    event: React.MouseEvent<HTMLButtonElement> | null,
+    newPage: number
+  ) => setPage(newPage);
 
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChangeRowsPerPage = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this company?")) {
-      await deleteShippingCompany(id);
-      setCompanies((prev) => prev.filter((c) => c.shipper_id !== id));
+  const handleDelete = async () => {
+    if (!selectedCompanyId) return;
+
+    try {
+      await deleteShippingCompany(selectedCompanyId);
+      setCompanies((prev) => prev.filter((c) => c.shipper_id !== selectedCompanyId));
+    } catch (error) {
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to delete shipping company Please try again."
+      );
+      setErrorOpen(true);
+      console.error("Error deleting shipping company:", error);
+    } finally {
+      setOpenDeleteModal(false);
+      setSelectedCompanyId(null);
     }
   };
 
@@ -87,6 +113,7 @@ export default function ShippingCompanyTable() {
 
   return (
     <Stack>
+      {/* Header */}
       <Box
         sx={{
           padding: theme.spacing(2),
@@ -108,7 +135,9 @@ export default function ShippingCompanyTable() {
           <Button
             variant="contained"
             color="primary"
-            onClick={() => navigate("/setup/miscellaneous/add-shipping-company")}
+            onClick={() =>
+              navigate("/setup/miscellaneous/add-shipping-company")
+            }
           >
             Add Company
           </Button>
@@ -123,13 +152,24 @@ export default function ShippingCompanyTable() {
         </Stack>
       </Box>
 
+      {/* Search + Filter */}
       <Stack
         direction={isMobile ? "column" : "row"}
         spacing={2}
-        sx={{ px: 2, mb: 2, alignItems: "center", justifyContent: "space-between" }}
+        sx={{
+          px: 2,
+          mb: 2,
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
       >
         <FormControlLabel
-          control={<Checkbox checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />}
+          control={
+            <Checkbox
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+            />
+          }
           label="Show Also Inactive"
         />
 
@@ -137,13 +177,18 @@ export default function ShippingCompanyTable() {
           <SearchBar
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            placeholder="Search Name, Contact, Phone, Secondary, Address"
+            placeholder="Search Name, Contact, Phone, Address"
           />
         </Box>
       </Stack>
 
+      {/* Table */}
       <Stack sx={{ alignItems: "center" }}>
-        <TableContainer component={Paper} elevation={2} sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}>
+        <TableContainer
+          component={Paper}
+          elevation={2}
+          sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}
+        >
           <Table aria-label="shipping companies table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
@@ -170,7 +215,11 @@ export default function ShippingCompanyTable() {
                           variant="contained"
                           size="small"
                           startIcon={<EditIcon />}
-                          onClick={() => navigate(`/setup/miscellaneous/update-shipping-company/${company.shipper_id}`)}
+                          onClick={() =>
+                            navigate(
+                              `/setup/miscellaneous/update-shipping-company/${company.shipper_id}`
+                            )
+                          }
                         >
                           Edit
                         </Button>
@@ -179,7 +228,10 @@ export default function ShippingCompanyTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(company.shipper_id)}
+                          onClick={() => {
+                            setSelectedCompanyId(company.shipper_id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -195,6 +247,7 @@ export default function ShippingCompanyTable() {
                 </TableRow>
               )}
             </TableBody>
+
             <TableFooter>
               <TableRow>
                 <TablePagination
@@ -213,6 +266,24 @@ export default function ShippingCompanyTable() {
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Shipping Company"
+        content="Are you sure you want to delete this shipping company? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedCompanyId(null)}
+        deleteFunc={handleDelete}
+        onSuccess={() => {
+          console.log("Shipping Company deleted successfully!");
+        }}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

@@ -1,129 +1,45 @@
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import Paper from "@mui/material/Paper";
+import React, { useMemo, useState } from "react";
 import {
   Box,
   Button,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   TableFooter,
   TablePagination,
+  Paper,
   Typography,
   useMediaQuery,
   Theme,
-  FormControlLabel,
   Checkbox,
+  FormControlLabel,
 } from "@mui/material";
-import { useMemo, useState } from "react";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
-import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
+import theme from "../../../../theme";
 import { getUsers, deleteUser } from "../../../../api/UserManagement/userManagement";
-// Mock API function
-// const getUsers = async () => [
-//   {
-//     id: 1,
-//     login: "john_doe",
-//     fullName: "John Doe",
-//     department: "Finance",
-//     email: "john@example.com",
-//     role: "Admin",
-//     status: "Active",
-//   },
-//   {
-//     id: 2,
-//     login: "jane_smith",
-//     fullName: "Jane Smith",
-//     department: "HR",
-//     email: "jane@example.com",
-//     role: "User",
-//     status: "Inactive",
-//   },
-//   {
-//     id: 3,
-//     login: "john_doe",
-//     fullName: "John Doe",
-//     department: "Finance",
-//     email: "john@example.com",
-//     role: "Admin",
-//     status: "Active",
-//   },
-//   {
-//     id: 4,
-//     login: "jane_smith",
-//     fullName: "Jane Smith",
-//     department: "HR",
-//     email: "jane@example.com",
-//     role: "User",
-//     status: "Inactive",
-//   }, {
-//     id: 5,
-//     login: "john_doe",
-//     fullName: "John Doe",
-//     department: "Finance",
-//     email: "john@example.com",
-//     role: "Admin",
-//     status: "Active",
-//   },
-//   {
-//     id: 6,
-//     login: "jane_smith",
-//     fullName: "Jane Smith",
-//     department: "HR",
-//     email: "jane@example.com",
-//     role: "User",
-//     status: "Inactive",
-//   }, {
-//     id: 7,
-//     login: "john_doe",
-//     fullName: "John Doe",
-//     department: "Finance",
-//     email: "john@example.com",
-//     role: "Admin",
-//     status: "Active",
-//   },
-//   {
-//     id: 8,
-//     login: "jane_smith",
-//     fullName: "Jane Smith",
-//     department: "HR",
-//     email: "jane@example.com",
-//     role: "User",
-//     status: "Inactive",
-//   }, {
-//     id: 9,
-//     login: "john_doe",
-//     fullName: "John Doe",
-//     department: "Finance",
-//     email: "john@example.com",
-//     role: "Admin",
-//     status: "Active",
-//   },
-//   {
-//     id: 10,
-//     login: "jane_smith",
-//     fullName: "Jane Smith",
-//     department: "HR",
-//     email: "jane@example.com",
-//     role: "User",
-//     status: "Inactive",
-//   },
-// ];
 
-function UserManagementTable() {
+export default function UserManagementTable() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-  const [showInactive, setShowInactive] = useState(false); // global checkbox
+  const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
@@ -137,7 +53,7 @@ function UserManagementTable() {
         department: user.department,
         email: user.email,
         role: user.role,
-        status: user.status
+        status: user.status,
       }));
     },
   });
@@ -148,7 +64,7 @@ function UserManagementTable() {
     let filtered = usersData;
 
     if (!showInactive) {
-      filtered = filtered.filter(item => item.status.toLowerCase() === "active");
+      filtered = filtered.filter((user) => user.status.toLowerCase() === "active");
     }
 
     if (searchQuery.trim()) {
@@ -162,8 +78,8 @@ function UserManagementTable() {
           user.status.toLowerCase().includes(lowerQuery)
       );
     }
-    return filtered;
 
+    return filtered;
   }, [usersData, searchQuery, showInactive]);
 
   const paginatedUsersData = useMemo(() => {
@@ -177,19 +93,19 @@ function UserManagementTable() {
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this user?")) {
-      try {
-        await deleteUser(id);
-        alert("User deleted successfully!");
-        refetch();
-      } catch (error) {
-        console.error(error);
-        alert("Failed to delete user");
-      }
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    try {
+      await deleteUser(selectedId);
+      setOpenDeleteModal(false);
+      setSelectedId(null);
+      refetch();
+    } catch (error: any) {
+      console.error(error);
+      setErrorMessage(error?.response?.data?.message || "Failed to delete user. Please try again.");
+      setErrorOpen(true);
     }
   };
-
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
@@ -198,6 +114,7 @@ function UserManagementTable() {
 
   return (
     <Stack>
+      {/* Header */}
       <Box
         sx={{
           padding: theme.spacing(2),
@@ -223,7 +140,6 @@ function UserManagementTable() {
           >
             Add User
           </Button>
-
           <Button
             variant="outlined"
             startIcon={<ArrowBackIcon />}
@@ -234,42 +150,24 @@ function UserManagementTable() {
         </Stack>
       </Box>
 
-      {/* Search Bar */}
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          px: 2,
-          mb: 2,
-          width: "100%",
-          alignItems: "center",
-        }}
+      {/* Checkbox & Search */}
+      <Stack
+        direction={isMobile ? "column" : "row"}
+        spacing={2}
+        sx={{ px: 2, mb: 2, alignItems: "center", justifyContent: "space-between" }}
       >
         <FormControlLabel
-          control={
-            <Checkbox
-              checked={showInactive}
-              onChange={(e) => setShowInactive(e.target.checked)}
-            />
-          }
+          control={<Checkbox checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />}
           label="Show also Inactive"
         />
-
         <Box sx={{ width: isMobile ? "100%" : "300px" }}>
-          <SearchBar
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            placeholder="Search..."
-          />
+          <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} placeholder="Search..." />
         </Box>
-      </Box>
+      </Stack>
 
+      {/* Table */}
       <Stack sx={{ alignItems: "center" }}>
-        <TableContainer
-          component={Paper}
-          elevation={2}
-          sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}
-        >
+        <TableContainer component={Paper} elevation={2} sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}>
           <Table aria-label="users table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
@@ -308,7 +206,10 @@ function UserManagementTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(user.id)}
+                          onClick={() => {
+                            setSelectedId(user.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -343,8 +244,19 @@ function UserManagementTable() {
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* Delete Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete User"
+        content="Are you sure you want to delete this user? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedId(null)}
+        deleteFunc={handleDelete}
+      />
+
+      {/* Error Modal */}
+      <ErrorModal open={errorOpen} onClose={() => setErrorOpen(false)} message={errorMessage} />
     </Stack>
   );
 }
-
-export default UserManagementTable;

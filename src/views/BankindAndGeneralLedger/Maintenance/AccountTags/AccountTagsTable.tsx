@@ -1,14 +1,21 @@
 import React, { useEffect, useMemo, useState } from "react";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import TableFooter from "@mui/material/TableFooter";
-import TablePagination from "@mui/material/TablePagination";
-import Paper from "@mui/material/Paper";
-import { Box, Stack, Button, Typography, useMediaQuery, Theme } from "@mui/material";
+import {
+  Box,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TableFooter,
+  TablePagination,
+  Paper,
+  Button,
+  Typography,
+  useMediaQuery,
+  Theme,
+} from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -17,24 +24,39 @@ import theme from "../../../../theme";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import { getAccountTags, deleteAccountTag } from "../../../../api/AccountTag/AccountTagsApi";
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function AccountTagsTable() {
   const [tags, setTags] = useState<any[]>([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [searchQuery, setSearchQuery] = useState("");
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
-  // Fetch data
+  // Load tags
+  const loadTags = async () => {
+    try {
+      const data = await getAccountTags();
+      setTags(data);
+    } catch (error) {
+      console.error("Error fetching account tags:", error);
+    }
+  };
+
   useEffect(() => {
-    getAccountTags().then((data) => setTags(data));
+    loadTags();
   }, []);
 
   // Search filter
   const filteredData = useMemo(() => {
-    if (searchQuery.trim() === "") return tags;
+    if (!searchQuery.trim()) return tags;
     const lower = searchQuery.toLowerCase();
     return tags.filter(
       (t) =>
@@ -48,18 +70,27 @@ export default function AccountTagsTable() {
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [filteredData, page, rowsPerPage]);
 
-  const handleChangePage = (event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) =>
-    setPage(newPage);
+  const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
 
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this account tag?")) {
-      await deleteAccountTag(id);
-      setTags((prev) => prev.filter((t) => t.id !== id));
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    try {
+      await deleteAccountTag(selectedId);
+      setOpenDeleteModal(false);
+      setSelectedId(null);
+      loadTags();
+    } catch (error) {
+      console.error("Error deleting account tag:", error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to delete account tag Please try again."
+      );
+      setErrorOpen(true);
     }
   };
 
@@ -111,11 +142,11 @@ export default function AccountTagsTable() {
 
       {/* Search */}
       <Stack
-        direction="row"
+        direction={isMobile ? "column" : "row"}
         spacing={2}
         sx={{ px: 2, mb: 2, alignItems: "center", justifyContent: "flex-end" }}
       >
-        <Box>
+        <Box sx={{ width: isMobile ? "100%" : "300px" }}>
           <SearchBar
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
@@ -164,7 +195,10 @@ export default function AccountTagsTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(tag.id)}
+                          onClick={() => {
+                            setSelectedId(tag.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -188,16 +222,31 @@ export default function AccountTagsTable() {
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}
-                  showFirstButton
-                  showLastButton
                   onPageChange={handleChangePage}
                   onRowsPerPageChange={handleChangeRowsPerPage}
+                  showFirstButton
+                  showLastButton
                 />
               </TableRow>
             </TableFooter>
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Account Tag"
+        content="Are you sure you want to delete this account tag? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedId(null)}
+        deleteFunc={handleDelete}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

@@ -19,6 +19,8 @@ import theme from "../../../../theme";
 import { getUser, updateUser } from "../../../../api/UserManagement/userManagement";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface UserFormData {
   id: string;
@@ -37,6 +39,9 @@ interface UserFormData {
 
 
 export default function UpdateUserForm() {
+  const [open, setOpen] = useState(false);
+    const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<UserFormData>({
     id: "",
     firstName: "",
@@ -152,13 +157,16 @@ export default function UpdateUserForm() {
 
         const updatedUser = await updateUser(formData.id, payload);
         console.log("User updated:", updatedUser);
-        alert("User updated successfully!");
+         setOpen(true);
         queryClient.invalidateQueries({ queryKey: ["users"] });
         queryClient.refetchQueries({ queryKey: ["users"] });
-        navigate("/setup/companysetup/user-account-setup");
       } catch (err: any) {
         console.error("Error updating user:", err);
-        alert("Error updating user: " + JSON.stringify(err));
+        setErrorMessage(
+          err?.response?.data?.message ||
+          "Failed to update user Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -333,6 +341,18 @@ export default function UpdateUserForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+              open={open}
+              title="Success"
+              content="User has been updated successfully!"
+              handleClose={() => setOpen(false)}
+              onSuccess={() => window.history.back()}
+            />
+            <ErrorModal
+              open={errorOpen}
+              onClose={() => setErrorOpen(false)}
+              message={errorMessage}
+            />
     </Stack>
   );
 }

@@ -11,6 +11,8 @@ import {
 } from "@mui/material";
 import { useParams, useNavigate } from "react-router-dom";
 import { getTag, updateTag } from "../../../../api/DimensionTag/DimensionTagApi";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface DimensionTagData {
   tagName: string;
@@ -18,6 +20,9 @@ interface DimensionTagData {
 }
 
 export default function UpdateDimensionTagsForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const { id } = useParams<{ id: string }>();
   const [formData, setFormData] = useState<DimensionTagData>({
     tagName: "",
@@ -54,9 +59,13 @@ export default function UpdateDimensionTagsForm() {
     if (validate() && id) {
       try {
         await updateTag(id, formData);
-        alert("Dimension Tag updated successfully!");
-        navigate("/dimension/maintenance/dimension-tags");
+        setOpen(true);
       } catch (error) {
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update tag Please try again."
+        );
+        setErrorOpen(true);
         console.error("Error updating tag:", error);
       }
     }
@@ -112,6 +121,18 @@ export default function UpdateDimensionTagsForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Dimension has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

@@ -17,6 +17,8 @@ import {
 } from "@mui/material";
 import theme from "../../../../theme";
 import { createTaxType } from "../../../../api/Tax/taxServices";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface TaxFormData {
   description: string;
@@ -26,6 +28,9 @@ interface TaxFormData {
 }
 
 export default function AddTaxTypes() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<TaxFormData>({
     description: "",
     defaultRate: "",
@@ -82,11 +87,14 @@ export default function AddTaxTypes() {
         };
 
         await createTaxType(payload);
-        alert("Tax type created successfully!");
-        window.history.back();
+        setOpen(true);
       } catch (error) {
         console.error(error);
-        alert("Failed to create tax type");
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to add tax type Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -188,6 +196,19 @@ export default function AddTaxTypes() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Tax Types has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

@@ -13,7 +13,8 @@ import {
 } from "@mui/material";
 import theme from "../../../../theme";
 import { createTaxGroup } from "../../../../api/Tax/taxServices";
-
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 interface TaxGroupFormData {
   description: string;
   tax: boolean;
@@ -21,6 +22,9 @@ interface TaxGroupFormData {
 }
 
 export default function AddTaxGroupsForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
 
@@ -31,7 +35,7 @@ export default function AddTaxGroupsForm() {
   });
 
   const [errors, setErrors] = useState<Partial<TaxGroupFormData>>({});
-
+  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     setFormData({
@@ -58,22 +62,25 @@ export default function AddTaxGroupsForm() {
   };
 
   const handleSubmit = async () => {
-  if (validate()) {
-    try {
-      const payload = {
-        description: formData.description,
-        tax: formData.tax,
-        shipping_tax: Number(formData.shippingTax),
-      };
-      await createTaxGroup(payload);
-      alert("Tax Group created successfully!");
-      window.history.back();
-    } catch (error) {
-      console.error("Error creating tax group:", error);
-      alert("Failed to create Tax Group. Please try again.");
+    if (validate()) {
+      try {
+        const payload = {
+          description: formData.description,
+          tax: formData.tax,
+          shipping_tax: Number(formData.shippingTax),
+        };
+        await createTaxGroup(payload);
+        setOpen(true);
+      } catch (error) {
+        console.error("Error creating tax group:", error);
+        setErrorMessage(
+          error?.response?.data?.message ||
+            "Failed to create Tax Group. Please try again."
+            );
+        setErrorOpen(true);
+      }
     }
-  }
-};
+  };
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: 2 }}>
@@ -155,6 +162,21 @@ export default function AddTaxGroupsForm() {
           </Button>
         </Box>
       </Paper>
+
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Tax Group has been added successfully!"
+        addFunc={async () => {}} 
+        handleClose={() => setOpen(false)} 
+        onSuccess={() => window.history.back()}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

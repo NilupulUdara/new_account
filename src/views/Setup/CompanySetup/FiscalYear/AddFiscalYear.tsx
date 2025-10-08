@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
     Box,
     Stack,
@@ -14,6 +14,8 @@ import { useForm, Controller } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFiscalYear } from "../../../../api/FiscalYear/FiscalYearApi";
 import { useNavigate } from "react-router";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface FiscalYearFormData {
     fiscalYearFrom: string;
@@ -21,6 +23,9 @@ interface FiscalYearFormData {
 }
 
 export default function AddFiscalYear() {
+    const [open, setOpen] = useState(false);
+    const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
     const queryClient = useQueryClient();
@@ -46,15 +51,18 @@ export default function AddFiscalYear() {
                 fiscal_year_from: data.fiscalYearFrom,
                 fiscal_year_to: data.fiscalYearTo,
             });
-            console.log("Fiscal Year created:", response);
-            alert("Fiscal Year added successfully!");
-
             // Refresh react-query cache if you have a list
             queryClient.invalidateQueries({ queryKey: ["fiscalYears"] });
             queryClient.refetchQueries({ queryKey: ["fiscalYears"] });
-            navigate("/setup/companysetup/fiscal-years");
+
+            setOpen(true);
+
         } catch (err: any) {
-            alert("Error creating Fiscal Year: " + JSON.stringify(err));
+            setErrorMessage(
+                err?.response?.data?.message ||
+                "Failed to add Fiscal year Please try again."
+            );
+            setErrorOpen(true);
         }
     };
 
@@ -145,6 +153,19 @@ export default function AddFiscalYear() {
                     </Button>
                 </Box>
             </Paper>
+            <AddedConfirmationModal
+                open={open}
+                title="Success"
+                content="Fiscal Year has been added successfully!"
+                addFunc={async () => { }}
+                handleClose={() => setOpen(false)}
+                onSuccess={() => window.history.back()}
+            />
+            <ErrorModal
+                open={errorOpen}
+                onClose={() => setErrorOpen(false)}
+                message={errorMessage}
+            />
         </Stack>
     );
 }

@@ -18,6 +18,8 @@ import {
 import theme from "../../../../theme";
 import { updateTaxType, getTaxType } from "../../../../api/Tax/taxServices";
 import { useParams } from "react-router";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface TaxFormData {
   description: string;
@@ -27,6 +29,9 @@ interface TaxFormData {
 }
 
 export default function UpdateTaxTypes() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const { id } = useParams<{ id: string }>();
   const [formData, setFormData] = useState<TaxFormData>({
     description: "",
@@ -98,11 +103,14 @@ export default function UpdateTaxTypes() {
         };
 
         await updateTaxType(id, payload);
-        alert("Tax type updated successfully!");
-        window.history.back();
+        setOpen(true);
       } catch (error) {
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update tax type Please try again."
+        );
+        setErrorOpen(true);
         console.error(error);
-        alert("Failed to update tax type");
       }
     }
   };
@@ -193,6 +201,18 @@ export default function UpdateTaxTypes() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Tax Type has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

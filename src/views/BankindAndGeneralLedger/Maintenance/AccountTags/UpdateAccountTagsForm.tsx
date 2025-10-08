@@ -13,8 +13,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   getAccountTag,
   updateAccountTag,
-} from "../../../../api/AccountTag/AccountTagsApi"; 
+} from "../../../../api/AccountTag/AccountTagsApi";
 import { useParams, useNavigate } from "react-router-dom";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface AccountTagFormData {
   tagName: string;
@@ -22,6 +24,9 @@ interface AccountTagFormData {
 }
 
 export default function UpdateAccountTags() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const queryClient = useQueryClient();
@@ -35,7 +40,6 @@ export default function UpdateAccountTags() {
 
   const [errors, setErrors] = useState<Partial<AccountTagFormData>>({});
 
-  // ✅ Fetch account tag details
   useEffect(() => {
     if (id) {
       getAccountTag(Number(id)).then((data) =>
@@ -77,12 +81,17 @@ export default function UpdateAccountTags() {
 
       await updateAccountTag(Number(id), payload);
 
-      alert("Account Tag updated successfully!");
+
       queryClient.invalidateQueries({ queryKey: ["account-tags"] });
-      navigate("/bankingandgeneralledger/maintenance/account-tags");
+      setOpen(true);
+
     } catch (err: any) {
       console.error("Error updating account tag:", err);
-      alert("Error updating account tag: " + JSON.stringify(err));
+      setErrorMessage(
+        err?.response?.data?.message ||
+        "Failed to update tag Please try again."
+      );
+      setErrorOpen(true);
     }
   };
 
@@ -153,6 +162,18 @@ export default function UpdateAccountTags() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Account Tag has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

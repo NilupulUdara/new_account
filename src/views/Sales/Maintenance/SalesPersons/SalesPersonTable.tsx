@@ -28,8 +28,16 @@ import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
 import { deleteSalesPerson, getSalesPerson, getSalesPersons } from "../../../../api/SalesPerson/SalesPersonApi";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 function SalesPersonTable() {
+
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedSalesPersonId, setSelectedSalesPersonId] = useState<number | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const [salesPersons, setSalesPersons] = useState<any[]>([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
@@ -73,7 +81,7 @@ function SalesPersonTable() {
     }
 
     return filtered;
-  }, [salesPersons, searchQuery, 
+  }, [salesPersons, searchQuery,
     // showInactive
   ]);
 
@@ -93,17 +101,27 @@ function SalesPersonTable() {
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this sales person?")) return;
+  const handleDelete = async () => {
+    if (!selectedSalesPersonId) return;
 
     try {
-      await deleteSalesPerson(id);
-      fetchSalesPersons();
+      await deleteSalesPerson(selectedSalesPersonId);
+      fetchSalesPersons(); // Refresh the table
     } catch (error) {
       console.error("Failed to delete sales person:", error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to add Sales Person Please try again."
+      );
+      setErrorOpen(true);
+
+    } finally {
+      setOpenDeleteModal(false);
+      setSelectedSalesPersonId(null);
     }
   };
-  
+
+
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
     { title: "Sales Persons" },
@@ -231,10 +249,14 @@ function SalesPersonTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(sp.id)}
+                          onClick={() => {
+                            setSelectedSalesPersonId(sp.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
+
                       </Stack>
                     </TableCell>
                   </TableRow>
@@ -266,6 +288,20 @@ function SalesPersonTable() {
           </Table>
         </TableContainer>
       </Stack>
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Sales Person"
+        content="Are you sure you want to delete this Sales Person? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedSalesPersonId(null)}
+        deleteFunc={handleDelete}
+        onSuccess={() => console.log("Sales Person deleted successfully!")}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

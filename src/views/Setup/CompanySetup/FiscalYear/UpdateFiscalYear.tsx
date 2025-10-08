@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
     Box,
     Stack,
@@ -14,6 +14,8 @@ import { useForm, Controller } from "react-hook-form";
 import { getFiscalYear, updateFiscalYear } from "../../../../api/FiscalYear/FiscalYearApi";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 interface FiscalYearFormData {
     fiscalYearFrom: string;
     fiscalYearTo: string;
@@ -24,6 +26,9 @@ interface Props {
 }
 
 export default function UpdateFiscalYear() {
+    const [open, setOpen] = useState(false);
+    const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
     const queryClient = useQueryClient();
@@ -54,6 +59,7 @@ export default function UpdateFiscalYear() {
                     fiscalYearTo: data.fiscal_year_to,
                 });
             } catch (err) {
+
                 alert("Error fetching fiscal year data: " + JSON.stringify(err));
             }
         };
@@ -69,12 +75,15 @@ export default function UpdateFiscalYear() {
 
             const updated = await updateFiscalYear(id, payload);
             console.log("Fiscal Year updated:", updated);
-            alert("Fiscal Year updated successfully!");
             queryClient.invalidateQueries({ queryKey: ["fiscalYears"] });
             queryClient.refetchQueries({ queryKey: ["fiscalYears"] });
-            navigate("/setup/companysetup/fiscal-years");
+            setOpen(true);
         } catch (err: any) {
-            alert("Error updating fiscal year: " + JSON.stringify(err));
+            setErrorMessage(
+                err?.response?.data?.message ||
+                "Failed to update fiscal year Please try again."
+            );
+            setErrorOpen(true);
         }
     };
 
@@ -164,6 +173,18 @@ export default function UpdateFiscalYear() {
                     </Button>
                 </Box>
             </Paper>
+            <UpdateConfirmationModal
+                open={open}
+                title="Success"
+                content="Fiscal year has been updated successfully!"
+                handleClose={() => setOpen(false)}
+                onSuccess={() => window.history.back()}
+            />
+            <ErrorModal
+                open={errorOpen}
+                onClose={() => setErrorOpen(false)}
+                message={errorMessage}
+            />
         </Stack>
     );
 }

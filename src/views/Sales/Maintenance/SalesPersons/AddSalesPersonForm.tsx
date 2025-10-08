@@ -13,6 +13,8 @@ import theme from "../../../../theme";
 import { useQueryClient } from "@tanstack/react-query";
 import { createSalesPerson } from "../../../../api/SalesPerson/SalesPersonApi";
 import { useNavigate } from "react-router";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface SalesPersonFormData {
   name: string;
@@ -25,6 +27,9 @@ interface SalesPersonFormData {
 }
 
 export default function AddSalesPerson() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<SalesPersonFormData>({
     name: "",
     telephone: "",
@@ -84,7 +89,7 @@ export default function AddSalesPerson() {
         };
 
         const salesPerson = await createSalesPerson(payload);
-        alert("Sales Person addes successfully")
+        setOpen(true);
         queryClient.invalidateQueries({ queryKey: ["sales_people"] });
 
         setFormData({
@@ -97,11 +102,13 @@ export default function AddSalesPerson() {
           provision2: "",
         });
 
-        navigate("/sales/maintenance/sales-persons");
-
         setErrors({});
       } catch (err: any) {
-        alert("Error creating sales person: " + JSON.stringify(err));
+        setErrorMessage(
+          err?.response?.data?.message ||
+          "Failed to add Sales Person Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -215,6 +222,19 @@ export default function AddSalesPerson() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Sales Person has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

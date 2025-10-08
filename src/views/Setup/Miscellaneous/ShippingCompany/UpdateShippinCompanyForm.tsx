@@ -15,6 +15,8 @@ import {
   updateShippingCompany,
 } from "../../../../api/ShippingCompany/ShippingCompanyApi";
 import { useParams, useNavigate } from "react-router-dom";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface ShippingCompanyFormData {
   shipper_name: string;
@@ -25,6 +27,9 @@ interface ShippingCompanyFormData {
 }
 
 export default function UpdateShippingCompanyForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const { shipper_id } = useParams<{ shipper_id: string }>();
   const navigate = useNavigate();
   const [formData, setFormData] = useState<ShippingCompanyFormData>({
@@ -57,7 +62,11 @@ export default function UpdateShippingCompanyForm() {
         }
       } catch (error) {
         console.error("Error fetching shipping company:", error);
-        alert("Failed to load company data.");
+         setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to load shippin company Please try again."
+        );
+        setErrorOpen(true);
       }
     };
 
@@ -96,11 +105,14 @@ export default function UpdateShippingCompanyForm() {
 
     try {
       await updateShippingCompany(Number(shipper_id), formData);
-      alert("Shipping company updated successfully!");
-      navigate("/setup/miscellaneous/shipping-company");
+      setOpen(true);
     } catch (error) {
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to update shipping company Please try again."
+      );
+      setErrorOpen(true);
       console.error(error);
-      alert("Failed to update shipping company");
     }
   };
 
@@ -208,6 +220,18 @@ export default function UpdateShippingCompanyForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Shipping Company has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

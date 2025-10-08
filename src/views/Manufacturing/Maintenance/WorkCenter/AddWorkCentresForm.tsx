@@ -17,6 +17,8 @@ import {
 } from "@mui/material";
 import theme from "../../../../theme";
 import { createWorkCentre } from "../../../../api/WorkCentre/WorkCentreApi";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface WorkCentresFormData {
   name: string;
@@ -24,6 +26,9 @@ interface WorkCentresFormData {
 }
 
 export default function AddWorkCentresForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<WorkCentresFormData>({
     name: "",
     description: "",
@@ -55,22 +60,25 @@ export default function AddWorkCentresForm() {
   };
 
   const handleSubmit = async () => {
-      if (validate()) {
-        try {
-          const payload = {
-            name: formData.name,
-            description: formData.description,
-          };
-  
-          await createWorkCentre(payload);
-          alert("Work Centre created successfully!");
-          window.history.back();
-        } catch (error) {
-          console.error(error);
-          alert("Failed to create Work Centre");
-        }
+    if (validate()) {
+      try {
+        const payload = {
+          name: formData.name,
+          description: formData.description,
+        };
+
+        await createWorkCentre(payload);
+        setOpen(true);
+      } catch (error) {
+        console.error(error);
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to add Work Centre Please try again."
+        );
+        setErrorOpen(true);
       }
-    };
+    }
+  };
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
@@ -132,6 +140,19 @@ export default function AddWorkCentresForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Work Centre has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

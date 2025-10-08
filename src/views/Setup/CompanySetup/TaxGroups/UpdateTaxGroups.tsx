@@ -14,6 +14,8 @@ import {
 import theme from "../../../../theme";
 import { getTaxGroup, updateTaxGroup } from "../../../../api/Tax/taxServices";
 import { useParams } from "react-router";
+import UpdateConfirmationModal  from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface TaxGroupFormData {
   description: string;
@@ -22,6 +24,9 @@ interface TaxGroupFormData {
 }
 
 export default function UpdateTaxGroupsForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const { id } = useParams<{ id: string }>();
@@ -80,11 +85,13 @@ export default function UpdateTaxGroupsForm() {
           shipping_tax: Number(formData.shippingTax),
         };
         await updateTaxGroup(Number(id), payload);
-        alert("Tax Group updated successfully!");
-        window.history.back();
+        setOpen(true);
       } catch (error) {
-        console.error("Error updating tax group:", error);
-        alert("Failed to update Tax Group. Please try again.");
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update tax group Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -169,6 +176,18 @@ export default function UpdateTaxGroupsForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+              open={open}
+              title="Success"
+              content="Tax Group has been updated successfully!"
+              handleClose={() => setOpen(false)} 
+              onSuccess={() => window.history.back()} 
+            />
+            <ErrorModal
+                    open={errorOpen}
+                    onClose={() => setErrorOpen(false)}
+                    message={errorMessage}
+                  />
     </Stack>
   );
 }

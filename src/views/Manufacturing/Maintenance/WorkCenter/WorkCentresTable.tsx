@@ -26,21 +26,28 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import {
   getWorkCentres as fetchWorkCentres,
   deleteWorkCentre,
-} from "../../../../api/WorkCentre/WorkCentreApi"; // adjust path
+} from "../../../../api/WorkCentre/WorkCentreApi";
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function WorkCentresTable() {
   const [page, setPage] = useState(0);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [workCentres, setWorkCentres] = useState<any[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
-  // Fetch data from backend
+  // Load data
   const loadData = async () => {
     try {
       const data = await fetchWorkCentres();
@@ -54,11 +61,10 @@ export default function WorkCentresTable() {
     loadData();
   }, []);
 
-  // Filtered data
+  // Filtered + search + inactive
   const filteredData = useMemo(() => {
     let data = showInactive ? workCentres : workCentres.filter((g) => !g.inactive);
-
-    if (searchQuery.trim() !== "") {
+    if (searchQuery.trim()) {
       const lower = searchQuery.toLowerCase();
       data = data.filter(
         (g) =>
@@ -66,7 +72,6 @@ export default function WorkCentresTable() {
           g.description?.toLowerCase().includes(lower)
       );
     }
-
     return data;
   }, [workCentres, showInactive, searchQuery]);
 
@@ -76,7 +81,6 @@ export default function WorkCentresTable() {
   }, [page, rowsPerPage, filteredData]);
 
   const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
-
   const handleChangeRowsPerPage = (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -84,16 +88,21 @@ export default function WorkCentresTable() {
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this Work Centre?")) {
-      try {
-        await deleteWorkCentre(id);
-        alert("Work Centre deleted successfully!");
-        loadData(); // refresh table
-      } catch (error) {
-        console.error(error);
-        alert("Failed to delete Work Centre");
-      }
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    try {
+      await deleteWorkCentre(selectedId);
+      setOpenDeleteModal(false);
+      setSelectedId(null);
+      loadData();
+    } catch (error) {
+      console.error(error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to delete Work Centre Please try again."
+      );
+      setErrorOpen(true);
+
     }
   };
 
@@ -205,7 +214,10 @@ export default function WorkCentresTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() => {
+                            setSelectedId(item.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -239,6 +251,21 @@ export default function WorkCentresTable() {
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* Delete Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Work Centre"
+        content="Are you sure you want to delete this Work Centre? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedId(null)}
+        deleteFunc={handleDelete}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

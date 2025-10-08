@@ -30,6 +30,8 @@ import {
   getCreditStatusSetups,
   deleteCreditStatusSetup,
 } from "../../../../api/CreditStatusSetup/CreditStatusSetupApi";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function CreditStatusTable() {
   const [creditStatuses, setCreditStatuses] = useState<any[]>([]);
@@ -37,10 +39,15 @@ export default function CreditStatusTable() {
   const [showInactive, setShowInactive] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
-  // Fetch data from backend
   const loadData = async () => {
     try {
       const data = await getCreditStatusSetups();
@@ -54,7 +61,6 @@ export default function CreditStatusTable() {
     loadData();
   }, []);
 
-  // Filtered + search + show inactive
   const filteredData = useMemo(() => {
     let data = showInactive ? creditStatuses : creditStatuses.filter((item) => !item.inactive);
 
@@ -76,22 +82,25 @@ export default function CreditStatusTable() {
   }, [filteredData, page, rowsPerPage]);
 
   const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
-
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this Credit Status?")) {
-      try {
-        await deleteCreditStatusSetup(id);
-        alert("Deleted successfully!");
-        loadData(); // refresh table
-      } catch (error) {
-        console.error(error);
-        alert("Failed to delete Credit Status");
-      }
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    try {
+      await deleteCreditStatusSetup(selectedId);
+      setOpenDeleteModal(false);
+      setSelectedId(null);
+      loadData();
+    } catch (error) {
+      console.error(error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to delete Credit Status Please try again."
+      );
+      setErrorOpen(true);
     }
   };
 
@@ -129,11 +138,7 @@ export default function CreditStatusTable() {
             Add Credit Status
           </Button>
 
-          <Button
-            variant="outlined"
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate(-1)}
-          >
+          <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>
             Back
           </Button>
         </Stack>
@@ -146,20 +151,11 @@ export default function CreditStatusTable() {
         sx={{ px: 2, mb: 2, alignItems: "center", justifyContent: "space-between" }}
       >
         <FormControlLabel
-          control={
-            <Checkbox
-              checked={showInactive}
-              onChange={(e) => setShowInactive(e.target.checked)}
-            />
-          }
+          control={<Checkbox checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />}
           label="Show Also Inactive"
         />
         <Box sx={{ width: isMobile ? "100%" : "300px" }}>
-          <SearchBar
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            placeholder="Search Description or Disallow Invoices"
-          />
+          <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} placeholder="Search Description or Disallow Invoices" />
         </Box>
       </Stack>
 
@@ -200,7 +196,10 @@ export default function CreditStatusTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() => {
+                            setSelectedId(item.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -235,6 +234,21 @@ export default function CreditStatusTable() {
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Credit Status"
+        content="Are you sure you want to delete this Credit Status? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedId(null)}
+        deleteFunc={handleDelete}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

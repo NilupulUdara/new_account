@@ -27,17 +27,23 @@ import theme from "../../../../theme";
 import {
   getInventoryLocations as fetchInventoryLocations,
   deleteInventoryLocation,
-} from "../../../../api/InventoryLocation/InventoryLocationApi"; 
+} from "../../../../api/InventoryLocation/InventoryLocationApi";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function InventoryLocationTable() {
   const [page, setPage] = useState(0);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [locations, setLocations] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
-  // Load data from backend
   const loadData = async () => {
     try {
       const data = await fetchInventoryLocations();
@@ -51,10 +57,8 @@ export default function InventoryLocationTable() {
     loadData();
   }, []);
 
-  // Filtered locations (inactive check removed)
   const filteredLocations = useMemo(() => {
-    let data = locations; // Show all locations
-
+    let data = locations;
     if (searchQuery.trim()) {
       const lower = searchQuery.toLowerCase();
       data = data.filter(
@@ -64,7 +68,6 @@ export default function InventoryLocationTable() {
           loc.delivery_address.toLowerCase().includes(lower)
       );
     }
-
     return data;
   }, [locations, searchQuery]);
 
@@ -79,16 +82,20 @@ export default function InventoryLocationTable() {
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this inventory location?")) {
-      try {
-        await deleteInventoryLocation(id);
-        alert("Inventory location deleted successfully!");
-        loadData();
-      } catch (error) {
-        console.error(error);
-        alert("Failed to delete inventory location");
-      }
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    try {
+      await deleteInventoryLocation(selectedId);
+      setOpenDeleteModal(false);
+      setSelectedId(null);
+      loadData();
+    } catch (error) {
+      console.error(error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to delete inventory location Please try again."
+      );
+      setErrorOpen(true);
     }
   };
 
@@ -133,19 +140,19 @@ export default function InventoryLocationTable() {
 
       {/* Search */}
       <Stack
-  direction="row"
-  spacing={2}
-  sx={{
-    px: 2,
-    mb: 2,
-    alignItems: "center",
-    justifyContent: "flex-end", // push to right
-  }}
->
-  <Box sx={{ width: isMobile ? "100%" : "300px" }}>
-    <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} placeholder="Search..." />
-  </Box>
-</Stack>
+        direction="row"
+        spacing={2}
+        sx={{
+          px: 2,
+          mb: 2,
+          alignItems: "center",
+          justifyContent: "flex-end",
+        }}
+      >
+        <Box sx={{ width: isMobile ? "100%" : "300px" }}>
+          <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} placeholder="Search..." />
+        </Box>
+      </Stack>
 
       {/* Table */}
       <Stack sx={{ alignItems: "center" }}>
@@ -162,6 +169,7 @@ export default function InventoryLocationTable() {
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
+
             <TableBody>
               {paginatedLocations.length > 0 ? (
                 paginatedLocations.map((loc, index) => (
@@ -187,7 +195,10 @@ export default function InventoryLocationTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(loc.id)}
+                          onClick={() => {
+                            setSelectedId(loc.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -203,6 +214,7 @@ export default function InventoryLocationTable() {
                 </TableRow>
               )}
             </TableBody>
+
             <TableFooter>
               <TableRow>
                 <TablePagination
@@ -221,6 +233,21 @@ export default function InventoryLocationTable() {
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Inventory Location"
+        content="Are you sure you want to delete this inventory location? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedId(null)}
+        deleteFunc={handleDelete}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

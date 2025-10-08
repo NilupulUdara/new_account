@@ -11,6 +11,8 @@ import {
 } from "@mui/material";
 import { createLocation } from "../../../../api/FixedAssetsLocation/FixedAssetsLocationApi";
 import { useNavigate } from "react-router-dom";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface FixedAssetsLocationData {
   locationCode: string;
@@ -24,6 +26,9 @@ interface FixedAssetsLocationData {
 }
 
 export default function AddFixedAssetsLocations() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<FixedAssetsLocationData>({
     locationCode: "",
     locationName: "",
@@ -71,11 +76,14 @@ export default function AddFixedAssetsLocations() {
     if (validate()) {
       try {
         await createLocation(formData);
-        alert("Fixed Assets Location added successfully!");
-        navigate("/fixedassets/maintenance/fixed-asset-locations");
+        setOpen(true);
       } catch (error) {
         console.error("Add failed", error);
-        alert("Failed to add location.");
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to add location Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -132,6 +140,19 @@ export default function AddFixedAssetsLocations() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Fixed Assest Location has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

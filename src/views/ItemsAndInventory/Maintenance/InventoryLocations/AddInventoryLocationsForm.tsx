@@ -12,6 +12,8 @@ import {
 } from "@mui/material";
 import theme from "../../../../theme";
 import { createInventoryLocation } from "../../../../api/InventoryLocation/InventoryLocationApi";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface InventoryLocationFormData {
   locationCode: string;
@@ -25,6 +27,9 @@ interface InventoryLocationFormData {
 }
 
 export default function AddInventoryLocationForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<InventoryLocationFormData>({
     locationCode: "",
     locationName: "",
@@ -80,11 +85,14 @@ export default function AddInventoryLocationForm() {
         };
 
         await createInventoryLocation(payload);
-        alert("Inventory location created successfully!");
-        window.history.back();
+        setOpen(true);
       } catch (error) {
         console.error(error);
-        alert("Failed to create Inventory location");
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to add Inventory location Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -217,6 +225,19 @@ export default function AddInventoryLocationForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Inventory location has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

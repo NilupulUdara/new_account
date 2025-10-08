@@ -18,6 +18,8 @@ import {
 import theme from "../../../../theme";
 import { getWorkCentre, updateWorkCentre } from "../../../../api/WorkCentre/WorkCentreApi";
 import { useParams, useNavigate } from "react-router-dom";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface WorkCentresFormData {
   name: string;
@@ -29,6 +31,9 @@ interface UpdateWorkCentreProps {
 }
 
 export default function UpdateWorkCentresForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const { id } = useParams<{ id: string }>();
   const [formData, setFormData] = useState<WorkCentresFormData>({
     name: "",
@@ -48,6 +53,11 @@ export default function UpdateWorkCentresForm() {
           description: data.description,
         });
       } catch (error) {
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to Update Work Centre Please try again."
+        );
+        setErrorOpen(true);
         console.error("Failed to fetch Work Centre:", error);
       }
     };
@@ -87,11 +97,14 @@ export default function UpdateWorkCentresForm() {
       try {
         setLoading(true);
         await updateWorkCentre(id, payload);
-        alert("Work Centre updated successfully!");
-        window.history.back();
+        setOpen(true);
       } catch (error) {
         console.error(error);
-        alert("Failed to update Work Centre");
+         setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update work centre Please try again."
+        );
+        setErrorOpen(true);
       } finally {
         setLoading(false);
       }
@@ -158,6 +171,18 @@ export default function UpdateWorkCentresForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Work Centre has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

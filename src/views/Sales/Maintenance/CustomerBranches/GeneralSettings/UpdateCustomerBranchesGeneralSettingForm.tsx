@@ -264,7 +264,7 @@ export default function UpdateCustomerBranchesGeneralSettingForm() {
                     onChange={(e) => handleChange("salesGroup", String(e.target.value))}
                     label="Sales Group"
                   >
-                    <MenuItem value="mall">Small</MenuItem>
+                    <MenuItem value="small">Small</MenuItem>
                     <MenuItem value="medium">Medium</MenuItem>
                     <MenuItem value="large">Large</MenuItem>
                   </Select>

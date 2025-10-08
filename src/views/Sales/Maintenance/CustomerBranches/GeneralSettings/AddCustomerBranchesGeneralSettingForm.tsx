@@ -24,6 +24,8 @@ import { getShippingCompanies, ShippingCompany } from "../../../../../api/Shippi
 import { getTaxGroups, TaxGroup } from "../../../../../api/Tax/taxServices";
 import { createBranch } from "../../../../../api/CustomerBranch/CustomerBranchApi";
 import { useParams } from "react-router";
+import ErrorModal from "../../../../../components/ErrorModal";
+import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
 
 export default function AddCustomerBranchesGeneralSettingForm() {
   const { id: customerId } = useParams();
@@ -31,7 +33,9 @@ export default function AddCustomerBranchesGeneralSettingForm() {
     if (customerId) setFormData((prev) => ({ ...prev, debtor_no: customerId }));
   }, [customerId]);
 
-
+const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState({
     debtor_no: customerId,   
     branchName: "",
@@ -162,17 +166,26 @@ export default function AddCustomerBranchesGeneralSettingForm() {
       };
 
       const response = await createBranch(payload);
-      alert("Branch added successfully!");
+      setOpen(true);
     } catch (err: any) {
       console.error(err);
       if (err.response?.data?.errors) {
         console.table(err.response.data.errors);
-        alert(
-          "Validation failed:\n" +
-            Object.values(err.response.data.errors).flat().join("\n")
-        );
+        // alert(
+        //   "Validation failed:\n" +
+        //     Object.values(err.response.data.errors).flat().join("\n")
+        // );
+        setErrorMessage(
+        err?.response?.data?.message ||
+        "Validation Failed Please try again."
+      );
+      setErrorOpen(true);
       } else {
-        alert("Failed to save branch. See console for details.");
+        setErrorMessage(
+                "Failed to save branch. See console for details."
+              );
+              setErrorOpen(true);
+        // alert("Failed to save branch. See console for details.");
       }
     }
   }
@@ -271,7 +284,7 @@ export default function AddCustomerBranchesGeneralSettingForm() {
                     onChange={(e) => handleChange("salesGroup", e.target.value)}
                     label="Sales Group"
                   >
-                    <MenuItem value="mall">Small</MenuItem>
+                    <MenuItem value="small">Small</MenuItem>
                     <MenuItem value="medium">Medium</MenuItem>
                     <MenuItem value="large">Large</MenuItem>
                   </Select>
@@ -473,6 +486,20 @@ export default function AddCustomerBranchesGeneralSettingForm() {
           </Button>
         </Box>
       </Box>
+      <AddedConfirmationModal
+              open={open}
+              title="Success"
+              content="Customer has been added successfully!"
+              addFunc={async () => { }}
+              handleClose={() => setOpen(false)}
+              onSuccess={() => window.history.back()}
+            />
+      
+            <ErrorModal
+              open={errorOpen}
+              onClose={() => setErrorOpen(false)}
+              message={errorMessage}
+            />
     </Stack>
   );
 }

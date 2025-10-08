@@ -28,33 +28,17 @@ import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
 import { getSalesTypes, deleteSalesType } from "../../../../api/SalesMaintenance/salesService";
-
-// Mock API function for Sales Types
-// const getSalesTypesList = async () => [
-//     {
-//         id: 1,
-//         typeName: "Retail",
-//         factor: 1.0,
-//         taxIncl: true,
-//         status: "Active",
-//     },
-//     {
-//         id: 2,
-//         typeName: "Wholesale",
-//         factor: 0.9,
-//         taxIncl: false,
-//         status: "Inactive",
-//     },
-//     {
-//         id: 3,
-//         typeName: "Export",
-//         factor: 1.2,
-//         taxIncl: true,
-//         status: "Active",
-//     },
-// ];
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 function SalesTypesTable() {
+
+    const [openDeleteModal, setOpenDeleteModal] = useState(false);
+    const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
+
+    const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
+
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [searchQuery, setSearchQuery] = useState("");
@@ -106,14 +90,19 @@ function SalesTypesTable() {
     const queryClient = useQueryClient();
 
     const handleDelete = async (id: number) => {
-        if (window.confirm("Are you sure you want to delete this Sales Type?")) {
-            try {
-                await deleteSalesType(id);
-                queryClient.invalidateQueries({ queryKey: ["salesTypes"] });
-            } catch (error) {
-                console.error("Error deleting sales type:", error);
-                alert("Failed to delete. Please try again.");
-            }
+        try {
+            await deleteSalesType(id);
+            queryClient.invalidateQueries({ queryKey: ["salesTypes"] });
+        } catch (error) {
+            console.error("Error deleting sales type:", error);
+            setErrorMessage(
+                error?.response?.data?.message ||
+                "Failed to delete Sales Group Please try again."
+            );
+            setErrorOpen(true);
+        } finally {
+            setOpenDeleteModal(false);
+            setSelectedTypeId(null);
         }
     };
 
@@ -236,10 +225,14 @@ function SalesTypesTable() {
                                                     size="small"
                                                     color="error"
                                                     startIcon={<DeleteIcon />}
-                                                    onClick={() => handleDelete(type.id)}
+                                                    onClick={() => {
+                                                        setSelectedTypeId(type.id);
+                                                        setOpenDeleteModal(true);
+                                                    }}
                                                 >
                                                     Delete
                                                 </Button>
+
                                             </Stack>
                                         </TableCell>
                                     </TableRow>
@@ -271,6 +264,20 @@ function SalesTypesTable() {
                     </Table>
                 </TableContainer>
             </Stack>
+            <DeleteConfirmationModal
+                open={openDeleteModal}
+                title="Delete Sales Type"
+                content="Are you sure you want to delete this Sales Type? This action cannot be undone."
+                handleClose={() => setOpenDeleteModal(false)}
+                handleReject={() => setSelectedTypeId(null)}
+                deleteFunc={() => selectedTypeId !== null && handleDelete(selectedTypeId)}
+                onSuccess={() => console.log("Sales Type deleted successfully!")}
+            />
+            <ErrorModal
+                open={errorOpen}
+                onClose={() => setErrorOpen(false)}
+                message={errorMessage}
+            />
         </Stack>
     );
 }

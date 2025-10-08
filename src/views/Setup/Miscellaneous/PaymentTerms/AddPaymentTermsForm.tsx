@@ -98,7 +98,7 @@ export default function AddPaymentTermsForm() {
         <Stack spacing={2}>
           <TextField
             label="Description"
-            name="description"
+            name="termsDescription"
             size="small"
             fullWidth
             value={formData.termsDescription}

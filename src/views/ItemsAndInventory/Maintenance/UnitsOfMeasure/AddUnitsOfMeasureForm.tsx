@@ -17,6 +17,8 @@ import {
 } from "@mui/material";
 import theme from "../../../../theme";
 import { createItemUnit } from "../../../../api/ItemUnit/ItemUnitApi";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface UnitsOfMeasureFormData {
   unitAbbreviation: string;
@@ -25,6 +27,9 @@ interface UnitsOfMeasureFormData {
 }
 
 export default function AddUnitsOfMeasureForm() {
+  const [open, setOpen] = useState(false);
+   const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<UnitsOfMeasureFormData>({
     unitAbbreviation: "",
     descriptionName: "",
@@ -58,23 +63,26 @@ export default function AddUnitsOfMeasureForm() {
   };
 
   const handleSubmit = async () => {
-      if (validate()) {
-        try {
-          const payload = {
-            abbr: formData.unitAbbreviation,
-            name: formData.descriptionName,
-            decimals: Number(formData.decimalPlaces),
-          };
-  
-          await createItemUnit(payload);
-          alert("Item Unit created successfully!");
-          window.history.back();
-        } catch (error) {
-          console.error(error);
-          alert("Failed to create Item Unit");
-        }
+    if (validate()) {
+      try {
+        const payload = {
+          abbr: formData.unitAbbreviation,
+          name: formData.descriptionName,
+          decimals: Number(formData.decimalPlaces),
+        };
+
+        await createItemUnit(payload);
+        setOpen(true);
+      } catch (error) {
+        console.error(error);
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to add item unit Please try again."
+        );
+        setErrorOpen(true);
       }
-    };
+    }
+  };
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
@@ -154,6 +162,19 @@ export default function AddUnitsOfMeasureForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+              open={open}
+              title="Success"
+              content="Unit of Measure has been added successfully!"
+              addFunc={async () => {}} 
+              handleClose={() => setOpen(false)} 
+              onSuccess={() => window.history.back()}
+            />
+            <ErrorModal
+                    open={errorOpen}
+                    onClose={() => setErrorOpen(false)}
+                    message={errorMessage}
+                  />
     </Stack>
   );
 }

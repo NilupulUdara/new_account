@@ -27,60 +27,15 @@ import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
 import { getTaxGroups, deleteTaxGroup } from "../../../../api/Tax/taxServices";
-
-// Mock API function
-// const getTaxGroups = async () => [
-//   {
-//     id: 1,
-//     description: "Standard Tax",
-//     taxExempt: "No",
-//     inactive: false,
-//   },
-//   {
-//     id: 2,
-//     description: "Reduced Tax",
-//     taxExempt: "Yes",
-//     inactive: true,
-//   },
-//   {
-//     id: 3,
-//     description: "Standard Tax",
-//     taxExempt: "No",
-//     inactive: false,
-//   },
-//   {
-//     id: 4,
-//     description: "Reduced Tax",
-//     taxExempt: "Yes",
-//     inactive: true,
-//   },
-//   {
-//     id: 5,
-//     description: "Standard Tax",
-//     taxExempt: "No",
-//     inactive: false,
-//   },
-//   {
-//     id: 6,
-//     description: "Reduced Tax",
-//     taxExempt: "Yes",
-//     inactive: true,
-//   },
-//   {
-//     id: 7,
-//     description: "Standard Tax",
-//     taxExempt: "No",
-//     inactive: false,
-//   },
-//   {
-//     id: 8,
-//     description: "Reduced Tax",
-//     taxExempt: "Yes",
-//     inactive: true,
-//   },
-// ];
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function TaxGroupTable() {
+
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [taxGroups, setTaxGroups] = useState<any[]>([]);
@@ -96,13 +51,12 @@ export default function TaxGroupTable() {
 
   // Filter data based on global checkbox & search query
   const filteredData = useMemo(() => {
-    let data = showInactive ? taxGroups : taxGroups.filter((g) => !g.inactive && g.tax);
+    let data = showInactive ? taxGroups : taxGroups.filter((g) => !g.inactive);
 
     if (searchQuery.trim() !== "") {
       const lower = searchQuery.toLowerCase();
-      data = data.filter(
-        (g) =>
-          g.description.toLowerCase().includes(lower)
+      data = data.filter((g) =>
+        g.description.toLowerCase().includes(lower)
       );
     }
 
@@ -126,16 +80,25 @@ export default function TaxGroupTable() {
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this Tax Group?")) {
-      try {
-        await deleteTaxGroup(id);
-        setTaxGroups((prev) => prev.filter((g) => g.id !== id));
-      } catch (error) {
-        console.error("Error deleting tax group:", error);
-      }
+  const handleDelete = async () => {
+    if (!selectedGroupId) return;
+
+    try {
+      await deleteTaxGroup(selectedGroupId);
+      setTaxGroups((prev) => prev.filter((g) => g.id !== selectedGroupId));
+    } catch (error) {
+      setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to delete tax group Please try again."
+        );
+        setErrorOpen(true);
+      console.error("Error deleting tax group:", error);
+    } finally {
+      setOpenDeleteModal(false);
+      setSelectedGroupId(null);
     }
   };
+
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
@@ -242,10 +205,14 @@ export default function TaxGroupTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(group.id)}
+                          onClick={() => {
+                            setSelectedGroupId(group.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
+
                       </Stack>
                     </TableCell>
                   </TableRow>
@@ -276,6 +243,22 @@ export default function TaxGroupTable() {
           </Table>
         </TableContainer>
       </Stack>
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Tax Group"
+        content="Are you sure you want to delete this Tax Group? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedGroupId(null)}
+        deleteFunc={handleDelete}
+        onSuccess={() => {
+          console.log("Tax Group deleted successfully!");
+        }}
+      />
+<ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }
