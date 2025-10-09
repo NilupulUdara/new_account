@@ -573,11 +573,11 @@ const AppRoutes = () => {
           element={withLayout(MainLayout, ContactsTable)}
         />
         <Route
-          path="/sales/maintenance/customer-branches/add-customer-branches-contacts"
+          path="/sales/maintenance/customer-branches/add-customer-branches-contacts/"
           element={withLayout(MainLayout, AddContactsForm)}
         />
         <Route
-          path="/sales/maintenance/customer-branches/update-customer-branches-contacts"
+          path="/sales/maintenance/customer-branches/update-customer-branches-contacts/:id"
           element={withLayout(MainLayout, UpdateContactsForm)}
         />
         <Route

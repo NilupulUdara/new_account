@@ -20,57 +20,60 @@ import {
 import { useMemo, useState, useEffect } from "react";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../../components/BreadCrumb";
 import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import SearchBar from "../../../../../components/SearchBar";
+import {
+  getCustomerContacts,
+  deleteCustomerContact,
+} from "../../../../../api/Customer/CustomerContactApi";
+import DeleteConfirmationModal from "../../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../../components/ErrorModal";
 
 interface ContacsProps {
   customerId?: string | number;
 }
 
-
-// Mock API function
-const getContacts = async () => [
-  {
-    id: 1,
-    assignment: "Manager",
-    reference: "REF001",
-    fullName: "John Doe",
-    phone: "123456789",
-    secPhone: "987654321",
-    fax: "111222333",
-    email: "john@example.com",
-    inactive: false,
-  },
-  {
-    id: 2,
-    assignment: "Assistant",
-    reference: "REF002",
-    fullName: "Jane Smith",
-    phone: "555666777",
-    secPhone: "777666555",
-    fax: "444555666",
-    email: "jane@example.com",
-    inactive: true,
-  },
-];
-
 export default function ContactsTable({ customerId }: ContacsProps) {
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
   const [contacts, setContacts] = useState<any[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
-  // Fetch contacts (mock API)
+  // --- Delete Modal States ---
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  // Fetch contacts
   useEffect(() => {
-    getContacts().then((data) => setContacts(data));
-  }, []);
+    const fetchContacts = async () => {
+      try {
+        const data = await getCustomerContacts(customerId);
+        const mappedData = data.map((item: any) => ({
+          id: item.id,
+          reference: item.ref,
+          fullName: item.name,
+          phone: item.phone,
+          secPhone: item.phone2,
+          fax: item.fax,
+          email: item.email,
+        }));
+        setContacts(mappedData);
+      } catch (error: any) {
+        console.error("Failed to load contacts:", error);
+        setErrorMessage("Failed to load contacts. Please try again.");
+        setErrorOpen(true);
+      }
+    };
+    fetchContacts();
+  }, [customerId]);
 
   // Filter by inactive & search
   const filteredData = useMemo(() => {
@@ -80,13 +83,12 @@ export default function ContactsTable({ customerId }: ContacsProps) {
       const lower = searchQuery.toLowerCase();
       data = data.filter(
         (c) =>
-          c.assignment.toLowerCase().includes(lower) ||
-          c.reference.toLowerCase().includes(lower) ||
-          c.fullName.toLowerCase().includes(lower) ||
-          c.phone.toLowerCase().includes(lower) ||
-          c.secPhone.toLowerCase().includes(lower) ||
-          c.fax.toLowerCase().includes(lower) ||
-          c.email.toLowerCase().includes(lower)
+          c.reference?.toLowerCase().includes(lower) ||
+          c.fullName?.toLowerCase().includes(lower) ||
+          c.phone?.toLowerCase().includes(lower) ||
+          c.secPhone?.toLowerCase().includes(lower) ||
+          c.fax?.toLowerCase().includes(lower) ||
+          c.email?.toLowerCase().includes(lower)
       );
     }
 
@@ -98,16 +100,29 @@ export default function ContactsTable({ customerId }: ContacsProps) {
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [page, rowsPerPage, filteredData]);
 
-  const handleChangePage = (event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) =>
-    setPage(newPage);
-
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChangePage = (event: any, newPage: number) => setPage(newPage);
+  const handleChangeRowsPerPage = (event: any) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
-  const handleDelete = (id: number) => {
-    alert(`Delete contact with id: ${id}`);
+  // Delete function with modal confirmation
+  const handleDelete = async () => {
+    if (!selectedContactId) return;
+    try {
+      await deleteCustomerContact(selectedContactId);
+      setContacts((prev) => prev.filter((c) => c.id !== selectedContactId));
+    } catch (error: any) {
+      console.error("Delete failed:", error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+          "Failed to delete contact. Please try again."
+      );
+      setErrorOpen(true);
+    } finally {
+      setOpenDeleteModal(false);
+      setSelectedContactId(null);
+    }
   };
 
   const breadcrumbItems = [
@@ -117,6 +132,7 @@ export default function ContactsTable({ customerId }: ContacsProps) {
 
   return (
     <Stack>
+      {/* Header */}
       <Box
         sx={{
           padding: theme.spacing(2),
@@ -138,14 +154,16 @@ export default function ContactsTable({ customerId }: ContacsProps) {
           <Button
             variant="contained"
             color="primary"
-            onClick={() => navigate("/sales/maintenance/customer-branches/add-customer-branches-contacts")}
+            onClick={() =>
+              navigate("/sales/maintenance/customer-branches/add-customer-branches-contacts")
+            }
           >
             Add Contact
           </Button>
         </Stack>
       </Box>
 
-      {/* Checkbox & Search */}
+      {/* Checkbox + Search */}
       <Stack
         direction={isMobile ? "column" : "row"}
         spacing={2}
@@ -153,11 +171,13 @@ export default function ContactsTable({ customerId }: ContacsProps) {
       >
         <FormControlLabel
           control={
-            <Checkbox checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
+            <Checkbox
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+            />
           }
           label="Show Also Inactive"
         />
-
         <Box sx={{ width: isMobile ? "100%" : "300px" }}>
           <SearchBar
             searchQuery={searchQuery}
@@ -167,12 +187,16 @@ export default function ContactsTable({ customerId }: ContacsProps) {
         </Box>
       </Stack>
 
+      {/* Table */}
       <Stack sx={{ alignItems: "center" }}>
-        <TableContainer component={Paper} elevation={2} sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}>
+        <TableContainer
+          component={Paper}
+          elevation={2}
+          sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}
+        >
           <Table aria-label="contacts table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
-                <TableCell>Assignment</TableCell>
                 <TableCell>Reference</TableCell>
                 <TableCell>Full Name</TableCell>
                 <TableCell>Phone</TableCell>
@@ -182,11 +206,11 @@ export default function ContactsTable({ customerId }: ContacsProps) {
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
+
             <TableBody>
               {paginatedData.length > 0 ? (
                 paginatedData.map((contact) => (
                   <TableRow key={contact.id} hover>
-                    <TableCell>{contact.assignment}</TableCell>
                     <TableCell>{contact.reference}</TableCell>
                     <TableCell>{contact.fullName}</TableCell>
                     <TableCell>{contact.phone}</TableCell>
@@ -199,10 +223,11 @@ export default function ContactsTable({ customerId }: ContacsProps) {
                           variant="contained"
                           size="small"
                           startIcon={<EditIcon />}
-                          onClick={() => navigate(
-                            "/sales/maintenance/customer-branches/update-customer-branches-contacts"
-                            // `/sales/maintenancne/update-contact/${contact.id}`
-                          )}
+                          onClick={() =>
+                            navigate(
+                              `/sales/maintenance/customer-branches/update-customer-branches-contacts/${contact.id}`
+                            )
+                          }
                         >
                           Edit
                         </Button>
@@ -211,7 +236,10 @@ export default function ContactsTable({ customerId }: ContacsProps) {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(contact.id)}
+                          onClick={() => {
+                            setSelectedContactId(contact.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -221,17 +249,18 @@ export default function ContactsTable({ customerId }: ContacsProps) {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={8} align="center">
+                  <TableCell colSpan={7} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
+
             <TableFooter>
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={8}
+                  colSpan={7}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}
@@ -245,6 +274,24 @@ export default function ContactsTable({ customerId }: ContacsProps) {
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Contact"
+        content="Are you sure you want to delete this contact? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedContactId(null)}
+        deleteFunc={handleDelete}
+        onSuccess={() => console.log("Contact deleted successfully!")}
+      />
+
+      {/* Error Modal */}
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

@@ -12,6 +12,8 @@ import {
 } from "@mui/material";
 import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
 import { useNavigate } from "react-router";
+import ErrorModal from "../../../../../components/ErrorModal";
+import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
 
 interface AddCustomersContactsData {
   firstName: string;
@@ -42,6 +44,9 @@ export default function AddCustomersContactsForm() {
     notes: "",
   });
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<Partial<Record<keyof AddCustomersContactsData, string>>>({});
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
@@ -70,8 +75,8 @@ export default function AddCustomersContactsForm() {
 
   const handleSubmit = async () => {
     if (validate()) {
-      try{
-        const payload ={
+      try {
+        const payload = {
           ref: formData.reference,
           name: formData.firstName,
           name2: formData.lastName,
@@ -84,10 +89,13 @@ export default function AddCustomersContactsForm() {
           notes: formData.notes
         }
         await createCustomerContact(payload);
-        alert("Contact created");
-        navigate('/sales/maintenance/add-and-manage-customers');
-      }catch(error){
-        alert("failed");
+        setOpen(true);
+      } catch (error) {
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to add Conatact Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -267,6 +275,20 @@ export default function AddCustomersContactsForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Customer contact has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

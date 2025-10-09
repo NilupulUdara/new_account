@@ -10,6 +10,9 @@ import {
   useMediaQuery,
   MenuItem,
 } from "@mui/material";
+import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
+import ErrorModal from "../../../../../components/ErrorModal";
+import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
 
 interface AddContactsData {
   firstName: string;
@@ -26,6 +29,10 @@ interface AddContactsData {
 }
 
 export default function AddContactsForm() {
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const [formData, setFormData] = useState<AddContactsData>({
     firstName: "",
     lastName: "",
@@ -65,11 +72,31 @@ export default function AddContactsForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (validate()) {
-      console.log("Submitted Contact:", formData);
-      alert("Contact added successfully!");
-      // axios.post("/api/supplier-contacts", formData)
+      try {
+        const payload = {
+          ref: formData.reference,
+          name: formData.firstName,
+          name2: formData.lastName,
+          address: formData.address,
+          phone: formData.phone,
+          phone2: formData.secondaryPhone,
+          fax: formData.fax,
+          email: formData.email,
+          lang: formData.documentLanguage,
+          notes: formData.notes
+        }
+        await createCustomerContact(payload);
+        setOpen(true);
+      } catch (error) {
+        console.error("Error creating customer contact:", error.response?.data || error);
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to add Conatact Please try again."
+        );
+        setErrorOpen(true);
+      }
     }
   };
 
@@ -248,6 +275,20 @@ export default function AddContactsForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Customer contact has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }
