@@ -37,10 +37,10 @@ export interface CustomerBranch {
   br_name: string;
   branch_ref: string;
   br_address: string;
-  sales_area?: number;
-  sales_person: number;
+  sales_area?: number | null | { name?: string; label?: string };
+  sales_person?: number | null | { name?: string; label?: string };
   inventory_location: string;
-  tax_group?: number;
+  tax_group?: number | null | { description?: string; name?: string };
   sales_account: string;
   sales_discount_account: string;
   receivables_account: string;
@@ -88,14 +88,31 @@ export default function CustomerBranchesTable({ customerId }: CustomerBranchesTa
           shortName: b.branch_ref,
           name: b.br_name,
           contact: "",
-          salesPerson: String(b.sales_person),
-          area: String(b.sales_area || ""),
+          salesPerson:
+            b.sales_person
+              ? typeof b.sales_person === "object"
+                ? b.sales_person.name || b.sales_person.label || ""
+                : String(b.sales_person)
+              : "",
+          area:
+            b.sales_area
+              ? typeof b.sales_area === "object"
+                ? b.sales_area.name || b.sales_area.label || ""
+                : String(b.sales_area)
+              : "",
           phone: "",
           fax: "",
           email: "",
-          taxGroup: String(b.tax_group || ""),
+          taxGroup:
+            b.tax_group
+              ? typeof b.tax_group === "object"
+                ? b.tax_group.description || b.tax_group.name || ""
+                : String(b.tax_group)
+              : "",
           inactive: b.inactive,
         }));
+
+
         setBranches(mapped);
       } catch (error) {
         console.error("Failed to fetch branches:", error);
