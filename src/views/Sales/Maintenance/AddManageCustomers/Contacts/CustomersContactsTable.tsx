@@ -27,6 +27,8 @@ import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import SearchBar from "../../../../../components/SearchBar";
 import { getCustomerContacts, deleteCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
+import ErrorModal from "../../../../../components/ErrorModal";
+import DeleteConfirmationModal from "../../../../../components/DeleteConfirmationModal";
 
 interface CustomerContacsProps {
   customerId?: string | number;
@@ -41,24 +43,34 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   // Fetch contacts (mock API)
   useEffect(() => {
-  const fetchContacts = async () => {
-    const data = await getCustomerContacts(customerId);
-    const mappedData = data.map((item: any) => ({
-      id: item.id,
-      reference: item.ref,
-      fullName: item.name,
-      phone: item.phone,
-      secPhone: item.phone2,
-      fax: item.fax,
-      email: item.email,
-    }));
-    setContacts(mappedData);
-  };
-
-  fetchContacts();
-}, [customerId]);
+    const fetchContacts = async () => {
+      try {
+        const data = await getCustomerContacts(customerId);
+        const mappedData = data.map((item: any) => ({
+          id: item.id,
+          reference: item.ref,
+          fullName: item.name,
+          phone: item.phone,
+          secPhone: item.phone2,
+          fax: item.fax,
+          email: item.email,
+        }));
+        setContacts(mappedData);
+      } catch (error: any) {
+        console.error("Failed to load contacts:", error);
+        setErrorMessage("Failed to load contacts. Please try again.");
+        setErrorOpen(true);
+      }
+    };
+    fetchContacts();
+  }, [customerId]);
 
 
   // Filter by inactive & search
@@ -95,16 +107,21 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this contact?")) {
-      try {
-        await deleteCustomerContact(id);
-        setContacts((prev) => prev.filter((contact) => contact.id !== id));
-        alert("Contact deleted successfully!");
-      } catch (error) {
-        console.error("Delete failed:", error);
-        alert("Failed to delete contact. Please try again.");
-      }
+  const handleDelete = async () => {
+    if (!selectedContactId) return;
+    try {
+      await deleteCustomerContact(selectedContactId);
+      setContacts((prev) => prev.filter((c) => c.id !== selectedContactId));
+    } catch (error: any) {
+      console.error("Delete failed:", error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to delete contact. Please try again."
+      );
+      setErrorOpen(true);
+    } finally {
+      setOpenDeleteModal(false);
+      setSelectedContactId(null);
     }
   };
 
@@ -199,7 +216,6 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
                           startIcon={<EditIcon />}
                           onClick={() => navigate(
                             `/sales/maintenance/add-and-manage-customers/update-customers-contacts/${contact.id}`
-                            // `/sales/maintenancne/update-contact/${contact.id}`
                           )}
                         >
                           Edit
@@ -209,7 +225,10 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(contact.id)}
+                          onClick={() => {
+                            setSelectedContactId(contact.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -243,6 +262,22 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
           </Table>
         </TableContainer>
       </Stack>
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Contact"
+        content="Are you sure you want to delete this contact? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedContactId(null)}
+        deleteFunc={handleDelete}
+        onSuccess={() => console.log("Contact deleted successfully!")}
+      />
+
+      {/* Error Modal */}
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

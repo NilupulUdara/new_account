@@ -16,7 +16,8 @@ import {
 import theme from "../../../../../theme";
 import {
   getSalesTypes, SalesType,
-  getSalesAreas, SalesArea
+  getSalesAreas, SalesArea,
+  getSalesGroups, SalesGroup
 } from "../../../../../api/SalesMaintenance/salesService";
 import { getSalesPersons, SalesPerson } from "../../../../../api/SalesPerson/SalesPersonApi";
 import { getInventoryLocations, InventoryLocation } from "../../../../../api/InventoryLocation/InventoryLocationApi";
@@ -26,6 +27,7 @@ import { createBranch } from "../../../../../api/CustomerBranch/CustomerBranchAp
 import { useParams } from "react-router";
 import ErrorModal from "../../../../../components/ErrorModal";
 import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
+import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
 
 export default function AddCustomerBranchesGeneralSettingForm() {
   const { id: customerId } = useParams();
@@ -74,6 +76,9 @@ const [open, setOpen] = useState(false);
 
   const [salesAreas, setSalesAreas] = useState<SalesArea[]>([]);
   useEffect(() => { getSalesAreas().then(setSalesAreas); }, []);
+
+  const [salesGroups, setSalesGroups] = useState<SalesGroup[]>([]);
+  useEffect(() => { getSalesGroups().then(setSalesGroups); }, []);
 
   const [InventoryLocations, setInventoryLocations] = useState<InventoryLocation[]>([]);
   useEffect(() => { getInventoryLocations().then(setInventoryLocations); }, []);
@@ -140,32 +145,44 @@ const [open, setOpen] = useState(false);
   const handleSubmit = async () => {
   if (validate()) {
     try {
-      const payload = {
+      const branchPayload = {
         debtor_no: formData.debtor_no,
         br_name: formData.branchName,
         branch_ref: formData.branchShortName,
-        salesman: formData.salesPerson ? Number(formData.salesPerson) : null,
-        area: formData.salesArea ? Number(formData.salesArea) : null,
-        sales_group: formData.salesGroup ? Number(formData.salesGroup) : null,
+        sales_area: formData.salesArea ? Number(formData.salesArea) : null,
+        sales_person: formData.salesPerson ? Number(formData.salesPerson) : null,
         inventory_location: formData.defaultInventoryLocation,
-        tax_group_id: formData.taxGroup ? Number(formData.taxGroup) : null,
+        shipping_company: formData.defaultShippingCompany,
+        tax_group: formData.taxGroup ? Number(formData.taxGroup) : null,
+        sales_group: formData.salesGroup ? Number(formData.salesGroup) : null,       
         sales_account: formData.salesAccount || '',
         sales_discount_account: formData.salesDiscountAccount || '',
         receivables_account: formData.accountsReceivable || '',
         payment_discount_account: formData.promptPaymentDiscount || '',
         bank_account: formData.bankAccountNumber || '',
         contact_person: formData.contactPerson || '',
-        phone: formData.phoneNumber || '',
-        phone2: formData.secondaryPhoneNumber || '',
-        fax: formData.faxNumber || '',
-        email: formData.email || '',
-        lang: formData.documentLanguage || '',
-        br_address: formData.mailingAddress || '',
-        br_post_address: formData.billingAddress || '',
+        br_address: formData.billingAddress || '',
+        br_post_address:formData.mailingAddress || '', 
         notes: formData.generalNotes || '',
       };
 
-      const response = await createBranch(payload);
+      const branch = await createBranch(branchPayload);
+
+      const contactPayload = {
+              ref: branch.branch_ref,
+              name: formData.contactPerson,
+              address: formData.mailingAddress,
+              phone: formData.phoneNumber,
+              phone2: formData.secondaryPhoneNumber,
+              fax: formData.faxNumber || '',
+              email: formData.email,
+              lang: formData.documentLanguage || '',
+              notes: formData.generalNotes || '',
+              inactive: 0,
+            };
+      
+            await createCustomerContact(contactPayload);
+
       setOpen(true);
     } catch (err: any) {
       console.error(err);
@@ -284,9 +301,11 @@ const [open, setOpen] = useState(false);
                     onChange={(e) => handleChange("salesGroup", e.target.value)}
                     label="Sales Group"
                   >
-                    <MenuItem value="small">Small</MenuItem>
-                    <MenuItem value="medium">Medium</MenuItem>
-                    <MenuItem value="large">Large</MenuItem>
+                    {salesGroups.map((group) => (
+                      <MenuItem key={group.id} value={group.id}>
+                        {group.name}
+                      </MenuItem>
+                    ))}
                   </Select>
                   <FormHelperText>{errors.salesGroup || " "}</FormHelperText>
                 </FormControl>
@@ -489,7 +508,7 @@ const [open, setOpen] = useState(false);
       <AddedConfirmationModal
               open={open}
               title="Success"
-              content="Customer has been added successfully!"
+              content="Customer Branch has been added successfully!"
               addFunc={async () => { }}
               handleClose={() => setOpen(false)}
               onSuccess={() => window.history.back()}

@@ -13,6 +13,8 @@ import {
 import { useParams, useNavigate } from "react-router";
 import { updateCustomerContact, getCustomerContacts } from "../../../../../api/Customer/CustomerContactApi";
 import { useEffect } from "react";
+import ErrorModal from "../../../../../components/ErrorModal";
+import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal";
 
 interface UpdateCustomersContactsData {
   firstName: string;
@@ -43,6 +45,9 @@ export default function UpdateCustomersContactsForm() {
     notes: "",
   });
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<Partial<Record<keyof UpdateCustomersContactsData, string>>>({});
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
@@ -116,11 +121,14 @@ export default function UpdateCustomersContactsForm() {
           notes: formData.notes,
         });
 
-        alert("Contact updated successfully!");
-        navigate("/sales/maintenance/add-and-manage-customers");
+        setOpen(true);
       } catch (error) {
         console.error("Update failed:", error);
-        alert("Failed to update contact. Please try again.");
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update contact Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -301,6 +309,19 @@ export default function UpdateCustomersContactsForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Customer Contact has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }
