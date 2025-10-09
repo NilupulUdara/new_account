@@ -15,6 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { setSourceMapsEnabled } from "process";
 import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface SalesAreaFormData {
   name: string;
@@ -22,6 +23,8 @@ interface SalesAreaFormData {
 
 export default function AddSalesAreaForm() {
   const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<SalesAreaFormData>({
     name: "",
   });
@@ -48,9 +51,18 @@ export default function AddSalesAreaForm() {
 
   const handleSubmit = async () => {
     if (validate()) {
-      await createSalesArea(formData);
-      queryClient.invalidateQueries({ queryKey: ["salesAreas"] });
-      setOpen(true);
+      try {
+        await createSalesArea(formData);
+        queryClient.invalidateQueries({ queryKey: ["salesAreas"] });
+        setOpen(true);
+      } catch (error) {
+        console.error(error);
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to add Sales Area Please try again."
+        );
+        setErrorOpen(true);
+      }
     }
   };
 
@@ -96,13 +108,18 @@ export default function AddSalesAreaForm() {
         </Box>
       </Paper>
       <AddedConfirmationModal
-              open={open}
-              title="Success"
-              content="Sales area has been added successfully!"
-              addFunc={async () => {}} 
-              handleClose={() => setOpen(false)} 
-              onSuccess={() => window.history.back()}
-            />
+        open={open}
+        title="Success"
+        content="Sales area has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

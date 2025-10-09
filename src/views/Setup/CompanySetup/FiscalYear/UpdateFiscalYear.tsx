@@ -59,8 +59,12 @@ export default function UpdateFiscalYear() {
                     fiscalYearTo: data.fiscal_year_to,
                 });
             } catch (err) {
-
-                alert("Error fetching fiscal year data: " + JSON.stringify(err));
+                setErrorMessage(
+                    err?.response?.data?.message ||
+                    "Failed to load Fiscal year Please try again."
+                );
+                setErrorOpen(true);
+                // alert("Error fetching fiscal year data: " + JSON.stringify(err));
             }
         };
         fetchData();

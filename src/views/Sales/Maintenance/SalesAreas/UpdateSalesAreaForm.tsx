@@ -14,12 +14,15 @@ import { updateSalesArea, getSalesArea } from "../../../../api/SalesMaintenance/
 import { useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 interface SalesAreaFormData {
   name: string;
 }
 
 export default function UpdateSalesAreaForm() {
   const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<SalesAreaFormData>({
     name: "",
   });
@@ -59,7 +62,11 @@ export default function UpdateSalesAreaForm() {
         setOpen(true);
       } catch (error) {
         console.error(error);
-
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update Sales Area Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -111,6 +118,11 @@ export default function UpdateSalesAreaForm() {
         content="Sales Area has been updated successfully!"
         handleClose={() => setOpen(false)}
         onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
       />
     </Stack>
   );

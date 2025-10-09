@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Stack,
@@ -9,42 +9,87 @@ import {
   useTheme,
   useMediaQuery,
 } from "@mui/material";
+import {
+  getContactCategory,
+  updateContactCategory,
+  ContactCategory,
+} from "../../../../api/ContactCategory/ContactCategoryApi";
+import { useParams } from "react-router";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface UpdateContactCategoryData {
-  categoryType: string;
-  categorySubType: string;
-  shortName: string;
+  type: string;
+  subtype: string;
+  name: string;
   description: string;
+  systm: boolean;
+  inactive: boolean;
 }
 
-export default function UpdateContactCategory() {
-  const [formData, setFormData] = useState<UpdateContactCategoryData>({
-    categoryType: "",
-    categorySubType: "",
-    shortName: "",
-    description: "",
-  });
 
+export default function UpdateContactCategory() {
+  const { id } = useParams();
+  const [formData, setFormData] = useState<UpdateContactCategoryData>({
+  type: "",
+  subtype: "",
+  name: "",
+  description: "",
+  systm: false,
+  inactive: false,
+});
+
+
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<Partial<UpdateContactCategoryData>>({});
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
 
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-    setErrors({ ...errors, [name]: "" });
-  };
+  useEffect(() => {
+    const fetchData = async () => {
+      if (id) {
+        try {
+          const data = await getContactCategory(Number(id));
+          setFormData(data);
+        } catch (error) {
+          console.error("Error fetching category:", error);
+        }
+      }
+    };
+    fetchData();
+  }, [id]);
+
+const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const { name, value } = e.target;
+
+  let newValue: string | boolean = value;
+
+  // Check if this is a checkbox
+  if ((e.target as HTMLInputElement).type === "checkbox") {
+    newValue = (e.target as HTMLInputElement).checked;
+  }
+
+  setFormData({
+    ...formData,
+    [name]: newValue,
+  });
+
+  setErrors({ ...errors, [name]: "" });
+};
+
+
+
 
   const validate = () => {
     const newErrors: Partial<UpdateContactCategoryData> = {};
-    if (!formData.categoryType.trim())
-      newErrors.categoryType = "Contact Category Type is required";
-    if (!formData.categorySubType.trim())
-      newErrors.categorySubType = "Contact Category Subtype is required";
-    if (!formData.shortName.trim())
-      newErrors.shortName = "Category Short Name is required";
+    if (!formData.type.trim())
+      newErrors.type = "Contact Category Type is required";
+    if (!formData.subtype.trim())
+      newErrors.subtype = "Contact Category Subtype is required";
+    if (!formData.name.trim())
+      newErrors.name = "Category Short Name is required";
     if (!formData.description.trim())
       newErrors.description = "Category Description is required";
 
@@ -52,11 +97,19 @@ export default function UpdateContactCategory() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (validate()) {
-      console.log("Contact Category Updateed:", formData);
-      alert("Contact category Updated successfully!");
-      // API call can go here
+      try {
+        await updateContactCategory(Number(id), formData);
+        setOpen(true);
+      } catch (error) {
+        console.error("Error updating category:", error);
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update contact category Please try again."
+        );
+        setErrorOpen(true);;
+      }
     }
   };
 
@@ -81,35 +134,37 @@ export default function UpdateContactCategory() {
         <Stack spacing={2}>
           <TextField
             label="Contact Category Type"
-            name="categoryType"
+            name="type"
             size="small"
             fullWidth
-            value={formData.categoryType}
+            value={formData.type}
             onChange={handleInputChange}
-            error={!!errors.categoryType}
-            helperText={errors.categoryType}
+            error={!!errors.type}
+            disabled={formData.systm}
+            helperText={errors.type}
           />
 
           <TextField
             label="Contact Category Subtype"
-            name="categorySubType"
+            name="subtype"
             size="small"
             fullWidth
-            value={formData.categorySubType}
+            value={formData.subtype}
             onChange={handleInputChange}
-            error={!!errors.categorySubType}
-            helperText={errors.categorySubType}
+            error={!!errors.subtype}
+            disabled={formData.systm}
+            helperText={errors.subtype}
           />
 
           <TextField
             label="Category Short Name"
-            name="shortName"
+            name="name"
             size="small"
             fullWidth
-            value={formData.shortName}
+            value={formData.name}
             onChange={handleInputChange}
-            error={!!errors.shortName}
-            helperText={errors.shortName}
+            error={!!errors.name}
+            helperText={errors.name}
           />
 
           <TextField
@@ -147,6 +202,18 @@ export default function UpdateContactCategory() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Contact Category has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

@@ -28,8 +28,8 @@ interface UnitsOfMeasureFormData {
 
 export default function AddUnitsOfMeasureForm() {
   const [open, setOpen] = useState(false);
-   const [errorOpen, setErrorOpen] = useState(false);
-    const [errorMessage, setErrorMessage] = useState("");
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<UnitsOfMeasureFormData>({
     unitAbbreviation: "",
     descriptionName: "",
@@ -163,18 +163,18 @@ export default function AddUnitsOfMeasureForm() {
         </Box>
       </Paper>
       <AddedConfirmationModal
-              open={open}
-              title="Success"
-              content="Unit of Measure has been added successfully!"
-              addFunc={async () => {}} 
-              handleClose={() => setOpen(false)} 
-              onSuccess={() => window.history.back()}
-            />
-            <ErrorModal
-                    open={errorOpen}
-                    onClose={() => setErrorOpen(false)}
-                    message={errorMessage}
-                  />
+        open={open}
+        title="Success"
+        content="Unit of Measure has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

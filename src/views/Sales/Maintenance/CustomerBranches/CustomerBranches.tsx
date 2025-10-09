@@ -33,16 +33,22 @@ const CustomersBranches = () => {
 
   // Fetch customers from database
   useEffect(() => {
-    const fetchCustomers = async () => {
-      try {
-        const data = await getCustomers();
-        setCustomers(data);
-      } catch (error) {
-        console.error(error);
+  const fetchCustomers = async () => {
+    try {
+      const data = await getCustomers();
+      setCustomers(data);
+
+      // Set first customer as default
+      if (data.length > 0) {
+        setSelectedCustomer(data[0].debtor_no);
       }
-    };
-    fetchCustomers();
-  }, []);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  fetchCustomers();
+}, []);
+
 
   // Tab change handler
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -106,7 +112,7 @@ const CustomersBranches = () => {
         sx={{ backgroundColor: "#fff", borderRadius: 1 }}
       >
         <Tab label="General Settings" />
-        <Tab label="Contacts" disabled={selectedCustomer === "new"} />
+        <Tab label="Contacts" disabled={!selectedCustomer} />
       </Tabs>
 
       {/* Tab Panels */}

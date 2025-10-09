@@ -40,8 +40,8 @@ interface UserFormData {
 
 export default function UpdateUserForm() {
   const [open, setOpen] = useState(false);
-    const [errorOpen, setErrorOpen] = useState(false);
-    const [errorMessage, setErrorMessage] = useState("");
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<UserFormData>({
     id: "",
     firstName: "",
@@ -151,13 +151,13 @@ export default function UpdateUserForm() {
         };
 
         if (!formData.id) {
-          alert("User ID is required to update.");
+          // alert("User ID is required to update.");
           return;
         }
 
         const updatedUser = await updateUser(formData.id, payload);
         console.log("User updated:", updatedUser);
-         setOpen(true);
+        setOpen(true);
         queryClient.invalidateQueries({ queryKey: ["users"] });
         queryClient.refetchQueries({ queryKey: ["users"] });
       } catch (err: any) {
@@ -342,17 +342,17 @@ export default function UpdateUserForm() {
         </Box>
       </Paper>
       <UpdateConfirmationModal
-              open={open}
-              title="Success"
-              content="User has been updated successfully!"
-              handleClose={() => setOpen(false)}
-              onSuccess={() => window.history.back()}
-            />
-            <ErrorModal
-              open={errorOpen}
-              onClose={() => setErrorOpen(false)}
-              message={errorMessage}
-            />
+        open={open}
+        title="Success"
+        content="User has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

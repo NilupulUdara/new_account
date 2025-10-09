@@ -9,22 +9,30 @@ import {
   useTheme,
   useMediaQuery,
 } from "@mui/material";
+import { createContactCategory } from "../../../../api/ContactCategory/ContactCategoryApi";
+import ErrorModal from "../../../../components/ErrorModal";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 
 interface AddContactCategoryData {
-  categoryType: string;
-  categorySubType: string;
-  shortName: string;
+  type: string;
+  subtype: string;
+  name: string;
   description: string;
 }
 
+
 export default function AddContactCategory() {
   const [formData, setFormData] = useState<AddContactCategoryData>({
-    categoryType: "",
-    categorySubType: "",
-    shortName: "",
+    type: "",
+    subtype: "",
+    name: "",
     description: "",
   });
 
+
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<Partial<AddContactCategoryData>>({});
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
@@ -39,12 +47,12 @@ export default function AddContactCategory() {
 
   const validate = () => {
     const newErrors: Partial<AddContactCategoryData> = {};
-    if (!formData.categoryType.trim())
-      newErrors.categoryType = "Contact Category Type is required";
-    if (!formData.categorySubType.trim())
-      newErrors.categorySubType = "Contact Category Subtype is required";
-    if (!formData.shortName.trim())
-      newErrors.shortName = "Category Short Name is required";
+    if (!formData.type.trim())
+      newErrors.type = "Contact Category Type is required";
+    if (!formData.subtype.trim())
+      newErrors.subtype = "Contact Category Subtype is required";
+    if (!formData.name.trim())
+      newErrors.name = "Category Short Name is required";
     if (!formData.description.trim())
       newErrors.description = "Category Description is required";
 
@@ -52,13 +60,33 @@ export default function AddContactCategory() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
-    if (validate()) {
-      console.log("Contact Category Added:", formData);
-      alert("Contact category added successfully!");
-      // API call can go here
+  const handleSubmit = async () => {
+  if (validate()) {
+    try {
+      const payload = {
+        ...formData,
+        systm: false,    // default value
+        inactive: false, // default value
+      };
+      await createContactCategory(payload);
+      setOpen(true);
+      setFormData({
+        type: "",
+        subtype: "",
+        name: "",
+        description: "",
+      });
+    } catch (error: any) {
+      console.error("Error creating category:", error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to add category. Please try again."
+      );
+      setErrorOpen(true);
     }
-  };
+  }
+};
+
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
@@ -81,35 +109,35 @@ export default function AddContactCategory() {
         <Stack spacing={2}>
           <TextField
             label="Contact Category Type"
-            name="categoryType"
+            name="type"
             size="small"
             fullWidth
-            value={formData.categoryType}
+            value={formData.type}
             onChange={handleInputChange}
-            error={!!errors.categoryType}
-            helperText={errors.categoryType}
+            error={!!errors.type}
+            helperText={errors.type}
           />
 
           <TextField
             label="Contact Category Subtype"
-            name="categorySubType"
+            name="subtype"
             size="small"
             fullWidth
-            value={formData.categorySubType}
+            value={formData.subtype}
             onChange={handleInputChange}
-            error={!!errors.categorySubType}
-            helperText={errors.categorySubType}
+            error={!!errors.subtype}
+            helperText={errors.subtype}
           />
 
           <TextField
             label="Category Short Name"
-            name="shortName"
+            name="name"
             size="small"
             fullWidth
-            value={formData.shortName}
+            value={formData.name}
             onChange={handleInputChange}
-            error={!!errors.shortName}
-            helperText={errors.shortName}
+            error={!!errors.name}
+            helperText={errors.name}
           />
 
           <TextField
@@ -147,6 +175,20 @@ export default function AddContactCategory() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Contact Category has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }
