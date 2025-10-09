@@ -1235,7 +1235,7 @@ const AppRoutes = () => {
           element={withLayout(MainLayout, AddContactCategory)}
         />
         <Route
-          path="/setup/miscellaneous/update-contact-category/"
+          path="/setup/miscellaneous/update-contact-category/:id"
           element={withLayout(MainLayout, UpdateContactCategory)}
         />
         <Route

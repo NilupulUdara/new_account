@@ -56,7 +56,12 @@ export default function UpdateSalesTypesForm() {
       })
       .catch((err) => {
         console.error(err);
-        alert("Failed to load sales type data");
+        setErrorMessage(
+          err?.response?.data?.message ||
+          "Failed to load Sales Type Please try again."
+        );
+        setErrorOpen(true);
+
       });
   }, [id]);
 

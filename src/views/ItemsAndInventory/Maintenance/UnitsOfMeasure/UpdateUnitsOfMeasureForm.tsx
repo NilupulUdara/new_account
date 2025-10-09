@@ -117,7 +117,7 @@ export default function UpdateUnitsOfMeasureForm() {
         setErrorOpen(true);
         // alert("Unit abbreviation or name already exists!");
       } else {
-         setErrorMessage(
+        setErrorMessage(
           "Failed to update Item Unit."
         );
         setErrorOpen(true);

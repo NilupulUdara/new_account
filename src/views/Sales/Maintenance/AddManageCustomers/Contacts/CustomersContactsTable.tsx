@@ -81,13 +81,13 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
       const lower = searchQuery.toLowerCase();
       data = data.filter(
         (c) =>
-          c.assignment.toLowerCase().includes(lower) ||
-          c.reference.toLowerCase().includes(lower) ||
-          c.fullName.toLowerCase().includes(lower) ||
-          c.phone.toLowerCase().includes(lower) ||
-          c.secPhone.toLowerCase().includes(lower) ||
-          c.fax.toLowerCase().includes(lower) ||
-          c.email.toLowerCase().includes(lower)
+          // c.assignment.toLowerCase().includes(lower) ||
+          c.reference?.toLowerCase().includes(lower) ||
+          c.fullName?.toLowerCase().includes(lower) ||
+          c.phone?.toLowerCase().includes(lower) ||
+          c.secPhone?.toLowerCase().includes(lower) ||
+          c.fax?.toLowerCase().includes(lower) ||
+          c.email?.toLowerCase().includes(lower)
       );
     }
 
