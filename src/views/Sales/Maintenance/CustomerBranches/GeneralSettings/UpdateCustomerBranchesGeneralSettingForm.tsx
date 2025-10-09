@@ -16,7 +16,7 @@ import {
 import theme from "../../../../../theme";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  getSalesTypes, SalesType,
+  getSalesGroups, SalesGroup,
   getSalesAreas, SalesArea
 } from "../../../../../api/SalesMaintenance/salesService";
 import { getSalesPersons, SalesPerson } from "../../../../../api/SalesPerson/SalesPersonApi";
@@ -52,18 +52,30 @@ export default function UpdateCustomerBranchesGeneralSettingForm() {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   // Fetch dropdown data
-  const [salesTypes, setSalesTypes] = useState<SalesType[]>([]);
-  useEffect(() => { getSalesTypes().then(setSalesTypes); }, []);
+  const [salesGroups, setSalesGroups] = useState<SalesGroup[]>([]);
+  useEffect(() => { 
+    getSalesGroups().then(setSalesGroups).catch(console.error); 
+  }, []);
   const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
-  useEffect(() => { getSalesPersons().then(setSalesPersons); }, []);
+  useEffect(() => { 
+    getSalesPersons().then(setSalesPersons).catch(console.error); 
+  }, []);
   const [salesAreas, setSalesAreas] = useState<SalesArea[]>([]);
-  useEffect(() => { getSalesAreas().then(setSalesAreas); }, []);
+  useEffect(() => { 
+    getSalesAreas().then(setSalesAreas).catch(console.error); 
+  }, []);
   const [InventoryLocations, setInventoryLocations] = useState<InventoryLocation[]>([]);
-  useEffect(() => { getInventoryLocations().then(setInventoryLocations); }, []);
+  useEffect(() => { 
+    getInventoryLocations().then(setInventoryLocations).catch(console.error); 
+  }, []);
   const [ShippingCompanies, setShippingCompanies] = useState<ShippingCompany[]>([]);
-  useEffect(() => { getShippingCompanies().then(setShippingCompanies); }, []);
+  useEffect(() => { 
+    getShippingCompanies().then(setShippingCompanies).catch(console.error); 
+  }, []);
   const [TaxGroups, setTaxGroups] = useState<TaxGroup[]>([]);
-  useEffect(() => { getTaxGroups().then(setTaxGroups); }, []);
+  useEffect(() => { 
+    getTaxGroups().then(setTaxGroups).catch(console.error); 
+  }, []);
 
   // Fetch branch data
   useEffect(() => {
@@ -76,12 +88,12 @@ export default function UpdateCustomerBranchesGeneralSettingForm() {
           debtor_no: data.debtor_no || "",
           branchName: data.br_name || "",
           branchShortName: data.branch_ref || "",
-          salesPerson: String(data.sales_person || ""),
-          salesArea: String(data.sales_area || ""),
-          salesGroup: String(data.sales_group || ""),
-          defaultInventoryLocation: String(data.inventory_location || ""),
-          defaultShippingCompany: String(data.shipping_company || ""),
-          taxGroup: String(data.tax_group || ""),
+          salesPerson: data.sales_person ? (typeof data.sales_person === 'object' ? String(data.sales_person.id || '') : String(data.sales_person)) : "",
+          salesArea: data.sales_area ? (typeof data.sales_area === 'object' ? String(data.sales_area.id || '') : String(data.sales_area)) : "",
+          salesGroup: data.sales_group ? (typeof data.sales_group === 'object' ? String(data.sales_group.id || '') : String(data.sales_group)) : "",
+          defaultInventoryLocation: data.inventory_location ? (typeof data.inventory_location === 'object' ? String(data.inventory_location.loc_code || '') : String(data.inventory_location)) : "",
+          defaultShippingCompany: data.shipping_company ? (typeof data.shipping_company === 'object' ? String(data.shipping_company.shipper_id || '') : String(data.shipping_company)) : "",
+          taxGroup: data.tax_group ? (typeof data.tax_group === 'object' ? String(data.tax_group.id || '') : String(data.tax_group)) : "",
           salesAccount: data.sales_account || "",
           salesDiscountAccount: data.sales_discount_account || "",
           accountsReceivable: data.receivables_account || "",
@@ -264,9 +276,11 @@ export default function UpdateCustomerBranchesGeneralSettingForm() {
                     onChange={(e) => handleChange("salesGroup", String(e.target.value))}
                     label="Sales Group"
                   >
-                    <MenuItem value="small">Small</MenuItem>
-                    <MenuItem value="medium">Medium</MenuItem>
-                    <MenuItem value="large">Large</MenuItem>
+                    {salesGroups.map((group) => (
+                      <MenuItem key={group.id} value={String(group.id)}>
+                        {group.name}
+                      </MenuItem>
+                    ))}
                   </Select>
                   <FormHelperText>{errors.salesGroup || " "}</FormHelperText>
                 </FormControl>
