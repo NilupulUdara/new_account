@@ -57,11 +57,13 @@ function GlAccountGroupsTable() {
   const { data: chartTypesData = [] } = useQuery({
     queryKey: ["chartTypes"],
     queryFn: getChartTypes,
+    refetchOnMount: true,
   });
 
   const { data: chartClassesData = [] } = useQuery({
     queryKey: ["chartClasses"],
     queryFn: getChartClasses,
+    refetchOnMount: true,
   });
 
   // Map class_id -> class_name AND parent -> parent_name
