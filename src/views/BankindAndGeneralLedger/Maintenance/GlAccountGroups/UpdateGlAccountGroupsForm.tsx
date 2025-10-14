@@ -78,8 +78,8 @@ export default function UpdateGlAccountGroupsForm() {
         setFormData({
           id: res.id,
           name: res.name,
-          subGroup: res.sub_group || "None",
-          class: res.class,
+          subGroup: res.parent || "None",
+          class: res.class_id,
         });
       } catch (error) {
         console.error("Failed to fetch GL Account Group:", error);
@@ -184,7 +184,7 @@ export default function UpdateGlAccountGroupsForm() {
                 .sort((a, b) => Number(a.id) - Number(b.id))
                 .map((type) => (
                   <MenuItem key={type.id} value={type.id}>
-                    {type.id} - {type.name}
+                    {type.name}
                   </MenuItem>
                 ))}
             </Select>
