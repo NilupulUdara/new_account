@@ -1016,7 +1016,7 @@ const AppRoutes = () => {
           element={withLayout(MainLayout, AddGlAccountGroupsForm)}
         />
         <Route
-          path="/bankingandgeneralledger/maintenance/update-gl-account-groups"
+          path="/bankingandgeneralledger/maintenance/update-gl-account-groups/:id"
           element={withLayout(MainLayout, UpdateGlAccountGroupsForm)}
         />
         <Route
