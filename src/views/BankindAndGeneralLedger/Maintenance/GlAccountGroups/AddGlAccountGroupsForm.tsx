@@ -15,8 +15,8 @@ import {
     useMediaQuery,
 } from "@mui/material";
 import theme from "../../../../theme";
-import { getChartClasses } from "../../../../api/GLAccountClasses/ChartClassApi";
-import { getChartTypes, createChartType } from "../../../../api/GLAccountClasses/ChartTypeApi";
+import { getChartClasses } from "../../../../api/GLAccounts/ChartClassApi";
+import { getChartTypes, createChartType } from "../../../../api/GLAccounts/ChartTypeApi";
 
 interface GlAccountGroupData {
     id: string;

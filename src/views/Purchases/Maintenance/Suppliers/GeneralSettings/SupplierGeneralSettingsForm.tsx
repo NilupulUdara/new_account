@@ -21,7 +21,7 @@ import { getSuppliers } from "../../../../../api/Supplier/SupplierApi";
 import { useNavigate } from "react-router";
 import { getCurrencies, Currency } from "../../../../../api/Currency/currencyApi";
 import { getTaxGroups, TaxGroup } from "../../../../../api/Tax/taxServices";
-import { getChartMasters } from "../../../../../api/GLAccountClasses/ChartMasterApi";
+import { getChartMasters } from "../../../../../api/GLAccounts/ChartMasterApi";
 
 interface SupplierGeneralSettingProps {
   supplierId?: string | number;

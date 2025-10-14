@@ -18,9 +18,9 @@ import {
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { SelectChangeEvent } from "@mui/material";
-import { getChartTypes } from "../../../../api/GLAccountClasses/ChartTypeApi";
+import { getChartTypes } from "../../../../api/GLAccounts/ChartTypeApi";
 import { getAccountTags } from "../../../../api/AccountTag/AccountTagsApi";
-import { getChartMasters, createChartMaster } from "../../../../api/GLAccountClasses/ChartMasterApi";
+import { getChartMasters, createChartMaster } from "../../../../api/GLAccounts/ChartMasterApi";
 import theme from "../../../../theme";
 import ErrorModal from "../../../../components/ErrorModal";
 import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";

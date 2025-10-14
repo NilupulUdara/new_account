@@ -17,8 +17,8 @@ import {
 } from "@mui/material";
 import { useNavigate, useParams } from "react-router-dom";
 import { SelectChangeEvent } from "@mui/material";
-import { getChartMaster, updateChartMaster, deleteChartMaster } from "../../../../api/GLAccountClasses/ChartMasterApi";
-import { getChartTypes } from "../../../../api/GLAccountClasses/ChartTypeApi";
+import { getChartMaster, updateChartMaster, deleteChartMaster } from "../../../../api/GLAccounts/ChartMasterApi";
+import { getChartTypes } from "../../../../api/GLAccounts/ChartTypeApi";
 import { getAccountTags } from "../../../../api/AccountTag/AccountTagsApi";
 import theme from "../../../../theme";
 import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal";

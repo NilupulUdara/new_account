@@ -16,8 +16,8 @@ import {
 } from "@mui/material";
 import { useParams, useNavigate } from "react-router-dom";
 import theme from "../../../../theme";
-import { getChartClasses } from "../../../../api/GLAccountClasses/ChartClassApi";
-import { getChartTypes, getChartType, updateChartType } from "../../../../api/GLAccountClasses/ChartTypeApi";
+import { getChartClasses } from "../../../../api/GLAccounts/ChartClassApi";
+import { getChartTypes, getChartType, updateChartType } from "../../../../api/GLAccounts/ChartTypeApi";
 
 interface GlAccountGroupData {
   id: string;
