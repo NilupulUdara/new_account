@@ -84,9 +84,9 @@ export default function UpdateUserProfile({
   const onSubmitForm = (data: User) => {
     profileUpdateMutation({
       id: data.id!,
-      name: data.name!,
+      name: data.first_name!,
       gender: data.gender!,
-      mobile: data.mobile,
+      telephone: data.telephone,
     });
   };
 
@@ -135,11 +135,11 @@ export default function UpdateUserProfile({
                   type="text"
                   label="Full Name"
                   required
-                  error={!!errors.name}
-                  helperText={errors.name ? "Required *" : ""}
+                  error={!!errors.first_name}
+                  helperText={errors.first_name ? "Required *" : ""}
                   size="small"
                   sx={{ flex: 1, margin: "0.5rem" }}
-                  {...register("name", { required: true })}
+                  {...register("first_name", { required: true })}
                 />
               </Box>
 
@@ -149,11 +149,11 @@ export default function UpdateUserProfile({
                   type="text"
                   label="Mobile Number"
                   required
-                  error={!!errors.mobile}
-                  helperText={errors.mobile ? "Required *" : ""}
+                  error={!!errors.telephone}
+                  helperText={errors.telephone ? "Required *" : ""}
                   size="small"
                   sx={{ flex: 1, margin: "0.5rem" }}
-                  {...register("mobile", { required: true })}
+                  {...register("telephone", { required: true })}
                 />
               </Box>
 

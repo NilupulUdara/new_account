@@ -4,11 +4,22 @@ const API_URL = "http://localhost:8000/api/chart-masters";
 
 export const createChartMaster = async (chartMasterData: any) => {
   try {
-    const response = await axios.post(API_URL, chartMasterData);
+    const response = await axios.post(API_URL, chartMasterData, {
+      headers: { "Content-Type": "application/json" },
+    });
     return response.data;
   } catch (error: any) {
-    console.error(error.response?.data || error);
-    throw error.response?.data || error;
+    console.error("AXIOS ERROR:", error);
+    if (error.response) {
+      console.error("Backend response:", error.response.data);
+      throw error.response.data;
+    } else if (error.request) {
+      console.error("No response received:", error.request);
+      throw new Error("No response from server");
+    } else {
+      console.error("Axios setup error:", error.message);
+      throw new Error(error.message);
+    }
   }
 };
 

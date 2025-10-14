@@ -37,8 +37,9 @@ export const userSchema = z.object({
   id: z.number(),
   email: z.string(),
   userTypeId: z.number(),
-  name: z.string(),
-  mobile: z.string(),
+  first_name: z.string(),
+  last_name: z.string(),
+  telephone: z.string(),
   emailVerifiedAt: z.string().nullable(),
   role: z.string(),
   roleId: z.string(),
@@ -85,7 +86,7 @@ export async function userPasswordReset(data: PasswordReset) {
 export async function registerUser({
   name,
   email,
-  mobileNumber: mobile,
+  telephoneNumber: telephone,
   password,
   confirmPassword: password_confirmation,
   isCompanyEmployee,
@@ -97,7 +98,7 @@ export async function registerUser({
   email: string;
   password: string;
   name: string;
-  mobileNumber: string;
+  telephoneNumber: string;
   confirmPassword: string;
   isCompanyEmployee: boolean;
   jobPosition: string;
@@ -109,7 +110,7 @@ export async function registerUser({
     email,
     password,
     name,
-    mobile,
+    telephone,
     password_confirmation,
     isCompanyEmployee,
     jobPosition,
@@ -263,17 +264,17 @@ export async function updateUserProfileDetails({
   id,
   name,
   gender,
-  mobile,
+  telephone,
 }: {
   id: number;
   name: string;
   gender: string;
-  mobile: string;
+  telephone: string;
 }) {
   const data = {
     name,
     gender,
-    mobile,
+    telephone,
   };
 
   const res = await axios.post(`/api/user/${id}/profile-update`, data);
@@ -281,21 +282,21 @@ export async function updateUserProfileDetails({
   return res.data;
 }
 
-export async function resetProfileEmail({ currentEmail,id }: { currentEmail: string, id: number }) {
+export async function resetProfileEmail({ currentEmail, id }: { currentEmail: string, id: number }) {
   const res = await axios.post(`/api/user/${id}/email-change`, {
     currentEmail,
   });
   return res.data;
 }
 
-export async function resetProfileEmailVerification({ otp,id }: { otp: string, id: number }) {
+export async function resetProfileEmailVerification({ otp, id }: { otp: string, id: number }) {
   const res = await axios.post(`/api/user/${id}/email-change-verify`, {
     otp,
   });
   return res.data;
 }
 
-export async function resetProfileEmailConfirm({ newEmail,id }: { newEmail: string, id: number }) {
+export async function resetProfileEmailConfirm({ newEmail, id }: { newEmail: string, id: number }) {
   const res = await axios.post(`/api/user/${id}/email-change-confirm`, {
     newEmail,
   });

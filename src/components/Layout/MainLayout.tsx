@@ -183,16 +183,14 @@ export default function MainLayout({ children }: Props) {
               width: "100%",
             }}
           >
+            {/* Left: Menu icon + Logo */}
             <Box sx={{ display: "flex", alignItems: "center" }}>
               <IconButton
                 aria-label="open drawer"
                 onClick={toggleDrawerOpen}
                 edge="start"
                 sx={[
-                  {
-                    color: "#024271",
-                    marginRight: 3,
-                  },
+                  { color: "#024271", mr: 3 },
                   open && !isMobile && { display: "none" },
                 ]}
               >
@@ -203,23 +201,21 @@ export default function MainLayout({ children }: Props) {
                   <img
                     src={logoUrl?.signedUrl}
                     alt="logo"
-                    height={"45rem"}
+                    height="45rem"
                     style={{ marginTop: "10px" }}
                   />
                 </Box>
               )}
             </Box>
+
+            {/* Center: Optional labels */}
             {!isMobile && (
               <Box sx={{ display: "flex" }}>
                 <Typography
                   variant="subtitle1"
                   noWrap
                   component="div"
-                  sx={{
-                    color: "var(--pallet-blue)",
-                    display: "flex",
-                    marginRight: "0.5rem",
-                  }}
+                  sx={{ color: "var(--pallet-blue)", mr: 0.5 }}
                 >
                   Monitor and Manage
                 </Typography>
@@ -241,51 +237,48 @@ export default function MainLayout({ children }: Props) {
                 </Typography>
               </Box>
             )}
-            <Box sx={{ display: "flex", alignItems: "center" }}>
-              <Badge
-                overlap="circular"
-                anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-                variant="dot"
-                sx={{
-                  "& .MuiBadge-badge": {
-                    backgroundColor: statusColor,
-                    color: statusColor,
-                    boxShadow: "0 0 0 2px white",
-                    height: "8px",
-                    width: "8px",
-                    borderRadius: "50%",
-                  },
-                }}
-              >
 
-                <ProfileImage
-                  name={user?.name}
-                  files={user?.profileImage}
-                  size="2rem"
-                  onClick={() => setOpenViewProfileDrawer(true)}
-                />
-              </Badge>
-              <ViewProfileDataDrawer
-                open={openViewProfileDrawer}
-                handleClose={() => setOpenViewProfileDrawer(false)}
-                fullScreen={true}
-                drawerContent={
-                  <Stack spacing={1} sx={{ paddingX: theme.spacing(1) }}>
-                    <DrawerProfileHeader
-                      title="User Profile"
-                      handleClose={() => setOpenViewProfileDrawer(false)}
-                      onEdit={() => setOpenEditUserRoleDialog(true)}
-                    />
-                    <Stack>
-                      <ViewUserContent selectedUser={user} />
-                    </Stack>
-                  </Stack>
-                }
+            {/* Right: Profile Name + Status */}
+            <Box
+              sx={{ display: "flex", alignItems: "center", cursor: "pointer" }}
+              onClick={() => setOpenViewProfileDrawer(true)}
+            >
+              <Typography
+                variant="subtitle1"
+                sx={{ fontWeight: 600, color: "#024271", mr: 1 }}
+              >
+                {user?.first_name} {user?.last_name}
+              </Typography>
+              <Box
+                sx={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  backgroundColor: statusColor,
+                }}
               />
             </Box>
+
+            {/* Profile Drawer */}
+            <ViewProfileDataDrawer
+              open={openViewProfileDrawer}
+              handleClose={() => setOpenViewProfileDrawer(false)}
+              fullScreen
+              drawerContent={
+                <Stack spacing={1} sx={{ p: 1 }}>
+                  <DrawerProfileHeader
+                    title="User Profile"
+                    handleClose={() => setOpenViewProfileDrawer(false)}
+                    onEdit={() => setOpenEditUserRoleDialog(true)}
+                  />
+                  <ViewUserContent selectedUser={user} />
+                </Stack>
+              }
+            />
           </Box>
         </Toolbar>
       </AppBar>
+
 
       {isMobile ? (
         <MobileDrawer
@@ -301,7 +294,7 @@ export default function MainLayout({ children }: Props) {
             },
           }}
         >
-          <DrawerContent handleDrawerClose={handleDrawerClose} openProfileDrawer={openProfileDrawer}/>
+          <DrawerContent handleDrawerClose={handleDrawerClose} openProfileDrawer={openProfileDrawer} />
         </MobileDrawer>
       ) : (
         <Drawer
@@ -468,32 +461,14 @@ const DrawerContent = ({
               alignItems: "center",
               mb: 2,
             }}
-             onClick={openProfileDrawer}
+            onClick={openProfileDrawer}
           >
             <ProfileImage
-              name={user?.name}
+              name={user?.first_name}
               files={user?.profileImage}
               size="3rem"
             />
 
-            <Box sx={{ ml: 2, flex: 1, minWidth: 0 }}>
-              <Typography
-                variant="subtitle1"
-                sx={{ fontWeight: 600, color: "#fff" }}
-              >
-                {user?.name}
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {user?.email}
-              </Typography>
-            </Box>
           </Box>
 
           <Button

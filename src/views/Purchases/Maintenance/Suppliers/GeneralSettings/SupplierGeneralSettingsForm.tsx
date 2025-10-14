@@ -13,11 +13,15 @@ import {
   Checkbox,
   FormControlLabel,
   Grid,
+  ListSubheader,
 } from "@mui/material";
 import theme from "../../../../../theme";
 import { createSupplier } from "../../../../../api/Supplier/SupplierApi";
-import { getSuppliers } from "../../../../../api/Supplier/SupplierApi";  
+import { getSuppliers } from "../../../../../api/Supplier/SupplierApi";
 import { useNavigate } from "react-router";
+import { getCurrencies, Currency } from "../../../../../api/Currency/currencyApi";
+import { getTaxGroups, TaxGroup } from "../../../../../api/Tax/taxServices";
+import { getChartMasters } from "../../../../../api/GLAccountClasses/ChartMasterApi";
 
 interface SupplierGeneralSettingProps {
   supplierId?: string | number;
@@ -50,12 +54,45 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
     physicalAddress: "",
     generalNotes: "",
   });
+  const accountTypeMap: { [key: number]: string } = {
+    "1": "Current Assets",
+    "2": "Inventory Assets",
+    "3": "Capital Assets",
+    "4": "Current Liabilities",
+    "5": "Long Term Liabilities",
+    "6": "Share Capital",
+    "7": "Retained Earnings",
+    "8": "Sales Revenue",
+    "9": "Other Revenue",
+    "10": "Cost of Good Sold",
+    "11": "Payroll Expenses",
+    "12": "General and Adminitrative Expenses",
+  };
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const navigate = useNavigate();
-
+  const [chartMasters, setChartMasters] = useState<any[]>([]);
+  useEffect(() => {
+    const fetchChartMasters = async () => {
+      try {
+        const res = await getChartMasters();
+        setChartMasters(res || []);
+      } catch (err) {
+        console.error("Failed to fetch chart masters", err);
+      }
+    };
+    fetchChartMasters();
+  }, []);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  useEffect(() => {
+    getCurrencies().then(setCurrencies);
+  }, []);
 
+  const [TaxGroups, setTaxGroups] = useState<TaxGroup[]>([]);
+  useEffect(() => {
+    getTaxGroups().then(setTaxGroups);
+  }, [])
   // Fetch customers on mount
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -203,9 +240,9 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
         }}
       >
 
-      <Typography variant="h5" sx={{ mb: theme.spacing(3), textAlign: "center" }}>
-        Supplier Setup
-      </Typography>
+        <Typography variant="h5" sx={{ mb: theme.spacing(3), textAlign: "center" }}>
+          Supplier Setup
+        </Typography>
 
         <Grid container spacing={4}>
           {/* Basic Data */}
@@ -255,9 +292,14 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
                   value={formData.supplierCurrency}
                   onChange={(e) => handleChange("supplierCurrency", e.target.value)}
                 >
-                  <MenuItem value="USD">USD</MenuItem>
-                  <MenuItem value="LKR">LKR</MenuItem>
-                  <MenuItem value="EUR">EUR</MenuItem>
+                  {currencies.map((currency) => (
+                    <MenuItem
+                      key={currency.id}
+                      value={currency.currency_abbreviation}
+                    >
+                      {currency.currency_name}
+                    </MenuItem>
+                  ))}
                 </Select>
                 <Typography variant="caption" color="error">{errors.supplierCurrency}</Typography>
               </FormControl>
@@ -267,8 +309,14 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
                   value={formData.taxGroup}
                   onChange={(e) => handleChange("taxGroup", e.target.value)}
                 >
-                  <MenuItem value="GST">TAX</MenuItem>
-                  <MenuItem value="VAT">VAT</MenuItem>
+                  {TaxGroups.map((TaxGroup) => (
+                    <MenuItem
+                      key={TaxGroup.id}
+                      value={TaxGroup.description}
+                    >
+                      {TaxGroup.description}
+                    </MenuItem>
+                  ))}
                 </Select>
                 <Typography variant="caption" color="error">{errors.taxGroup}</Typography>
               </FormControl>
@@ -350,12 +398,35 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
                 <Select
                   value={formData.accountsPayable}
                   onChange={(e) => handleChange("accountsPayable", e.target.value)}
+                  renderValue={(selected) => selected || "Select Account"}
                 >
-                  <MenuItem value="AP-001">AP-001</MenuItem>
-                  <MenuItem value="AP-002">AP-002</MenuItem>
+                  {(() => {
+                    const grouped: { [key: number]: any[] } = {};
+                    chartMasters.forEach((cm) => {
+                      if (!grouped[cm.account_type]) grouped[cm.account_type] = [];
+                      grouped[cm.account_type].push(cm);
+                    });
+
+                    return Object.keys(grouped).map((typeKey) => {
+                      const typeNum = Number(typeKey);
+                      const typeText = accountTypeMap[typeNum] || "Unknown";
+                      return (
+                        <React.Fragment key={typeKey}>
+                          <ListSubheader>{typeText}</ListSubheader>
+                          {grouped[typeNum].map((cm) => (
+                            <MenuItem key={cm.account_code} value={String(cm.account_code)}>
+                              {cm.account_code} - {cm.account_name}
+                            </MenuItem>
+                          ))}
+                        </React.Fragment>
+                      );
+                    });
+                  })()}
                 </Select>
                 <Typography variant="caption" color="error">{errors.accountsPayable}</Typography>
               </FormControl>
+
+
               <FormControl size="small" fullWidth error={!!errors.purchaseAccount}>
                 <InputLabel>Purchase Account</InputLabel>
                 <Select
@@ -373,8 +444,11 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
                   value={formData.purchaseDiscountAccount}
                   onChange={(e) => handleChange("purchaseDiscountAccount", e.target.value)}
                 >
-                  <MenuItem value="DISC-001">5060 Discount Received</MenuItem>
-                  <MenuItem value="DISC-002">5070 Discount Received</MenuItem>
+                  {chartMasters.map((cm) => (
+                    <MenuItem key={cm.id} value={cm.account_code}>
+                      {cm.account_code} - {cm.account_name}
+                    </MenuItem>
+                  ))}
                 </Select>
                 <Typography variant="caption" color="error">{errors.purchaseDiscountAccount}</Typography>
               </FormControl>
@@ -507,7 +581,7 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
             gap: theme.spacing(2),
           }}
         >
-          <Button variant="outlined" 
+          <Button variant="outlined"
             onClick={() => window.history.back()}>
             Back
           </Button>
