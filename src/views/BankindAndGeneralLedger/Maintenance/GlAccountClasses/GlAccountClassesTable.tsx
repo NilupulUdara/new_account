@@ -28,8 +28,8 @@ import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
 import theme from "../../../../theme";
 
-import { getChartClasses, deleteChartClass } from "../../../../api/GLAccountClasses/ChartClassApi";
-import { getChartTypes } from "../../../../api/GLAccountClasses/ChartTypeApi";
+import { getChartClasses, deleteChartClass } from "../../../../api/GLAccounts/ChartClassApi";
+import { getClassTypes } from "../../../../api/GLAccounts/ClassTypeApi";
 
 function GlAccountClassesTable() {
   const [page, setPage] = useState(0);
@@ -45,24 +45,24 @@ function GlAccountClassesTable() {
     queryFn: getChartClasses,
   });
 
-  const { data: chartTypesData = [] } = useQuery({
-    queryKey: ["chartTypes"],
-    queryFn: getChartTypes,
+  const { data: classTypesData = [] } = useQuery({
+    queryKey: ["classTypes"],
+    queryFn: getClassTypes,
   });
 
   // Map chart type names
   const mappedClasses = useMemo(() => {
-  if (!glAccountClassesData || !chartTypesData) return [];
+  if (!glAccountClassesData || !classTypesData) return [];
   return glAccountClassesData.map((item) => {
-    const matchedType = chartTypesData.find(
+    const matchedType = classTypesData.find(
       (ct: any) => Number(ct.id) === Number(item.ctype)
     );
     return {
       ...item,
-      classTypeName: matchedType ? matchedType.name : `Unknown (${item.ctype})`,
+      classTypeName: matchedType ? matchedType.type_name : `Unknown (${item.ctype})`,
     };
   });
-}, [glAccountClassesData, chartTypesData]);
+}, [glAccountClassesData, classTypesData]);
 
 
   // Filter search + inactive toggle

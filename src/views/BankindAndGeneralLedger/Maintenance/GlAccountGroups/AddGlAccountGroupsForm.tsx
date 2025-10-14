@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
     Box,
     Stack,
@@ -15,6 +15,8 @@ import {
     useMediaQuery,
 } from "@mui/material";
 import theme from "../../../../theme";
+import { getChartClasses } from "../../../../api/GLAccountClasses/ChartClassApi";
+import { getChartTypes, createChartType } from "../../../../api/GLAccountClasses/ChartTypeApi";
 
 interface GlAccountGroupData {
     id: string;
@@ -31,9 +33,37 @@ export default function AddGlAccountGroupsForm() {
         class: "",
     });
 
+    const [chartClasses, setChartClasses] = useState<any[]>([]);
+    const [chartTypes, setChartTypes] = useState<any[]>([]);
     const [errors, setErrors] = useState<Partial<GlAccountGroupData>>({});
     const muiTheme = useTheme();
     const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+
+    useEffect(() => {
+        const fetchChartClasses = async () => {
+            try {
+                const data = await getChartClasses();
+                setChartClasses(data);
+            } catch (error) {
+                console.error("Failed to load chart classes:", error);
+            }
+        };
+
+        fetchChartClasses();
+    }, []);
+
+    useEffect(() => {
+        const fetchChartTypes = async () => {
+            try {
+                const data = await getChartTypes();
+                setChartTypes(data);
+            } catch (error) {
+                console.error("Failed to load chart types:", error);
+            }
+        };
+
+        fetchChartTypes();
+    }, []);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -58,12 +88,29 @@ export default function AddGlAccountGroupsForm() {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (validate()) {
-            console.log("Submitted GL Account Group:", formData);
-            alert("GL Account Group added successfully!");
+            try {
+                const payload = {
+                    id: formData.id,
+                    name: formData.name,
+                    parent: formData.subGroup === "None" ? null : formData.subGroup,
+                    class_id: formData.class,
+                };
+
+                const res = await createChartType(payload);
+                console.log("Saved GL Account Group:", res);
+
+                alert("GL Account Group added successfully!");
+                setFormData({ id: "", name: "", subGroup: "", class: "" }); // clear form
+
+            } catch (error: any) {
+                console.error("Error saving GL Account Group:", error);
+                alert("Failed to save GL Account Group. Please try again.");
+            }
         }
     };
+
 
     return (
         <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
@@ -109,10 +156,17 @@ export default function AddGlAccountGroupsForm() {
                             name="subGroup"
                             value={formData.subGroup}
                             onChange={handleSelectChange}
-                            label="Sub Group"
+                            label="Sub Group of"
                         >
                             <MenuItem value="None">None</MenuItem>
-                            <MenuItem value="Sub1">SUb 1</MenuItem>
+                            {chartTypes
+                                .slice() // copy array to avoid mutating original
+                                .sort((a, b) => Number(a.id) - Number(b.id))
+                                .map((type) => (
+                                    <MenuItem key={type.id} value={type.id}>
+                                        {type.id} - {type.name}
+                                    </MenuItem>
+                                ))}
                         </Select>
                         <FormHelperText>{errors.subGroup || " "}</FormHelperText>
                     </FormControl>
@@ -123,12 +177,13 @@ export default function AddGlAccountGroupsForm() {
                             name="class"
                             value={formData.class}
                             onChange={handleSelectChange}
-                            label="Sub Group"
+                            label="Class"
                         >
-                            <MenuItem value="Assets">Assets</MenuItem>
-                            <MenuItem value="Liabilities">Liabilities</MenuItem>
-                            <MenuItem value="Income">Income</MenuItem>
-                            <MenuItem value="Costs">Costs</MenuItem>
+                            {chartClasses.map((chartClass) => (
+                                <MenuItem key={chartClass.cid} value={chartClass.cid}>
+                                    {chartClass.class_name}
+                                </MenuItem>
+                            ))}
                         </Select>
                         <FormHelperText>{errors.class || " "}</FormHelperText>
                     </FormControl>
