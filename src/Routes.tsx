@@ -199,13 +199,14 @@ import UpdatePrintersForm from "./views/Setup/Miscellaneous/Printers/UpdatePrint
 import PosTable from "./views/Setup/Miscellaneous/PointsOfSales/PosTable";
 import AddPosForm from "./views/Setup/Miscellaneous/PointsOfSales/AddPosForm";
 import UpdatePosForm from "./views/Setup/Miscellaneous/PointsOfSales/UpdatePosForm";
+import UpdateGlAccount from "./views/BankindAndGeneralLedger/Maintenance/GlAccounts/UpdateGlAccount";
 
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
   () => import("./views/RegistrationPage/RegistrationPage")
 );
-const InsightsPage = React.lazy(() => import("./views/Insights/Insight"));
+// const InsightsPage = React.lazy(() => import("./views/Insights/Insight"));
 
 //Administration
 const UserTable = React.lazy(() => import("./views/Administration/UserTable"));
@@ -972,6 +973,10 @@ const AppRoutes = () => {
         <Route
           path="/bankingandgeneralledger/maintenance/gl-accounts"
           element={withLayout(MainLayout, AddGlAccount)}
+        />
+        <Route
+          path="/bankingandgeneralledger/maintenance/update-gl-account/:id"
+          element={withLayout(MainLayout, UpdateGlAccount)}
         />
         <Route
           path="/bankingandgeneralledger/maintenance/update-account-tags/:id"

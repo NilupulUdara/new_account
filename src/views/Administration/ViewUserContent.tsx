@@ -53,7 +53,7 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
             marginTop: 2,
           }}
         >
-          {selectedUser?.name}
+          {`${selectedUser?.first_name ?? ""} ${selectedUser?.last_name ?? ""}`.trim()}
         </Typography>
         <Badge
           overlap="circular"
@@ -71,7 +71,7 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
           }}
         >
           <ProfileImage
-            name={selectedUser?.name}
+            name={`${selectedUser?.first_name ?? ""} ${selectedUser?.last_name ?? ""}`.trim()}
             files={imageFile ? [imageFile] : selectedUser?.profileImage}
             fontSize="5rem"
           />
@@ -117,12 +117,12 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
         >
           <DrawerContentItem
             label="Full Name"
-            value={selectedUser?.name}
+            value={`${selectedUser?.first_name ?? ""} ${selectedUser?.last_name ?? ""}`.trim()}
             sx={{ flex: 1 }}
           />
           <DrawerContentItem
             label="Mobile Number"
-            value={selectedUser?.mobile}
+            value={selectedUser?.telephone}
             sx={{ flex: 1 }}
           />
         </Stack>
@@ -137,7 +137,7 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
         >
           <DrawerContentItem
             label="Designation"
-            value={selectedUser?.jobPosition}
+            value={selectedUser?.role}
             sx={{ flex: 1 }}
           />
           <DrawerContentItem
