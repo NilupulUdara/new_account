@@ -21,26 +21,29 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
 import theme from "../../../../theme";
 
-const getGlAccountGroupsList = async () => [
-  { id: 1, name: "Current Assets", subGroup: "", class: "Assets", status: "Active", },
-  { id: 2, name: "Inventory Assets", subGroup: "", class: "Assets", status: "Active", },
-  { id: 3, name: "Capital Assets", subGroup: "", class: "Assets", status: "Active", },
-  { id: 4, name: "Current Liabilties", subGroup: "", class: "Liabilities", status: "Inactive", },
-  { id: 5, name: "Long Term Liabilties", subGroup: "", class: "Liabilities", status: "Active", },
-  { id: 6, name: "Share Capital", subGroup: "", class: "Liabilities", status: "Active", },
-  { id: 7, name: "Retain Earnings", subGroup: "", class: "Income", status: "Inactive", },
-  { id: 8, name: "Sales Revenue", subGroup: "", class: "Income", status: "Active", },
-  { id: 9, name: "Other Revenue", subGroup: "", class: "Costs", status: "Inactive", },
-  { id: 10, name: "Cost of Goods Sold", subGroup: "", class: "Costs", status: "Active", },
+import { getChartClasses } from "../../../../api/GLAccounts/ChartClassApi";
+import { getChartTypes, deleteChartType } from "../../../../api/GLAccounts/ChartTypeApi";
 
-];
+// const getGlAccountGroupsList = async () => [
+//   { id: 1, name: "Current Assets", subGroup: "", class: "Assets", status: "Active", },
+//   { id: 2, name: "Inventory Assets", subGroup: "", class: "Assets", status: "Active", },
+//   { id: 3, name: "Capital Assets", subGroup: "", class: "Assets", status: "Active", },
+//   { id: 4, name: "Current Liabilties", subGroup: "", class: "Liabilities", status: "Inactive", },
+//   { id: 5, name: "Long Term Liabilties", subGroup: "", class: "Liabilities", status: "Active", },
+//   { id: 6, name: "Share Capital", subGroup: "", class: "Liabilities", status: "Active", },
+//   { id: 7, name: "Retain Earnings", subGroup: "", class: "Income", status: "Inactive", },
+//   { id: 8, name: "Sales Revenue", subGroup: "", class: "Income", status: "Active", },
+//   { id: 9, name: "Other Revenue", subGroup: "", class: "Costs", status: "Inactive", },
+//   { id: 10, name: "Cost of Goods Sold", subGroup: "", class: "Costs", status: "Active", },
+
+// ];
 
 function GlAccountGroupsTable() {
   const [page, setPage] = useState(0);
@@ -49,38 +52,62 @@ function GlAccountGroupsTable() {
   const [showInactive, setShowInactive] = useState(false);
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const { data: glAccountGroupsData = [] } = useQuery({
-    queryKey: ["glAccountGroups"],
-    queryFn: getGlAccountGroupsList,
+  const { data: chartTypesData = [] } = useQuery({
+    queryKey: ["chartTypes"],
+    queryFn: getChartTypes,
   });
 
-  // Filter with search + showInactive toggle
-  const filteredAccounts = useMemo(() => {
-    if (!glAccountGroupsData) return [];
-    let filtered = glAccountGroupsData;
+  const { data: chartClassesData = [] } = useQuery({
+    queryKey: ["chartClasses"],
+    queryFn: getChartClasses,
+  });
 
-    if (!showInactive) {
-      filtered = filtered.filter((item) => item.status === "Active");
-    }
+  // Map class_id -> class_name AND parent -> parent_name
+  const mappedGroups = useMemo(() => {
+    if (!chartTypesData || !chartClassesData) return [];
+
+    return chartTypesData.map((item: any) => {
+      // find class name
+      const matchedClass = chartClassesData.find(
+        (cc: any) => cc.cid === item.class_id
+      );
+
+      // find parent name from same list
+      const parentGroup = chartTypesData.find(
+        (g: any) => String(g.id) === String(item.parent)
+      );
+
+      return {
+        ...item,
+        className: matchedClass ? matchedClass.class_name : `Unknown (${item.class_id})`,
+        parentName: parentGroup ? parentGroup.name : "-", // ✅ map parent id to name
+      };
+    });
+  }, [chartTypesData, chartClassesData]);
+
+  // Filter: search + showInactive toggle
+  const filteredGroups = useMemo(() => {
+    let filtered = mappedGroups;
+    if (!showInactive) filtered = filtered.filter((item: any) => item.inactive === 0);
 
     if (searchQuery.trim()) {
       const lowerQuery = searchQuery.toLowerCase();
       filtered = filtered.filter(
-        (item) =>
-          item.name.toLowerCase().includes(lowerQuery) ||
-          item.subGroup.toLowerCase().includes(lowerQuery) ||
-          item.class.toLowerCase().includes(lowerQuery)
+        (item: any) =>
+          (item.name ?? "").toLowerCase().includes(lowerQuery) ||
+          (item.className ?? "").toLowerCase().includes(lowerQuery) ||
+          (item.parent ?? "").toLowerCase().includes(lowerQuery)
       );
     }
-
     return filtered;
-  }, [glAccountGroupsData, searchQuery, showInactive]);
+  }, [mappedGroups, searchQuery, showInactive]);
 
-  const paginatedAccounts = useMemo(() => {
-    if (rowsPerPage === -1) return filteredAccounts;
-    return filteredAccounts.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  }, [filteredAccounts, page, rowsPerPage]);
+  const paginatedGroups = useMemo(() => {
+    if (rowsPerPage === -1) return filteredGroups;
+    return filteredGroups.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [filteredGroups, page, rowsPerPage]);
 
   const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -88,8 +115,16 @@ function GlAccountGroupsTable() {
     setPage(0);
   };
 
-  const handleDelete = (id: number) => {
-    alert(`Delete GL Account Group with id: ${id}`);
+  const handleDelete = async (id: string) => {
+    if (window.confirm("Are you sure you want to delete this GL Account Group?")) {
+      try {
+        await deleteChartType(id);
+        alert("Deleted successfully!");
+        queryClient.invalidateQueries({ queryKey: ["chartTypes"] });
+      } catch (error) {
+        alert("Failed to delete GL Account Group!");
+      }
+    }
   };
 
   const breadcrumbItems = [
@@ -185,13 +220,13 @@ function GlAccountGroupsTable() {
             </TableHead>
 
             <TableBody>
-              {paginatedAccounts.length > 0 ? (
-                paginatedAccounts.map((item, index) => (
+              {paginatedGroups.length > 0 ? (
+                paginatedGroups.map((item: any) => (
                   <TableRow key={item.id} hover>
                     <TableCell>{item.id}</TableCell>
                     <TableCell>{item.name}</TableCell>
-                    <TableCell>{item.subGroup}</TableCell>
-                    <TableCell>{item.class}</TableCell>
+                    <TableCell>{item.parentName}</TableCell>
+                    <TableCell>{item.className}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -199,7 +234,7 @@ function GlAccountGroupsTable() {
                           size="small"
                           startIcon={<EditIcon />}
                           onClick={() =>
-                            navigate("/bankingandgeneralledger/maintenance/update-gl-account-groups")
+                            navigate(`/bankingandgeneralledger/maintenance/update-gl-account-groups/${item.id}`)
                           }
                         >
                           Edit
@@ -231,7 +266,7 @@ function GlAccountGroupsTable() {
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
                   colSpan={10}
-                  count={filteredAccounts.length}
+                  count={filteredGroups.length}
                   rowsPerPage={rowsPerPage}
                   page={page}
                   onPageChange={handleChangePage}

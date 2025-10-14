@@ -15,8 +15,8 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import theme from "../../../../theme";
-import { getChartTypes } from "../../../../api/GLAccountClasses/ChartTypeApi";
-import { getChartClass, updateChartClass } from "../../../../api/GLAccountClasses/ChartClassApi";
+import { getClassTypes } from "../../../../api/GLAccounts/ClassTypeApi";
+import { getChartClass, updateChartClass } from "../../../../api/GLAccounts/ChartClassApi";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -37,7 +37,7 @@ export default function UpdateGlAccountClassesForm() {
   });
 
   const [errors, setErrors] = useState<Partial<GlAccountClassData>>({});
-  const [chartTypes, setChartTypes] = useState<any[]>([]);
+  const [classTypes, setClassTypes] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
@@ -45,7 +45,7 @@ export default function UpdateGlAccountClassesForm() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    getChartTypes().then((res) => setChartTypes(res));
+    getClassTypes().then((res) => setClassTypes(res));
     if (id) {
       getChartClass(id).then((res) => setFormData(res));
     }
@@ -121,9 +121,9 @@ export default function UpdateGlAccountClassesForm() {
           <FormControl size="small" fullWidth error={!!errors.ctype}>
             <InputLabel>Class Type</InputLabel>
             <Select name="ctype" value={formData.ctype} onChange={handleSelectChange} label="Class Type">
-              {chartTypes.map((type) => (
+              {classTypes.map((type) => (
                 <MenuItem key={type.id} value={type.id}>
-                  {type.name}
+                  {type.type_name}
                 </MenuItem>
               ))}
             </Select>
