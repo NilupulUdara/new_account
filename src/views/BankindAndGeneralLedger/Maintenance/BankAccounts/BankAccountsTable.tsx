@@ -21,39 +21,40 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
 import theme from "../../../../theme";
+import { getBankAccounts, deleteBankAccount } from "../../../../api/BankAccount/BankAccountApi";
 
-const getBankAccountsList = async () => [
-  {
-    id: 1,
-    accountName: "Main Savings",
-    type: "Savings Account",
-    currency: "LKR",
-    glAccount: "GL001",
-    bank: "BOC",
-    number: "1234567890",
-    address: "Colombo, Sri Lanka",
-    isDefault: true,
-    status: "Active",
-  },
-  {
-    id: 2,
-    accountName: "Petty Cash Account",
-    type: "Cash Account",
-    currency: "USD",
-    glAccount: "GL002",
-    bank: "HNB",
-    number: "9876543210",
-    address: "Kandy, Sri Lanka",
-    isDefault: false,
-    status: "Inactive",
-  },
-];
+// const getBankAccountsList = async () => [
+//   {
+//     id: 1,
+//     accountName: "Main Savings",
+//     type: "Savings Account",
+//     currency: "LKR",
+//     glAccount: "GL001",
+//     bank: "BOC",
+//     number: "1234567890",
+//     address: "Colombo, Sri Lanka",
+//     isDefault: true,
+//     status: "Active",
+//   },
+//   {
+//     id: 2,
+//     accountName: "Petty Cash Account",
+//     type: "Cash Account",
+//     currency: "USD",
+//     glAccount: "GL002",
+//     bank: "HNB",
+//     number: "9876543210",
+//     address: "Kandy, Sri Lanka",
+//     isDefault: false,
+//     status: "Inactive",
+//   },
+// ];
 
 function BankAccountsTable() {
   const [page, setPage] = useState(0);
@@ -62,28 +63,44 @@ function BankAccountsTable() {
   const [showInactive, setShowInactive] = useState(false);
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const { data: bankAccountsData = [] } = useQuery({
+  const { data: bankAccountsData = [], isLoading, isError } = useQuery({
     queryKey: ["bankAccounts"],
-    queryFn: getBankAccountsList,
+    queryFn: getBankAccounts,
+    refetchOnMount: true,
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteBankAccount,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bankAccounts"] });
+    },
+  });
+
+  const handleDelete = (id: number) => {
+    if (window.confirm("Are you sure you want to delete this bank account?")) {
+      deleteMutation.mutate(id);
+    }
+  };
 
   // Filter with search + showInactive toggle
   const filteredAccounts = useMemo(() => {
     if (!bankAccountsData) return [];
-    let filtered = bankAccountsData;
+
+    let filtered = [...bankAccountsData];
 
     if (!showInactive) {
-      filtered = filtered.filter((item) => item.status === "Active");
+      filtered = filtered.filter((item) => !item.inactive);
     }
 
     if (searchQuery.trim()) {
       const lowerQuery = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (item) =>
-          item.accountName.toLowerCase().includes(lowerQuery) ||
-          item.bank.toLowerCase().includes(lowerQuery) ||
-          item.number.toLowerCase().includes(lowerQuery)
+          item.bank_account_name.toLowerCase().includes(lowerQuery) ||
+          item.bank_name.toLowerCase().includes(lowerQuery) ||
+          item.bank_account_number.toLowerCase().includes(lowerQuery)
       );
     }
 
@@ -101,14 +118,24 @@ function BankAccountsTable() {
     setPage(0);
   };
 
-  const handleDelete = (id: number) => {
-    alert(`Delete Bank Account with id: ${id}`);
-  };
-
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
     { title: "Bank Accounts" },
   ];
+
+  if (isLoading)
+    return (
+      <Typography variant="body1" sx={{ textAlign: "center", mt: 4 }}>
+        Loading...
+      </Typography>
+    );
+
+  if (isError)
+    return (
+      <Typography variant="body1" sx={{ textAlign: "center", mt: 4, color: "red" }}>
+        Failed to load data.
+      </Typography>
+    );
 
   return (
     <Stack>
@@ -207,15 +234,15 @@ function BankAccountsTable() {
                 paginatedAccounts.map((item, index) => (
                   <TableRow key={item.id} hover>
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                    <TableCell>{item.accountName}</TableCell>
-                    <TableCell>{item.type}</TableCell>
-                    <TableCell>{item.currency}</TableCell>
-                    <TableCell>{item.glAccount}</TableCell>
-                    <TableCell>{item.bank}</TableCell>
-                    <TableCell>{item.number}</TableCell>
-                    <TableCell>{item.address}</TableCell>
+                    <TableCell>{item.bank_account_name}</TableCell>
+                    <TableCell>{item.account_type?.type_name ?? "—"}</TableCell>
+                    <TableCell>{item.bank_curr_code}</TableCell>
+                    <TableCell>{item.account_gl_code}</TableCell>
+                    <TableCell>{item.bank_name}</TableCell>
+                    <TableCell>{item.bank_account_number}</TableCell>
+                    <TableCell>{item.bank_address}</TableCell>
                     <TableCell>
-                      <Checkbox checked={item.isDefault} disabled />
+                      <Checkbox checked={item.default_curr_act} disabled />
                     </TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
@@ -224,7 +251,9 @@ function BankAccountsTable() {
                           size="small"
                           startIcon={<EditIcon />}
                           onClick={() =>
-                            navigate("/bankingandgeneralledger/maintenance/update-bank-accounts")
+                            navigate(
+                              `/bankingandgeneralledger/maintenance/update-bank-accounts/${item.id}`
+                            )
                           }
                         >
                           Edit

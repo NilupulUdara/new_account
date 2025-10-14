@@ -946,7 +946,7 @@ const AppRoutes = () => {
           element={withLayout(MainLayout, AddBankAccountsForm)}
         />
         <Route
-          path="/bankingandgeneralledger/maintenance/update-bank-accounts"
+          path="/bankingandgeneralledger/maintenance/update-bank-accounts/:id"
           element={withLayout(MainLayout, UpdateBankAccountsForm)}
         />
         <Route
