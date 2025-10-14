@@ -14,9 +14,11 @@ import {
     useTheme,
     useMediaQuery,
 } from "@mui/material";
+import { useQueryClient } from "@tanstack/react-query";
 import theme from "../../../../theme";
 import { getChartClasses } from "../../../../api/GLAccounts/ChartClassApi";
 import { getChartTypes, createChartType } from "../../../../api/GLAccounts/ChartTypeApi";
+import { useNavigate } from "react-router";
 
 interface GlAccountGroupData {
     id: string;
@@ -26,10 +28,11 @@ interface GlAccountGroupData {
 }
 
 export default function AddGlAccountGroupsForm() {
+    const queryClient = useQueryClient();
     const [formData, setFormData] = useState<GlAccountGroupData>({
         id: "",
         name: "",
-        subGroup: "",
+        subGroup: "None",
         class: "",
     });
 
@@ -38,12 +41,14 @@ export default function AddGlAccountGroupsForm() {
     const [errors, setErrors] = useState<Partial<GlAccountGroupData>>({});
     const muiTheme = useTheme();
     const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchChartClasses = async () => {
             try {
                 const data = await getChartClasses();
-                setChartClasses(data);
+                console.log("Fetched chart classes:", data); // Debug
+                setChartClasses(data || []);
             } catch (error) {
                 console.error("Failed to load chart classes:", error);
             }
@@ -56,7 +61,8 @@ export default function AddGlAccountGroupsForm() {
         const fetchChartTypes = async () => {
             try {
                 const data = await getChartTypes();
-                setChartTypes(data);
+                console.log("Fetched chart types:", data); // Debug
+                setChartTypes(data || []);
             } catch (error) {
                 console.error("Failed to load chart types:", error);
             }
@@ -81,7 +87,7 @@ export default function AddGlAccountGroupsForm() {
         const newErrors: Partial<GlAccountGroupData> = {};
         if (!formData.id) newErrors.id = "ID is required";
         if (!formData.name) newErrors.name = "Name is required";
-        if (!formData.subGroup) newErrors.subGroup = "Sub Group is required";
+        if (!formData.subGroup || formData.subGroup === "") newErrors.subGroup = "Sub Group is required";
         if (!formData.class) newErrors.class = "Class is required";
 
         setErrors(newErrors);
@@ -97,16 +103,22 @@ export default function AddGlAccountGroupsForm() {
                     parent: formData.subGroup === "None" ? null : formData.subGroup,
                     class_id: formData.class,
                 };
+                console.log("Submitting payload:", payload); // Debug
 
                 const res = await createChartType(payload);
                 console.log("Saved GL Account Group:", res);
 
+                // Invalidate to refresh the table query
+                queryClient.invalidateQueries({ queryKey: ["chartTypes"] });
+
                 alert("GL Account Group added successfully!");
-                setFormData({ id: "", name: "", subGroup: "", class: "" }); // clear form
+                navigate('/bankingandgeneralledger/maintenance/gl-account-groups');
+                setFormData({ id: "", name: "", subGroup: "None", class: "" }); // clear form
 
             } catch (error: any) {
                 console.error("Error saving GL Account Group:", error);
-                alert("Failed to save GL Account Group. Please try again.");
+                const errorMsg = error.response?.data?.message || "Failed to save GL Account Group. Please try again.";
+                alert(errorMsg);
             }
         }
     };
@@ -179,11 +191,15 @@ export default function AddGlAccountGroupsForm() {
                             onChange={handleSelectChange}
                             label="Class"
                         >
-                            {chartClasses.map((chartClass) => (
-                                <MenuItem key={chartClass.cid} value={chartClass.cid}>
-                                    {chartClass.class_name}
-                                </MenuItem>
-                            ))}
+                            {chartClasses.length === 0 ? (
+                                <MenuItem disabled>No classes available</MenuItem>
+                            ) : (
+                                chartClasses.map((chartClass) => (
+                                    <MenuItem key={chartClass.cid} value={chartClass.cid}>
+                                        {chartClass.class_name}
+                                    </MenuItem>
+                                ))
+                            )}
                         </Select>
                         <FormHelperText>{errors.class || " "}</FormHelperText>
                     </FormControl>

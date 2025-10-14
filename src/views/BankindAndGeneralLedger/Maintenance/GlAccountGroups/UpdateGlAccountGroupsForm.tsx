@@ -15,6 +15,7 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import theme from "../../../../theme";
 import { getChartClasses } from "../../../../api/GLAccounts/ChartClassApi";
 import { getChartTypes, getChartType, updateChartType } from "../../../../api/GLAccounts/ChartTypeApi";
@@ -29,13 +30,14 @@ interface GlAccountGroupData {
 export default function UpdateGlAccountGroupsForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
 
   const [formData, setFormData] = useState<GlAccountGroupData>({
     id: "",
     name: "",
-    subGroup: "",
+    subGroup: "None",
     class: "",
   });
 
@@ -48,7 +50,8 @@ export default function UpdateGlAccountGroupsForm() {
     const fetchChartClasses = async () => {
       try {
         const data = await getChartClasses();
-        setChartClasses(data);
+        console.log("Fetched chart classes:", data); // Debug
+        setChartClasses(data || []);
       } catch (error) {
         console.error("Failed to load chart classes:", error);
       }
@@ -61,7 +64,8 @@ export default function UpdateGlAccountGroupsForm() {
     const fetchChartTypes = async () => {
       try {
         const data = await getChartTypes();
-        setChartTypes(data);
+        console.log("Fetched chart types:", data); // Debug
+        setChartTypes(data || []);
       } catch (error) {
         console.error("Failed to load chart types:", error);
       }
@@ -75,11 +79,12 @@ export default function UpdateGlAccountGroupsForm() {
     const fetchGlAccountGroup = async () => {
       try {
         const res = await getChartType(id);
+        console.log("Fetched existing group:", res); // Debug
         setFormData({
-          id: res.id,
-          name: res.name,
+          id: res.id || "",
+          name: res.name || "",
           subGroup: res.parent || "None",
-          class: res.class_id,
+          class: res.class_id || "",
         });
       } catch (error) {
         console.error("Failed to fetch GL Account Group:", error);
@@ -104,7 +109,7 @@ export default function UpdateGlAccountGroupsForm() {
     const newErrors: Partial<GlAccountGroupData> = {};
     if (!formData.id) newErrors.id = "ID is required";
     if (!formData.name) newErrors.name = "Name is required";
-    if (!formData.subGroup) newErrors.subGroup = "Sub Group is required";
+    if (!formData.subGroup || formData.subGroup === "") newErrors.subGroup = "Sub Group is required";
     if (!formData.class) newErrors.class = "Class is required";
 
     setErrors(newErrors);
@@ -116,18 +121,21 @@ export default function UpdateGlAccountGroupsForm() {
 
     try {
       const payload = {
-        id: formData.id,
         name: formData.name,
-        sub_group: formData.subGroup === "None" ? null : formData.subGroup,
-        class: formData.class,
+        class_id: formData.class,
+        parent: formData.subGroup === "None" ? null : formData.subGroup,
       };
+      console.log("Submitting payload:", payload); // Debug
 
       await updateChartType(formData.id, payload);
+      // Invalidate to refresh the table query
+      queryClient.invalidateQueries({ queryKey: ["chartTypes"] });
       alert("GL Account Group updated successfully!");
       navigate(-1); // Go back after update
-    } catch (error) {
+    } catch (error: any) {
       console.error("Update failed:", error);
-      alert("Failed to update GL Account Group");
+      const errorMsg = error.response?.data?.message || "Failed to update GL Account Group";
+      alert(errorMsg);
     }
   };
 
@@ -156,7 +164,6 @@ export default function UpdateGlAccountGroupsForm() {
             onChange={handleInputChange}
             error={!!errors.id}
             helperText={errors.id || " "}
-            disabled
           />
 
           <TextField
@@ -199,11 +206,15 @@ export default function UpdateGlAccountGroupsForm() {
               onChange={handleSelectChange}
               label="Class"
             >
-              {chartClasses.map((chartClass) => (
-                <MenuItem key={chartClass.cid} value={chartClass.cid}>
-                  {chartClass.class_name}
-                </MenuItem>
-              ))}
+              {chartClasses.length === 0 ? (
+                <MenuItem disabled>No classes available</MenuItem>
+              ) : (
+                chartClasses.map((chartClass) => (
+                  <MenuItem key={chartClass.cid} value={chartClass.cid}>
+                    {chartClass.class_name}
+                  </MenuItem>
+                ))
+              )}
             </Select>
             <FormHelperText>{errors.class || " "}</FormHelperText>
           </FormControl>
