@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Stack,
@@ -13,37 +13,107 @@ import {
   Paper,
   useTheme,
   useMediaQuery,
+  CircularProgress,
+  ListSubheader,
 } from "@mui/material";
 import theme from "../../../../theme";
+import { useParams } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getBankAccount, updateBankAccount } from "../../../../api/BankAccount/BankAccountApi";
+import { getAccountTypes } from "../../../../api/BankAccount/AccountTypesApi";
+import { getCurrencies } from "../../../../api/Currency/currencyApi";
+import { getChartMasters } from "../../../../api/GLAccounts/ChartMasterApi";
 
 interface BankAccountsFormData {
-  bankAccountName: string;
-  accountType: string;
-  accountCurrency: string;
-  defaultCurrencyAccount: string;
-  bankAccountGLCode: string;
-  bankChargesAccount: string;
-  bankName: string;
-  bankAccountNumber: string;
-  bankAddress: string;
+  bank_account_name: string;
+  account_type: string;
+  bank_curr_code: string;
+  default_curr_act: boolean;
+  account_gl_code: string;
+  bank_charges_act: string;
+  bank_name: string;
+  bank_account_number: string;
+  bank_address: string;
+}
+
+interface ChartMaster {
+  account_code: string;
+  account_name: string;
+  account_type: string;
 }
 
 export default function UpdateBankAccountsForm() {
+  const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
+  const muiTheme = useTheme();
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+
   const [formData, setFormData] = useState<BankAccountsFormData>({
-    bankAccountName: "",
-    accountType: "",
-    accountCurrency: "",
-    defaultCurrencyAccount: "",
-    bankAccountGLCode: "",
-    bankChargesAccount: "",
-    bankName: "",
-    bankAccountNumber: "",
-    bankAddress: "",
+    bank_account_name: "",
+    account_type: "",
+    bank_curr_code: "",
+    default_curr_act: false,
+    account_gl_code: "",
+    bank_charges_act: "",
+    bank_name: "",
+    bank_account_number: "",
+    bank_address: "",
   });
 
   const [errors, setErrors] = useState<Partial<BankAccountsFormData>>({});
-  const muiTheme = useTheme();
-  const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+
+  // Fetch supporting data
+  const { data: accountTypes = [] } = useQuery({
+    queryKey: ["accountTypes"],
+    queryFn: () => getAccountTypes(),
+  });
+
+  const { data: currencies = [] } = useQuery({
+    queryKey: ["currencies"],
+    queryFn: () => getCurrencies(),
+  });
+
+  const { data: chartMaster = [] } = useQuery<ChartMaster[]>({
+    queryKey: ["chartMaster"],
+    queryFn: () => getChartMasters(),
+  });
+
+  // Fetch existing bank account by ID
+  const { data: existingBankAccount, isLoading } = useQuery({
+    queryKey: ["bankAccount", id],
+    queryFn: () => getBankAccount(id!),
+    enabled: !!id,
+  });
+
+  // Fill form with existing data
+  useEffect(() => {
+    if (existingBankAccount) {
+      setFormData({
+        bank_account_name: existingBankAccount.bank_account_name || "",
+        account_type: existingBankAccount.account_type?.toString() || "",
+        bank_curr_code: existingBankAccount.bank_curr_code || "",
+        default_curr_act: existingBankAccount.default_curr_act || false,
+        account_gl_code: existingBankAccount.account_gl_code || "",
+        bank_charges_act: existingBankAccount.bank_charges_act || "",
+        bank_name: existingBankAccount.bank_name || "",
+        bank_account_number: existingBankAccount.bank_account_number || "",
+        bank_address: existingBankAccount.bank_address || "",
+      });
+    }
+  }, [existingBankAccount]);
+
+  // Mutation for update
+  const mutation = useMutation({
+    mutationFn: (updatedData: BankAccountsFormData) => updateBankAccount(id!, updatedData),
+    onSuccess: () => {
+      alert("Bank account updated successfully!");
+      queryClient.invalidateQueries({ queryKey: ["bankAccounts"] });
+      window.history.back();
+    },
+    onError: (err: any) => {
+      alert(err?.message || "Failed to update bank account");
+    },
+  });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -53,44 +123,77 @@ export default function UpdateBankAccountsForm() {
 
   const handleSelectChange = (e: any) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    let val: any = value;
+    if (name === "default_curr_act") val = value === "true";
+    setFormData({ ...formData, [name]: val });
     setErrors({ ...errors, [name]: "" });
   };
 
   const validate = () => {
     const newErrors: Partial<BankAccountsFormData> = {};
-    if (!formData.bankAccountName) newErrors.bankAccountName = "Bank account name is required";
-    if (!formData.accountType) newErrors.accountType = "Select account type";
-    if (!formData.accountCurrency) newErrors.accountCurrency = "Select account currency";
-    if (!formData.defaultCurrencyAccount) newErrors.defaultCurrencyAccount = "Select default currency account";
-    if (!formData.bankAccountGLCode) newErrors.bankAccountGLCode = "Select bank account GL code";
-    if (!formData.bankChargesAccount) newErrors.bankChargesAccount = "Select bank charges account";
-    if (!formData.bankName) newErrors.bankName = "Bank name is required";
-    if (!formData.bankAccountNumber) newErrors.bankAccountNumber = "Bank account number is required";
-    if (!formData.bankAddress) newErrors.bankAddress = "Bank address is required";
-
+    if (!formData.bank_account_name) newErrors.bank_account_name = "Bank account name is required";
+    if (!formData.account_type) newErrors.account_type = "Select account type";
+    if (!formData.bank_curr_code) newErrors.bank_curr_code = "Select account currency";
+    if (!formData.account_gl_code) newErrors.account_gl_code = "Select bank account GL code";
+    if (!formData.bank_charges_act) newErrors.bank_charges_act = "Select bank charges account";
+    if (!formData.bank_name) newErrors.bank_name = "Bank name is required";
+    if (!formData.bank_account_number) newErrors.bank_account_number = "Bank account number is required";
+    if (!formData.bank_address) newErrors.bank_address = "Bank address is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = () => {
     if (validate()) {
-      console.log("Submitted Data:", formData);
-      alert("Bank account updated successfully!");
+      mutation.mutate(formData);
     }
   };
 
+  if (isLoading || !accountTypes.length || !currencies.length || !chartMaster.length) {
+    return (
+      <Stack alignItems="center" sx={{ mt: 4 }}>
+        <CircularProgress />
+      </Stack>
+    );
+  }
+
+  // Mapping numbers to descriptive text
+  const accountTypeMap: Record<string, string> = {
+      "1": "Current Assets",
+      "2": "Inventory Assets",
+      "3": "Capital Assets",
+      "4": "Current Liabilities",
+      "5": "Long Term Liabilities",
+      "6": "Share Capital",
+      "7": "Retained Earnings",
+      "8": "Sales Revenue",
+      "9": "Other Revenue",
+      "10": "Cost of Good Sold",
+      "11": "Payroll Expenses",
+      "12": "General and Adminitrative Expenses",
+  };
+
+  // Group chart accounts by descriptive account type
+  const groupedAccounts = chartMaster.reduce((acc: Record<string, ChartMaster[]>, account: ChartMaster) => {
+      const typeText = accountTypeMap[account.account_type] || "Unknown";
+      if (!acc[typeText]) acc[typeText] = [];
+      acc[typeText].push(account);
+      return acc;
+  }, {});
+
+  // Flatten the grouped accounts for direct children in Select
+  const groupedMenuItems = Object.entries(groupedAccounts).flatMap(([typeText, accounts]) => [
+    <ListSubheader key={`header-${typeText}`}>{typeText}</ListSubheader>,
+    ...accounts.map((acc) => (
+      <MenuItem key={acc.account_code} value={acc.account_code}>
+        {acc.account_code} - {acc.account_name}
+      </MenuItem>
+    )),
+  ]);
+
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
-      <Paper
-        sx={{
-          p: theme.spacing(3),
-          maxWidth: "600px",
-          width: "100%",
-          boxShadow: 2,
-          borderRadius: 2,
-        }}
-      >
+      <Paper sx={{ p: theme.spacing(3), maxWidth: "600px", width: "100%", boxShadow: 2, borderRadius: 2 }}>
         <Typography variant="h6" sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}>
           Update Bank Account
         </Typography>
@@ -98,129 +201,106 @@ export default function UpdateBankAccountsForm() {
         <Stack spacing={2}>
           <TextField
             label="Bank Account Name"
-            name="bankAccountName"
+            name="bank_account_name"
             size="small"
             fullWidth
-            value={formData.bankAccountName}
+            value={formData.bank_account_name}
             onChange={handleInputChange}
-            error={!!errors.bankAccountName}
-            helperText={errors.bankAccountName || " "}
+            error={!!errors.bank_account_name}
+            helperText={errors.bank_account_name || " "}
           />
 
-          <FormControl size="small" fullWidth error={!!errors.accountType}>
+          <FormControl size="small" fullWidth error={!!errors.account_type}>
             <InputLabel>Account Type</InputLabel>
-            <Select name="accountType" value={formData.accountType} onChange={handleSelectChange} label="Account Type">
-              <MenuItem value="Savings">Savings</MenuItem>
-              <MenuItem value="Current">Current</MenuItem>
-              <MenuItem value="Fixed Deposit">Fixed Deposit</MenuItem>
+            <Select name="account_type" value={formData.account_type} onChange={handleSelectChange} label="Account Type">
+              {accountTypes.map((t: any) => (
+                <MenuItem key={t.id} value={t.id}>
+                  {t.type_name}
+                </MenuItem>
+              ))}
             </Select>
-            <FormHelperText>{errors.accountType || " "}</FormHelperText>
+            <FormHelperText>{errors.account_type || " "}</FormHelperText>
           </FormControl>
 
-          <FormControl size="small" fullWidth error={!!errors.accountCurrency}>
+          <FormControl size="small" fullWidth error={!!errors.bank_curr_code}>
             <InputLabel>Bank Account Currency</InputLabel>
-            <Select
-              name="accountCurrency"
-              value={formData.accountCurrency}
-              onChange={handleSelectChange}
-              label="Bank Account Currency"
-            >
-              <MenuItem value="LKR">LKR</MenuItem>
-              <MenuItem value="USD">USD</MenuItem>
-              <MenuItem value="EUR">EUR</MenuItem>
+            <Select name="bank_curr_code" value={formData.bank_curr_code} onChange={handleSelectChange} label="Currency">
+              {currencies.map((c: any) => (
+                <MenuItem key={c.currency_abbreviation} value={c.currency_abbreviation}>
+                  {c.currency_abbreviation}
+                </MenuItem>
+              ))}
             </Select>
-            <FormHelperText>{errors.accountCurrency || " "}</FormHelperText>
+            <FormHelperText>{errors.bank_curr_code || " "}</FormHelperText>
           </FormControl>
 
-          <FormControl size="small" fullWidth error={!!errors.defaultCurrencyAccount}>
+          <FormControl size="small" fullWidth>
             <InputLabel>Default Currency Account</InputLabel>
             <Select
-              name="defaultCurrencyAccount"
-              value={formData.defaultCurrencyAccount}
+              name="default_curr_act"
+              value={formData.default_curr_act.toString()}
               onChange={handleSelectChange}
               label="Default Currency Account"
             >
-              <MenuItem value="Yes">Yes</MenuItem>
-              <MenuItem value="No">No</MenuItem>
+              <MenuItem value="true">Yes</MenuItem>
+              <MenuItem value="false">No</MenuItem>
             </Select>
-            <FormHelperText>{errors.defaultCurrencyAccount || " "}</FormHelperText>
           </FormControl>
 
-          <FormControl size="small" fullWidth error={!!errors.bankAccountGLCode}>
+          <FormControl size="small" fullWidth error={!!errors.account_gl_code}>
             <InputLabel>Bank Account GL Code</InputLabel>
-            <Select
-              name="bankAccountGLCode"
-              value={formData.bankAccountGLCode}
-              onChange={handleSelectChange}
-              label="Bank Account GL Code"
-            >
-              <MenuItem value="GL001">GL001</MenuItem>
-              <MenuItem value="GL002">GL002</MenuItem>
+            <Select name="account_gl_code" value={formData.account_gl_code} onChange={handleSelectChange} label="GL Code">
+              {groupedMenuItems}
             </Select>
-            <FormHelperText>{errors.bankAccountGLCode || " "}</FormHelperText>
+            <FormHelperText>{errors.account_gl_code || " "}</FormHelperText>
           </FormControl>
 
-          <FormControl size="small" fullWidth error={!!errors.bankChargesAccount}>
+          <FormControl size="small" fullWidth error={!!errors.bank_charges_act}>
             <InputLabel>Bank Charges Account</InputLabel>
-            <Select
-              name="bankChargesAccount"
-              value={formData.bankChargesAccount}
-              onChange={handleSelectChange}
-              label="Bank Charges Account"
-            >
-              <MenuItem value="BC001">BC001</MenuItem>
-              <MenuItem value="BC002">BC002</MenuItem>
+            <Select name="bank_charges_act" value={formData.bank_charges_act} onChange={handleSelectChange} label="Bank Charges Account">
+              {groupedMenuItems}
             </Select>
-            <FormHelperText>{errors.bankChargesAccount || " "}</FormHelperText>
+            <FormHelperText>{errors.bank_charges_act || " "}</FormHelperText>
           </FormControl>
 
           <TextField
             label="Bank Name"
-            name="bankName"
+            name="bank_name"
             size="small"
             fullWidth
-            value={formData.bankName}
+            value={formData.bank_name}
             onChange={handleInputChange}
-            error={!!errors.bankName}
-            helperText={errors.bankName || " "}
+            error={!!errors.bank_name}
+            helperText={errors.bank_name || " "}
           />
 
           <TextField
             label="Bank Account Number"
-            name="bankAccountNumber"
+            name="bank_account_number"
             size="small"
             fullWidth
-            value={formData.bankAccountNumber}
+            value={formData.bank_account_number}
             onChange={handleInputChange}
-            error={!!errors.bankAccountNumber}
-            helperText={errors.bankAccountNumber || " "}
+            error={!!errors.bank_account_number}
+            helperText={errors.bank_account_number || " "}
           />
 
           <TextField
             label="Bank Address"
-            name="bankAddress"
+            name="bank_address"
             size="small"
             fullWidth
             multiline
             rows={2}
-            value={formData.bankAddress}
+            value={formData.bank_address}
             onChange={handleInputChange}
-            error={!!errors.bankAddress}
-            helperText={errors.bankAddress || " "}
+            error={!!errors.bank_address}
+            helperText={errors.bank_address || " "}
           />
         </Stack>
 
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            mt: 3,
-            flexDirection: isMobile ? "column" : "row",
-            gap: isMobile ? 2 : 0,
-          }}
-        >
+        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3, flexDirection: isMobile ? "column" : "row", gap: isMobile ? 2 : 0 }}>
           <Button onClick={() => window.history.back()}>Back</Button>
-
           <Button
             variant="contained"
             fullWidth={isMobile}
