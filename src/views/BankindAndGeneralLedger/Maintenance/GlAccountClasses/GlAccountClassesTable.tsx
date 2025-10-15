@@ -26,6 +26,7 @@ import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import theme from "../../../../theme";
 
 import { getChartClasses, deleteChartClass } from "../../../../api/GLAccounts/ChartClassApi";
@@ -36,6 +37,9 @@ function GlAccountClassesTable() {
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [searchQuery, setSearchQuery] = useState("");
   const [showInactive, setShowInactive] = useState(false);
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedCid, setSelectedCid] = useState<string | null>(null);
+
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -52,18 +56,17 @@ function GlAccountClassesTable() {
 
   // Map chart type names
   const mappedClasses = useMemo(() => {
-  if (!glAccountClassesData || !classTypesData) return [];
-  return glAccountClassesData.map((item) => {
-    const matchedType = classTypesData.find(
-      (ct: any) => Number(ct.id) === Number(item.ctype)
-    );
-    return {
-      ...item,
-      classTypeName: matchedType ? matchedType.type_name : `Unknown (${item.ctype})`,
-    };
-  });
-}, [glAccountClassesData, classTypesData]);
-
+    if (!glAccountClassesData || !classTypesData) return [];
+    return glAccountClassesData.map((item) => {
+      const matchedType = classTypesData.find(
+        (ct: any) => Number(ct.id) === Number(item.ctype)
+      );
+      return {
+        ...item,
+        classTypeName: matchedType ? matchedType.type_name : `Unknown (${item.ctype})`,
+      };
+    });
+  }, [glAccountClassesData, classTypesData]);
 
   // Filter search + inactive toggle
   const filteredClasses = useMemo(() => {
@@ -94,15 +97,16 @@ function GlAccountClassesTable() {
     setPage(0);
   };
 
-  const handleDelete = async (cid: string) => {
-    if (window.confirm("Are you sure to delete this GL Account Class?")) {
-      try {
-        await deleteChartClass(cid);
-        alert("Deleted successfully!");
-        queryClient.invalidateQueries({ queryKey: ["glAccountClasses"] });
-      } catch (error) {
-        alert("Delete failed!");
-      }
+  const handleDelete = async () => {
+    if (!selectedCid) return;
+    try {
+      await deleteChartClass(selectedCid);
+      queryClient.invalidateQueries({ queryKey: ["glAccountClasses"] });
+      setOpenDeleteModal(false);
+      setSelectedCid(null);
+    } catch (error) {
+      console.error("Delete failed:", error);
+      alert("Failed to delete GL Account Class. Please try again.");
     }
   };
 
@@ -217,7 +221,10 @@ function GlAccountClassesTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(item.cid)}
+                          onClick={() => {
+                            setSelectedCid(item.cid);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -252,6 +259,16 @@ function GlAccountClassesTable() {
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* ✅ Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete GL Account Class"
+        content="Are you sure you want to delete this GL Account Class? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedCid(null)}
+        deleteFunc={handleDelete}
+      />
     </Stack>
   );
 }

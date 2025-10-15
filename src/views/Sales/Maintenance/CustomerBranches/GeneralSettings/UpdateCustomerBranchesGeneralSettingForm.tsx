@@ -170,7 +170,11 @@ export default function UpdateCustomerBranchesGeneralSettingForm() {
   const handleSubmit = async () => {
     if (!validate()) return;
     if (!branchCode) {
-      alert("Branch code is missing.");
+      setErrorMessage(
+        "Failed to update Branch Please try again."
+      );
+      setErrorOpen(true);
+      // alert("Branch code is missing.");
       return;
     }
 
@@ -201,10 +205,10 @@ export default function UpdateCustomerBranchesGeneralSettingForm() {
     } catch (error) {
       console.error("Update failed", error);
       setErrorMessage(
-          error?.response?.data?.message ||
-          "Failed to update Branch Please try again."
-        );
-        setErrorOpen(true);
+        error?.response?.data?.message ||
+        "Failed to update Branch Please try again."
+      );
+      setErrorOpen(true);
       // alert("Failed to update branch.");
     }
   };

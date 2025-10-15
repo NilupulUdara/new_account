@@ -29,6 +29,7 @@ import DeleteConfirmationModal from "../../../../components/DeleteConfirmationMo
 import theme from "../../../../theme";
 import { getTaxTypes, deleteTaxType } from "../../../../api/Tax/taxServices";
 import ErrorModal from "../../../../components/ErrorModal";
+import { getChartMasters } from "../../../../api/GLAccounts/ChartMasterApi";
 
 export default function TaxGroupTable() {
   const [taxGroups, setTaxGroups] = useState<any[]>([]);
@@ -43,6 +44,19 @@ export default function TaxGroupTable() {
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
+  const [chartMasters, setChartMasters] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchChartMasters = async () => {
+      try {
+        const data = await getChartMasters(); // Fetch GL accounts
+        setChartMasters(data);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchChartMasters();
+  }, []);
   // Load tax groups
   const loadTaxGroups = async () => {
     try {
@@ -193,8 +207,14 @@ export default function TaxGroupTable() {
                   <TableRow key={group.id} hover>
                     <TableCell>{group.description}</TableCell>
                     <TableCell>{group.default_rate}</TableCell>
-                    <TableCell>{group.sales_gl_account}</TableCell>
-                    <TableCell>{group.purchasing_gl_account}</TableCell>
+                    <TableCell>
+                      {chartMasters.find((acc) => acc.account_code === group.sales_gl_account)?.account_name || group.sales_gl_account} 
+                      - {group.sales_gl_account}
+                    </TableCell>
+                    <TableCell>
+                      {chartMasters.find((acc) => acc.account_code === group.purchasing_gl_account)?.account_name || group.purchasing_gl_account} 
+                      - {group.purchasing_gl_account}
+                    </TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button

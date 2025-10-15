@@ -13,6 +13,7 @@ import {
     Checkbox,
     FormControlLabel,
     Grid,
+    FormHelperText,
 } from "@mui/material";
 import theme from "../../../../../theme";
 import {
@@ -53,6 +54,7 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
         mailingAddress: "",
         physicalAddress: "",
         generalNotes: "",
+        status: "",
     });
 
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -106,6 +108,7 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                         mailingAddress: res.mailing_address || "",
                         physicalAddress: res.physical_address || "",
                         generalNotes: res.general_notes || "",
+                        status: "",
                     });
                     setSelectedCustomer(res.id);
                 }
@@ -481,7 +484,20 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                                 error={!!errors.generalNotes}
                                 helperText={errors.generalNotes}
                             />
+                            <FormControl fullWidth size="small" error={!!errors.status}>
+                                <InputLabel>Customer Status</InputLabel>
+                                <Select
+                                    value={formData.status || ''}
+                                    onChange={(e) => handleChange("status", e.target.value)}
+                                    label="Customer Status"
+                                >
+                                    <MenuItem value="Active">Active</MenuItem>
+                                    <MenuItem value="Inactive">Inactive</MenuItem>
+                                </Select>
+                                <FormHelperText>{errors.status || " "}</FormHelperText>
+                            </FormControl>
                         </Stack>
+
                     </Grid>
                 </Grid>
 
@@ -498,15 +514,17 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                     <Button
                         variant="outlined"
                         onClick={() => window.history.back()}
-                        sx={{ width: { xs: "100%", sm: 150 } }} 
+                        sx={{ width: { xs: "100%", sm: 150 } }}
                     >
                         Back
                     </Button>
 
                     <Button
                         variant="contained"
-                        sx={{ backgroundColor: theme.palette.primary.main, 
-                        width: { xs: "100%", sm: 150 } }}
+                        sx={{
+                            backgroundColor: theme.palette.primary.main,
+                            width: { xs: "100%", sm: 150 }
+                        }}
                         onClick={handleUpdate}
                     >
                         Update Supplier

@@ -14,6 +14,7 @@ import {
   FormControlLabel,
   Grid,
   ListSubheader,
+  FormHelperText,
 } from "@mui/material";
 import theme from "../../../../../theme";
 import { createSupplier } from "../../../../../api/Supplier/SupplierApi";
@@ -49,12 +50,13 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
     secondaryPhone: "",
     fax: "",
     email: "",
+    dimension: "",
     documentLanguage: "",
     mailingAddress: "",
     physicalAddress: "",
     generalNotes: "",
   });
-  
+
   const accountTypeMap: { [key: number]: string } = {
     "1": "Current Assets",
     "2": "Inventory Assets",
@@ -184,6 +186,8 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
         secondary_phone: formData.secondaryPhone,
         fax: formData.fax,
         email: formData.email,
+        dimension_id: Number(formData.dimension) || 0,
+        dimension2_id: 0,
         document_language: formData.documentLanguage,
         mailing_address: formData.mailingAddress,
         physical_address: formData.physicalAddress,
@@ -215,6 +219,7 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
         fax: "",
         email: "",
         documentLanguage: "",
+        dimension: "",
         mailingAddress: "",
         physicalAddress: "",
         generalNotes: "",
@@ -563,6 +568,7 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
                 </Select>
                 <Typography variant="caption" color="error">{errors.documentLanguage}</Typography>
               </FormControl>
+
             </Stack>
           </Grid>
 
@@ -614,6 +620,27 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
               />
             </Stack>
           </Grid>
+
+          {/* Dimension */}
+          <Grid item xs={12} md={6}>
+            <Stack spacing={2}>
+              <Typography variant="subtitle1">Dimension</Typography>
+              <Divider />
+              <FormControl fullWidth size="small" error={!!errors.dimension}>
+                <InputLabel>Dimension 1</InputLabel>
+                <Select
+                  value={formData.dimension}
+                  onChange={(e) => handleChange("dimension", e.target.value)}
+                  label="Dimension 1"
+                >
+                  <MenuItem value="0">0</MenuItem>
+                  <MenuItem value="1">1</MenuItem>
+                </Select>
+                <FormHelperText>{errors.dimension || " "}</FormHelperText>
+              </FormControl>
+            </Stack>
+          </Grid>
+
         </Grid>
 
         {/* Action Buttons */}

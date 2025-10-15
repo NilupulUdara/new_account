@@ -14,13 +14,14 @@ import {
   FormHelperText,
   useTheme,
   useMediaQuery,
+  ListSubheader,
 } from "@mui/material";
 import theme from "../../../../theme";
 import { updateTaxType, getTaxType } from "../../../../api/Tax/taxServices";
 import { useParams } from "react-router";
 import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
 import ErrorModal from "../../../../components/ErrorModal";
-
+import { getChartMasters } from "../../../../api/GLAccounts/ChartMasterApi";
 interface TaxFormData {
   description: string;
   defaultRate: string;
@@ -39,6 +40,26 @@ export default function UpdateTaxTypes() {
     salesGlAccount: "",
     purchasingGlAccount: "",
   });
+
+  const accountTypeMap: { [key: number]: string } = {
+    "1": "Current Assets",
+    "2": "Inventory Assets",
+    "3": "Capital Assets",
+    "4": "Current Liabilities",
+    "5": "Long Term Liabilities",
+    "6": "Share Capital",
+    "7": "Retained Earnings",
+    "8": "Sales Revenue",
+    "9": "Other Revenue",
+    "10": "Cost of Good Sold",
+    "11": "Payroll Expenses",
+    "12": "General and Adminitrative Expenses",
+  };
+
+  const [chartMasters, setChartMasters] = useState<any[]>([]);
+  useEffect(() => {
+    getChartMasters().then(setChartMasters);
+  }, []);
 
   const [errors, setErrors] = useState<Partial<TaxFormData>>({});
 
@@ -162,9 +183,25 @@ export default function UpdateTaxTypes() {
               onChange={handleSelectChange}
               label="Sales GL Account"
             >
-              <MenuItem value="4000 - Sales Revenue">4000 - Sales Revenue</MenuItem>
-              <MenuItem value="4010 - Services Revenue">4010 - Services Revenue</MenuItem>
-              <MenuItem value="4020 - Other Income">4020 - Other Income</MenuItem>
+              {Object.entries(
+                chartMasters.reduce((acc: any, account) => {
+                  const type = account.account_type || "Unknown";
+                  if (!acc[type]) acc[type] = [];
+                  acc[type].push(account);
+                  return acc;
+                }, {})
+              ).flatMap(([type, accounts]: any) => [
+                <ListSubheader key={`header-${type}`}>
+                  {accountTypeMap[Number(type)] || "Unknown"}
+                </ListSubheader>,
+                ...accounts.map((acc: any) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code} - {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ])}
             </Select>
             <FormHelperText>{errors.salesGlAccount}</FormHelperText>
           </FormControl>
@@ -177,9 +214,25 @@ export default function UpdateTaxTypes() {
               onChange={handleSelectChange}
               label="Purchasing GL Account"
             >
-              <MenuItem value="5000 - Purchase Expenses">5000 - Purchase Expenses</MenuItem>
-              <MenuItem value="5010 - Freight Expenses">5010 - Freight Expenses</MenuItem>
-              <MenuItem value="5020 - Other Costs">5020 - Other Costs</MenuItem>
+              {Object.entries(
+                chartMasters.reduce((acc: any, account) => {
+                  const type = account.account_type || "Unknown";
+                  if (!acc[type]) acc[type] = [];
+                  acc[type].push(account);
+                  return acc;
+                }, {})
+              ).flatMap(([type, accounts]: any) => [
+                <ListSubheader key={`header-${type}`}>
+                  {accountTypeMap[Number(type)] || "Unknown"}
+                </ListSubheader>,
+                ...accounts.map((acc: any) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code} - {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ])}
             </Select>
             <FormHelperText>{errors.purchasingGlAccount}</FormHelperText>
           </FormControl>

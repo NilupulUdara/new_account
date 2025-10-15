@@ -26,30 +26,20 @@ import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import theme from "../../../../theme";
 
 import { getChartClasses } from "../../../../api/GLAccounts/ChartClassApi";
 import { getChartTypes, deleteChartType } from "../../../../api/GLAccounts/ChartTypeApi";
-
-// const getGlAccountGroupsList = async () => [
-//   { id: 1, name: "Current Assets", subGroup: "", class: "Assets", status: "Active", },
-//   { id: 2, name: "Inventory Assets", subGroup: "", class: "Assets", status: "Active", },
-//   { id: 3, name: "Capital Assets", subGroup: "", class: "Assets", status: "Active", },
-//   { id: 4, name: "Current Liabilties", subGroup: "", class: "Liabilities", status: "Inactive", },
-//   { id: 5, name: "Long Term Liabilties", subGroup: "", class: "Liabilities", status: "Active", },
-//   { id: 6, name: "Share Capital", subGroup: "", class: "Liabilities", status: "Active", },
-//   { id: 7, name: "Retain Earnings", subGroup: "", class: "Income", status: "Inactive", },
-//   { id: 8, name: "Sales Revenue", subGroup: "", class: "Income", status: "Active", },
-//   { id: 9, name: "Other Revenue", subGroup: "", class: "Costs", status: "Inactive", },
-//   { id: 10, name: "Cost of Goods Sold", subGroup: "", class: "Costs", status: "Active", },
-
-// ];
 
 function GlAccountGroupsTable() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [searchQuery, setSearchQuery] = useState("");
   const [showInactive, setShowInactive] = useState(false);
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -71,20 +61,13 @@ function GlAccountGroupsTable() {
     if (!chartTypesData || !chartClassesData) return [];
 
     return chartTypesData.map((item: any) => {
-      // find class name
-      const matchedClass = chartClassesData.find(
-        (cc: any) => cc.cid === item.class_id
-      );
-
-      // find parent name from same list
-      const parentGroup = chartTypesData.find(
-        (g: any) => String(g.id) === String(item.parent)
-      );
+      const matchedClass = chartClassesData.find((cc: any) => cc.cid === item.class_id);
+      const parentGroup = chartTypesData.find((g: any) => String(g.id) === String(item.parent));
 
       return {
         ...item,
         className: matchedClass ? matchedClass.class_name : `Unknown (${item.class_id})`,
-        parentName: parentGroup ? parentGroup.name : "-", // ✅ map parent id to name
+        parentName: parentGroup ? parentGroup.name : "-",
       };
     });
   }, [chartTypesData, chartClassesData]);
@@ -117,15 +100,16 @@ function GlAccountGroupsTable() {
     setPage(0);
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this GL Account Group?")) {
-      try {
-        await deleteChartType(id);
-        alert("Deleted successfully!");
-        queryClient.invalidateQueries({ queryKey: ["chartTypes"] });
-      } catch (error) {
-        alert("Failed to delete GL Account Group!");
-      }
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    try {
+      await deleteChartType(selectedId);
+      queryClient.invalidateQueries({ queryKey: ["chartTypes"] });
+      setOpenDeleteModal(false);
+      setSelectedId(null);
+    } catch (error) {
+      console.error("Failed to delete GL Account Group:", error);
+      alert("Failed to delete GL Account Group. Please try again.");
     }
   };
 
@@ -163,11 +147,7 @@ function GlAccountGroupsTable() {
             Add GL Account Groups
           </Button>
 
-          <Button
-            variant="outlined"
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate(-1)}
-          >
+          <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>
             Back
           </Button>
         </Stack>
@@ -185,31 +165,18 @@ function GlAccountGroupsTable() {
         }}
       >
         <FormControlLabel
-          control={
-            <Checkbox
-              checked={showInactive}
-              onChange={(e) => setShowInactive(e.target.checked)}
-            />
-          }
+          control={<Checkbox checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />}
           label="Show also Inactive"
         />
 
         <Box sx={{ width: isMobile ? "100%" : "300px" }}>
-          <SearchBar
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            placeholder="Search..."
-          />
+          <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} placeholder="Search..." />
         </Box>
       </Box>
 
       {/* Table */}
       <Stack sx={{ alignItems: "center" }}>
-        <TableContainer
-          component={Paper}
-          elevation={2}
-          sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}
-        >
+        <TableContainer component={Paper} elevation={2} sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}>
           <Table aria-label="gl account groups table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
@@ -246,7 +213,10 @@ function GlAccountGroupsTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() => {
+                            setSelectedId(item.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -281,6 +251,16 @@ function GlAccountGroupsTable() {
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* ✅ Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete GL Account Group"
+        content="Are you sure you want to delete this GL Account Group? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedId(null)}
+        deleteFunc={handleDelete}
+      />
     </Stack>
   );
 }
