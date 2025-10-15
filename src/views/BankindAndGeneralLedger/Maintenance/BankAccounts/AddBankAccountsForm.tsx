@@ -22,6 +22,8 @@ import { getAccountTypes } from "../../../../api/BankAccount/AccountTypesApi";
 import { getCurrencies } from "../../../../api/Currency/currencyApi";
 import { getChartMasters } from "../../../../api/GLAccounts/ChartMasterApi";
 import { createBankAccount } from "../../../../api/BankAccount/BankAccountApi";
+import ErrorModal from "../../../../components/ErrorModal";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 
 interface BankAccountsFormData {
   bank_account_name: string;
@@ -53,7 +55,9 @@ export default function AddBankAccountsForm() {
     bank_account_number: "",
     bank_address: "",
   });
-
+const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<Partial<BankAccountsFormData>>({});
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
@@ -107,6 +111,7 @@ export default function AddBankAccountsForm() {
   const handleSubmit = () => {
     if (validate()) {
       mutation.mutate(formData);
+      setOpen(true);
     }
   };
 
@@ -269,6 +274,19 @@ export default function AddBankAccountsForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+              open={open}
+              title="Success"
+              content="Bank Account has been added successfully!"
+              addFunc={async () => { }}
+              handleClose={() => setOpen(false)}
+              onSuccess={() => window.history.back()}
+            />
+            <ErrorModal
+              open={errorOpen}
+              onClose={() => setErrorOpen(false)}
+              message={errorMessage}
+            />
     </Stack>
   );
 }

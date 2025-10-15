@@ -19,6 +19,8 @@ import { getClassTypes } from "../../../../api/GLAccounts/ClassTypeApi";
 import { createChartClass } from "../../../../api/GLAccounts/ChartClassApi";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import ErrorModal from "../../../../components/ErrorModal";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 
 interface GlAccountClassData {
   cid?: string;
@@ -34,7 +36,9 @@ export default function AddGlAccountClassesForm() {
     ctype: "",
     inactive: false,
   });
-
+const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<Partial<GlAccountClassData>>({});
   const [classTypes, setClassTypes] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -75,10 +79,13 @@ export default function AddGlAccountClassesForm() {
     try {
       await createChartClass(formData);
       await queryClient.refetchQueries({ queryKey: ["glAccountClasses"] });
-      alert("GL Account Class added successfully!");
-      navigate('/bankingandgeneralledger/maintenance/gl-account-classes');
+     setOpen(true);
     } catch (error) {
-      alert("Failed to add GL Account Class");
+      setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to add GL Account Class Please try again."
+        );
+        setErrorOpen(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -140,6 +147,19 @@ export default function AddGlAccountClassesForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+              open={open}
+              title="Success"
+              content="GL Account Class has been added successfully!"
+              addFunc={async () => { }}
+              handleClose={() => setOpen(false)}
+              onSuccess={() => window.history.back()}
+            />
+            <ErrorModal
+              open={errorOpen}
+              onClose={() => setErrorOpen(false)}
+              message={errorMessage}
+            />
     </Stack>
   );
 }

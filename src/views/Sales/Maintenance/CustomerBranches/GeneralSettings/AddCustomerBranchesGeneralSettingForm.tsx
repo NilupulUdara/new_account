@@ -12,6 +12,7 @@ import {
   Button,
   Divider,
   FormHelperText,
+  ListSubheader,
 } from "@mui/material";
 import theme from "../../../../../theme";
 import {
@@ -28,6 +29,7 @@ import { useParams } from "react-router";
 import ErrorModal from "../../../../../components/ErrorModal";
 import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
 import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
+import { getChartMasters } from "../../../../../api/GLAccounts/ChartMasterApi";
 
 export default function AddCustomerBranchesGeneralSettingForm() {
   const { id: customerId } = useParams();
@@ -35,14 +37,14 @@ export default function AddCustomerBranchesGeneralSettingForm() {
     if (customerId) setFormData((prev) => ({ ...prev, debtor_no: customerId }));
   }, [customerId]);
 
-const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState({
-    debtor_no: customerId,   
+    debtor_no: customerId,
     branchName: "",
     branchShortName: "",
-    branch_ref: "",          
+    branch_ref: "",
     salesPerson: "",
     salesArea: "",
     salesGroup: "",
@@ -64,6 +66,26 @@ const [open, setOpen] = useState(false);
     billingAddress: "",
     generalNotes: "",
   });
+
+  const accountTypeMap: { [key: number]: string } = {
+    "1": "Current Assets",
+    "2": "Inventory Assets",
+    "3": "Capital Assets",
+    "4": "Current Liabilities",
+    "5": "Long Term Liabilities",
+    "6": "Share Capital",
+    "7": "Retained Earnings",
+    "8": "Sales Revenue",
+    "9": "Other Revenue",
+    "10": "Cost of Good Sold",
+    "11": "Payroll Expenses",
+    "12": "General and Adminitrative Expenses",
+  };
+
+  const [chartMasters, setChartMasters] = useState<any[]>([]);
+  useEffect(() => {
+    getChartMasters().then(setChartMasters);
+  }, []);
 
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -143,70 +165,70 @@ const [open, setOpen] = useState(false);
   };
 
   const handleSubmit = async () => {
-  if (validate()) {
-    try {
-      const branchPayload = {
-        debtor_no: formData.debtor_no,
-        br_name: formData.branchName,
-        branch_ref: formData.branchShortName,
-        sales_area: formData.salesArea ? Number(formData.salesArea) : null,
-        sales_person: formData.salesPerson ? Number(formData.salesPerson) : null,
-        inventory_location: formData.defaultInventoryLocation,
-        shipping_company: formData.defaultShippingCompany,
-        tax_group: formData.taxGroup ? Number(formData.taxGroup) : null,
-        sales_group: formData.salesGroup ? Number(formData.salesGroup) : null,       
-        sales_account: formData.salesAccount || '',
-        sales_discount_account: formData.salesDiscountAccount || '',
-        receivables_account: formData.accountsReceivable || '',
-        payment_discount_account: formData.promptPaymentDiscount || '',
-        bank_account: formData.bankAccountNumber || '',
-        contact_person: formData.contactPerson || '',
-        br_address: formData.billingAddress || '',
-        br_post_address:formData.mailingAddress || '', 
-        notes: formData.generalNotes || '',
-      };
+    if (validate()) {
+      try {
+        const branchPayload = {
+          debtor_no: formData.debtor_no,
+          br_name: formData.branchName,
+          branch_ref: formData.branchShortName,
+          sales_area: formData.salesArea ? Number(formData.salesArea) : null,
+          sales_person: formData.salesPerson ? Number(formData.salesPerson) : null,
+          inventory_location: formData.defaultInventoryLocation,
+          shipping_company: formData.defaultShippingCompany,
+          tax_group: formData.taxGroup ? Number(formData.taxGroup) : null,
+          sales_group: formData.salesGroup ? Number(formData.salesGroup) : null,
+          sales_account: formData.salesAccount || '',
+          sales_discount_account: formData.salesDiscountAccount || '',
+          receivables_account: formData.accountsReceivable || '',
+          payment_discount_account: formData.promptPaymentDiscount || '',
+          bank_account: formData.bankAccountNumber || '',
+          contact_person: formData.contactPerson || '',
+          br_address: formData.billingAddress || '',
+          br_post_address: formData.mailingAddress || '',
+          notes: formData.generalNotes || '',
+        };
 
-      const branch = await createBranch(branchPayload);
+        const branch = await createBranch(branchPayload);
 
-      const contactPayload = {
-              ref: branch.branch_ref,
-              name: formData.contactPerson,
-              address: formData.mailingAddress,
-              phone: formData.phoneNumber,
-              phone2: formData.secondaryPhoneNumber,
-              fax: formData.faxNumber || '',
-              email: formData.email,
-              lang: formData.documentLanguage || '',
-              notes: formData.generalNotes || '',
-              inactive: 0,
-            };
-      
-            await createCustomerContact(contactPayload);
+        const contactPayload = {
+          ref: branch.branch_ref,
+          name: formData.contactPerson,
+          address: formData.mailingAddress,
+          phone: formData.phoneNumber,
+          phone2: formData.secondaryPhoneNumber,
+          fax: formData.faxNumber || '',
+          email: formData.email,
+          lang: formData.documentLanguage || '',
+          notes: formData.generalNotes || '',
+          inactive: 0,
+        };
 
-      setOpen(true);
-    } catch (err: any) {
-      console.error(err);
-      if (err.response?.data?.errors) {
-        console.table(err.response.data.errors);
-        // alert(
-        //   "Validation failed:\n" +
-        //     Object.values(err.response.data.errors).flat().join("\n")
-        // );
-        setErrorMessage(
-        err?.response?.data?.message ||
-        "Validation Failed Please try again."
-      );
-      setErrorOpen(true);
-      } else {
-        setErrorMessage(
-                "Failed to save branch. See console for details."
-              );
-              setErrorOpen(true);
-        // alert("Failed to save branch. See console for details.");
+        await createCustomerContact(contactPayload);
+
+        setOpen(true);
+      } catch (err: any) {
+        console.error(err);
+        if (err.response?.data?.errors) {
+          console.table(err.response.data.errors);
+          // alert(
+          //   "Validation failed:\n" +
+          //     Object.values(err.response.data.errors).flat().join("\n")
+          // );
+          setErrorMessage(
+            err?.response?.data?.message ||
+            "Validation Failed Please try again."
+          );
+          setErrorOpen(true);
+        } else {
+          setErrorMessage(
+            "Failed to save branch. See console for details."
+          );
+          setErrorOpen(true);
+          // alert("Failed to save branch. See console for details.");
+        }
       }
     }
-  }
-};
+  };
 
 
   return (
@@ -378,55 +400,138 @@ const [open, setOpen] = useState(false);
                 <Typography variant="subtitle1">GL Accounts</Typography>
                 <Divider />
 
-                <FormControl fullWidth size="small">
+                {/* Sales Account */}
+                <FormControl size="small" fullWidth error={!!errors.salesAccount}>
                   <InputLabel>Sales Account</InputLabel>
                   <Select
                     value={formData.salesAccount}
                     onChange={(e) => handleChange("salesAccount", e.target.value)}
                     label="Sales Account"
                   >
-                    <MenuItem value="sales">Sales</MenuItem>
-                    <MenuItem value="product">Product</MenuItem>
-                    <MenuItem value="service">Service</MenuItem>
+                    {Object.entries(
+                      chartMasters.reduce((acc: any, account) => {
+                        const type = account.account_type || "Unknown";
+                        if (!acc[type]) acc[type] = [];
+                        acc[type].push(account);
+                        return acc;
+                      }, {})
+                    ).flatMap(([type, accounts]: any) => [
+                      <ListSubheader key={`header-${type}`}>
+                        {accountTypeMap[Number(type)] || "Unknown"}
+                      </ListSubheader>,
+                      ...accounts.map((acc: any) => (
+                        <MenuItem key={acc.account_code} value={acc.account_code}>
+                          <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                            {acc.account_code} - {acc.account_name}
+                          </Stack>
+                        </MenuItem>
+                      )),
+                    ])}
                   </Select>
+                  <Typography variant="caption" color="error">
+                    {errors.salesAccount}
+                  </Typography>
                 </FormControl>
 
-                <FormControl fullWidth size="small">
+                {/* Sales Discount Account */}
+                <FormControl size="small" fullWidth error={!!errors.salesDiscountAccount}>
                   <InputLabel>Sales Discount Account</InputLabel>
                   <Select
                     value={formData.salesDiscountAccount}
                     onChange={(e) => handleChange("salesDiscountAccount", e.target.value)}
                     label="Sales Discount Account"
                   >
-                    <MenuItem value="discount">Discount</MenuItem>
-                    <MenuItem value="seasonal">Seasonal</MenuItem>
-                    <MenuItem value="volume">Volume</MenuItem>
+                    {Object.entries(
+                      chartMasters.reduce((acc: any, account) => {
+                        const type = account.account_type || "Unknown";
+                        if (!acc[type]) acc[type] = [];
+                        acc[type].push(account);
+                        return acc;
+                      }, {})
+                    ).flatMap(([type, accounts]: any) => [
+                      <ListSubheader key={`header-${type}`}>
+                        {accountTypeMap[Number(type)] || "Unknown"}
+                      </ListSubheader>,
+                      ...accounts.map((acc: any) => (
+                        <MenuItem key={acc.account_code} value={acc.account_code}>
+                          <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                            {acc.account_code} - {acc.account_name}
+                          </Stack>
+                        </MenuItem>
+                      )),
+                    ])}
                   </Select>
+                  <Typography variant="caption" color="error">
+                    {errors.salesDiscountAccount}
+                  </Typography>
                 </FormControl>
 
-                <FormControl fullWidth size="small">
-                  <InputLabel>Accounts Receivable</InputLabel>
+                {/* Accounts Receivable Account */}
+                <FormControl size="small" fullWidth error={!!errors.accountsReceivable}>
+                  <InputLabel>Accounts Receivable Account</InputLabel>
                   <Select
                     value={formData.accountsReceivable}
                     onChange={(e) => handleChange("accountsReceivable", e.target.value)}
-                    label="Accounts Receivable"
+                    label="Accounts Receivable Account"
                   >
-                    <MenuItem value="domestic">Domestic</MenuItem>
-                    <MenuItem value="foreign">Foreign</MenuItem>
+                    {Object.entries(
+                      chartMasters.reduce((acc: any, account) => {
+                        const type = account.account_type || "Unknown";
+                        if (!acc[type]) acc[type] = [];
+                        acc[type].push(account);
+                        return acc;
+                      }, {})
+                    ).flatMap(([type, accounts]: any) => [
+                      <ListSubheader key={`header-${type}`}>
+                        {accountTypeMap[Number(type)] || "Unknown"}
+                      </ListSubheader>,
+                      ...accounts.map((acc: any) => (
+                        <MenuItem key={acc.account_code} value={acc.account_code}>
+                          <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                            {acc.account_code} - {acc.account_name}
+                          </Stack>
+                        </MenuItem>
+                      )),
+                    ])}
                   </Select>
+                  <Typography variant="caption" color="error">
+                    {errors.accountsReceivable}
+                  </Typography>
                 </FormControl>
 
-                <FormControl fullWidth size="small">
-                  <InputLabel>Prompt Payment Discount</InputLabel>
+                {/* Prompt Payment Discount Account */}
+                <FormControl size="small" fullWidth error={!!errors.promptPaymentDiscount}>
+                  <InputLabel>Prompt Payment Discount Account</InputLabel>
                   <Select
                     value={formData.promptPaymentDiscount}
                     onChange={(e) => handleChange("promptPaymentDiscount", e.target.value)}
-                    label="Prompt Payment Discount"
+                    label="Prompt Payment Discount Account"
                   >
-                    <MenuItem value="early">Early</MenuItem>
-                    <MenuItem value="cash">Cash</MenuItem>
+                    {Object.entries(
+                      chartMasters.reduce((acc: any, account) => {
+                        const type = account.account_type || "Unknown";
+                        if (!acc[type]) acc[type] = [];
+                        acc[type].push(account);
+                        return acc;
+                      }, {})
+                    ).flatMap(([type, accounts]: any) => [
+                      <ListSubheader key={`header-${type}`}>
+                        {accountTypeMap[Number(type)] || "Unknown"}
+                      </ListSubheader>,
+                      ...accounts.map((acc: any) => (
+                        <MenuItem key={acc.account_code} value={acc.account_code}>
+                          <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                            {acc.account_code} - {acc.account_name}
+                          </Stack>
+                        </MenuItem>
+                      )),
+                    ])}
                   </Select>
+                  <Typography variant="caption" color="error">
+                    {errors.promptPaymentDiscount}
+                  </Typography>
                 </FormControl>
+
 
                 <TextField
                   label="Bank Account Number"
@@ -506,19 +611,19 @@ const [open, setOpen] = useState(false);
         </Box>
       </Box>
       <AddedConfirmationModal
-              open={open}
-              title="Success"
-              content="Customer Branch has been added successfully!"
-              addFunc={async () => { }}
-              handleClose={() => setOpen(false)}
-              onSuccess={() => window.history.back()}
-            />
-      
-            <ErrorModal
-              open={errorOpen}
-              onClose={() => setErrorOpen(false)}
-              message={errorMessage}
-            />
+        open={open}
+        title="Success"
+        content="Customer Branch has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

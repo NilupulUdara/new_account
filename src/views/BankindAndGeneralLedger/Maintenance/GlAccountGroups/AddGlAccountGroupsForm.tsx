@@ -19,6 +19,8 @@ import theme from "../../../../theme";
 import { getChartClasses } from "../../../../api/GLAccounts/ChartClassApi";
 import { getChartTypes, createChartType } from "../../../../api/GLAccounts/ChartTypeApi";
 import { useNavigate } from "react-router";
+import ErrorModal from "../../../../components/ErrorModal";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 
 interface GlAccountGroupData {
     id: string;
@@ -35,7 +37,9 @@ export default function AddGlAccountGroupsForm() {
         subGroup: "None",
         class: "",
     });
-
+    const [open, setOpen] = useState(false);
+    const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
     const [chartClasses, setChartClasses] = useState<any[]>([]);
     const [chartTypes, setChartTypes] = useState<any[]>([]);
     const [errors, setErrors] = useState<Partial<GlAccountGroupData>>({});
@@ -110,15 +114,20 @@ export default function AddGlAccountGroupsForm() {
 
                 // Invalidate to refresh the table query
                 queryClient.invalidateQueries({ queryKey: ["chartTypes"] });
-
-                alert("GL Account Group added successfully!");
-                navigate('/bankingandgeneralledger/maintenance/gl-account-groups');
+                setOpen(true);
+                // alert("GL Account Group added successfully!");
+                // navigate('/bankingandgeneralledger/maintenance/gl-account-groups');
                 setFormData({ id: "", name: "", subGroup: "None", class: "" }); // clear form
 
             } catch (error: any) {
                 console.error("Error saving GL Account Group:", error);
                 const errorMsg = error.response?.data?.message || "Failed to save GL Account Group. Please try again.";
-                alert(errorMsg);
+                // alert(errorMsg);
+                setErrorMessage(
+                    error?.response?.data?.message ||
+                    "Failed to add GL Account Group Please try again."
+                );
+                setErrorOpen(true);
             }
         }
     };
@@ -227,6 +236,19 @@ export default function AddGlAccountGroupsForm() {
                     </Button>
                 </Box>
             </Paper>
+            <AddedConfirmationModal
+                open={open}
+                title="Success"
+                content="GL Account Group has been added successfully!"
+                addFunc={async () => { }}
+                handleClose={() => setOpen(false)}
+                onSuccess={() => window.history.back()}
+            />
+            <ErrorModal
+                open={errorOpen}
+                onClose={() => setErrorOpen(false)}
+                message={errorMessage}
+            />
         </Stack>
     );
 }

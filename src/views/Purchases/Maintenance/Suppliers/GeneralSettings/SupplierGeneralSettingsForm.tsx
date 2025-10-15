@@ -54,6 +54,7 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
     physicalAddress: "",
     generalNotes: "",
   });
+  
   const accountTypeMap: { [key: number]: string } = {
     "1": "Current Assets",
     "2": "Inventory Assets",
@@ -398,34 +399,37 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
                 <Select
                   value={formData.accountsPayable}
                   onChange={(e) => handleChange("accountsPayable", e.target.value)}
-                  renderValue={(selected) => selected || "Select Account"}
+                  label="Accounts Payable Account"
                 >
                   {(() => {
-                    const grouped: { [key: number]: any[] } = {};
-                    chartMasters.forEach((cm) => {
-                      if (!grouped[cm.account_type]) grouped[cm.account_type] = [];
-                      grouped[cm.account_type].push(cm);
+                    // Group chart masters by account_type
+                    const groupedAccounts: { [key: string]: any[] } = {};
+                    chartMasters.forEach((acc) => {
+                      const type = acc.account_type || "Unknown";
+                      if (!groupedAccounts[type]) groupedAccounts[type] = [];
+                      groupedAccounts[type].push(acc);
                     });
 
-                    return Object.keys(grouped).map((typeKey) => {
-                      const typeNum = Number(typeKey);
-                      const typeText = accountTypeMap[typeNum] || "Unknown";
-                      return (
-                        <React.Fragment key={typeKey}>
-                          <ListSubheader>{typeText}</ListSubheader>
-                          {grouped[typeNum].map((cm) => (
-                            <MenuItem key={cm.account_code} value={String(cm.account_code)}>
-                              {cm.account_code} - {cm.account_name}
-                            </MenuItem>
-                          ))}
-                        </React.Fragment>
-                      );
+                    // Create grouped menu items with headers
+                    return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+                      const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+                      return [
+                        <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                        ...accounts.map((acc) => (
+                          <MenuItem key={acc.account_code} value={acc.account_code}>
+                            <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                              {acc.account_code}- {acc.account_name}
+                            </Stack>
+                          </MenuItem>
+                        )),
+                      ];
                     });
                   })()}
                 </Select>
-                <Typography variant="caption" color="error">{errors.accountsPayable}</Typography>
+                <Typography variant="caption" color="error">
+                  {errors.accountsPayable}
+                </Typography>
               </FormControl>
-
 
               <FormControl size="small" fullWidth error={!!errors.purchaseAccount}>
                 <InputLabel>Purchase Account</InputLabel>
@@ -433,8 +437,30 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
                   value={formData.purchaseAccount}
                   onChange={(e) => handleChange("purchaseAccount", e.target.value)}
                 >
-                  <MenuItem value="PUR-001">PUR-001</MenuItem>
-                  <MenuItem value="PUR-002">PUR-002</MenuItem>
+                  {(() => {
+                    // Group chart masters by account_type
+                    const groupedAccounts: { [key: string]: any[] } = {};
+                    chartMasters.forEach((acc) => {
+                      const type = acc.account_type || "Unknown";
+                      if (!groupedAccounts[type]) groupedAccounts[type] = [];
+                      groupedAccounts[type].push(acc);
+                    });
+
+                    // Create grouped menu items with headers
+                    return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+                      const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+                      return [
+                        <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                        ...accounts.map((acc) => (
+                          <MenuItem key={acc.account_code} value={acc.account_code}>
+                            <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                              {acc.account_code}- {acc.account_name}
+                            </Stack>
+                          </MenuItem>
+                        )),
+                      ];
+                    });
+                  })()}
                 </Select>
                 <Typography variant="caption" color="error">{errors.purchaseAccount}</Typography>
               </FormControl>
@@ -444,11 +470,30 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
                   value={formData.purchaseDiscountAccount}
                   onChange={(e) => handleChange("purchaseDiscountAccount", e.target.value)}
                 >
-                  {chartMasters.map((cm) => (
-                    <MenuItem key={cm.id} value={cm.account_code}>
-                      {cm.account_code} - {cm.account_name}
-                    </MenuItem>
-                  ))}
+                  {(() => {
+                    // Group chart masters by account_type
+                    const groupedAccounts: { [key: string]: any[] } = {};
+                    chartMasters.forEach((acc) => {
+                      const type = acc.account_type || "Unknown";
+                      if (!groupedAccounts[type]) groupedAccounts[type] = [];
+                      groupedAccounts[type].push(acc);
+                    });
+
+                    // Create grouped menu items with headers
+                    return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+                      const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+                      return [
+                        <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                        ...accounts.map((acc) => (
+                          <MenuItem key={acc.account_code} value={acc.account_code}>
+                            <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                              {acc.account_code}- {acc.account_name}
+                            </Stack>
+                          </MenuItem>
+                        )),
+                      ];
+                    });
+                  })()}
                 </Select>
                 <Typography variant="caption" color="error">{errors.purchaseDiscountAccount}</Typography>
               </FormControl>
