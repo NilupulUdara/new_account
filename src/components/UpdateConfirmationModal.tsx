@@ -54,7 +54,7 @@ const UpdateConfirmationModal = ({
       aria-labelledby={title + "-dialog"}
     >
       <DialogTitle id={title + "-dialog"}>
-        <Typography variant="h6">{title}</Typography>
+        {title}
       </DialogTitle>
 
       <DialogContent dividers>
