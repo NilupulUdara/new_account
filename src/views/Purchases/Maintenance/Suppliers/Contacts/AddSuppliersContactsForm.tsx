@@ -10,7 +10,7 @@ import {
   useMediaQuery,
   MenuItem,
 } from "@mui/material";
-import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
+import { createSupplierContact } from "../../../../../api/Supplier/SupplierContactApi";
 import ErrorModal from "../../../../../components/ErrorModal";
 import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
 
@@ -86,7 +86,7 @@ export default function AddSuppliersContactsForm() {
           lang: formData.documentLanguage,
           notes: formData.notes
         }
-        await createCustomerContact(payload);
+        await createSupplierContact(payload);
         setOpen(true);
       } catch (error) {
         setErrorMessage(

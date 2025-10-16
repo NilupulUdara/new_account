@@ -2,7 +2,7 @@ import axios from "axios";
 
 const API_URL = "http://localhost:8000/api/suppliers";
 
-// ✅ Create supplier
+//  Create supplier
 export const createSupplier = async (supplierData: any) => {
   try {
     const response = await axios.post(API_URL, supplierData);
@@ -13,7 +13,7 @@ export const createSupplier = async (supplierData: any) => {
   }
 };
 
-// ✅ Get all suppliers
+//  Get all suppliers
 export const getSuppliers = async () => {
   try {
     const response = await axios.get(API_URL);
@@ -24,7 +24,7 @@ export const getSuppliers = async () => {
   }
 };
 
-// ✅ Get supplier by ID
+//  Get supplier by ID
 export const getSupplierById = async (id: number | string) => {
   try {
     const response = await axios.get(`${API_URL}/${id}`);
@@ -35,7 +35,7 @@ export const getSupplierById = async (id: number | string) => {
   }
 };
 
-// ✅ Update supplier
+//  Update supplier
 export const updateSupplier = async (id: number | string, supplierData: any) => {
   try {
     const response = await axios.put(`${API_URL}/${id}`, supplierData);
@@ -46,7 +46,7 @@ export const updateSupplier = async (id: number | string, supplierData: any) => 
   }
 };
 
-// ✅ Delete supplier
+//  Delete supplier
 export const deleteSupplier = async (id: number | string) => {
   try {
     const response = await axios.delete(`${API_URL}/${id}`);

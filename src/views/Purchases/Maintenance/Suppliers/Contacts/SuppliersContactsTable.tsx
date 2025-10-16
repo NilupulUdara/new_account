@@ -26,7 +26,7 @@ import Breadcrumb from "../../../../../components/BreadCrumb";
 import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import SearchBar from "../../../../../components/SearchBar";
-import { getCustomerContacts, deleteCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
+import { getSupplierContacts, deleteSupplierContact } from "../../../../../api/Supplier/SupplierContactApi";
 import ErrorModal from "../../../../../components/ErrorModal";
 import DeleteConfirmationModal from "../../../../../components/DeleteConfirmationModal";
 interface SupplierContacsProps {
@@ -50,7 +50,7 @@ export default function SuppliersContactsTable({ supplierId }: SupplierContacsPr
   useEffect(() => {
     const fetchContacts = async () => {
       try {
-        const data = await getCustomerContacts(supplierId);
+        const data = await getSupplierContacts(supplierId);
         const mappedData = data.map((item: any) => ({
           id: item.id,
           reference: item.ref,
@@ -112,7 +112,7 @@ export default function SuppliersContactsTable({ supplierId }: SupplierContacsPr
   const confirmDelete = async () => {
     if (selectedId !== null) {
       try {
-        await deleteCustomerContact(selectedId);
+        await deleteSupplierContact(selectedId);
         setContacts((prev) => prev.filter((c) => c.id !== selectedId)); // remove from local list
         console.log("Contact deleted successfully!");
       } catch (error) {

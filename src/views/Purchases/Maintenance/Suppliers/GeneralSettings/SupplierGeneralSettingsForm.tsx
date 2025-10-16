@@ -22,9 +22,10 @@ import { useNavigate } from "react-router";
 import { getCurrencies, Currency } from "../../../../../api/Currency/currencyApi";
 import { getTaxGroups, TaxGroup } from "../../../../../api/Tax/taxServices";
 import { getChartMasters } from "../../../../../api/GLAccounts/ChartMasterApi";
-import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
+import { createSupplierContact } from "../../../../../api/Supplier/SupplierContactApi";
 import ErrorModal from "../../../../../components/ErrorModal";
 import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
+import { getPaymentTerms } from "../../../../../api/PaymentTerm/PaymentTermApi";
 
 interface SupplierGeneralSettingProps {
   supplierId?: string | number;
@@ -94,6 +95,15 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   useEffect(() => {
     getCurrencies().then(setCurrencies);
+  }, []);
+
+  const [paymentTerms, setPaymentTerms] = useState<{ id: number, description: string }[]>([]);
+  useEffect(() => {
+    async function fetchPaymentTerms() {
+      const res = await getPaymentTerms(); // your API call
+      setPaymentTerms(res);
+    }
+    fetchPaymentTerms();
   }, []);
 
   const [TaxGroups, setTaxGroups] = useState<TaxGroup[]>([]);
@@ -186,7 +196,7 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
         tax_included: formData.pricesIncludeTax,
         payable_account: formData.accountsPayable,
         purchase_account: formData.purchaseAccount,
-        purchase_discount_account: formData.purchaseDiscountAccount,
+        payment_discount_account: formData.purchaseDiscountAccount,
         dimension_id: Number(formData.dimension) || 0,
         dimension2_id: 0,
         mail_address: formData.mailingAddress,
@@ -197,8 +207,8 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
       const supplier = await createSupplier(supplierPayload);
 
       const contactPayload = {
-        ref: supplier.supplier_short_name,
-        name: formData.supplierName,
+        ref: supplier.supp_short_name,
+        name: formData.contactPerson,
         address: formData.mailingAddress,
         phone: formData.phone,
         phone2: formData.secondaryPhone,
@@ -209,7 +219,9 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
         inactive: 0,
       };
 
-      await createCustomerContact(contactPayload);
+      // Step 5: Create supplier contact
+      await createSupplierContact(contactPayload);
+      await createSupplierContact(contactPayload);
 
       setOpen(true);
 
@@ -335,7 +347,7 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
                   {TaxGroups.map((TaxGroup) => (
                     <MenuItem
                       key={TaxGroup.id}
-                      value={TaxGroup.description}
+                      value={TaxGroup.id}
                     >
                       {TaxGroup.description}
                     </MenuItem>
@@ -385,9 +397,11 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
                   value={formData.paymentTerms}
                   onChange={(e) => handleChange("paymentTerms", e.target.value)}
                 >
-                  <MenuItem value="Cash Only">Cash Only</MenuItem>
-                  <MenuItem value="30 Days">30 Days</MenuItem>
-                  <MenuItem value="60 Days">60 Days</MenuItem>
+                  {paymentTerms.map(term => (
+                    <MenuItem key={term.id} value={term.id}>
+                      {term.description}
+                    </MenuItem>
+                  ))}
                 </Select>
                 <Typography variant="caption" color="error">{errors.paymentTerms}</Typography>
               </FormControl>

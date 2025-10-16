@@ -33,7 +33,7 @@ const AddAndManageSuppliers = () => {
   const [tabValue, setTabValue] = useState(0);
 
   // Supplier dropdown state
-  const [suppliers, setSuppliers] = useState<{ id: string | number; supplier_name: string }[]>([]);
+  const [suppliers, setSuppliers] = useState<{ supplier_id: string | number; supp_name: string }[]>([]);
   const [selectedSupplier, setSelectedSupplier] = useState<string | number>("new"); // default 'new'
 
   // Fetch suppliers from backend
@@ -89,8 +89,8 @@ const AddAndManageSuppliers = () => {
               + Add New Supplier
             </MenuItem>
             {suppliers.map((supplier) => (
-              <MenuItem key={supplier.id} value={supplier.id}>
-                {supplier.supplier_name}
+              <MenuItem key={supplier.supplier_id} value={supplier.supplier_id}>
+                {supplier.supp_name}
               </MenuItem>
             ))}
           </Select>

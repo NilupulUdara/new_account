@@ -10,7 +10,7 @@ import {
   useMediaQuery,
   MenuItem,
 } from "@mui/material";
-import { updateCustomerContact, getCustomerContacts } from "../../../../../api/Customer/CustomerContactApi";
+import { updateSupplierContact, getSupplierContacts } from "../../../../../api/Supplier/SupplierContactApi";
 import ErrorModal from "../../../../../components/ErrorModal";
 import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal";
 import { useParams } from "react-router";
@@ -76,7 +76,7 @@ export default function UpdateSuppliersContactsForm() {
   useEffect(() => {
     const fetchContact = async () => {
       try {
-        const allContacts = await getCustomerContacts(""); // or customerId if available
+        const allContacts = await getSupplierContacts(""); // or customerId if available
         const contact = allContacts.find((c: any) => c.id === Number(id));
         if (contact) {
           setFormData({
@@ -105,7 +105,7 @@ export default function UpdateSuppliersContactsForm() {
   const handleSubmit = async () => {
     if (validate()) {
       try {
-        await updateCustomerContact(id!, {
+        await updateSupplierContact(id!, {
           name: formData.firstName,
           name2: formData.lastName,
           ref: formData.reference,

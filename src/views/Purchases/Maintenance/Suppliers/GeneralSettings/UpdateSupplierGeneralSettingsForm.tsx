@@ -30,6 +30,7 @@ import { getTaxGroups, TaxGroup } from "../../../../../api/Tax/taxServices";
 import DeleteConfirmationModal from "../../../../../components/DeleteConfirmationModal";
 import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal";
 import ErrorModal from "../../../../../components/ErrorModal";
+import { getPaymentTerms } from "../../../../../api/PaymentTerm/PaymentTermApi";
 interface UpdateSupplierGeneralSettingProps {
     supplierId?: string | number;
 }
@@ -88,6 +89,15 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
         getTaxGroups().then(setTaxGroups);
     }, [])
 
+    const [paymentTerms, setPaymentTerms] = useState<{ terms_indicator: number, description: string }[]>([]);
+    useEffect(() => {
+        async function fetchPaymentTerms() {
+            const res = await getPaymentTerms(); // your API call
+            setPaymentTerms(res);
+        }
+        fetchPaymentTerms();
+    }, []);
+
     const [open, setOpen] = useState(false);
     const [errorOpen, setErrorOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
@@ -130,20 +140,20 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                         website: res.website || "",
                         supplierCurrency: res.curr_code || "",
                         taxGroup: res.tax_group || "",
-                        ourCustomerNo: res.our_customer_no || "",
+                        ourCustomerNo: res.supp_account_no || "",
                         bankAccount: res.bank_account || "",
                         creditLimit: res.credit_limit || "",
                         paymentTerms: res.payment_terms || "",
                         pricesIncludeTax: res.tax_included || false,
                         accountsPayable: res.payable_account || "",
                         purchaseAccount: res.purchase_account || "",
-                        purchaseDiscountAccount: res.purchase_discount_account || "",
-                        dimension: "",
+                        purchaseDiscountAccount: res.payment_discount_account || "",
+                        dimension: res.dimension_id || "",
                         documentLanguage: res.document_language || "",
                         mailingAddress: res.mail_address || "",
                         physicalAddress: res.bill_address || "",
                         generalNotes: res.notes || "",
-                        status: "",
+                        status: res.inactive ? "Inactive" : "Active",
                     });
                     setSelectedCustomer(res.id);
                 }
@@ -183,12 +193,13 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                 tax_included: formData.pricesIncludeTax ? 1 : 0,
                 payable_account: formData.accountsPayable || null,
                 purchase_account: formData.purchaseAccount || null,
-                purchase_discount_account: formData.purchaseDiscountAccount || null,
+                payment_discount_account: formData.purchaseDiscountAccount || null,
                 dimension: formData.dimension || null,
                 document_language: formData.documentLanguage || null,
                 mail_address: formData.mailingAddress || null,
                 bill_address: formData.physicalAddress || null,
                 notes: formData.generalNotes || null,
+                inactive: formData.status || null
             };
 
             console.log("Update payload:", payload);
@@ -307,7 +318,7 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                                     {TaxGroups.map((TaxGroup) => (
                                         <MenuItem
                                             key={TaxGroup.id}
-                                            value={TaxGroup.description}
+                                            value={TaxGroup.id}
                                         >
                                             {TaxGroup.description}
                                         </MenuItem>
@@ -357,9 +368,11 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                                     value={formData.paymentTerms}
                                     onChange={(e) => handleChange("paymentTerms", e.target.value)}
                                 >
-                                    <MenuItem value="Cash Only">Cash Only</MenuItem>
-                                    <MenuItem value="30 Days">30 Days</MenuItem>
-                                    <MenuItem value="60 Days">60 Days</MenuItem>
+                                    {paymentTerms.map(term => (
+                                        <MenuItem key={term.terms_indicator} value={term.terms_indicator}>
+                                            {term.description}
+                                        </MenuItem>
+                                    ))}
                                 </Select>
                                 <Typography variant="caption" color="error">{errors.paymentTerms}</Typography>
                             </FormControl>
