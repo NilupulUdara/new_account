@@ -208,12 +208,11 @@ export default function TaxGroupTable() {
                     <TableCell>{group.description}</TableCell>
                     <TableCell>{group.default_rate}</TableCell>
                     <TableCell>
-                      {chartMasters.find((acc) => acc.account_code === group.sales_gl_account)?.account_name || group.sales_gl_account} 
-                      - {group.sales_gl_account}
+                      {group.sales_gl_account.account_code} - {group.sales_gl_account.account_name}
                     </TableCell>
+
                     <TableCell>
-                      {chartMasters.find((acc) => acc.account_code === group.purchasing_gl_account)?.account_name || group.purchasing_gl_account} 
-                      - {group.purchasing_gl_account}
+                      {group.purchasing_gl_account.account_code} - {group.purchasing_gl_account.account_name}
                     </TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
