@@ -40,12 +40,12 @@ const allItems = [
     icon: <ReceiptLongIcon sx={{ fontSize: 40, color: "#1976d2" }} />, 
     path: "/setup/miscellaneous/point-of-sale" 
   },
-  { 
-    text: "PRINTERS", 
-    change: 0, 
-    icon: <AssignmentIcon sx={{ fontSize: 40, color: "#1976d2" }} />, 
-    path: "/setup/miscellaneous/printers" 
-  },
+  // { 
+  //   text: "PRINTERS", 
+  //   change: 0, 
+  //   icon: <AssignmentIcon sx={{ fontSize: 40, color: "#1976d2" }} />, 
+  //   path: "/setup/miscellaneous/printers" 
+  // },
   { 
     text: "CONTACT CATEGORIES", 
     change: +12, 

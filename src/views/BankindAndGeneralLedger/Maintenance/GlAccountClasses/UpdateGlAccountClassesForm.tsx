@@ -37,7 +37,7 @@ export default function UpdateGlAccountClassesForm() {
     ctype: "",
     inactive: false,
   });
- const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<Partial<GlAccountClassData>>({});
@@ -78,7 +78,7 @@ export default function UpdateGlAccountClassesForm() {
 
   const handleSubmit = async () => {
     if (!validate() || isSubmitting) return;
-    
+
     setIsSubmitting(true);
     try {
       await updateChartClass(formData.cid, formData);
@@ -87,7 +87,11 @@ export default function UpdateGlAccountClassesForm() {
       // alert("GL Account Class updated successfully!");
       // navigate('/bankingandgeneralledger/maintenance/gl-account-classes');
     } catch (error) {
-      alert("Failed to update GL Account Class");
+      setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update GL Account Class Please try again."
+        );
+        setErrorOpen(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -138,10 +142,10 @@ export default function UpdateGlAccountClassesForm() {
 
         <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3, flexDirection: isMobile ? "column" : "row", gap: isMobile ? 2 : 0 }}>
           <Button onClick={() => window.history.back()}>Back</Button>
-          <Button 
-            variant="contained" 
-            fullWidth={isMobile} 
-            sx={{ backgroundColor: "var(--pallet-blue)" }} 
+          <Button
+            variant="contained"
+            fullWidth={isMobile}
+            sx={{ backgroundColor: "var(--pallet-blue)" }}
             onClick={handleSubmit}
             disabled={isSubmitting} // Disable while submitting
           >
@@ -150,17 +154,17 @@ export default function UpdateGlAccountClassesForm() {
         </Box>
       </Paper>
       <UpdateConfirmationModal
-              open={open}
-              title="Success"
-              content="GL Account class has been updated successfully!"
-              handleClose={() => setOpen(false)}
-              onSuccess={() => window.history.back()}
-            />
-            <ErrorModal
-              open={errorOpen}
-              onClose={() => setErrorOpen(false)}
-              message={errorMessage}
-            />
+        open={open}
+        title="Success"
+        content="GL Account class has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

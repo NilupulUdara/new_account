@@ -17,12 +17,14 @@ import {
   FormHelperText,
 } from "@mui/material";
 import theme from "../../../../../theme";
-import { createSupplier } from "../../../../../api/Supplier/SupplierApi";
-import { getSuppliers } from "../../../../../api/Supplier/SupplierApi";
+import { createSupplier, getSuppliers } from "../../../../../api/Supplier/SupplierApi";
 import { useNavigate } from "react-router";
 import { getCurrencies, Currency } from "../../../../../api/Currency/currencyApi";
 import { getTaxGroups, TaxGroup } from "../../../../../api/Tax/taxServices";
 import { getChartMasters } from "../../../../../api/GLAccounts/ChartMasterApi";
+import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
+import ErrorModal from "../../../../../components/ErrorModal";
+import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
 
 interface SupplierGeneralSettingProps {
   supplierId?: string | number;
@@ -38,7 +40,6 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
     taxGroup: "",
     ourCustomerNo: "",
     bankAccount: "",
-    bankName: "",
     creditLimit: "",
     paymentTerms: "",
     pricesIncludeTax: false,
@@ -72,6 +73,9 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
     "12": "General and Adminitrative Expenses",
   };
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const navigate = useNavigate();
   const [chartMasters, setChartMasters] = useState<any[]>([]);
@@ -127,7 +131,6 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
     if (!formData.ourCustomerNo) tempErrors.ourCustomerNo = "Customer No. is required";
 
     // Purchasing
-    if (!formData.bankName) tempErrors.bankName = "Bank Name is required";
     if (!formData.bankAccount) tempErrors.bankAccount = "Bank Account is required";
     if (formData.creditLimit && isNaN(Number(formData.creditLimit))) tempErrors.creditLimit = "Credit Limit must be a number";
     if (!formData.paymentTerms) tempErrors.paymentTerms = "Payment Terms are required";
@@ -160,42 +163,55 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
 
   const handleSubmit = async () => {
     if (!validate()) {
-      alert("Please fix validation errors before submitting");
+      setErrorMessage(
+        "Please fix validation errors before submitting"
+      );
+      setErrorOpen(true);
+      // alert("Please fix validation errors before submitting");
       return;
     }
 
     try {
-      const payload = {
-        supplier_name: formData.supplierName,
-        supplier_short_name: formData.supplierShortName,
-        gst_number: formData.gstNumber,
+      const supplierPayload = {
+        supp_name: formData.supplierName,
+        supp_short_name: formData.supplierShortName,
+        gst_no: formData.gstNumber,
         website: formData.website,
-        supplier_currency: formData.supplierCurrency,
+        curr_code: formData.supplierCurrency,
         tax_group: formData.taxGroup,
-        our_customer_no: formData.ourCustomerNo,
+        supp_account_no: formData.ourCustomerNo,
         bank_account: formData.bankAccount,
-        bank_name: formData.bankName,
         credit_limit: formData.creditLimit,
         payment_terms: formData.paymentTerms,
-        prices_include_tax: formData.pricesIncludeTax,
-        accounts_payable: formData.accountsPayable,
+        tax_included: formData.pricesIncludeTax,
+        payable_account: formData.accountsPayable,
         purchase_account: formData.purchaseAccount,
         purchase_discount_account: formData.purchaseDiscountAccount,
-        contact_person: formData.contactPerson,
-        phone: formData.phone,
-        secondary_phone: formData.secondaryPhone,
-        fax: formData.fax,
-        email: formData.email,
         dimension_id: Number(formData.dimension) || 0,
         dimension2_id: 0,
-        document_language: formData.documentLanguage,
-        mailing_address: formData.mailingAddress,
-        physical_address: formData.physicalAddress,
-        general_notes: formData.generalNotes,
+        mail_address: formData.mailingAddress,
+        bill_address: formData.physicalAddress,
+        notes: formData.generalNotes,
       };
 
-      await createSupplier(payload);
-      alert("Supplier created successfully");
+      const supplier = await createSupplier(supplierPayload);
+
+      const contactPayload = {
+        ref: supplier.supplier_short_name,
+        name: formData.supplierName,
+        address: formData.mailingAddress,
+        phone: formData.phone,
+        phone2: formData.secondaryPhone,
+        fax: formData.fax,
+        email: formData.email,
+        notes: formData.generalNotes,
+        lang: formData.documentLanguage,
+        inactive: 0,
+      };
+
+      await createCustomerContact(contactPayload);
+
+      setOpen(true);
 
       setFormData({
         supplierName: "",
@@ -206,7 +222,6 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
         taxGroup: "",
         ourCustomerNo: "",
         bankAccount: "",
-        bankName: "",
         creditLimit: "",
         paymentTerms: "",
         pricesIncludeTax: false,
@@ -225,11 +240,13 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
         generalNotes: "",
       })
 
-      navigate("/purchase/maintenance/suppliers");
-
     } catch (error: any) {
       console.error("Error creating supplier:", error);
-      alert("Failed to save supplier. See console for details.");
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to add supplier Please try again."
+      );
+      setErrorOpen(true);
     }
   };
 
@@ -343,17 +360,9 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
             <Stack spacing={2}>
               <Typography variant="subtitle1">Purchasing</Typography>
               <Divider />
+
               <TextField
-                label="Bank Name"
-                value={formData.bankName}
-                onChange={(e) => handleChange("bankName", e.target.value)}
-                size="small"
-                fullWidth
-                error={!!errors.bankName}
-                helperText={errors.bankName}
-              />
-              <TextField
-                label="Bank Account"
+                label="Bank Name/ Account"
                 value={formData.bankAccount}
                 onChange={(e) => handleChange("bankAccount", e.target.value)}
                 size="small"
@@ -561,10 +570,9 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
                   value={formData.documentLanguage}
                   onChange={(e) => handleChange("documentLanguage", e.target.value)}
                 >
-                  <MenuItem value="English">System Default</MenuItem>
-                  <MenuItem value="English">English</MenuItem>
-                  <MenuItem value="Sinhala">Sinhala</MenuItem>
-                  <MenuItem value="Tamil">Tamil</MenuItem>
+                  <MenuItem value="en">English</MenuItem>
+                  <MenuItem value="si">Sinhala</MenuItem>
+                  <MenuItem value="ta">Tamil</MenuItem>
                 </Select>
                 <Typography variant="caption" color="error">{errors.documentLanguage}</Typography>
               </FormControl>
@@ -666,6 +674,20 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
           </Button>
         </Box>
       </Box>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Supplier has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

@@ -49,36 +49,36 @@ function SetupMaintenance() {
       icon: <CategoryIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
       change: +24, path: "/setup/maintenance/backup-and-restore"
     },
-    {
-      text: "CREATE/UPDATE COMPANIES",
-      icon: <PersonIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      change: +24, path: "/setup/maintenance/create-update-companies"
-    },
-    {
-      text: "INSTALL/UPDATE LANGUAGES",
-      icon: <MapIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      change: +24, path: "/setup/maintenance/install-languages"
-    },
-    {
-      text: "INSTALL/ACTIVATE EXTENSIONS",
-      icon: <CreditScoreIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      change: +24, path: "/setup/maintenance/install-extensions"
-    },
-        {
-      text: "INSTALL/ACTIVATE THEMES",
-      icon: <CreditScoreIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      change: +24, path: "/setup/maintenance/install-themes"
-    },
-        {
-      text: "INSTALL/ACTIVATE CHART OF ACCOUNTS",
-      icon: <CreditScoreIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      change: +24, path: "/setup/maintenance/install-chart-of-accounts"
-    },
-    {
-      text: "SOFTWARE UPDATE",
-      icon: <CreditScoreIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      change: +24, path: "/setup/maintenance/software-upgrade"
-    },
+    // {
+    //   text: "CREATE/UPDATE COMPANIES",
+    //   icon: <PersonIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
+    //   change: +24, path: "/setup/maintenance/create-update-companies"
+    // },
+    // {
+    //   text: "INSTALL/UPDATE LANGUAGES",
+    //   icon: <MapIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
+    //   change: +24, path: "/setup/maintenance/install-languages"
+    // },
+    // {
+    //   text: "INSTALL/ACTIVATE EXTENSIONS",
+    //   icon: <CreditScoreIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
+    //   change: +24, path: "/setup/maintenance/install-extensions"
+    // },
+    //     {
+    //   text: "INSTALL/ACTIVATE THEMES",
+    //   icon: <CreditScoreIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
+    //   change: +24, path: "/setup/maintenance/install-themes"
+    // },
+    //     {
+    //   text: "INSTALL/ACTIVATE CHART OF ACCOUNTS",
+    //   icon: <CreditScoreIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
+    //   change: +24, path: "/setup/maintenance/install-chart-of-accounts"
+    // },
+    // {
+    //   text: "SOFTWARE UPDATE",
+    //   icon: <CreditScoreIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
+    //   change: +24, path: "/setup/maintenance/software-upgrade"
+    // },
   ];
 
   const handleItemClick = (path, text) => {

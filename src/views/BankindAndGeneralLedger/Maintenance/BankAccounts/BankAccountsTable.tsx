@@ -28,33 +28,7 @@ import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
 import theme from "../../../../theme";
 import { getBankAccounts, deleteBankAccount } from "../../../../api/BankAccount/BankAccountApi";
-
-// const getBankAccountsList = async () => [
-//   {
-//     id: 1,
-//     accountName: "Main Savings",
-//     type: "Savings Account",
-//     currency: "LKR",
-//     glAccount: "GL001",
-//     bank: "BOC",
-//     number: "1234567890",
-//     address: "Colombo, Sri Lanka",
-//     isDefault: true,
-//     status: "Active",
-//   },
-//   {
-//     id: 2,
-//     accountName: "Petty Cash Account",
-//     type: "Cash Account",
-//     currency: "USD",
-//     glAccount: "GL002",
-//     bank: "HNB",
-//     number: "9876543210",
-//     address: "Kandy, Sri Lanka",
-//     isDefault: false,
-//     status: "Inactive",
-//   },
-// ];
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 
 function BankAccountsTable() {
   const [page, setPage] = useState(0);
@@ -64,6 +38,10 @@ function BankAccountsTable() {
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+
 
   const { data: bankAccountsData = [], isLoading, isError } = useQuery({
     queryKey: ["bankAccounts"],
@@ -79,8 +57,21 @@ function BankAccountsTable() {
   });
 
   const handleDelete = (id: number) => {
-    if (window.confirm("Are you sure you want to delete this bank account?")) {
-      deleteMutation.mutate(id);
+    setSelectedId(id);
+    setOpenDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (selectedId !== null) {
+      try {
+        await deleteMutation.mutateAsync(selectedId);
+        queryClient.invalidateQueries({ queryKey: ["bankAccounts"] });
+        console.log("Bank account deleted successfully!");
+      } catch (error) {
+        console.error("Error deleting bank account:", error);
+      } finally {
+        setOpenDeleteModal(false);
+      }
     }
   };
 
@@ -267,6 +258,7 @@ function BankAccountsTable() {
                         >
                           Delete
                         </Button>
+
                       </Stack>
                     </TableCell>
                   </TableRow>
@@ -298,6 +290,16 @@ function BankAccountsTable() {
           </Table>
         </TableContainer>
       </Stack>
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Bank Account"
+        content="Are you sure you want to delete this bank account? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setOpenDeleteModal(false)}
+        deleteFunc={confirmDelete}
+        onSuccess={() => console.log("Bank account deleted successfully!")}
+      />
+
     </Stack>
   );
 }

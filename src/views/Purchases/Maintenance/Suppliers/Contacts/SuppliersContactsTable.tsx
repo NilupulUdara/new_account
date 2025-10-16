@@ -26,36 +26,12 @@ import Breadcrumb from "../../../../../components/BreadCrumb";
 import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import SearchBar from "../../../../../components/SearchBar";
-
+import { getCustomerContacts, deleteCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
+import ErrorModal from "../../../../../components/ErrorModal";
+import DeleteConfirmationModal from "../../../../../components/DeleteConfirmationModal";
 interface SupplierContacsProps {
   supplierId?: string | number;
 }
-
-// Mock API function
-const getContacts = async () => [
-  {
-    id: 1,
-    assignment: "Manager",
-    reference: "REF001",
-    fullName: "John Doe",
-    phone: "123456789",
-    secPhone: "987654321",
-    fax: "111222333",
-    email: "john@example.com",
-    inactive: false,
-  },
-  {
-    id: 2,
-    assignment: "Assistant",
-    reference: "REF002",
-    fullName: "Jane Smith",
-    phone: "555666777",
-    secPhone: "777666555",
-    fax: "444555666",
-    email: "jane@example.com",
-    inactive: true,
-  },
-];
 
 export default function SuppliersContactsTable({ supplierId }: SupplierContacsProps) {
   const [page, setPage] = useState(0);
@@ -66,10 +42,33 @@ export default function SuppliersContactsTable({ supplierId }: SupplierContacsPr
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+
+
   // Fetch contacts (mock API)
   useEffect(() => {
-    getContacts().then((data) => setContacts(data));
-  }, []);
+    const fetchContacts = async () => {
+      try {
+        const data = await getCustomerContacts(supplierId);
+        const mappedData = data.map((item: any) => ({
+          id: item.id,
+          reference: item.ref,
+          fullName: item.name,
+          phone: item.phone,
+          secPhone: item.phone2,
+          fax: item.fax,
+          email: item.email,
+        }));
+        setContacts(mappedData);
+      } catch (error: any) {
+        console.error("Failed to load contacts:", error);
+        // setErrorMessage("Failed to load contacts. Please try again.");
+        // setErrorOpen(true);
+      }
+    };
+    fetchContacts();
+  }, [supplierId]);
 
   // Filter by inactive & search
   const filteredData = useMemo(() => {
@@ -106,8 +105,24 @@ export default function SuppliersContactsTable({ supplierId }: SupplierContacsPr
   };
 
   const handleDelete = (id: number) => {
-    alert(`Delete contact with id: ${id}`);
+    setSelectedId(id);
+    setOpenDeleteModal(true);
   };
+
+  const confirmDelete = async () => {
+    if (selectedId !== null) {
+      try {
+        await deleteCustomerContact(selectedId);
+        setContacts((prev) => prev.filter((c) => c.id !== selectedId)); // remove from local list
+        console.log("Contact deleted successfully!");
+      } catch (error) {
+        console.error("Failed to delete contact:", error);
+      } finally {
+        setOpenDeleteModal(false);
+      }
+    }
+  };
+
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
@@ -207,8 +222,7 @@ export default function SuppliersContactsTable({ supplierId }: SupplierContacsPr
                           size="small"
                           startIcon={<EditIcon />}
                           onClick={() => navigate(
-                            "/purchase/maintenance/suppliers/update-supplier-contact"
-                            // `/sales/maintenancne/update-contact/${contact.id}`
+                            `/purchase/maintenance/suppliers/update-supplier-contact/${contact.id}`
                           )}
                         >
                           Edit
@@ -252,6 +266,15 @@ export default function SuppliersContactsTable({ supplierId }: SupplierContacsPr
           </Table>
         </TableContainer>
       </Stack>
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Contact"
+        content="Are you sure you want to delete this contact? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setOpenDeleteModal(false)}
+        deleteFunc={confirmDelete}
+        onSuccess={() => console.log("Contact deleted successfully!")}
+      />
     </Stack>
   );
 }

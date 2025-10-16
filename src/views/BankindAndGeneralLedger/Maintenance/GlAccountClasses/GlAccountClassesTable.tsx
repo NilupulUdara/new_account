@@ -260,7 +260,7 @@ function GlAccountClassesTable() {
         </TableContainer>
       </Stack>
 
-      {/* ✅ Delete Confirmation Modal */}
+      {/*  Delete Confirmation Modal */}
       <DeleteConfirmationModal
         open={openDeleteModal}
         title="Delete GL Account Class"

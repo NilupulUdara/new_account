@@ -23,6 +23,8 @@ import { getBankAccount, updateBankAccount } from "../../../../api/BankAccount/B
 import { getAccountTypes } from "../../../../api/BankAccount/AccountTypesApi";
 import { getCurrencies } from "../../../../api/Currency/currencyApi";
 import { getChartMasters } from "../../../../api/GLAccounts/ChartMasterApi";
+import ErrorModal from "../../../../components/ErrorModal";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal";
 
 interface BankAccountsFormData {
   bank_account_name: string;
@@ -60,6 +62,9 @@ export default function UpdateBankAccountsForm() {
     bank_address: "",
   });
 
+  const [open, setOpen] = useState(false);
+    const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<Partial<BankAccountsFormData>>({});
 
   // Fetch supporting data
@@ -106,12 +111,16 @@ export default function UpdateBankAccountsForm() {
   const mutation = useMutation({
     mutationFn: (updatedData: BankAccountsFormData) => updateBankAccount(id!, updatedData),
     onSuccess: () => {
-      alert("Bank account updated successfully!");
       queryClient.invalidateQueries({ queryKey: ["bankAccounts"] });
-      window.history.back();
+      setOpen(true);
+      // window.history.back();
     },
     onError: (err: any) => {
-      alert(err?.message || "Failed to update bank account");
+      setErrorMessage(
+          err?.response?.data?.message ||
+          "Failed to update bank account Please try again."
+        );
+        setErrorOpen(true);
     },
   });
 
@@ -159,26 +168,26 @@ export default function UpdateBankAccountsForm() {
 
   // Mapping numbers to descriptive text
   const accountTypeMap: Record<string, string> = {
-      "1": "Current Assets",
-      "2": "Inventory Assets",
-      "3": "Capital Assets",
-      "4": "Current Liabilities",
-      "5": "Long Term Liabilities",
-      "6": "Share Capital",
-      "7": "Retained Earnings",
-      "8": "Sales Revenue",
-      "9": "Other Revenue",
-      "10": "Cost of Good Sold",
-      "11": "Payroll Expenses",
-      "12": "General and Adminitrative Expenses",
+    "1": "Current Assets",
+    "2": "Inventory Assets",
+    "3": "Capital Assets",
+    "4": "Current Liabilities",
+    "5": "Long Term Liabilities",
+    "6": "Share Capital",
+    "7": "Retained Earnings",
+    "8": "Sales Revenue",
+    "9": "Other Revenue",
+    "10": "Cost of Good Sold",
+    "11": "Payroll Expenses",
+    "12": "General and Adminitrative Expenses",
   };
 
   // Group chart accounts by descriptive account type
   const groupedAccounts = chartMaster.reduce((acc: Record<string, ChartMaster[]>, account: ChartMaster) => {
-      const typeText = accountTypeMap[account.account_type] || "Unknown";
-      if (!acc[typeText]) acc[typeText] = [];
-      acc[typeText].push(account);
-      return acc;
+    const typeText = accountTypeMap[account.account_type] || "Unknown";
+    if (!acc[typeText]) acc[typeText] = [];
+    acc[typeText].push(account);
+    return acc;
   }, {});
 
   // Flatten the grouped accounts for direct children in Select
@@ -311,6 +320,18 @@ export default function UpdateBankAccountsForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Bank Account has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

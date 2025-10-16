@@ -19,6 +19,8 @@ import { useNavigate, useParams } from "react-router";
 import { getCurrencies } from "../../../../../api/Currency/currencyApi";
 import { getSalesTypes } from "../../../../../api/SalesMaintenance/salesService";
 import { getCreditStatusSetups } from "../../../../../api/CreditStatusSetup/CreditStatusSetupApi";
+import ErrorModal from "../../../../../components/ErrorModal";
+import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal";
 // import { getPaymentTerms } from "../../../../../api/PaymentTerms/paymentTermsApi";
 
 interface GeneralSettingsFormProps {
@@ -76,6 +78,9 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
         status: "",
     });
 
+    const [open, setOpen] = useState(false);
+    const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
     const [customers, setCustomers] = useState<any[]>([]); // store customers
     const [selectedCustomer, setSelectedCustomer] = useState<string>("");
@@ -171,7 +176,11 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                 }
             } catch (error) {
                 console.error("Error fetching data:", error);
-                alert("Failed to load data.");
+                setErrorMessage(
+        "Failed to load data"
+      );
+      setErrorOpen(true);
+                // alert("Failed to load data.");
             }
         };
 
@@ -264,7 +273,11 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
     const handleUpdate = async () => {
         if (!customerIdToUse) return;
         if (!validate()) {
-            alert("Please fix validation errors before submitting.");
+            setErrorMessage(
+        "Please fix validation errors before submitting"
+      );
+      setErrorOpen(true);
+            // alert("Please fix validation errors before submitting.");
             return;
         }
 
@@ -300,11 +313,14 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
             };
 
             await updateCustomer(customerIdToUse, payload);
-            alert("Customer updated successfully");
-            navigate("/sales/maintenance/add-and-manage-customers");
+            setOpen(true);
         } catch (error) {
             console.error("Error updating customer:", error);
-            alert("Failed to update customer.");
+            setErrorMessage(
+                error?.response?.data?.message ||
+                "Failed to update customer Please try again."
+            );
+            setErrorOpen(true);
         }
     };
 
@@ -564,6 +580,19 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                     </Button>
                 </Box>
             </Box>
+            <UpdateConfirmationModal
+                open={open}
+                title="Success"
+                content="Customer has been updated successfully!"
+                handleClose={() => setOpen(false)}
+                onSuccess={() => window.history.back()}
+            />
+
+            <ErrorModal
+                open={errorOpen}
+                onClose={() => setErrorOpen(false)}
+                message={errorMessage}
+            />
         </Stack>
     );
 }

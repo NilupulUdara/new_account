@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Stack,
@@ -10,6 +10,10 @@ import {
   useMediaQuery,
   MenuItem,
 } from "@mui/material";
+import { updateCustomerContact, getCustomerContacts } from "../../../../../api/Customer/CustomerContactApi";
+import ErrorModal from "../../../../../components/ErrorModal";
+import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal";
+import { useParams } from "react-router";
 
 interface UpdateSuppliersContactsData {
   firstName: string;
@@ -40,8 +44,12 @@ export default function UpdateSuppliersContactsForm() {
     notes: "",
   });
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<Partial<Record<keyof UpdateSuppliersContactsData, string>>>({});
   const muiTheme = useTheme();
+  const { id } = useParams();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,11 +73,61 @@ export default function UpdateSuppliersContactsForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  useEffect(() => {
+    const fetchContact = async () => {
+      try {
+        const allContacts = await getCustomerContacts(""); // or customerId if available
+        const contact = allContacts.find((c: any) => c.id === Number(id));
+        if (contact) {
+          setFormData({
+            firstName: contact.name || "",
+            lastName: contact.name2 || "",
+            reference: contact.ref || "",
+            contactActiveFor: contact.assignment || "",
+            phone: contact.phone || "",
+            secondaryPhone: contact.phone2 || "",
+            fax: contact.fax || "",
+            email: contact.email || "",
+            address: contact.address || "",
+            documentLanguage: contact.lang || "",
+            notes: contact.notes || "",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch contact:", err);
+      }
+    };
+
+    if (id) fetchContact();
+  }, [id]);
+
+
+  const handleSubmit = async () => {
     if (validate()) {
-      console.log("Submitted Contact:", formData);
-      alert("Contact updated successfully!");
-      // axios.post("/api/supplier-contacts", formData)
+      try {
+        await updateCustomerContact(id!, {
+          name: formData.firstName,
+          name2: formData.lastName,
+          ref: formData.reference,
+          assignment: formData.contactActiveFor,
+          phone: formData.phone,
+          phone2: formData.secondaryPhone,
+          fax: formData.fax,
+          email: formData.email,
+          address: formData.address,
+          lang: formData.documentLanguage,
+          notes: formData.notes,
+        });
+
+        setOpen(true);
+      } catch (error) {
+        console.error("Update failed:", error);
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update contact Please try again."
+        );
+        setErrorOpen(true);
+      }
     }
   };
 
@@ -248,6 +306,19 @@ export default function UpdateSuppliersContactsForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Supplier Contact has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

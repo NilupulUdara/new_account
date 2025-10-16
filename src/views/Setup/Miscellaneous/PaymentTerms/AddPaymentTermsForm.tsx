@@ -16,23 +16,30 @@ import {
   useTheme,
 } from "@mui/material";
 import theme from "../../../../theme";
-import { createTaxType } from "../../../../api/Tax/taxServices";
+import { createPaymentTerm } from "../../../../api/PaymentTerm/PaymentTermApi";
 
 interface PaymentTermsFormData {
   termsDescription: string;
   paymentType: string;
+  days: string;
 }
 
 export default function AddPaymentTermsForm() {
   const [formData, setFormData] = useState<PaymentTermsFormData>({
     termsDescription: "",
     paymentType: "",
+    days: ""
   });
 
   const [errors, setErrors] = useState<Partial<PaymentTermsFormData>>({});
+  const [additionalDays, setAdditionalDays] = useState<string>("");
 
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+
+  const handleAdditionalDaysChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAdditionalDays(e.target.value);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -55,7 +62,7 @@ export default function AddPaymentTermsForm() {
 
     if (!formData.termsDescription) newErrors.termsDescription = "Payment Description is required";
     if (!formData.paymentType) newErrors.paymentType = "Payment type is required";
-    
+
 
     setErrors(newErrors);
 
@@ -66,11 +73,13 @@ export default function AddPaymentTermsForm() {
     if (validate()) {
       try {
         const payload = {
-          term_description: formData.termsDescription,
-          payment_type: formData.paymentType,
+          description: formData.termsDescription,
+          days_before_due: formData.paymentType === "After No. of Days" ? parseInt(additionalDays || "0") : 0,
+          day_in_following_month: formData.paymentType === "Day in following month" ? parseInt(additionalDays || "0") : 0,
+          inactive: false,
         };
 
-        await createTaxType(payload);
+        await createPaymentTerm(payload);
         alert("Payment term created successfully!");
         window.history.back();
       } catch (error) {
@@ -122,6 +131,24 @@ export default function AddPaymentTermsForm() {
             </Select>
             <FormHelperText>{errors.paymentType}</FormHelperText>
           </FormControl>
+
+
+          {(formData.paymentType === "After No. of Days" ||
+            formData.paymentType === "Day in following month") && (
+              <TextField
+                label={
+                  formData.paymentType === "After No. of Days"
+                    ? "Days"
+                    : "Day in Following Month"
+                }
+                name="additionalDays"
+                size="small"
+                fullWidth
+                value={additionalDays}
+                onChange={handleAdditionalDaysChange}
+                type="number"
+              />
+            )}
         </Stack>
 
         <Box

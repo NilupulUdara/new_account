@@ -16,7 +16,7 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import theme from "../../../../theme";
-import { createUser } from "../../../../api/UserManagement/userManagement";
+import { createUser } from "../../../../api/UserManagement/userProfile";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
@@ -35,12 +35,13 @@ interface UserFormData {
   confirmPassword: string;
   role: string;
   status: string;
+   image: File | null;
 }
 
 export default function AddUserForm() {
   const [open, setOpen] = useState(false);
-    const [errorOpen, setErrorOpen] = useState(false);
-    const [errorMessage, setErrorMessage] = useState("");
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [formData, setFormData] = useState<UserFormData>({
     id: "",
     firstName: "",
@@ -54,6 +55,7 @@ export default function AddUserForm() {
     confirmPassword: "",
     role: "",
     status: "",
+    image:null,
   });
 
   const [errors, setErrors] = useState<Partial<UserFormData>>({});
@@ -112,37 +114,40 @@ export default function AddUserForm() {
 
 
   const handleSubmit = async () => {
-    if (validate()) {
-      try {
-        // Map frontend field names to backend field names
-        const payload = {
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          department: formData.department,
-          epf: formData.epf,
-          telephone: formData.telephone,
-          address: formData.address,
-          email: formData.email,
-          password: formData.password,
-          role: formData.role,
-          status: formData.status
-        };
+  if (validate()) {
+    try {
+      const payload = new FormData();
 
-        const user = await createUser(payload);
-        console.log("User created:", user);
-         setOpen(true);
-        queryClient.invalidateQueries({ queryKey: ["users"] });
-        queryClient.refetchQueries({ queryKey: ["users"] });
-        setErrors({});
-      } catch (err: any) {
-         setErrorMessage(
-          err?.response?.data?.message ||
-          "Failed to add User Please try again."
-        );
-        setErrorOpen(true);
+      payload.append("first_name", formData.firstName);
+      payload.append("last_name", formData.lastName);
+      payload.append("department", formData.department);
+      payload.append("epf", formData.epf);
+      payload.append("telephone", formData.telephone);
+      payload.append("address", formData.address);
+      payload.append("email", formData.email);
+      payload.append("password", formData.password);
+      payload.append("role", formData.role);
+      payload.append("status", formData.status);
+
+      if (formData.image) {
+        payload.append("image", formData.image); // File object
       }
+
+      // send as FormData
+      const user = await createUser(payload);
+      console.log("User created:", user);
+      setOpen(true);
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setErrors({});
+    } catch (err: any) {
+      setErrorMessage(
+        err?.response?.data?.message || "Failed to add User. Please try again."
+      );
+      setErrorOpen(true);
     }
-  };
+  }
+};
+
 
 
   return (
@@ -273,6 +278,23 @@ export default function AddUserForm() {
             helperText={errors.confirmPassword}
           />
 
+          <TextField
+            type="file"
+            name="image"
+            size="small"
+            fullWidth
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              if (e.target.files && e.target.files[0]) {
+                setFormData({
+                  ...formData,
+                  image: e.target.files[0], // store the file object
+                });
+              }
+            }}
+            helperText="Upload profile image"
+            InputLabelProps={{ shrink: true }}
+          />
+
           <FormControl size="small" fullWidth error={!!errors.role}>
             <InputLabel>Role</InputLabel>
             <Select
@@ -316,18 +338,18 @@ export default function AddUserForm() {
         </Box>
       </Paper>
       <AddedConfirmationModal
-              open={open}
-              title="Success"
-              content="User has been added successfully!"
-              addFunc={async () => { }}
-              handleClose={() => setOpen(false)}
-              onSuccess={() => window.history.back()}
-            />
-            <ErrorModal
-              open={errorOpen}
-              onClose={() => setErrorOpen(false)}
-              message={errorMessage}
-            />
+        open={open}
+        title="Success"
+        content="User has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

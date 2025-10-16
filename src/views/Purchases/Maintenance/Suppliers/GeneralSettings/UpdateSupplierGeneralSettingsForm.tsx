@@ -14,6 +14,7 @@ import {
     FormControlLabel,
     Grid,
     FormHelperText,
+    ListSubheader,
 } from "@mui/material";
 import theme from "../../../../../theme";
 import {
@@ -23,7 +24,12 @@ import {
     deleteSupplier,
 } from "../../../../../api/Supplier/SupplierApi";
 import { useNavigate, useParams } from "react-router";
-
+import { getChartMasters } from "../../../../../api/GLAccounts/ChartMasterApi";
+import { getCurrencies, Currency } from "../../../../../api/Currency/currencyApi";
+import { getTaxGroups, TaxGroup } from "../../../../../api/Tax/taxServices";
+import DeleteConfirmationModal from "../../../../../components/DeleteConfirmationModal";
+import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal";
+import ErrorModal from "../../../../../components/ErrorModal";
 interface UpdateSupplierGeneralSettingProps {
     supplierId?: string | number;
 }
@@ -38,18 +44,13 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
         taxGroup: "",
         ourCustomerNo: "",
         bankAccount: "",
-        bankName: "",
         creditLimit: "",
         paymentTerms: "",
         pricesIncludeTax: false,
         accountsPayable: "",
         purchaseAccount: "",
         purchaseDiscountAccount: "",
-        contactPerson: "",
-        phone: "",
-        secondaryPhone: "",
-        fax: "",
-        email: "",
+        dimension: "",
         documentLanguage: "",
         mailingAddress: "",
         physicalAddress: "",
@@ -57,6 +58,40 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
         status: "",
     });
 
+    const accountTypeMap: { [key: number]: string } = {
+        "1": "Current Assets",
+        "2": "Inventory Assets",
+        "3": "Capital Assets",
+        "4": "Current Liabilities",
+        "5": "Long Term Liabilities",
+        "6": "Share Capital",
+        "7": "Retained Earnings",
+        "8": "Sales Revenue",
+        "9": "Other Revenue",
+        "10": "Cost of Good Sold",
+        "11": "Payroll Expenses",
+        "12": "General and Adminitrative Expenses",
+    };
+
+    const [chartMasters, setChartMasters] = useState<any[]>([]);
+    useEffect(() => {
+        getChartMasters().then(setChartMasters);
+    }, []);
+
+    const [currencies, setCurrencies] = useState<Currency[]>([]);
+    useEffect(() => {
+        getCurrencies().then(setCurrencies);
+    }, []);
+
+    const [TaxGroups, setTaxGroups] = useState<TaxGroup[]>([]);
+    useEffect(() => {
+        getTaxGroups().then(setTaxGroups);
+    }, [])
+
+    const [open, setOpen] = useState(false);
+    const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
+    const [openDeleteModal, setOpenDeleteModal] = useState(false);
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
     const [suppliers, setSuppliers] = useState<any[]>([]);
     const [selectedCustomer, setSelectedCustomer] = useState("");
@@ -69,6 +104,11 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                 const res = await getSuppliers();
                 setSuppliers(res || []);
             } catch (err) {
+                setErrorMessage(
+                    err?.response?.data?.message ||
+                    "Failed to fetch supplier Please try again."
+                );
+                setErrorOpen(true);
                 console.error("Failed to fetch suppliers", err);
             }
         };
@@ -84,35 +124,35 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                 const res = await getSupplierById(supplierIdToUse);
                 if (res) {
                     setFormData({
-                        supplierName: res.supplier_name || "",
-                        supplierShortName: res.supplier_short_name || "",
-                        gstNumber: res.gst_number || "",
+                        supplierName: res.supp_name || "",
+                        supplierShortName: res.supp_short_name || "",
+                        gstNumber: res.gst_no || "",
                         website: res.website || "",
-                        supplierCurrency: res.supplier_currency || "",
+                        supplierCurrency: res.curr_code || "",
                         taxGroup: res.tax_group || "",
                         ourCustomerNo: res.our_customer_no || "",
                         bankAccount: res.bank_account || "",
-                        bankName: res.bank_name || "",
                         creditLimit: res.credit_limit || "",
                         paymentTerms: res.payment_terms || "",
-                        pricesIncludeTax: res.prices_include_tax || false,
-                        accountsPayable: res.accounts_payable || "",
+                        pricesIncludeTax: res.tax_included || false,
+                        accountsPayable: res.payable_account || "",
                         purchaseAccount: res.purchase_account || "",
                         purchaseDiscountAccount: res.purchase_discount_account || "",
-                        contactPerson: res.contact_person || "",
-                        phone: res.phone || "",
-                        secondaryPhone: res.secondary_phone || "",
-                        fax: res.fax || "",
-                        email: res.email || "",
+                        dimension: "",
                         documentLanguage: res.document_language || "",
-                        mailingAddress: res.mailing_address || "",
-                        physicalAddress: res.physical_address || "",
-                        generalNotes: res.general_notes || "",
+                        mailingAddress: res.mail_address || "",
+                        physicalAddress: res.bill_address || "",
+                        generalNotes: res.notes || "",
                         status: "",
                     });
                     setSelectedCustomer(res.id);
                 }
             } catch (err) {
+                setErrorMessage(
+                    err?.response?.data?.message ||
+                    "Failed to fetch supplier Please try again."
+                );
+                setErrorOpen(true);
                 console.error("Failed to fetch supplier details", err);
             }
         };
@@ -130,57 +170,58 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
         if (!supplierIdToUse) return;
         try {
             const payload = {
-                supplier_name: formData.supplierName || null,
-                supplier_short_name: formData.supplierShortName || null,
-                gst_number: formData.gstNumber || null,
+                supp_name: formData.supplierName || null,
+                supp_short_name: formData.supplierShortName || null,
+                gst_no: formData.gstNumber || null,
                 website: formData.website || null,
-                supplier_currency: formData.supplierCurrency || null,
+                curr_code: formData.supplierCurrency || null,
                 tax_group: formData.taxGroup || null,
-                our_customer_no: formData.ourCustomerNo || null,
+                supp_account_no: formData.ourCustomerNo || null,
                 bank_account: formData.bankAccount || null,
-                bank_name: formData.bankName || null,
                 credit_limit: formData.creditLimit ? Number(formData.creditLimit) : 0,
                 payment_terms: formData.paymentTerms || null,
-                prices_include_tax: formData.pricesIncludeTax ? 1 : 0,
-                accounts_payable: formData.accountsPayable || null,
+                tax_included: formData.pricesIncludeTax ? 1 : 0,
+                payable_account: formData.accountsPayable || null,
                 purchase_account: formData.purchaseAccount || null,
                 purchase_discount_account: formData.purchaseDiscountAccount || null,
-                contact_person: formData.contactPerson || null,
-                phone: formData.phone || null,
-                secondary_phone: formData.secondaryPhone || null,
-                fax: formData.fax || null,
-                email: formData.email || null,
+                dimension: formData.dimension || null,
                 document_language: formData.documentLanguage || null,
-                mailing_address: formData.mailingAddress || null,
-                physical_address: formData.physicalAddress || null,
-                general_notes: formData.generalNotes || null,
+                mail_address: formData.mailingAddress || null,
+                bill_address: formData.physicalAddress || null,
+                notes: formData.generalNotes || null,
             };
 
             console.log("Update payload:", payload);
 
             await updateSupplier(supplierIdToUse, payload);
-            alert("Supplier updated successfully");
-            navigate("/purchase/maintenance/suppliers");
+            setOpen(true);
+
         } catch (error: any) {
+            setErrorMessage(
+                error?.response?.data?.message ||
+                "Failed to update supplier Please try again."
+            );
+            setErrorOpen(true);
             console.error("Error updating supplier:", error);
-            alert("Failed to update supplier. See console for details.");
         }
     };
 
     //  Delete supplier
-    const handleDelete = async () => {
+    const handleDelete = () => {
+        setOpenDeleteModal(true);
+    };
+    const confirmDelete = async (): Promise<void> => {
         if (!supplierIdToUse) return;
-        if (!window.confirm("Are you sure you want to delete this supplier?")) return;
-
         try {
             await deleteSupplier(supplierIdToUse);
-            alert("Supplier deleted successfully");
+            console.log("Supplier deleted successfully");
+            setOpenDeleteModal(false);
             navigate("/purchase/maintenance");
         } catch (error: any) {
             console.error("Error deleting supplier:", error);
-            alert("Failed to delete supplier. See console for details.");
         }
     };
+
 
     return (
         <Stack alignItems="center" sx={{ p: { xs: 2, md: 3 } }}>
@@ -246,9 +287,14 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                                     value={formData.supplierCurrency}
                                     onChange={(e) => handleChange("supplierCurrency", e.target.value)}
                                 >
-                                    <MenuItem value="USD">USD</MenuItem>
-                                    <MenuItem value="LKR">LKR</MenuItem>
-                                    <MenuItem value="EUR">EUR</MenuItem>
+                                    {currencies.map((currency) => (
+                                        <MenuItem
+                                            key={currency.id}
+                                            value={currency.currency_abbreviation}
+                                        >
+                                            {currency.currency_name}
+                                        </MenuItem>
+                                    ))}
                                 </Select>
                                 <Typography variant="caption" color="error">{errors.supplierCurrency}</Typography>
                             </FormControl>
@@ -258,8 +304,14 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                                     value={formData.taxGroup}
                                     onChange={(e) => handleChange("taxGroup", e.target.value)}
                                 >
-                                    <MenuItem value="GST">TAX</MenuItem>
-                                    <MenuItem value="VAT">VAT</MenuItem>
+                                    {TaxGroups.map((TaxGroup) => (
+                                        <MenuItem
+                                            key={TaxGroup.id}
+                                            value={TaxGroup.description}
+                                        >
+                                            {TaxGroup.description}
+                                        </MenuItem>
+                                    ))}
                                 </Select>
                                 <Typography variant="caption" color="error">{errors.taxGroup}</Typography>
                             </FormControl>
@@ -280,17 +332,9 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                         <Stack spacing={2}>
                             <Typography variant="subtitle1">Purchasing</Typography>
                             <Divider />
+
                             <TextField
-                                label="Bank Name"
-                                value={formData.bankName}
-                                onChange={(e) => handleChange("bankName", e.target.value)}
-                                size="small"
-                                fullWidth
-                                error={!!errors.bankName}
-                                helperText={errors.bankName}
-                            />
-                            <TextField
-                                label="Bank Account"
+                                label="Bank Name/ Account"
                                 value={formData.bankAccount}
                                 onChange={(e) => handleChange("bankAccount", e.target.value)}
                                 size="small"
@@ -342,8 +386,25 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                                     value={formData.accountsPayable}
                                     onChange={(e) => handleChange("accountsPayable", e.target.value)}
                                 >
-                                    <MenuItem value="AP-001">AP-001</MenuItem>
-                                    <MenuItem value="AP-002">AP-002</MenuItem>
+                                    {Object.entries(
+                                        chartMasters.reduce((acc: any, account) => {
+                                            const type = account.account_type || "Unknown";
+                                            if (!acc[type]) acc[type] = [];
+                                            acc[type].push(account);
+                                            return acc;
+                                        }, {})
+                                    ).flatMap(([type, accounts]: any) => [
+                                        <ListSubheader key={`header-${type}`}>
+                                            {accountTypeMap[Number(type)] || "Unknown"}
+                                        </ListSubheader>,
+                                        ...accounts.map((acc: any) => (
+                                            <MenuItem key={acc.account_code} value={acc.account_code}>
+                                                <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                                                    {acc.account_code} - {acc.account_name}
+                                                </Stack>
+                                            </MenuItem>
+                                        )),
+                                    ])}
                                 </Select>
                                 <Typography variant="caption" color="error">{errors.accountsPayable}</Typography>
                             </FormControl>
@@ -353,8 +414,25 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                                     value={formData.purchaseAccount}
                                     onChange={(e) => handleChange("purchaseAccount", e.target.value)}
                                 >
-                                    <MenuItem value="PUR-001">PUR-001</MenuItem>
-                                    <MenuItem value="PUR-002">PUR-002</MenuItem>
+                                    {Object.entries(
+                                        chartMasters.reduce((acc: any, account) => {
+                                            const type = account.account_type || "Unknown";
+                                            if (!acc[type]) acc[type] = [];
+                                            acc[type].push(account);
+                                            return acc;
+                                        }, {})
+                                    ).flatMap(([type, accounts]: any) => [
+                                        <ListSubheader key={`header-${type}`}>
+                                            {accountTypeMap[Number(type)] || "Unknown"}
+                                        </ListSubheader>,
+                                        ...accounts.map((acc: any) => (
+                                            <MenuItem key={acc.account_code} value={acc.account_code}>
+                                                <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                                                    {acc.account_code} - {acc.account_name}
+                                                </Stack>
+                                            </MenuItem>
+                                        )),
+                                    ])}
                                 </Select>
                                 <Typography variant="caption" color="error">{errors.purchaseAccount}</Typography>
                             </FormControl>
@@ -364,76 +442,27 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                                     value={formData.purchaseDiscountAccount}
                                     onChange={(e) => handleChange("purchaseDiscountAccount", e.target.value)}
                                 >
-                                    <MenuItem value="DISC-001">5060 Discount Received</MenuItem>
-                                    <MenuItem value="DISC-002">5070 Discount Received</MenuItem>
+                                    {Object.entries(
+                                        chartMasters.reduce((acc: any, account) => {
+                                            const type = account.account_type || "Unknown";
+                                            if (!acc[type]) acc[type] = [];
+                                            acc[type].push(account);
+                                            return acc;
+                                        }, {})
+                                    ).flatMap(([type, accounts]: any) => [
+                                        <ListSubheader key={`header-${type}`}>
+                                            {accountTypeMap[Number(type)] || "Unknown"}
+                                        </ListSubheader>,
+                                        ...accounts.map((acc: any) => (
+                                            <MenuItem key={acc.account_code} value={acc.account_code}>
+                                                <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                                                    {acc.account_code} - {acc.account_name}
+                                                </Stack>
+                                            </MenuItem>
+                                        )),
+                                    ])}
                                 </Select>
                                 <Typography variant="caption" color="error">{errors.purchaseDiscountAccount}</Typography>
-                            </FormControl>
-                        </Stack>
-                    </Grid>
-
-                    {/* Contact Data */}
-                    <Grid item xs={12} md={6}>
-                        <Stack spacing={2}>
-                            <Typography variant="subtitle1">Contact Data</Typography>
-                            <Divider />
-                            <TextField
-                                label="Contact Person"
-                                value={formData.contactPerson}
-                                onChange={(e) => handleChange("contactPerson", e.target.value)}
-                                size="small"
-                                fullWidth
-                                error={!!errors.contactPerson}
-                                helperText={errors.contactPerson}
-                            />
-                            <TextField
-                                label="Phone Number"
-                                value={formData.phone}
-                                onChange={(e) => handleChange("phone", e.target.value)}
-                                size="small"
-                                fullWidth
-                                error={!!errors.phone}
-                                helperText={errors.phone}
-                            />
-                            <TextField
-                                label="Secondary Phone Number"
-                                value={formData.secondaryPhone}
-                                onChange={(e) => handleChange("secondaryPhone", e.target.value)}
-                                size="small"
-                                fullWidth
-                                error={!!errors.secondaryPhone}
-                                helperText={errors.secondaryPhone}
-                            />
-                            <TextField
-                                label="Fax Number"
-                                value={formData.fax}
-                                onChange={(e) => handleChange("fax", e.target.value)}
-                                size="small"
-                                fullWidth
-                                error={!!errors.fax}
-                                helperText={errors.fax}
-                            />
-                            <TextField
-                                label="Email"
-                                value={formData.email}
-                                onChange={(e) => handleChange("email", e.target.value)}
-                                size="small"
-                                fullWidth
-                                error={!!errors.email}
-                                helperText={errors.email}
-                            />
-                            <FormControl size="small" fullWidth error={!!errors.documentLanguage}>
-                                <InputLabel>Document Language</InputLabel>
-                                <Select
-                                    value={formData.documentLanguage}
-                                    onChange={(e) => handleChange("documentLanguage", e.target.value)}
-                                >
-                                    <MenuItem value="English">System Default</MenuItem>
-                                    <MenuItem value="English">English</MenuItem>
-                                    <MenuItem value="Sinhala">Sinhala</MenuItem>
-                                    <MenuItem value="Tamil">Tamil</MenuItem>
-                                </Select>
-                                <Typography variant="caption" color="error">{errors.documentLanguage}</Typography>
                             </FormControl>
                         </Stack>
                     </Grid>
@@ -443,6 +472,18 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                         <Stack spacing={2}>
                             <Typography variant="subtitle1">Addresses</Typography>
                             <Divider />
+                            <FormControl fullWidth size="small" error={!!errors.dimension}>
+                                <InputLabel>Dimension 1</InputLabel>
+                                <Select
+                                    value={formData.dimension || ''}
+                                    onChange={(e) => handleChange("dimension", e.target.value)}
+                                    label="Dimension 1"
+                                >
+                                    <MenuItem value="0">0</MenuItem>
+                                    <MenuItem value="1">1</MenuItem>
+                                </Select>
+                                <FormHelperText>{errors.dimension || " "}</FormHelperText>
+                            </FormControl>
                             <TextField
                                 label="Mailing Address"
                                 value={formData.mailingAddress}
@@ -485,7 +526,7 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                                 helperText={errors.generalNotes}
                             />
                             <FormControl fullWidth size="small" error={!!errors.status}>
-                                <InputLabel>Customer Status</InputLabel>
+                                <InputLabel>Supplier Status</InputLabel>
                                 <Select
                                     value={formData.status || ''}
                                     onChange={(e) => handleChange("status", e.target.value)}
@@ -539,8 +580,28 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                         Delete Supplier
                     </Button>
                 </Box>
-
             </Box>
+            <DeleteConfirmationModal
+                open={openDeleteModal}
+                title="Delete Supplier"
+                content="Are you sure you want to delete this supplier? This action cannot be undone."
+                handleClose={() => setOpenDeleteModal(false)}
+                handleReject={() => setOpenDeleteModal(false)}
+                deleteFunc={confirmDelete}
+                onSuccess={() => console.log("Supplier deleted successfully!")}
+            />
+            <UpdateConfirmationModal
+                open={open}
+                title="Success"
+                content="Supplier has been updated successfully!"
+                handleClose={() => setOpen(false)}
+                onSuccess={() => window.history.back()}
+            />
+            <ErrorModal
+                open={errorOpen}
+                onClose={() => setErrorOpen(false)}
+                message={errorMessage}
+            />
         </Stack>
     );
 }

@@ -34,6 +34,13 @@ export default function UpdatePaymentTermsForm() {
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
 
+  const [additionalDays, setAdditionalDays] = useState<string>("");
+
+  const handleAdditionalDaysChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAdditionalDays(e.target.value);
+  };
+
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData({
@@ -55,7 +62,7 @@ export default function UpdatePaymentTermsForm() {
 
     if (!formData.termsDescription) newErrors.termsDescription = "Payment Description is required";
     if (!formData.paymentType) newErrors.paymentType = "Payment type is required";
-    
+
 
     setErrors(newErrors);
 
@@ -122,6 +129,23 @@ export default function UpdatePaymentTermsForm() {
             </Select>
             <FormHelperText>{errors.paymentType}</FormHelperText>
           </FormControl>
+
+          {(formData.paymentType === "After No. of Days" ||
+            formData.paymentType === "Day in following month") && (
+              <TextField
+                label={
+                  formData.paymentType === "After No. of Days"
+                    ? "Days"
+                    : "Day in Following Month"
+                }
+                name="additionalDays"
+                size="small"
+                fullWidth
+                value={additionalDays}
+                onChange={handleAdditionalDaysChange}
+                type="number"
+              />
+            )}
         </Stack>
 
         <Box

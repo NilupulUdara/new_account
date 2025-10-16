@@ -70,12 +70,15 @@ const [open, setOpen] = useState(false);
   const mutation = useMutation({
     mutationFn: createBankAccount,
     onSuccess: () => {
-      alert("Bank account added successfully!");
       queryClient.invalidateQueries({ queryKey: ["bankAccounts"] });
       window.history.back();
     },
     onError: (err: any) => {
-      alert(err?.message || "Failed to add bank account");
+       setErrorMessage(
+          err?.response?.data?.message ||
+          "Failed to add bank account Please try again."
+        );
+        setErrorOpen(true);
     },
   });
 
