@@ -3,9 +3,9 @@ import axios from "axios";
 
 export interface ExchangeRate {
   id: number;
-  date_to_use: string;
-  exchange_rate: number;
-  currency: string; 
+  date: string;
+  rate_buy: number;
+  curr_code: string; 
 }
 
 const API_URL = "http://localhost:8000/api/exchange-rates";

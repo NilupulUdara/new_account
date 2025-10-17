@@ -11,6 +11,7 @@ import {
 } from "@mui/material";
 import theme from "../../../../theme";
 import DatePickerComponent from "../../../../components/DatePickerComponent";
+import { revaluateCurrencies } from "../../../../api/RevaluateCurency/CurrencyRevaluationApi";
 
 interface RevaluateCurrenciesData {
   revaluationDate: Date | null;
@@ -24,6 +25,8 @@ export default function RevaluateCurrenciesForm() {
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof RevaluateCurrenciesData, string>>>({});
+  const [loading, setLoading] = useState(false);
+
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
 
@@ -47,10 +50,31 @@ export default function RevaluateCurrenciesForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
-    if (validate()) {
-      console.log("Submitted Revaluation:", formData);
-      alert("Revaluation submitted successfully!");
+  const handleSubmit = async () => {
+    if (!validate()) return;
+
+    try {
+      setLoading(true);
+
+      // Prepare payload
+      const payload = {
+        revaluation_date: formData.revaluationDate?.toISOString().split("T")[0], // "YYYY-MM-DD"
+        memo: formData.memo,
+      };
+
+      // Call backend API
+      const result = await revaluateCurrencies(payload);
+      console.log("Backend response:", result);
+      alert("Currencies revaluated successfully!");
+
+      // Reset form (optional)
+      setFormData({ revaluationDate: null, memo: "" });
+
+    } catch (error: any) {
+      console.error("Failed to revaluate currencies:", error.response?.data || error);
+      alert(error.response?.data?.message || "Failed to revaluate currencies.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -73,16 +97,14 @@ export default function RevaluateCurrenciesForm() {
         </Typography>
 
         <Stack spacing={2}>
-          {/* Date for Revaluation */}
           <DatePickerComponent
             value={formData.revaluationDate}
             onChange={handleDateChange}
             label="Date for Revaluation"
             error={errors.revaluationDate}
-            disableFuture 
+            disableFuture
           />
 
-          {/* Memo */}
           <TextField
             label="Memo"
             name="memo"
@@ -94,7 +116,6 @@ export default function RevaluateCurrenciesForm() {
             onChange={handleInputChange}
             error={!!errors.memo}
             helperText={errors.memo || " "}
-            
           />
         </Stack>
 
@@ -114,8 +135,9 @@ export default function RevaluateCurrenciesForm() {
             fullWidth={isMobile}
             sx={{ backgroundColor: "var(--pallet-blue)" }}
             onClick={handleSubmit}
+            disabled={loading}
           >
-            Revaluate Currencies
+            {loading ? "Revaluating..." : "Revaluate Currencies"}
           </Button>
         </Box>
       </Paper>

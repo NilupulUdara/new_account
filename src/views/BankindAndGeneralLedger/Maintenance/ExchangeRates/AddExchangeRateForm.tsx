@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Stack,
@@ -9,8 +9,12 @@ import {
   useTheme,
   useMediaQuery,
 } from "@mui/material";
+import { useLocation, useNavigate } from "react-router-dom";
 import theme from "../../../../theme";
 import DatePickerComponent from "../../../../components/DatePickerComponent";
+import { createExchangeRate } from "../../../../api/ExchangeRate/ExchangeRateApi";
+import ErrorModal from "../../../../components/ErrorModal";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 
 interface ExchangeRateData {
   dateToUse: Date | null;
@@ -18,14 +22,32 @@ interface ExchangeRateData {
 }
 
 export default function AddExchangeRateForm() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const muiTheme = useTheme();
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  // Safely get currency from location.state
+  const currency_abbreviation = (location.state as { currency_abbreviation?: string })?.currency_abbreviation;
+
+  // If currency is missing, redirect back
+  useEffect(() => {
+    if (!currency_abbreviation) {
+      alert("No currency selected. Redirecting back.");
+      navigate(-1);
+    }
+  }, [currency_abbreviation, navigate]);
+
   const [formData, setFormData] = useState<ExchangeRateData>({
     dateToUse: null,
     exchangeRate: "",
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof ExchangeRateData, string>>>({});
-  const muiTheme = useTheme();
-  const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
 
   const handleDateChange = (date: Date | null) => {
     setFormData({ ...formData, dateToUse: date });
@@ -47,20 +69,32 @@ export default function AddExchangeRateForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleGet = () => {
-    if (!formData.exchangeRate.trim()) {
-      setErrors({ ...errors, exchangeRate: "Exchange Rate is required" });
-      return;
+  const handleSubmit = async () => {
+    if (!validate() || !currency_abbreviation) return;
+
+    const payload = {
+      curr_code: currency_abbreviation,
+      date: formData.dateToUse?.toISOString().split("T")[0],
+      rate_buy: parseFloat(formData.exchangeRate),
+    };
+
+    try {
+      setLoading(true);
+      await createExchangeRate(payload);
+      setOpen(true);
+    } catch (error: any) {
+      console.error("Failed to create exchange rate:", error.response?.data || error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to add exchange rate Please try again."
+      );
+      setErrorOpen(true);
+    } finally {
+      setLoading(false);
     }
-    alert(`Get clicked with Exchange Rate: ${formData.exchangeRate}`);
   };
 
-  const handleSubmit = () => {
-    if (validate()) {
-      console.log("Submitted Exchange Rate:", formData);
-      alert("Exchange Rate submitted successfully!");
-    }
-  };
+  if (!currency_abbreviation) return null; // Prevent render if currency is missing
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
@@ -81,6 +115,15 @@ export default function AddExchangeRateForm() {
         </Typography>
 
         <Stack spacing={2}>
+          {/* Currency (disabled) */}
+          <TextField
+            label="Currency"
+            value={currency_abbreviation}
+            size="small"
+            fullWidth
+            disabled
+          />
+
           {/* Date to use for */}
           <DatePickerComponent
             value={formData.dateToUse}
@@ -89,19 +132,17 @@ export default function AddExchangeRateForm() {
             error={errors.dateToUse}
           />
 
-          {/* Exchange Rate with Go button */}
-          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-            <TextField
-              label="Exchange Rate"
-              name="exchangeRate"
-              size="small"
-              fullWidth
-              value={formData.exchangeRate}
-              onChange={handleInputChange}
-              error={!!errors.exchangeRate}
-              helperText={errors.exchangeRate || " "}
-            />
-          </Box>
+          {/* Exchange Rate */}
+          <TextField
+            label="Exchange Rate"
+            name="exchangeRate"
+            size="small"
+            fullWidth
+            value={formData.exchangeRate}
+            onChange={handleInputChange}
+            error={!!errors.exchangeRate}
+            helperText={errors.exchangeRate || " "}
+          />
         </Stack>
 
         <Box
@@ -113,18 +154,32 @@ export default function AddExchangeRateForm() {
             gap: isMobile ? 2 : 0,
           }}
         >
-          <Button onClick={() => window.history.back()}>Back</Button>
+          <Button onClick={() => navigate(-1)}>Back</Button>
 
           <Button
             variant="contained"
             fullWidth={isMobile}
             sx={{ backgroundColor: "var(--pallet-blue)" }}
             onClick={handleSubmit}
+            disabled={loading}
           >
-            Save Exchange Rate
+            {loading ? "Saving..." : "Save Exchange Rate"}
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Exchange Rate has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

@@ -967,7 +967,7 @@ const AppRoutes = () => {
           element={withLayout(MainLayout, AddExchangeRateForm)}
         />
         <Route
-          path="/bankingandgeneralledger/maintenance/update-exchange-rate"
+          path="/bankingandgeneralledger/maintenance/update-exchange-rate/:id"
           element={withLayout(MainLayout, UpdateExchangeRateForm)}
         />
         <Route

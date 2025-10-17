@@ -46,7 +46,7 @@ function ExchangeRateTable() {
   const navigate = useNavigate();
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
 
-  // ✅ Fetch currencies
+  //  Fetch currencies
   useEffect(() => {
     const fetchCurrencies = async () => {
       try {
@@ -60,7 +60,7 @@ function ExchangeRateTable() {
     fetchCurrencies();
   }, []);
 
-  // ✅ Fetch exchange rates
+  //  Fetch exchange rates
   useEffect(() => {
     const fetchExchangeRates = async () => {
       try {
@@ -76,13 +76,13 @@ function ExchangeRateTable() {
     fetchExchangeRates();
   }, []);
 
-  // ✅ Filter by currency and search query
+  //  Filter by currency and search query
   const filteredData = useMemo(() => {
     return exchangeRates
-      .filter((er) => !selectedCurrency || er.currency === selectedCurrency)
+      .filter((er) => !selectedCurrency || er.curr_code === selectedCurrency)
       .filter((er) => {
-        const dateStr = new Date(er.date_to_use).toLocaleDateString();
-        const rateStr = er.exchange_rate.toString();
+        const dateStr = new Date(er.date).toLocaleDateString();
+        const rateStr = er.rate_buy.toString();
         return dateStr.includes(searchQuery) || rateStr.includes(searchQuery);
       });
   }, [exchangeRates, selectedCurrency, searchQuery]);
@@ -138,10 +138,13 @@ function ExchangeRateTable() {
           <Button
             variant="contained"
             color="primary"
-            onClick={() => navigate("/bankingandgeneralledger/maintenance/add-exchange-rate")}
+            onClick={() => navigate("/bankingandgeneralledger/maintenance/add-exchange-rate", {
+              state: { currency_abbreviation: selectedCurrency }
+            })}
           >
             Add Exchange Rate
           </Button>
+
           <Button
             variant="outlined"
             startIcon={<ArrowBackIcon />}
@@ -167,7 +170,7 @@ function ExchangeRateTable() {
           >
             {currencies.map((c) => (
               <MenuItem key={c.id} value={c.currency_abbreviation}>
-                {c.currency_abbreviation} - {c.currency_name}
+                {c.currency_abbreviation}
               </MenuItem>
             ))}
           </Select>
@@ -210,8 +213,8 @@ function ExchangeRateTable() {
                 paginatedData.map((er, index) => (
                   <TableRow key={er.id} hover>
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                    <TableCell>{new Date(er.date_to_use).toLocaleDateString()}</TableCell>
-                    <TableCell>{er.exchange_rate}</TableCell>
+                    <TableCell>{new Date(er.date).toLocaleDateString()}</TableCell>
+                    <TableCell>{er.rate_buy}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -219,7 +222,7 @@ function ExchangeRateTable() {
                           size="small"
                           startIcon={<EditIcon />}
                           onClick={() =>
-                            navigate("/bankingandgeneralledger/maintenance/update-exchange-rate")
+                            navigate(`/bankingandgeneralledger/maintenance/update-exchange-rate/${er.id}`)
                           }
                         >
                           Edit

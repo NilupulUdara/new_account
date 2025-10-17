@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Stack,
@@ -9,8 +9,12 @@ import {
   useTheme,
   useMediaQuery,
 } from "@mui/material";
+import { useParams, useNavigate } from "react-router-dom";
 import theme from "../../../../theme";
 import DatePickerComponent from "../../../../components/DatePickerComponent";
+import { ExchangeRate, updateExchangeRate, getExchangeRates } from "../../../../api/ExchangeRate/ExchangeRateApi";
+import ErrorModal from "../../../../components/ErrorModal";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal";
 
 interface ExchangeRateData {
   dateToUse: Date | null;
@@ -18,14 +22,46 @@ interface ExchangeRateData {
 }
 
 export default function UpdateExchangeRateForm() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const muiTheme = useTheme();
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const [formData, setFormData] = useState<ExchangeRateData>({
     dateToUse: null,
     exchangeRate: "",
   });
-
   const [errors, setErrors] = useState<Partial<Record<keyof ExchangeRateData, string>>>({});
-  const muiTheme = useTheme();
-  const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const [loading, setLoading] = useState(false);
+
+  // Fetch existing exchange rate
+  useEffect(() => {
+    const fetchExchangeRate = async () => {
+      if (!id) return;
+      try {
+        setLoading(true);
+        const data = await getExchangeRates();
+        const er = data.find((e) => e.id.toString() === id);
+        if (!er) {
+          alert("Exchange rate not found!");
+          navigate(-1);
+          return;
+        }
+        setFormData({
+          dateToUse: new Date(er.date),
+          exchangeRate: er.rate_buy.toString(),
+        });
+      } catch (error) {
+        console.error("Failed to fetch exchange rate:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchExchangeRate();
+  }, [id, navigate]);
 
   const handleDateChange = (date: Date | null) => {
     setFormData({ ...formData, dateToUse: date });
@@ -42,46 +78,43 @@ export default function UpdateExchangeRateForm() {
     const newErrors: Partial<Record<keyof ExchangeRateData, string>> = {};
     if (!formData.dateToUse) newErrors.dateToUse = "Date is required";
     if (!formData.exchangeRate.trim()) newErrors.exchangeRate = "Exchange Rate is required";
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleGet = () => {
-    if (!formData.exchangeRate.trim()) {
-      setErrors({ ...errors, exchangeRate: "Exchange Rate is required" });
-      return;
+  const handleSubmit = async () => {
+    if (!validate() || !id) return;
+
+    try {
+      setLoading(true);
+      await updateExchangeRate(id, {
+        date: formData.dateToUse?.toISOString().split("T")[0],
+        rate_buy: parseFloat(formData.exchangeRate),
+      });
+      setOpen(true);
+    } catch (error: any) {
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to update currency Please try again."
+      );
+      setErrorOpen(true);
+      console.error("Failed to update exchange rate:", error.response?.data || error);
+      // alert(error.response?.data?.message || "Failed to update exchange rate. Try again.");
+    } finally {
+      setLoading(false);
     }
-    alert(`Get clicked with Exchange Rate: ${formData.exchangeRate}`);
   };
 
-  const handleSubmit = () => {
-    if (validate()) {
-      console.log("Submitted Exchange Rate:", formData);
-      alert("Exchange Rate submitted successfully!");
-    }
-  };
+  if (loading) return <Typography>Loading...</Typography>;
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
-      <Paper
-        sx={{
-          p: theme.spacing(3),
-          maxWidth: "600px",
-          width: "100%",
-          boxShadow: 2,
-          borderRadius: 2,
-        }}
-      >
-        <Typography
-          variant="h6"
-          sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}
-        >
+      <Paper sx={{ p: theme.spacing(3), maxWidth: "600px", width: "100%", boxShadow: 2, borderRadius: 2 }}>
+        <Typography variant="h6" sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}>
           Update Exchange Rate
         </Typography>
 
         <Stack spacing={2}>
-          {/* Date to use for */}
           <DatePickerComponent
             value={formData.dateToUse}
             onChange={handleDateChange}
@@ -89,42 +122,44 @@ export default function UpdateExchangeRateForm() {
             error={errors.dateToUse}
           />
 
-          {/* Exchange Rate with Go button */}
-          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-            <TextField
-              label="Exchange Rate"
-              name="exchangeRate"
-              size="small"
-              fullWidth
-              value={formData.exchangeRate}
-              onChange={handleInputChange}
-              error={!!errors.exchangeRate}
-              helperText={errors.exchangeRate || " "}
-            />
-          </Box>
+          <TextField
+            label="Exchange Rate"
+            name="exchangeRate"
+            size="small"
+            fullWidth
+            value={formData.exchangeRate}
+            onChange={handleInputChange}
+            error={!!errors.exchangeRate}
+            helperText={errors.exchangeRate || " "}
+          />
         </Stack>
 
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            mt: 3,
-            flexDirection: isMobile ? "column" : "row",
-            gap: isMobile ? 2 : 0,
-          }}
-        >
-          <Button onClick={() => window.history.back()}>Back</Button>
+        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3, flexDirection: isMobile ? "column" : "row", gap: isMobile ? 2 : 0 }}>
+          <Button onClick={() => navigate(-1)}>Back</Button>
 
           <Button
             variant="contained"
             fullWidth={isMobile}
             sx={{ backgroundColor: "var(--pallet-blue)" }}
             onClick={handleSubmit}
+            disabled={loading}
           >
-            Update
+            {loading ? "Updating..." : "Update"}
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Exchange Rate has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }
