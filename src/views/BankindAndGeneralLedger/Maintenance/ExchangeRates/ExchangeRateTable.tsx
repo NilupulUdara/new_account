@@ -28,41 +28,58 @@ import theme from "../../../../theme";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
-
-interface ExchangeRate {
-  id: number;
-  date_to_use: string;
-  exchange_rate: number;
-  currency: string;
-}
+import { getCurrencies, Currency } from "../../../../api/Currency/currencyApi";
+import {
+  getExchangeRates,
+  deleteExchangeRate,
+  ExchangeRate,
+} from "../../../../api/ExchangeRate/ExchangeRateApi";
 
 function ExchangeRateTable() {
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [selectedCurrency, setSelectedCurrency] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCurrency, setSelectedCurrency] = useState("USD");
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
 
-  // Dummy data
+  // ✅ Fetch currencies
   useEffect(() => {
-    const dummyData: ExchangeRate[] = [
-      { id: 1, date_to_use: "2025-09-23", exchange_rate: 365.5, currency: "USD" },
-      { id: 2, date_to_use: "2025-09-22", exchange_rate: 364.8, currency: "USD" },
-      { id: 3, date_to_use: "2025-09-21", exchange_rate: 366.0, currency: "EUR" },
-      { id: 4, date_to_use: "2025-09-20", exchange_rate: 365.2, currency: "EUR" },
-      { id: 5, date_to_use: "2025-09-19", exchange_rate: 364.9, currency: "LKR" },
-      { id: 6, date_to_use: "2025-09-18", exchange_rate: 363.7, currency: "LKR" },
-      { id: 7, date_to_use: "2025-09-17", exchange_rate: 365.8, currency: "USD" },
-    ];
-    setExchangeRates(dummyData);
+    const fetchCurrencies = async () => {
+      try {
+        const data = await getCurrencies();
+        setCurrencies(data);
+        if (data.length > 0) setSelectedCurrency(data[0].currency_abbreviation);
+      } catch (error) {
+        console.error("Error fetching currencies:", error);
+      }
+    };
+    fetchCurrencies();
   }, []);
 
-  // Filter data based on currency and search query
+  // ✅ Fetch exchange rates
+  useEffect(() => {
+    const fetchExchangeRates = async () => {
+      try {
+        setLoading(true);
+        const data = await getExchangeRates();
+        setExchangeRates(data);
+      } catch (error) {
+        console.error("Error fetching exchange rates:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchExchangeRates();
+  }, []);
+
+  // ✅ Filter by currency and search query
   const filteredData = useMemo(() => {
     return exchangeRates
-      .filter((er) => er.currency === selectedCurrency)
+      .filter((er) => !selectedCurrency || er.currency === selectedCurrency)
       .filter((er) => {
         const dateStr = new Date(er.date_to_use).toLocaleDateString();
         const rateStr = er.exchange_rate.toString();
@@ -75,15 +92,20 @@ function ExchangeRateTable() {
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [filteredData, page, rowsPerPage]);
 
-  const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
+  const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm("Are you sure you want to delete this exchange rate?")) {
-      setExchangeRates((prev) => prev.filter((er) => er.id !== id));
+      try {
+        await deleteExchangeRate(id);
+        setExchangeRates((prev) => prev.filter((er) => er.id !== id));
+      } catch (error) {
+        console.error("Failed to delete exchange rate:", error);
+      }
     }
   };
 
@@ -120,7 +142,6 @@ function ExchangeRateTable() {
           >
             Add Exchange Rate
           </Button>
-
           <Button
             variant="outlined"
             startIcon={<ArrowBackIcon />}
@@ -131,7 +152,7 @@ function ExchangeRateTable() {
         </Stack>
       </Box>
 
-      {/* Currency Selector and Search Bar */}
+      {/* Currency Selector + Search */}
       <Stack
         direction={isMobile ? "column" : "row"}
         spacing={2}
@@ -144,9 +165,11 @@ function ExchangeRateTable() {
             label="Currency"
             onChange={(e) => setSelectedCurrency(e.target.value)}
           >
-            <MenuItem value="USD">USD</MenuItem>
-            <MenuItem value="EUR">EUR</MenuItem>
-            <MenuItem value="LKR">LKR</MenuItem>
+            {currencies.map((c) => (
+              <MenuItem key={c.id} value={c.currency_abbreviation}>
+                {c.currency_abbreviation} - {c.currency_name}
+              </MenuItem>
+            ))}
           </Select>
         </FormControl>
 
@@ -177,21 +200,27 @@ function ExchangeRateTable() {
             </TableHead>
 
             <TableBody>
-              {paginatedData.length > 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={4} align="center">
+                    <Typography variant="body2">Loading...</Typography>
+                  </TableCell>
+                </TableRow>
+              ) : paginatedData.length > 0 ? (
                 paginatedData.map((er, index) => (
                   <TableRow key={er.id} hover>
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
                     <TableCell>{new Date(er.date_to_use).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      {er.exchange_rate}
-                    </TableCell>
+                    <TableCell>{er.exchange_rate}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
                           variant="contained"
                           size="small"
                           startIcon={<EditIcon />}
-                           onClick={() => navigate("/bankingandgeneralledger/maintenance/update-exchange-rate")}
+                          onClick={() =>
+                            navigate("/bankingandgeneralledger/maintenance/update-exchange-rate")
+                          }
                         >
                           Edit
                         </Button>

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   Box,
   Stack,
@@ -14,32 +15,45 @@ import {
   FormHelperText,
   useMediaQuery,
   useTheme,
+  CircularProgress,
 } from "@mui/material";
 import theme from "../../../../theme";
-import { createTaxType } from "../../../../api/Tax/taxServices";
+import { getPaymentTerm, updatePaymentTerm } from "../../../../api/PaymentTerm/PaymentTermApi";
+import { getPaymentTypes } from "../../../../api/PaymentType/PaymentTypeApi";
 
 interface PaymentTermsFormData {
   termsDescription: string;
-  paymentType: string;
+  paymentType: string; // store as text value
+}
+
+interface PaymentType {
+  id: number;
+  name: string;
 }
 
 export default function UpdatePaymentTermsForm() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState<PaymentTermsFormData>({
     termsDescription: "",
     paymentType: "",
   });
 
   const [errors, setErrors] = useState<Partial<PaymentTermsFormData>>({});
+  const [additionalDays, setAdditionalDays] = useState<string>("");
+  const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
 
-  const [additionalDays, setAdditionalDays] = useState<string>("");
+  const AFTER_NO_OF_DAYS_ID = 3;
+  const DAY_IN_FOLLOWING_MONTH_ID = 4;
 
   const handleAdditionalDaysChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAdditionalDays(e.target.value);
   };
-
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -50,42 +64,94 @@ export default function UpdatePaymentTermsForm() {
   };
 
   const handleSelectChange = (e: SelectChangeEvent<string>) => {
-    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [name]: value,
+      paymentType: e.target.value,
     });
+    setAdditionalDays(""); // reset days when type changes
   };
 
   const validate = (): boolean => {
     const newErrors: Partial<PaymentTermsFormData> = {};
-
     if (!formData.termsDescription) newErrors.termsDescription = "Payment Description is required";
     if (!formData.paymentType) newErrors.paymentType = "Payment type is required";
 
-
     setErrors(newErrors);
-
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async () => {
-    if (validate()) {
+    if (validate() && id) {
       try {
+        // Convert paymentType text back to ID
+        const selectedPaymentType = paymentTypes.find((pt) => pt.name === formData.paymentType);
+        if (!selectedPaymentType) throw new Error("Invalid payment type selected");
+
         const payload = {
-          term_description: formData.termsDescription,
-          payment_type: formData.paymentType,
+          description: formData.termsDescription,
+          payment_type: selectedPaymentType.id,
+          days_before_due:
+            selectedPaymentType.id === AFTER_NO_OF_DAYS_ID ? parseInt(additionalDays || "0") : 0,
+          day_in_following_month:
+            selectedPaymentType.id === DAY_IN_FOLLOWING_MONTH_ID ? parseInt(additionalDays || "0") : 0,
+          inactive: false,
         };
 
-        await createTaxType(payload);
+        await updatePaymentTerm(Number(id), payload);
         alert("Payment term updated successfully!");
-        window.history.back();
+        navigate(-1);
       } catch (error) {
         console.error(error);
         alert("Failed to update payment term");
       }
     }
   };
+
+  useEffect(() => {
+    const fetchPaymentTypes = async () => {
+      try {
+        const types: PaymentType[] = await getPaymentTypes();
+        setPaymentTypes(types);
+        return types;
+      } catch (error) {
+        console.error("Failed to fetch payment types", error);
+        return [];
+      }
+    };
+
+    const fetchPaymentTerm = async () => {
+      if (!id) return;
+      try {
+        const types = await fetchPaymentTypes();
+        const term = await getPaymentTerm(Number(id));
+
+        // Map ID to name
+        const paymentTypeObj = types.find((pt) => pt.id === term.payment_type);
+
+        setFormData({
+          termsDescription: term.description,
+          paymentType: paymentTypeObj ? paymentTypeObj.name : "",
+        });
+
+        if (term.payment_type === AFTER_NO_OF_DAYS_ID) setAdditionalDays(term.days_before_due?.toString() || "");
+        if (term.payment_type === DAY_IN_FOLLOWING_MONTH_ID) setAdditionalDays(term.day_in_following_month?.toString() || "");
+      } catch (error) {
+        console.error("Failed to fetch payment term", error);
+        alert("Payment term not found");
+        navigate(-1);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPaymentTerm();
+  }, [id, navigate]);
+
+  if (loading) return <CircularProgress sx={{ mt: 4 }} />;
+
+  const showDaysField =
+    paymentTypes.find((pt) => pt.name === formData.paymentType)?.id === AFTER_NO_OF_DAYS_ID ||
+    paymentTypes.find((pt) => pt.name === formData.paymentType)?.id === DAY_IN_FOLLOWING_MONTH_ID;
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
@@ -105,7 +171,7 @@ export default function UpdatePaymentTermsForm() {
         <Stack spacing={2}>
           <TextField
             label="Description"
-            name="description"
+            name="termsDescription"
             size="small"
             fullWidth
             value={formData.termsDescription}
@@ -114,38 +180,38 @@ export default function UpdatePaymentTermsForm() {
             helperText={errors.termsDescription}
           />
 
-          <FormControl size="small" fullWidth error={!!errors.paymentType}>
-            <InputLabel>Payment types</InputLabel>
+          <FormControl fullWidth size="small" error={!!errors.paymentType}>
+            <InputLabel>Payment Type</InputLabel>
             <Select
               name="paymentType"
               value={formData.paymentType}
               onChange={handleSelectChange}
-              label="Payment types"
+              label="Payment Type"
             >
-              <MenuItem value="payment">payment</MenuItem>
-              <MenuItem value="cash">cash</MenuItem>
-              <MenuItem value="After No. of Days">After No. of Days</MenuItem>
-              <MenuItem value="Day in following month">Day in following month</MenuItem>
+              {paymentTypes.map((type) => (
+                <MenuItem key={type.id} value={type.name}>
+                  {type.name}
+                </MenuItem>
+              ))}
             </Select>
-            <FormHelperText>{errors.paymentType}</FormHelperText>
+            {errors.paymentType && <FormHelperText>{errors.paymentType}</FormHelperText>}
           </FormControl>
 
-          {(formData.paymentType === "After No. of Days" ||
-            formData.paymentType === "Day in following month") && (
-              <TextField
-                label={
-                  formData.paymentType === "After No. of Days"
-                    ? "Days"
-                    : "Day in Following Month"
-                }
-                name="additionalDays"
-                size="small"
-                fullWidth
-                value={additionalDays}
-                onChange={handleAdditionalDaysChange}
-                type="number"
-              />
-            )}
+          {showDaysField && (
+            <TextField
+              label={
+                paymentTypes.find((pt) => pt.name === formData.paymentType)?.id === AFTER_NO_OF_DAYS_ID
+                  ? "Days"
+                  : "Day in Following Month"
+              }
+              name="additionalDays"
+              size="small"
+              fullWidth
+              value={additionalDays}
+              onChange={handleAdditionalDaysChange}
+              type="number"
+            />
+          )}
         </Stack>
 
         <Box
@@ -157,11 +223,7 @@ export default function UpdatePaymentTermsForm() {
             gap: isMobile ? 2 : 0,
           }}
         >
-          <Button
-            fullWidth={isMobile}
-            variant="outlined"
-            onClick={() => window.history.back()}
-          >
+          <Button fullWidth={isMobile} variant="outlined" onClick={() => navigate(-1)}>
             Back
           </Button>
 

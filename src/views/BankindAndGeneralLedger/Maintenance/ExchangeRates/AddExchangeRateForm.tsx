@@ -101,14 +101,6 @@ export default function AddExchangeRateForm() {
               error={!!errors.exchangeRate}
               helperText={errors.exchangeRate || " "}
             />
-            <Button
-              variant="outlined"
-              color="primary"
-              onClick={handleGet}
-              sx={{ height: "40px", minWidth: "70px" }}
-            >
-              Get
-            </Button>
           </Box>
         </Stack>
 

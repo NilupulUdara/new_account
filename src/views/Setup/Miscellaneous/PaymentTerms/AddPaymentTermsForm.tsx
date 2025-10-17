@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Stack,
@@ -14,32 +14,57 @@ import {
   FormHelperText,
   useMediaQuery,
   useTheme,
+  CircularProgress,
 } from "@mui/material";
 import theme from "../../../../theme";
 import { createPaymentTerm } from "../../../../api/PaymentTerm/PaymentTermApi";
+import { getPaymentTypes } from "../../../../api/PaymentType/PaymentTypeApi";
 
 interface PaymentTermsFormData {
   termsDescription: string;
-  paymentType: string;
-  days: string;
+  paymentType: string; // store as string for Select compatibility
+}
+
+interface PaymentType {
+  id: number;
+  name: string;
 }
 
 export default function AddPaymentTermsForm() {
   const [formData, setFormData] = useState<PaymentTermsFormData>({
     termsDescription: "",
     paymentType: "",
-    days: ""
   });
 
   const [errors, setErrors] = useState<Partial<PaymentTermsFormData>>({});
   const [additionalDays, setAdditionalDays] = useState<string>("");
+  const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
 
+  // Replace with actual IDs from your DB
+  const AFTER_NO_OF_DAYS_ID = 3;
+  const DAY_IN_FOLLOWING_MONTH_ID = 4;
+
   const handleAdditionalDaysChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAdditionalDays(e.target.value);
   };
+
+  useEffect(() => {
+    const fetchPaymentTypes = async () => {
+      try {
+        const types: PaymentType[] = await getPaymentTypes();
+        setPaymentTypes(types);
+      } catch (error) {
+        console.error("Failed to fetch payment types", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPaymentTypes();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -50,11 +75,11 @@ export default function AddPaymentTermsForm() {
   };
 
   const handleSelectChange = (e: SelectChangeEvent<string>) => {
-    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [name]: value,
+      paymentType: e.target.value,
     });
+    setAdditionalDays(""); // Reset days when type changes
   };
 
   const validate = (): boolean => {
@@ -63,19 +88,26 @@ export default function AddPaymentTermsForm() {
     if (!formData.termsDescription) newErrors.termsDescription = "Payment Description is required";
     if (!formData.paymentType) newErrors.paymentType = "Payment type is required";
 
-
     setErrors(newErrors);
-
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async () => {
     if (validate()) {
       try {
+        const selectedPaymentTypeId = parseInt(formData.paymentType);
+
         const payload = {
           description: formData.termsDescription,
-          days_before_due: formData.paymentType === "After No. of Days" ? parseInt(additionalDays || "0") : 0,
-          day_in_following_month: formData.paymentType === "Day in following month" ? parseInt(additionalDays || "0") : 0,
+          payment_type: selectedPaymentTypeId,
+          days_before_due:
+            selectedPaymentTypeId === AFTER_NO_OF_DAYS_ID
+              ? parseInt(additionalDays || "0")
+              : 0,
+          day_in_following_month:
+            selectedPaymentTypeId === DAY_IN_FOLLOWING_MONTH_ID
+              ? parseInt(additionalDays || "0")
+              : 0,
           inactive: false,
         };
 
@@ -88,6 +120,13 @@ export default function AddPaymentTermsForm() {
       }
     }
   };
+
+  if (loading) return <CircularProgress sx={{ mt: 4 }} />;
+
+  // Show days field only for specific types
+  const showDaysField =
+    parseInt(formData.paymentType) === AFTER_NO_OF_DAYS_ID ||
+    parseInt(formData.paymentType) === DAY_IN_FOLLOWING_MONTH_ID;
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
@@ -105,6 +144,7 @@ export default function AddPaymentTermsForm() {
         </Typography>
 
         <Stack spacing={2}>
+          {/* Description */}
           <TextField
             label="Description"
             name="termsDescription"
@@ -116,41 +156,45 @@ export default function AddPaymentTermsForm() {
             helperText={errors.termsDescription}
           />
 
-          <FormControl size="small" fullWidth error={!!errors.paymentType}>
-            <InputLabel>Payment types</InputLabel>
+          {/* Payment Type */}
+          <FormControl fullWidth size="small" error={!!errors.paymentType}>
+            <InputLabel>Payment Type</InputLabel>
             <Select
               name="paymentType"
               value={formData.paymentType}
               onChange={handleSelectChange}
-              label="Payment types"
+              label="Payment Type"
             >
-              <MenuItem value="payment">payment</MenuItem>
-              <MenuItem value="cash">cash</MenuItem>
-              <MenuItem value="After No. of Days">After No. of Days</MenuItem>
-              <MenuItem value="Day in following month">Day in following month</MenuItem>
+              {paymentTypes.map((type) => (
+                <MenuItem key={type.id} value={type.id.toString()}>
+                  {type.name}
+                </MenuItem>
+              ))}
             </Select>
-            <FormHelperText>{errors.paymentType}</FormHelperText>
+            {errors.paymentType && (
+              <FormHelperText>{errors.paymentType}</FormHelperText>
+            )}
           </FormControl>
 
-
-          {(formData.paymentType === "After No. of Days" ||
-            formData.paymentType === "Day in following month") && (
-              <TextField
-                label={
-                  formData.paymentType === "After No. of Days"
-                    ? "Days"
-                    : "Day in Following Month"
-                }
-                name="additionalDays"
-                size="small"
-                fullWidth
-                value={additionalDays}
-                onChange={handleAdditionalDaysChange}
-                type="number"
-              />
-            )}
+          {/* Days or Day in Following Month (only for selected types) */}
+          {showDaysField && (
+            <TextField
+              label={
+                parseInt(formData.paymentType) === AFTER_NO_OF_DAYS_ID
+                  ? "Days"
+                  : "Day in Following Month"
+              }
+              name="additionalDays"
+              size="small"
+              fullWidth
+              value={additionalDays}
+              onChange={handleAdditionalDaysChange}
+              type="number"
+            />
+          )}
         </Stack>
 
+        {/* Action Buttons */}
         <Box
           sx={{
             display: "flex",
@@ -160,11 +204,7 @@ export default function AddPaymentTermsForm() {
             gap: isMobile ? 2 : 0,
           }}
         >
-          <Button
-            fullWidth={isMobile}
-            variant="outlined"
-            onClick={() => window.history.back()}
-          >
+          <Button fullWidth={isMobile} variant="outlined" onClick={() => window.history.back()}>
             Back
           </Button>
 

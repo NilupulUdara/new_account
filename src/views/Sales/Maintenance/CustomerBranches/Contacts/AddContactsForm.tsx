@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Stack,
@@ -13,7 +13,7 @@ import {
 import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
 import ErrorModal from "../../../../../components/ErrorModal";
 import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
-
+import { getContactCategories } from "../../../../../api/ContactCategory/ContactCategoryApi";
 interface AddContactsData {
   firstName: string;
   lastName: string;
@@ -46,6 +46,23 @@ export default function AddContactsForm() {
     documentLanguage: "",
     notes: "",
   });
+
+  const [categories, setCategories] = useState<{ id?: number; name: string }[]>([]);
+
+  useEffect(() => {
+  const fetchCategories = async () => {
+    try {
+      const data = await getContactCategories(); // fetch all categories
+      const filtered = data.filter((category: any) => category.type === "cust_branch");
+      setCategories(filtered);
+    } catch (error) {
+      console.error("Failed to fetch CRM categories:", error);
+    }
+  };
+
+  fetchCategories();
+}, []);
+
 
   const [errors, setErrors] = useState<Partial<Record<keyof AddContactsData, string>>>({});
   const muiTheme = useTheme();
@@ -156,6 +173,7 @@ export default function AddContactsForm() {
 
           {/* Contact Active For */}
           <TextField
+            select
             label="Contact Active For"
             name="contactActiveFor"
             size="small"
@@ -163,7 +181,14 @@ export default function AddContactsForm() {
             value={formData.contactActiveFor}
             onChange={handleInputChange}
             helperText=" "
-          />
+          >
+            {categories.map((category) => (
+              <MenuItem key={category.id} value={category.id}>
+                {category.name}
+              </MenuItem>
+            ))}
+          </TextField>
+
 
           {/* Phone */}
           <TextField

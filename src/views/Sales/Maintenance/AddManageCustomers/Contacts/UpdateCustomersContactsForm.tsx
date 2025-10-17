@@ -15,6 +15,7 @@ import { updateCustomerContact, getCustomerContacts } from "../../../../../api/C
 import { useEffect } from "react";
 import ErrorModal from "../../../../../components/ErrorModal";
 import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal";
+import { getContactCategories } from "../../../../../api/ContactCategory/ContactCategoryApi";
 
 interface UpdateCustomersContactsData {
   firstName: string;
@@ -53,6 +54,22 @@ export default function UpdateCustomersContactsForm() {
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const { id } = useParams();
   const navigate = useNavigate();
+
+  const [categories, setCategories] = useState<{ id?: number; name: string }[]>([]);
+  
+    useEffect(() => {
+      const fetchCategories = async () => {
+        try {
+          const data = await getContactCategories(); // fetch all categories
+          const filtered = data.filter((category: any) => category.type === "customer");
+          setCategories(filtered);
+        } catch (error) {
+          console.error("Failed to fetch CRM categories:", error);
+        }
+      };
+    
+      fetchCategories();
+    }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -190,14 +207,21 @@ export default function UpdateCustomersContactsForm() {
 
           {/* Contact Active For */}
           <TextField
-            label="Contact Active For"
-            name="contactActiveFor"
-            size="small"
-            fullWidth
-            value={formData.contactActiveFor}
-            onChange={handleInputChange}
-            helperText=" "
-          />
+                      select
+                      label="Contact Active For"
+                      name="contactActiveFor"
+                      size="small"
+                      fullWidth
+                      value={formData.contactActiveFor}
+                      onChange={handleInputChange}
+                      helperText=" "
+                    >
+                      {categories.map((category) => (
+                        <MenuItem key={category.id} value={category.id}>
+                          {category.name}
+                        </MenuItem>
+                      ))}
+                    </TextField>
 
           {/* Phone */}
           <TextField

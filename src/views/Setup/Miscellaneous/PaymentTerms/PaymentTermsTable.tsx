@@ -26,7 +26,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
-// import { getPaymentTerms, deletePaymentTerm } from "../../../../api/PaymentTerms/paymentTermsServices";
+import { getPaymentTerms, deletePaymentTerm } from "../../../../api/PaymentTerm/PaymentTermApi";
 
 export default function PaymentTermsTable() {
   const [page, setPage] = useState(0);
@@ -37,9 +37,17 @@ export default function PaymentTermsTable() {
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
-//   useEffect(() => {
-//     getPaymentTerms().then((data) => setPaymentTerms(data));
-//   }, []);
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const data = await getPaymentTerms();
+        setPaymentTerms(data);
+      } catch (error) {
+        console.error("Error fetching payment terms:", error);
+      }
+    };
+    fetchData();
+  }, []);
 
   const filteredData = useMemo(() => {
     let data = showInactive ? paymentTerms : paymentTerms.filter((p) => !p.inactive);
@@ -48,9 +56,10 @@ export default function PaymentTermsTable() {
       const lower = searchQuery.toLowerCase();
       data = data.filter(
         (p) =>
-          p.description.toLowerCase().includes(lower) ||
-          p.payment_type.toLowerCase().includes(lower) ||
-          String(p.due_after).toLowerCase().includes(lower)
+          p.description?.toLowerCase().includes(lower) ||
+          p.payment_type?.name?.toLowerCase().includes(lower) ||
+          String(p.days_before_due)?.toLowerCase().includes(lower) ||
+          String(p.day_in_following_month)?.toLowerCase().includes(lower)
       );
     }
 
@@ -74,12 +83,16 @@ export default function PaymentTermsTable() {
     setPage(0);
   };
 
-//   const handleDelete = async (id: number) => {
-//     if (window.confirm("Are you sure you want to delete this payment term?")) {
-//       await deletePaymentTerm(id);
-//       setPaymentTerms((prev) => prev.filter((p) => p.id !== id));
-//     }
-//   };
+  const handleDelete = async (id: number) => {
+    if (window.confirm("Are you sure you want to delete this payment term?")) {
+      try {
+        await deletePaymentTerm(id);
+        setPaymentTerms((prev) => prev.filter((p) => p.terms_indicator !== id));
+      } catch (error) {
+        console.error("Error deleting payment term:", error);
+      }
+    }
+  };
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
@@ -159,24 +172,33 @@ export default function PaymentTermsTable() {
               <TableRow>
                 <TableCell>Description</TableCell>
                 <TableCell>Type</TableCell>
-                <TableCell>Due After / Date</TableCell>
+                <TableCell>Due After / Day in Following Month</TableCell>
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
+
             <TableBody>
               {paginatedData.length > 0 ? (
                 paginatedData.map((term) => (
-                  <TableRow key={term.id} hover>
-                    <TableCell>{term.description}</TableCell>
-                    <TableCell>{term.payment_type}</TableCell>
-                    <TableCell>{term.due_after}</TableCell>
+                  <TableRow key={term.terms_indicator} hover>
+                    <TableCell>{term?.description ?? "-"}</TableCell>
+                    <TableCell>{term?.payment_type?.name ?? "-"}</TableCell>
+                    <TableCell>
+                      {term?.days_before_due || term?.day_in_following_month
+                        ? term.days_before_due || term.day_in_following_month
+                        : "-"}
+                    </TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
                           variant="contained"
                           size="small"
                           startIcon={<EditIcon />}
-                          onClick={() => navigate(`/setup/miscellaneous/update-payment-term/${term.id}`)}
+                          onClick={() =>
+                            navigate(
+                              `/setup/miscellaneous/update-payment-term/${term.terms_indicator}`
+                            )
+                          }
                         >
                           Edit
                         </Button>
@@ -185,7 +207,7 @@ export default function PaymentTermsTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                        //   onClick={() => handleDelete(term.id)}
+                          onClick={() => handleDelete(term.terms_indicator)}
                         >
                           Delete
                         </Button>
@@ -201,6 +223,7 @@ export default function PaymentTermsTable() {
                 </TableRow>
               )}
             </TableBody>
+
             <TableFooter>
               <TableRow>
                 <TablePagination

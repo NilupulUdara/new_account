@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Stack,
@@ -14,6 +14,7 @@ import { createCustomerContact } from "../../../../../api/Customer/CustomerConta
 import { useNavigate } from "react-router";
 import ErrorModal from "../../../../../components/ErrorModal";
 import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
+import { getContactCategories } from "../../../../../api/ContactCategory/ContactCategoryApi";
 
 interface AddCustomersContactsData {
   firstName: string;
@@ -51,6 +52,22 @@ export default function AddCustomersContactsForm() {
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const navigate = useNavigate();
+
+  const [categories, setCategories] = useState<{ id?: number; name: string }[]>([]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const data = await getContactCategories(); // fetch all categories
+        const filtered = data.filter((category: any) => category.type === "customer");
+        setCategories(filtered);
+      } catch (error) {
+        console.error("Failed to fetch CRM categories:", error);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -156,6 +173,7 @@ export default function AddCustomersContactsForm() {
 
           {/* Contact Active For */}
           <TextField
+            select
             label="Contact Active For"
             name="contactActiveFor"
             size="small"
@@ -163,7 +181,13 @@ export default function AddCustomersContactsForm() {
             value={formData.contactActiveFor}
             onChange={handleInputChange}
             helperText=" "
-          />
+          >
+            {categories.map((category) => (
+              <MenuItem key={category.id} value={category.id}>
+                {category.name}
+              </MenuItem>
+            ))}
+          </TextField>
 
           {/* Phone */}
           <TextField

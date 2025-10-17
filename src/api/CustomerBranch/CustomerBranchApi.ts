@@ -23,7 +23,7 @@ export interface CustomerBranch {
 
 const API_URL = "http://localhost:8000/api/customer-branch";
 
-// ✅ Create a new branch
+//  Create a new branch
 export const createBranch = async (branchData: any) => {
   try {
     const response = await axios.post(API_URL, branchData);
@@ -34,7 +34,7 @@ export const createBranch = async (branchData: any) => {
   }
 };
 
-// ✅ Get all branches
+//  Get all branches
 export const getBranches = async (customerId?: string | number) => {
   try {
     const response = await axios.get(API_URL, {
@@ -47,7 +47,7 @@ export const getBranches = async (customerId?: string | number) => {
   }
 };
 
-// ✅ Get single branch by ID
+//  Get single branch by ID
 export const getBranch = async (id: string | number) => {
   try {
     const response = await axios.get(`${API_URL}/${id}`);
@@ -58,7 +58,7 @@ export const getBranch = async (id: string | number) => {
   }
 };
 
-// ✅ Update branch
+//  Update branch
 export const updateBranch = async (id: string | number, branchData: any) => {
   try {
     const response = await axios.put(`${API_URL}/${id}`, branchData);
@@ -69,7 +69,7 @@ export const updateBranch = async (id: string | number, branchData: any) => {
   }
 };
 
-// ✅ Delete branch
+//  Delete branch
 export const deleteBranch = async (id: string | number) => {
   try {
     const response = await axios.delete(`${API_URL}/${id}`);
@@ -80,7 +80,7 @@ export const deleteBranch = async (id: string | number) => {
   }
 };
 
-// ✅ Get all branch contacts (if your backend has contacts)
+//  Get all branch contacts (if your backend has contacts)
 export const getBranchContacts = async (branchId: string | number) => {
   try {
     const response = await axios.get(`${API_URL}/${branchId}/contacts`);
