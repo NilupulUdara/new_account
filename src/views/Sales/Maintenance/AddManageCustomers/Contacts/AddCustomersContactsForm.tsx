@@ -11,6 +11,9 @@ import {
   MenuItem,
 } from "@mui/material";
 import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
+import { createCrmContact } from "../../../../../api/CrmContact/CrmContact";
+import { getContactCategory } from "../../../../../api/ContactCategory/ContactCategoryApi";
+import { useLocation } from "react-router";
 import { useNavigate } from "react-router";
 import ErrorModal from "../../../../../components/ErrorModal";
 import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
@@ -52,6 +55,7 @@ export default function AddCustomersContactsForm() {
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [categories, setCategories] = useState<{ id?: number; name: string }[]>([]);
 
@@ -105,7 +109,42 @@ export default function AddCustomersContactsForm() {
           lang: formData.documentLanguage,
           notes: formData.notes
         }
-        await createCustomerContact(payload);
+        const created = await createCustomerContact(payload);
+
+        // Create crm_contacts entry based on selected contact category
+        (async () => {
+          try {
+            // type should come from contactActiveFor (category.id)
+            const typeId = Number(formData.contactActiveFor) || undefined;
+            if (!typeId) return; // no category selected
+
+            // fetch action (subtype) from crm-categories
+            const category = await getContactCategory(typeId);
+            const action = category?.subtype || "";
+
+            // determine entity_id: prefer location.state.customerId, then URL query 'customer', then form reference
+            let entityId: string | number = "";
+            if ((location as any)?.state && (location as any).state.debtor_no) {
+              entityId = (location as any).state.debtor_no;
+            } else {
+              const params = new URLSearchParams(window.location.search);
+              if (params.get("customer")) entityId = params.get("customer")!;
+              else if (formData.reference) entityId = formData.reference;
+            }
+
+            await createCrmContact({
+              person_id: (created as any).id,
+              type: typeId,
+              action,
+              entity_id: String(entityId),
+            });
+          } catch (crmErr) {
+            // Log but don't block the main flow
+            // eslint-disable-next-line no-console
+            console.error("Failed to create crm_contacts entry for contact:", crmErr);
+          }
+        })();
+
         setOpen(true);
       } catch (error) {
         setErrorMessage(

@@ -16,6 +16,8 @@ import {
 import theme from "../../../../../theme";
 import { createCustomer } from "../../../../../api/Customer/AddCustomerApi";
 import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
+import { createCrmContact } from "../../../../../api/CrmContact/CrmContact";
+import { getContactCategory } from "../../../../../api/ContactCategory/ContactCategoryApi";
 import { getCurrencies, Currency } from "../../../../../api/Currency/currencyApi";
 import { useNavigate } from "react-router";
 import {
@@ -249,7 +251,7 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
         inactive: false,
       };
 
-      await createBranch(branchPayload);
+  const branch = await createBranch(branchPayload);
 
       const contactPayload = {
         ref: customer.debtor_ref, // link to customer
@@ -263,7 +265,47 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
         inactive: 0,
       };
 
-      await createCustomerContact(contactPayload);
+      const createdContact = await createCustomerContact(contactPayload);
+
+      (async () => {
+        try {
+          const typeId = 5;
+          const category = await getContactCategory(typeId);
+          const action = category?.subtype || "";
+          await createCrmContact({
+            person_id: createdContact.id,
+            type: typeId,
+            action,
+            entity_id: String(customer.debtor_no),
+          });
+        } catch (crmErr) {
+
+          console.error("Failed to create crm_contacts entry for customer:", crmErr);
+        }
+      })();
+
+
+      (async () => {
+        try {
+          if (!branch) {
+            // eslint-disable-next-line no-console
+            console.warn("Branch creation did not return a branch object; skipping branch CRM contact creation.");
+            return;
+          }
+          const branchTypeId = 1;
+          const branchCategory = await getContactCategory(branchTypeId);
+          const branchAction = branchCategory?.subtype || "";
+          await createCrmContact({
+            person_id: createdContact.id,
+            type: branchTypeId,
+            action: branchAction,
+            entity_id: String((branch as any).branch_code ?? (branch as any).branchCode ?? ""),
+          });
+        } catch (crmErr) {
+          console.error("Failed to create crm_contacts entry for branch:", crmErr);
+        }
+      })();
+
       setOpen(true);
 
     } catch (error: any) {

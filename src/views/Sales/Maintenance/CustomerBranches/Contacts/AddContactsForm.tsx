@@ -11,6 +11,9 @@ import {
   MenuItem,
 } from "@mui/material";
 import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
+import { createCrmContact } from "../../../../../api/CrmContact/CrmContact";
+import { getContactCategory } from "../../../../../api/ContactCategory/ContactCategoryApi";
+import { useLocation } from "react-router";
 import ErrorModal from "../../../../../components/ErrorModal";
 import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
 import { getContactCategories } from "../../../../../api/ContactCategory/ContactCategoryApi";
@@ -29,6 +32,7 @@ interface AddContactsData {
 }
 
 export default function AddContactsForm() {
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -104,7 +108,45 @@ export default function AddContactsForm() {
           lang: formData.documentLanguage,
           notes: formData.notes
         }
-        await createCustomerContact(payload);
+        const created = await createCustomerContact(payload);
+
+        // Create crm_contacts entry for branch contact (non-blocking)
+        (async () => {
+          try {
+            const typeId = Number(formData.contactActiveFor) || undefined;
+            if (!typeId) return; // no category selected
+
+            const category = await getContactCategory(typeId);
+            const action = category?.subtype || "";
+
+            // entity_id resolution order:
+            // 1) location.state.branch_code
+            // 2) URL param 'branch'
+            // 3) URL param 'customer' (selected customer's debtor_no)
+            // 4) form reference
+            let entityId: string | number = "";
+            if ((location as any)?.state && (location as any).state.branch_code) {
+              entityId = (location as any).state.branch_code;
+            } else {
+              const params = new URLSearchParams(window.location.search);
+              if (params.get("branch")) entityId = params.get("branch")!;
+              else if (params.get("customer")) entityId = params.get("customer")!;
+              else if (formData.reference) entityId = formData.reference;
+            }
+
+            await createCrmContact({
+              person_id: (created as any).id,
+              type: typeId,
+              action,
+              entity_id: String(entityId),
+            });
+          } catch (crmErr) {
+            // Log but don't block
+            // eslint-disable-next-line no-console
+            console.error("Failed to create crm_contacts entry for branch contact:", crmErr);
+          }
+        })();
+
         setOpen(true);
       } catch (error) {
         console.error("Error creating customer contact:", error.response?.data || error);

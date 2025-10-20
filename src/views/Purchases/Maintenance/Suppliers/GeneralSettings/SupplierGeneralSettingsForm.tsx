@@ -27,6 +27,7 @@ import ErrorModal from "../../../../../components/ErrorModal";
 import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
 import { getPaymentTerms } from "../../../../../api/PaymentTerm/PaymentTermApi";
 import { createCrmContact } from "../../../../../api/CrmContact/CrmContact";
+import { getContactCategories } from "../../../../../api/ContactCategory/ContactCategoryApi";
 
 interface SupplierGeneralSettingProps {
   supplierId?: string | number;
@@ -223,14 +224,27 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
       // Step 5: Create supplier contact
       const contact = await createSupplierContact(contactPayload);
 
-      const crmContactPayload = {
-        person_id: contact.id,
-        entity_id: supplier.id,
-        type: "supplier",
-        action: "general",
-      };
+      // Determine numeric category id for supplier contacts and action (subtype)
+      try {
+        const categories = await getContactCategories();
+        // try to find a category that matches suppliers
+        const supplierCat = categories.find((c) => c.type === "supplier" || (c.name && c.name.toLowerCase().includes("supplier")));
+        const typeId = supplierCat?.id ?? 0;
+        const action = supplierCat?.subtype || "general";
 
-      await createCrmContact(crmContactPayload);
+        const crmContactPayload = {
+          person_id: contact.id,
+          entity_id: supplier.id,
+          type: Number(typeId),
+          action,
+        };
+
+        await createCrmContact(crmContactPayload);
+      } catch (crmErr) {
+        // If lookup fails, log and continue (non-blocking)
+        // eslint-disable-next-line no-console
+        console.error("Failed to create crm contact for supplier:", crmErr);
+      }
 
       setOpen(true);
 

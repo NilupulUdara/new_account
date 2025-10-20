@@ -29,6 +29,8 @@ import { useParams } from "react-router";
 import ErrorModal from "../../../../../components/ErrorModal";
 import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
 import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
+import { createCrmContact } from "../../../../../api/CrmContact/CrmContact";
+import { getContactCategory } from "../../../../../api/ContactCategory/ContactCategoryApi";
 import { getChartMasters } from "../../../../../api/GLAccounts/ChartMasterApi";
 
 export default function AddCustomerBranchesGeneralSettingForm() {
@@ -203,7 +205,26 @@ export default function AddCustomerBranchesGeneralSettingForm() {
           inactive: 0,
         };
 
-        await createCustomerContact(contactPayload);
+        const createdContact = await createCustomerContact(contactPayload);
+
+        // Create crm_contacts entry for the branch contact (non-blocking)
+        (async () => {
+          try {
+            const typeId = 1; // default for branch contact
+            const category = await getContactCategory(typeId);
+            const action = category?.subtype || "";
+            await createCrmContact({
+              person_id: createdContact.id,
+              type: typeId,
+              action,
+              entity_id: String((branch as any).branch_code ?? (branch as any).branchCode ?? ""),
+            });
+          } catch (crmErr) {
+            // Log but don't block the main flow
+            // eslint-disable-next-line no-console
+            console.error("Failed to create crm_contacts entry for branch:", crmErr);
+          }
+        })();
 
         setOpen(true);
       } catch (err: any) {
