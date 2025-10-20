@@ -56,20 +56,20 @@ export default function UpdateCustomersContactsForm() {
   const navigate = useNavigate();
 
   const [categories, setCategories] = useState<{ id?: number; name: string }[]>([]);
-  
-    useEffect(() => {
-      const fetchCategories = async () => {
-        try {
-          const data = await getContactCategories(); // fetch all categories
-          const filtered = data.filter((category: any) => category.type === "customer");
-          setCategories(filtered);
-        } catch (error) {
-          console.error("Failed to fetch CRM categories:", error);
-        }
-      };
-    
-      fetchCategories();
-    }, []);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const data = await getContactCategories(); // fetch all categories
+        const filtered = data.filter((category: any) => category.type === "customer");
+        setCategories(filtered);
+      } catch (error) {
+        console.error("Failed to fetch CRM categories:", error);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -207,21 +207,21 @@ export default function UpdateCustomersContactsForm() {
 
           {/* Contact Active For */}
           <TextField
-                      select
-                      label="Contact Active For"
-                      name="contactActiveFor"
-                      size="small"
-                      fullWidth
-                      value={formData.contactActiveFor}
-                      onChange={handleInputChange}
-                      helperText=" "
-                    >
-                      {categories.map((category) => (
-                        <MenuItem key={category.id} value={category.id}>
-                          {category.name}
-                        </MenuItem>
-                      ))}
-                    </TextField>
+            select
+            label="Contact Active For"
+            name="contactActiveFor"
+            size="small"
+            fullWidth
+            value={formData.contactActiveFor}
+            onChange={handleInputChange}
+            helperText=" "
+          >
+            {categories.map((category) => (
+              <MenuItem key={category.id} value={category.id}>
+                {category.name}
+              </MenuItem>
+            ))}
+          </TextField>
 
           {/* Phone */}
           <TextField

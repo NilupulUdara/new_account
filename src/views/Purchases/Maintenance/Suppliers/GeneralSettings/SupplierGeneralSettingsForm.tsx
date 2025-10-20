@@ -26,6 +26,7 @@ import { createSupplierContact } from "../../../../../api/Supplier/SupplierConta
 import ErrorModal from "../../../../../components/ErrorModal";
 import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
 import { getPaymentTerms } from "../../../../../api/PaymentTerm/PaymentTermApi";
+import { createCrmContact } from "../../../../../api/CrmContact/CrmContact";
 
 interface SupplierGeneralSettingProps {
   supplierId?: string | number;
@@ -97,7 +98,7 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
     getCurrencies().then(setCurrencies);
   }, []);
 
-  const [paymentTerms, setPaymentTerms] = useState<{ id: number, description: string }[]>([]);
+  const [paymentTerms, setPaymentTerms] = useState<{ terms_indicator: number, description: string }[]>([]);
   useEffect(() => {
     async function fetchPaymentTerms() {
       const res = await getPaymentTerms(); // your API call
@@ -220,8 +221,16 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
       };
 
       // Step 5: Create supplier contact
-      await createSupplierContact(contactPayload);
-      await createSupplierContact(contactPayload);
+      const contact = await createSupplierContact(contactPayload);
+
+      const crmContactPayload = {
+        person_id: contact.id,
+        entity_id: supplier.id,
+        type: "supplier",
+        action: "general",
+      };
+
+      await createCrmContact(crmContactPayload);
 
       setOpen(true);
 
@@ -398,7 +407,7 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
                   onChange={(e) => handleChange("paymentTerms", e.target.value)}
                 >
                   {paymentTerms.map(term => (
-                    <MenuItem key={term.id} value={term.id}>
+                    <MenuItem key={term.terms_indicator} value={term.terms_indicator}>
                       {term.description}
                     </MenuItem>
                   ))}

@@ -14,7 +14,7 @@ import { updateSupplierContact, getSupplierContacts } from "../../../../../api/S
 import ErrorModal from "../../../../../components/ErrorModal";
 import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal";
 import { useParams } from "react-router";
-
+import { getContactCategories } from "../../../../../api/ContactCategory/ContactCategoryApi";
 interface UpdateSuppliersContactsData {
   firstName: string;
   lastName: string;
@@ -57,6 +57,22 @@ export default function UpdateSuppliersContactsForm() {
     setFormData({ ...formData, [name]: value });
     setErrors({ ...errors, [name]: "" });
   };
+
+  const [categories, setCategories] = useState<{ id?: number; name: string }[]>([]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const data = await getContactCategories(); // fetch all categories
+        const filtered = data.filter((category: any) => category.type === "supplier");
+        setCategories(filtered);
+      } catch (error) {
+        console.error("Failed to fetch CRM categories:", error);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const validate = () => {
     const newErrors: Partial<Record<keyof UpdateSuppliersContactsData, string>> = {};
@@ -187,6 +203,7 @@ export default function UpdateSuppliersContactsForm() {
 
           {/* Contact Active For */}
           <TextField
+            select
             label="Contact Active For"
             name="contactActiveFor"
             size="small"
@@ -194,7 +211,13 @@ export default function UpdateSuppliersContactsForm() {
             value={formData.contactActiveFor}
             onChange={handleInputChange}
             helperText=" "
-          />
+          >
+            {categories.map((category) => (
+              <MenuItem key={category.id} value={category.id}>
+                {category.name}
+              </MenuItem>
+            ))}
+          </TextField>
 
           {/* Phone */}
           <TextField

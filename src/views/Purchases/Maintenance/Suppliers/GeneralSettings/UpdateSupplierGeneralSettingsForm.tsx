@@ -153,7 +153,7 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                         mailingAddress: res.mail_address || "",
                         physicalAddress: res.bill_address || "",
                         generalNotes: res.notes || "",
-                        status: res.inactive ? "Inactive" : "Active",
+                        status: res.inactive ? "1" : "0",
                     });
                     setSelectedCustomer(res.id);
                 }
@@ -545,8 +545,8 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
                                     onChange={(e) => handleChange("status", e.target.value)}
                                     label="Customer Status"
                                 >
-                                    <MenuItem value="Active">Active</MenuItem>
-                                    <MenuItem value="Inactive">Inactive</MenuItem>
+                                    <MenuItem value="0">Active</MenuItem>
+                                    <MenuItem value="1">Inactive</MenuItem>
                                 </Select>
                                 <FormHelperText>{errors.status || " "}</FormHelperText>
                             </FormControl>

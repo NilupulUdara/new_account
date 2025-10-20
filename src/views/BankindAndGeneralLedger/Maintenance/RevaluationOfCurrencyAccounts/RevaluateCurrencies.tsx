@@ -58,7 +58,7 @@ export default function RevaluateCurrenciesForm() {
 
       // Prepare payload
       const payload = {
-        revaluation_date: formData.revaluationDate?.toISOString().split("T")[0], // "YYYY-MM-DD"
+        date: formData.revaluationDate, // "YYYY-MM-DD"
         memo: formData.memo,
       };
 

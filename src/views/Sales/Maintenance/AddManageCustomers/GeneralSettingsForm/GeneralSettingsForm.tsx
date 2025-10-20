@@ -30,6 +30,8 @@ import { getCreditStatusSetups, CreditStatusSetup } from "../../../../../api/Cre
 import { createBranch } from "../../../../../api/CustomerBranch/CustomerBranchApi";
 import ErrorModal from "../../../../../components/ErrorModal";
 import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
+import { getPaymentTerms } from "../../../../../api/PaymentTerm/PaymentTermApi";
+
 interface GeneralSettingsFormProps {
   customerId?: string | number;
 }
@@ -104,6 +106,15 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
   useEffect(() => {
     getCreditStatusSetups().then(setCreditStatusSetups);
   }, [])
+
+  const [paymentTermsList, setPaymentTermsList] = useState<any[]>([]);
+  useEffect(() => {
+    getPaymentTerms()
+      .then((data) => setPaymentTermsList(data))
+      .catch((err) => console.error("Failed to fetch payment terms:", err));
+  }, []);
+
+
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const navigate = useNavigate();
@@ -476,11 +487,15 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
                   onChange={(e) => handleChange("paymentTerms", e.target.value)}
                   label="Payment Terms"
                 >
-                  <MenuItem value="Cash Only">Cash Only</MenuItem>
-                  <MenuItem value="Credit 30 Days">Credit 30 Days</MenuItem>
+                  {paymentTermsList.map((term: any) => (
+                    <MenuItem key={term.terms_indicator} value={term.terms_indicator}>
+                      {term.description}
+                    </MenuItem>
+                  ))}
                 </Select>
                 <FormHelperText>{errors.paymentTerms || " "}</FormHelperText>
               </FormControl>
+
               <FormControl fullWidth size="small" error={!!errors.creditStatus}>
                 <InputLabel>Credit Status</InputLabel>
                 <Select

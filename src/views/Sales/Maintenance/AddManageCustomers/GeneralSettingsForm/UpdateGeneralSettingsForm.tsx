@@ -21,7 +21,7 @@ import { getSalesTypes } from "../../../../../api/SalesMaintenance/salesService"
 import { getCreditStatusSetups } from "../../../../../api/CreditStatusSetup/CreditStatusSetupApi";
 import ErrorModal from "../../../../../components/ErrorModal";
 import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal";
-// import { getPaymentTerms } from "../../../../../api/PaymentTerms/paymentTermsApi";
+import { getPaymentTerms } from "../../../../../api/PaymentTerm/PaymentTermApi";
 
 interface GeneralSettingsFormProps {
     customerId?: string | number;
@@ -43,10 +43,10 @@ interface CreditStatusSetup {
     reason_description: string;
 }
 
-// interface PaymentTerm {
-//     id: number;
-//     term_name: string; // or whatever the display field is
-// }
+interface PaymentTerm {
+    terms_indicator: number;
+    description: string; // or whatever the display field is
+}
 
 export default function UpdateGeneralSettingsForm({ customerId }: GeneralSettingsFormProps) {
     const { id } = useParams(); // get id from route if not passed as prop
@@ -89,18 +89,18 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
     const [currencies, setCurrencies] = useState<Currency[]>([]);
     const [salesTypes, setSalesTypes] = useState<SalesType[]>([]);
     const [creditStatusSetups, setCreditStatusSetups] = useState<CreditStatusSetup[]>([]);
-    // const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
+    const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
 
     const navigate = useNavigate();
 
     useEffect(() => {
         const fetchAllData = async () => {
             try {
-                const [currRes, salesApiRes, creditApiRes] = await Promise.all([
+                const [currRes, salesApiRes, creditApiRes, paymentRes] = await Promise.all([
                     getCurrencies(),
                     getSalesTypes(),
-                    getCreditStatusSetups()
-                    // getPaymentTerms(),
+                    getCreditStatusSetups(),
+                    getPaymentTerms(),
                 ]);
 
                 // Map API responses to local interfaces
@@ -114,11 +114,11 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                     reason_description: item.reason_description
                 })) || [];
 
-                // const mappedPaymentTerms = (paymentRes as any[]).map((item: any) => ({
-                //     id: item.id,
-                //     term_name: item.term_name
-                // })) || [];
-                // setPaymentTerms(mappedPaymentTerms);
+                const mappedPaymentTerms = (paymentRes as any[]).map((item: any) => ({
+                    terms_indicator: item.terms_indicator,
+                    description: item.description
+                })) || [];
+                setPaymentTerms(mappedPaymentTerms);
 
                 setCurrencies(mappedCurrencies);
                 setSalesTypes(mappedSalesTypes);
@@ -141,8 +141,8 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                             creditStatusName = mappedCreditStatuses[0]?.reason_description || '';
                         }
 
-                        // const paymentTermObj = paymentRes.find((pt: any) => pt.id === Number(customerRes.payment_terms));
-                        // const paymentTermName = paymentTermObj?.term_name || 'Cash Only'; // fallback
+                        const paymentTermObj = paymentRes.find((pt: any) => pt.id === Number(customerRes.payment_terms));
+                         const paymentTermName = paymentTermObj?.term_name
 
                         // Currency uses abbreviation directly
                         const currencyCode = customerRes.curr_code || mappedCurrencies[0]?.currency_abbreviation || "";
@@ -177,9 +177,9 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
             } catch (error) {
                 console.error("Error fetching data:", error);
                 setErrorMessage(
-        "Failed to load data"
-      );
-      setErrorOpen(true);
+                    "Failed to load data"
+                );
+                setErrorOpen(true);
                 // alert("Failed to load data.");
             }
         };
@@ -248,8 +248,8 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
         if (formData.creditLimit && isNaN(Number(formData.creditLimit)))
             newErrors.creditLimit = "Credit Limit must be a number";
 
-        // if (!formData.paymentTerms)
-        //     newErrors.paymentTerms = "Payment Terms are required";
+        if (!formData.paymentTerms)
+            newErrors.paymentTerms = "Payment Terms are required";
 
         // if (!formData.creditStatus)
         //     newErrors.creditStatus = "Credit Status is required";
@@ -274,9 +274,9 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
         if (!customerIdToUse) return;
         if (!validate()) {
             setErrorMessage(
-        "Please fix validation errors before submitting"
-      );
-      setErrorOpen(true);
+                "Please fix validation errors before submitting"
+            );
+            setErrorOpen(true);
             // alert("Please fix validation errors before submitting.");
             return;
         }
@@ -285,7 +285,8 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
             // Map form names back to IDs for backend expectations
             const salesTypeId = salesTypes.find(st => st.typeName === formData.salesType)?.id;
             const creditStatusId = creditStatusSetups.find(cs => cs.reason_description === formData.creditStatus)?.id;
-            // const paymentTermsId = paymentTerms.find(pt => pt.term_name === formData.paymentTerms)?.id;
+            const paymentTermsId = paymentTerms.find(pt => pt.description === formData.paymentTerms)?.terms_indicator;
+
 
             const payload = {
                 name: formData.customerName,
@@ -487,17 +488,15 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                                     onChange={(e) => handleChange("paymentTerms", e.target.value)}
                                     label="Payment Terms"
                                 >
-                                    {/* TODO: Replace hardcoded with mapped paymentTerms */}
-                                    <MenuItem value="Cash Only">Cash Only</MenuItem>
-                                    <MenuItem value="Credit 30 Days">Credit 30 Days</MenuItem>
-                                    {/* {paymentTerms.map((pt) => (
-                                        <MenuItem key={pt.id} value={pt.term_name}>
-                                            {pt.term_name}
+                                    {paymentTerms.map((pt) => (
+                                        <MenuItem key={pt.terms_indicator} value={pt.terms_indicator}>
+                                            {pt.description}
                                         </MenuItem>
-                                    ))} */}
+                                    ))}
                                 </Select>
                                 <FormHelperText>{errors.paymentTerms || " "}</FormHelperText>
                             </FormControl>
+
                             <FormControl fullWidth size="small" error={!!errors.creditStatus}>
                                 <InputLabel>Credit Status</InputLabel>
                                 <Select
