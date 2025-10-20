@@ -50,25 +50,17 @@ export default function SuppliersContactsTable({ supplierId }: SupplierContacsPr
   useEffect(() => {
     const fetchContacts = async () => {
       try {
-        const data = await getSupplierContacts(supplierId);
-        const mappedData = data.map((item: any) => ({
-          id: item.id,
-          reference: item.ref,
-          fullName: item.name,
-          phone: item.phone,
-          secPhone: item.phone2,
-          fax: item.fax,
-          email: item.email,
-        }));
-        setContacts(mappedData);
+        const data = await getSupplierContacts(supplierId); // fetch merged contacts
+        setContacts(data); // set directly without mapping
       } catch (error: any) {
         console.error("Failed to load contacts:", error);
-        // setErrorMessage("Failed to load contacts. Please try again.");
-        // setErrorOpen(true);
+        // optionally show error modal
       }
     };
+
     fetchContacts();
   }, [supplierId]);
+
 
   // Filter by inactive & search
   const filteredData = useMemo(() => {
@@ -152,7 +144,9 @@ export default function SuppliersContactsTable({ supplierId }: SupplierContacsPr
           <Button
             variant="contained"
             color="primary"
-            onClick={() => navigate("/purchase/maintenance/suppliers/add-supplier-contact")}
+            onClick={() => navigate("/purchase/maintenance/suppliers/add-supplier-contact", {
+              state: { supplierId }
+            })}
           >
             Add Contact
           </Button>
@@ -210,7 +204,7 @@ export default function SuppliersContactsTable({ supplierId }: SupplierContacsPr
                   <TableRow key={contact.id} hover>
                     <TableCell>{contact.assignment}</TableCell>
                     <TableCell>{contact.reference}</TableCell>
-                    <TableCell>{contact.fullName}</TableCell>
+                    <TableCell>{`${contact.firstName} ${contact.lastName}`}</TableCell>
                     <TableCell>{contact.phone}</TableCell>
                     <TableCell>{contact.secPhone}</TableCell>
                     <TableCell>{contact.fax}</TableCell>

@@ -34,13 +34,13 @@ export const createCrmContact = async (payload: CrmContactPayload): Promise<CrmC
 };
 
 //  Get all CRM contacts
-export const getCrmContacts = async (): Promise<CrmContact[]> => {
+export const getCrmContactsBySupplier = async (supplierId: string | number): Promise<CrmContact[]> => {
   try {
-    const response = await axios.get(BASE_URL);
+    const response = await axios.get(`${BASE_URL}?supplierId=${supplierId}`);
     return response.data;
   } catch (error: any) {
-    console.error("Error fetching CRM contacts:", error);
-    throw error;
+    console.error(`Error fetching CRM contacts for supplier ${supplierId}:`, error);
+    return [];
   }
 };
 

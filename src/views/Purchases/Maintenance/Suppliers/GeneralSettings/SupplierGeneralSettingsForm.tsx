@@ -224,27 +224,14 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
       // Step 5: Create supplier contact
       const contact = await createSupplierContact(contactPayload);
 
-      // Determine numeric category id for supplier contacts and action (subtype)
-      try {
-        const categories = await getContactCategories();
-        // try to find a category that matches suppliers
-        const supplierCat = categories.find((c) => c.type === "supplier" || (c.name && c.name.toLowerCase().includes("supplier")));
-        const typeId = supplierCat?.id ?? 0;
-        const action = supplierCat?.subtype || "general";
+      const crmContactPayload = {
+        person_id: contact.id,
+        entity_id: String(supplier.supplier_id),
+        type: 9,
+        action: "general",
+      };
 
-        const crmContactPayload = {
-          person_id: contact.id,
-          entity_id: supplier.id,
-          type: Number(typeId),
-          action,
-        };
-
-        await createCrmContact(crmContactPayload);
-      } catch (crmErr) {
-        // If lookup fails, log and continue (non-blocking)
-        // eslint-disable-next-line no-console
-        console.error("Failed to create crm contact for supplier:", crmErr);
-      }
+      await createCrmContact(crmContactPayload);
 
       setOpen(true);
 

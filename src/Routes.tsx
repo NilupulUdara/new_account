@@ -671,7 +671,7 @@ const AppRoutes = () => {
           element={withLayout(MainLayout, SuppliersContactsTable)}
         />
         <Route
-          path="/purchase/maintenance/suppliers/add-supplier-contact"
+          path="/purchase/maintenance/suppliers/add-supplier-contact/"
           element={withLayout(MainLayout, AddSuppliersContactsForm)}
         />
         <Route
