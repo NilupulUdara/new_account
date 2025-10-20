@@ -150,17 +150,15 @@ export default function ContactsTable({ customerId }: ContacsProps) {
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
 
-        <Stack direction="row" spacing={1}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() =>
-              navigate("/sales/maintenance/customer-branches/add-customer-branches-contacts")
-            }
-          >
-            Add Contact
-          </Button>
-        </Stack>
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => navigate(`/sales/maintenance/customer-branches/add-customer-branches-contacts?customer=${customerId}`)}
+            >
+              Add Contact
+            </Button>
+          </Stack>
       </Box>
 
       {/* Checkbox + Search */}

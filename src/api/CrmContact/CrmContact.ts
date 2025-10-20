@@ -4,7 +4,7 @@ import axios from "axios";
 export interface CrmContact {
   id: number;          // auto-generated
   person_id: number;   // required
-  type: string;        // required
+  type: number;        // required
   action: string;      // required
   entity_id?: string;  // optional
 }

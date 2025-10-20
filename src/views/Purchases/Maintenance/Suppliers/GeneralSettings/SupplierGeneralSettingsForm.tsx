@@ -27,6 +27,7 @@ import ErrorModal from "../../../../../components/ErrorModal";
 import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
 import { getPaymentTerms } from "../../../../../api/PaymentTerm/PaymentTermApi";
 import { createCrmContact } from "../../../../../api/CrmContact/CrmContact";
+import { getContactCategories } from "../../../../../api/ContactCategory/ContactCategoryApi";
 
 interface SupplierGeneralSettingProps {
   supplierId?: string | number;

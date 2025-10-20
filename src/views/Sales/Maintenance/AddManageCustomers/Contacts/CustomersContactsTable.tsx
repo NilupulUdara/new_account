@@ -153,7 +153,7 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
           <Button
             variant="contained"
             color="primary"
-            onClick={() => navigate("/sales/maintenance/add-and-manage-customers/add-customers-contacts")}
+            onClick={() => navigate(`/sales/maintenance/add-and-manage-customers/add-customers-contacts?customer=${customerId}`)}
           >
             Add Contact
           </Button>
