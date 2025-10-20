@@ -10,10 +10,12 @@ import {
   useMediaQuery,
   MenuItem,
 } from "@mui/material";
+import { useLocation, useNavigate } from "react-router-dom";
 import { createSupplierContact } from "../../../../../api/Supplier/SupplierContactApi";
-import ErrorModal from "../../../../../components/ErrorModal";
-import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
+import { createCrmContact } from "../../../../../api/CrmContact/CrmContact";
 import { getContactCategories } from "../../../../../api/ContactCategory/ContactCategoryApi";
+import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../../components/ErrorModal";
 
 interface AddSuppliersContactsData {
   firstName: string;
@@ -30,6 +32,10 @@ interface AddSuppliersContactsData {
 }
 
 export default function AddSuppliersContactsForm() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const supplierId = location.state?.supplierId; // get supplierId from dropdown
+
   const [formData, setFormData] = useState<AddSuppliersContactsData>({
     firstName: "",
     lastName: "",
@@ -44,96 +50,110 @@ export default function AddSuppliersContactsForm() {
     notes: "",
   });
 
+  const [categories, setCategories] = useState<{ id?: number; name: string }[]>([]);
+  const [errors, setErrors] = useState<Partial<Record<keyof AddSuppliersContactsData, string>>>({});
   const [open, setOpen] = useState(false);
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [errors, setErrors] = useState<Partial<Record<keyof AddSuppliersContactsData, string>>>({});
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
-  const [categories, setCategories] = useState<{ id?: number; name: string }[]>([]);
 
+  // Fetch categories for "Contact Active For"
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const data = await getContactCategories(); // fetch all categories
-        const filtered = data.filter((category: any) => category.type === "supplier");
+        const data = await getContactCategories();
+        const filtered = data.filter((cat: any) => cat.type === "supplier");
         setCategories(filtered);
-      } catch (error) {
-        console.error("Failed to fetch CRM categories:", error);
+      } catch (err) {
+        console.error("Failed to fetch categories:", err);
       }
     };
-
     fetchCategories();
   }, []);
 
+  // Handle input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
     setErrors({ ...errors, [name]: "" });
   };
 
+  // Validate form
   const validate = () => {
     const newErrors: Partial<Record<keyof AddSuppliersContactsData, string>> = {};
     if (!formData.firstName.trim()) newErrors.firstName = "First Name is required";
     if (!formData.lastName.trim()) newErrors.lastName = "Last Name is required";
     if (!formData.phone.trim()) newErrors.phone = "Phone is required";
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    if (!formData.email.trim()) newErrors.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
       newErrors.email = "Invalid email format";
-    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  // Handle form submit
   const handleSubmit = async () => {
-    if (validate()) {
-      try {
-        const payload = {
-          ref: formData.reference,
-          name: formData.firstName,
-          name2: formData.lastName,
-          address: formData.address,
-          phone: formData.phone,
-          phone2: formData.secondaryPhone,
-          fax: formData.fax,
-          email: formData.email,
-          lang: formData.documentLanguage,
-          notes: formData.notes
-        }
-        await createSupplierContact(payload);
-        setOpen(true);
-      } catch (error) {
-        setErrorMessage(
-          error?.response?.data?.message ||
-          "Failed to add Conatact Please try again."
-        );
-        setErrorOpen(true);
-      }
+    if (!validate()) return;
+
+    if (!supplierId) {
+      setErrorMessage("Supplier ID not found. Cannot add contact.");
+      setErrorOpen(true);
+      return;
+    }
+
+    if (!formData.contactActiveFor) {
+      setErrorMessage("Please select 'Contact Active For' category.");
+      setErrorOpen(true);
+      return;
+    }
+
+    try {
+      // Step 1: Create supplier contact (person)
+      const supplierPayload = {
+        ref: formData.reference,
+        name: formData.firstName,
+        name2: formData.lastName,
+        address: formData.address,
+        phone: formData.phone,
+        phone2: formData.secondaryPhone,
+        fax: formData.fax,
+        email: formData.email,
+        lang: formData.documentLanguage,
+        notes: formData.notes,
+      };
+
+      const createdPerson = await createSupplierContact(supplierPayload);
+      const personId = createdPerson.id;
+
+      // Step 2: Create CRM contact linked to this person
+      const contactPayload = {
+        person_id: personId,
+        type: Number(formData.contactActiveFor),
+        action: "assigned",
+        entity_id: supplierId.toString(),
+      };
+
+      await createCrmContact(contactPayload);
+
+      // Show success modal
+      setOpen(true);
+    } catch (error: any) {
+      console.error("Error adding contact:", error);
+      setErrorMessage(error?.response?.data?.message || "Failed to add contact. Please try again.");
+      setErrorOpen(true);
     }
   };
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
-      <Paper
-        sx={{
-          p: 3,
-          maxWidth: "600px",
-          width: "100%",
-          boxShadow: 2,
-          borderRadius: 2,
-        }}
-      >
-        <Typography
-          variant="h6"
-          sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}
-        >
+      <Paper sx={{ p: 3, maxWidth: 600, width: "100%", boxShadow: 2, borderRadius: 2 }}>
+        <Typography variant="h6" sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}>
           Add Supplier Contact
         </Typography>
 
         <Stack spacing={2}>
-          {/* First Name */}
           <TextField
             label="First Name"
             name="firstName"
@@ -145,7 +165,6 @@ export default function AddSuppliersContactsForm() {
             helperText={errors.firstName || " "}
           />
 
-          {/* Last Name */}
           <TextField
             label="Last Name"
             name="lastName"
@@ -157,7 +176,6 @@ export default function AddSuppliersContactsForm() {
             helperText={errors.lastName || " "}
           />
 
-          {/* Reference */}
           <TextField
             label="Reference"
             name="reference"
@@ -168,7 +186,6 @@ export default function AddSuppliersContactsForm() {
             helperText=" "
           />
 
-          {/* Contact Active For */}
           <TextField
             select
             label="Contact Active For"
@@ -179,14 +196,13 @@ export default function AddSuppliersContactsForm() {
             onChange={handleInputChange}
             helperText=" "
           >
-            {categories.map((category) => (
-              <MenuItem key={category.id} value={category.id}>
-                {category.name}
+            {categories.map((cat) => (
+              <MenuItem key={cat.id} value={cat.id}>
+                {cat.name}
               </MenuItem>
             ))}
           </TextField>
 
-          {/* Phone */}
           <TextField
             label="Phone"
             name="phone"
@@ -198,9 +214,8 @@ export default function AddSuppliersContactsForm() {
             helperText={errors.phone || " "}
           />
 
-          {/* Secondary Phone */}
           <TextField
-            label="Secondary Phone Number"
+            label="Secondary Phone"
             name="secondaryPhone"
             size="small"
             fullWidth
@@ -209,9 +224,8 @@ export default function AddSuppliersContactsForm() {
             helperText=" "
           />
 
-          {/* Fax */}
           <TextField
-            label="Fax Number"
+            label="Fax"
             name="fax"
             size="small"
             fullWidth
@@ -220,7 +234,6 @@ export default function AddSuppliersContactsForm() {
             helperText=" "
           />
 
-          {/* Email */}
           <TextField
             label="Email"
             name="email"
@@ -232,7 +245,6 @@ export default function AddSuppliersContactsForm() {
             helperText={errors.email || " "}
           />
 
-          {/* Address */}
           <TextField
             label="Address"
             name="address"
@@ -245,7 +257,6 @@ export default function AddSuppliersContactsForm() {
             helperText=" "
           />
 
-          {/* Document Language */}
           <TextField
             select
             label="Document Language"
@@ -261,7 +272,6 @@ export default function AddSuppliersContactsForm() {
             <MenuItem value="TA">Tamil</MenuItem>
           </TextField>
 
-          {/* Notes */}
           <TextField
             label="Notes"
             name="notes"
@@ -275,17 +285,8 @@ export default function AddSuppliersContactsForm() {
           />
         </Stack>
 
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            mt: 3,
-            flexDirection: isMobile ? "column" : "row",
-            gap: isMobile ? 2 : 0,
-          }}
-        >
-          <Button onClick={() => window.history.back()}>Back</Button>
-
+        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3, flexDirection: isMobile ? "column" : "row", gap: isMobile ? 2 : 0 }}>
+          <Button onClick={() => navigate(-1)}>Back</Button>
           <Button
             variant="contained"
             fullWidth={isMobile}
@@ -296,13 +297,14 @@ export default function AddSuppliersContactsForm() {
           </Button>
         </Box>
       </Paper>
+
       <AddedConfirmationModal
         open={open}
         title="Success"
         content="Supplier contact has been added successfully!"
-        addFunc={async () => { }}
         handleClose={() => setOpen(false)}
-        onSuccess={() => window.history.back()}
+        onSuccess={() => navigate(-1)}
+        addFunc={async () => {}}
       />
 
       <ErrorModal

@@ -225,8 +225,8 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
 
       const crmContactPayload = {
         person_id: contact.id,
-        entity_id: supplier.id,
-        type: "supplier",
+        entity_id: String(supplier.supplier_id),
+        type: 9,
         action: "general",
       };
 
