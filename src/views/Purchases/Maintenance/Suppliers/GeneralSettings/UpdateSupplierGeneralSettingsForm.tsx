@@ -23,6 +23,7 @@ import {
     updateSupplier,
     deleteSupplier,
 } from "../../../../../api/Supplier/SupplierApi";
+import { getCustomerContacts, deleteCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
 import { useNavigate, useParams } from "react-router";
 import { getChartMasters } from "../../../../../api/GLAccounts/ChartMasterApi";
 import { getCurrencies, Currency } from "../../../../../api/Currency/currencyApi";
@@ -226,6 +227,18 @@ export default function UpdateSupplierGeneralSettingsForm({ supplierId }: Update
         try {
             await deleteSupplier(supplierIdToUse);
             console.log("Supplier deleted successfully");
+            // After supplier deletion, attempt to delete any crm-persons whose ref matches the supplier short name
+            try {
+                const allContacts: any[] = await getCustomerContacts("");
+                const matches = allContacts.filter(c => c.ref === formData.supplierShortName);
+                if (matches.length > 0) {
+                    await Promise.all(matches.map(c => deleteCustomerContact(c.id)));
+                    console.log(`Deleted ${matches.length} crm-person(s) for supplier ${formData.supplierShortName}`);
+                }
+            } catch (err) {
+                console.error("Failed to delete linked crm-persons:", err);
+            }
+
             setOpenDeleteModal(false);
             navigate("/purchase/maintenance");
         } catch (error: any) {
