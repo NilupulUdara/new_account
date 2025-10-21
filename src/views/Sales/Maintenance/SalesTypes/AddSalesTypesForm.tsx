@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
+import useFormPersist from "../../../../hooks/useFormPersist";
 
 interface SalesTypeFormData {
   salesTypeName: string;
@@ -28,11 +29,14 @@ export default function AddSalesTypesForm() {
   const [open, setOpen] = useState(false);
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [formData, setFormData] = useState<SalesTypeFormData>({
-    salesTypeName: "",
-    calculationFactor: "",
-    taxIncluded: false,
-  });
+  const [formData, setFormData, clearFormData] = useFormPersist<SalesTypeFormData>(
+    "sales-type-form",  // unique key for this form
+    {
+      salesTypeName: "",
+      calculationFactor: "",
+      taxIncluded: false,
+    }
+  );
 
   const [errors, setErrors] = useState<Partial<SalesTypeFormData>>({});
 
@@ -74,7 +78,9 @@ export default function AddSalesTypesForm() {
         });
 
         queryClient.invalidateQueries({ queryKey: ["salesTypes"] });
-
+        
+        // Clear form data from localStorage on successful submission
+        clearFormData();
         setOpen(true);
 
       } catch (error) {
@@ -147,7 +153,14 @@ export default function AddSalesTypesForm() {
             mt: 3,
             gap: isMobile ? 2 : 0,
           }}>
-          <Button onClick={() => window.history.back()}
+          <Button onClick={() => {
+            // Ask user if they want to save the data for later or discard it
+            if ((formData.salesTypeName || formData.calculationFactor) && 
+                !confirm("Do you want to save your progress for later?")) {
+              clearFormData();
+            }
+            window.history.back();
+          }}
           >Back
           </Button>
 
@@ -167,7 +180,10 @@ export default function AddSalesTypesForm() {
         content="Sales types has been added successfully!"
         addFunc={async () => { }}
         handleClose={() => setOpen(false)}
-        onSuccess={() => window.history.back()}
+        onSuccess={() => {
+          // Form was already cleared on successful submission
+          window.history.back();
+        }}
       />
 
       <ErrorModal

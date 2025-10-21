@@ -17,7 +17,7 @@ import CustomButton from "../../components/CustomButton";
 import LoginIcon from "@mui/icons-material/Login";
 import ForgotPasswordDialog from "./ForgotPasswordDialog";
 import { useSnackbar } from "notistack";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 // import { login } from "../../api/userApi";
 import { login } from "../../api/UserManagement/userLogin";
@@ -27,6 +27,7 @@ function LoginForm() {
   const isMdUp = useMediaQuery(theme.breakpoints.up(990));
   const { enqueueSnackbar } = useSnackbar();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
 
   const [showPassword, setShowPassword] = useState(false);
@@ -52,8 +53,9 @@ function LoginForm() {
     localStorage.setItem("token", data.access_token);
     // Optionally store user in React Query cache
     queryClient.setQueryData(["current-user"], data.user);
-
+    
     enqueueSnackbar("Welcome Back!", { variant: "success" });
+    // Always navigate to dashboard after login
     navigate("/dashboard");
   },
   onError: () => {

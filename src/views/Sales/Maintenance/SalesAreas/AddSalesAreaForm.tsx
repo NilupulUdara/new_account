@@ -13,9 +13,9 @@ import theme from "../../../../theme";
 import { createSalesArea } from "../../../../api/SalesMaintenance/salesService";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { setSourceMapsEnabled } from "process";
 import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
+import useFormPersist from "../../../../hooks/useFormPersist";
 
 interface SalesAreaFormData {
   name: string;
@@ -25,9 +25,10 @@ export default function AddSalesAreaForm() {
   const [open, setOpen] = useState(false);
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [formData, setFormData] = useState<SalesAreaFormData>({
-    name: "",
-  });
+  const [formData, setFormData, clearFormData] = useFormPersist<SalesAreaFormData>(
+    "sales-area-form",  // unique key for this form
+    { name: "" }
+  );
   const [error, setError] = useState<string>("");
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
@@ -54,6 +55,8 @@ export default function AddSalesAreaForm() {
       try {
         await createSalesArea(formData);
         queryClient.invalidateQueries({ queryKey: ["salesAreas"] });
+        // Clear form data from localStorage on successful submission
+        clearFormData();
         setOpen(true);
       } catch (error) {
         console.error(error);
@@ -95,7 +98,13 @@ export default function AddSalesAreaForm() {
         </Stack>
 
         <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3, flexDirection: isMobile ? "column" : "row", gap: isMobile ? 2 : 0, }}>
-          <Button onClick={() => navigate(-1)}>Back</Button>
+          <Button onClick={() => {
+            // Ask user if they want to save the data for later or discard it
+            if (formData.name && !confirm("Do you want to save your progress for later?")) {
+              clearFormData();
+            }
+            navigate(-1);
+          }}>Back</Button>
 
           <Button
             variant="contained"
@@ -113,7 +122,10 @@ export default function AddSalesAreaForm() {
         content="Sales area has been added successfully!"
         addFunc={async () => { }}
         handleClose={() => setOpen(false)}
-        onSuccess={() => window.history.back()}
+        onSuccess={() => {
+          // Form was already cleared on successful submission
+          window.history.back();
+        }}
       />
       <ErrorModal
         open={errorOpen}

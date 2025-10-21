@@ -14,6 +14,7 @@ import { createSalesGroup } from "../../../../api/SalesMaintenance/salesService"
 import { useQueryClient } from "@tanstack/react-query";
 import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
+import useFormPersist from "../../../../hooks/useFormPersist";
 interface SalesGroupFormData {
   groupName: string;
 }
@@ -22,9 +23,10 @@ export default function AddSalesGroupsForm() {
   const [open, setOpen] = useState(false);
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [formData, setFormData] = useState<SalesGroupFormData>({
-    groupName: "",
-  });
+  const [formData, setFormData, clearFormData] = useFormPersist<SalesGroupFormData>(
+    "sales-group-form",  // unique key for this form
+    { groupName: "" }
+  );
 
   const [error, setError] = useState<string>("");
   const muiTheme = useTheme();
@@ -50,6 +52,8 @@ export default function AddSalesGroupsForm() {
       try {
         await createSalesGroup({ name: formData.groupName });
         queryClient.invalidateQueries({ queryKey: ["salesGroups"] });
+        // Clear form data from localStorage on successful submission
+        clearFormData();
         setOpen(true);
       } catch (error) {
         console.error(error);
@@ -102,7 +106,13 @@ export default function AddSalesGroupsForm() {
             gap: isMobile ? 2 : 0,
           }}
         >
-          <Button onClick={() => window.history.back()}>Back</Button>
+          <Button onClick={() => {
+            // Ask user if they want to save the data for later or discard it
+            if (formData.groupName && !confirm("Do you want to save your progress for later?")) {
+              clearFormData();
+            }
+            window.history.back();
+          }}>Back</Button>
 
           <Button
             variant="contained"
@@ -120,7 +130,10 @@ export default function AddSalesGroupsForm() {
         content="Sales Group has been added successfully!"
         addFunc={async () => { }}
         handleClose={() => setOpen(false)}
-        onSuccess={() => window.history.back()}
+        onSuccess={() => {
+          // Form was already cleared on successful submission
+          window.history.back();
+        }}
       />
 
       <ErrorModal
