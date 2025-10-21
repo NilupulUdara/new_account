@@ -17,9 +17,12 @@ export const createSupplierContact = async (contactData: any) => {
 // Get contacts for a specific supplier
 export const getSupplierContacts = async (supplierId: string | number) => {
   try {
-    // 1. Fetch contacts for this supplier
+    // Return empty if no supplierId provided
+    if (!supplierId) return [];
+
+    // 1. Fetch contacts for this supplier only
     const contactsResponse = await axios.get(`http://localhost:8000/api/crm-contacts`, {
-      params: { entity_id: supplierId },
+      params: { entity_id: supplierId, action: "supplier" },
     });
     const crmContacts = contactsResponse.data;
 
@@ -35,18 +38,29 @@ export const getSupplierContacts = async (supplierId: string | number) => {
     // 3. Fetch all relevant contact categories
     const typeIds = crmContacts.map((c: any) => c.type);
     const categoriesResponse = await axios.get(`http://localhost:8000/api/crm-categories`, {
-      params: { ids: Array.from(new Set(typeIds)).join(",") }, // unique IDs only
+      params: { ids: Array.from(new Set(typeIds)).join(","), type: "supplier" }, // unique IDs only, only supplier categories
     });
     const contactCategories = categoriesResponse.data;
 
     // Build a map: type ID → description
     const categoryMap: { [key: number]: string } = {};
     contactCategories.forEach((cat: any) => {
-      categoryMap[cat.id] = cat.description;
+      if (cat.type === "supplier") {
+        categoryMap[cat.id] = cat.description;
+      }
     });
 
+    // Get a list of category IDs that have type="supplier"
+    const supplierCategoryIds = contactCategories
+      .filter((cat: any) => cat.type === "supplier")
+      .map((cat: any) => cat.id);
+
     // 4. Merge contact + person + category info
-    const merged = crmContacts.map((contact: any) => {
+    const merged = crmContacts
+      // ensure contacts are for this supplier entity and use supplier categories
+      .filter((contact: any) => contact.entity_id == supplierId)
+      .filter((contact: any) => supplierCategoryIds.includes(contact.type) || supplierCategoryIds.length === 0)
+      .map((contact: any) => {
       const person = crmPersons.find((p: any) => p.id === contact.person_id);
       let firstName = "";
       let lastName = "";
@@ -58,12 +72,13 @@ export const getSupplierContacts = async (supplierId: string | number) => {
 
       return {
         id: contact.id,
-        reference: person.ref,
+        reference: person?.ref || "",
         assignment: categoryMap[contact.type] || "Unknown",
+        name: person?.name || `${firstName} ${lastName}`.trim(),
         firstName,
         lastName,
         phone: person?.phone || "",
-        secPhone: person?.phone2 || "",
+        phone2: person?.phone2 || "",
         fax: person?.fax || "",
         email: person?.email || "",
         inactive: contact.inactive || false,

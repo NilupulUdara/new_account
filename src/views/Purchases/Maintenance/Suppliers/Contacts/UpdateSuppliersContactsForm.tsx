@@ -10,7 +10,11 @@ import {
   useMediaQuery,
   MenuItem,
 } from "@mui/material";
-import { updateSupplierContact, getSupplierContacts } from "../../../../../api/Supplier/SupplierContactApi";
+import { updateSupplierContact } from "../../../../../api/Supplier/SupplierContactApi";
+import axios from "axios";
+import { getCrmContactById, updateCrmContact } from "../../../../../api/CrmContact/CrmContact";
+import { getContactCategory } from "../../../../../api/ContactCategory/ContactCategoryApi";
+import { useNavigate } from "react-router";
 import ErrorModal from "../../../../../components/ErrorModal";
 import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal";
 import { useParams } from "react-router";
@@ -50,7 +54,11 @@ export default function UpdateSuppliersContactsForm() {
   const [errors, setErrors] = useState<Partial<Record<keyof UpdateSuppliersContactsData, string>>>({});
   const muiTheme = useTheme();
   const { id } = useParams();
+  const navigate = useNavigate();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+
+  const [loading, setLoading] = useState(true);
+  const [originalCrmContact, setOriginalCrmContact] = useState<any>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -91,41 +99,90 @@ export default function UpdateSuppliersContactsForm() {
 
   useEffect(() => {
     const fetchContact = async () => {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        const allContacts = await getSupplierContacts(""); // or customerId if available
-        const contact = allContacts.find((c: any) => c.id === Number(id));
-        if (contact) {
-          setFormData({
-            firstName: contact.name || "",
-            lastName: contact.name2 || "",
-            reference: contact.ref || "",
-            contactActiveFor: contact.assignment || "",
-            phone: contact.phone || "",
-            secondaryPhone: contact.phone2 || "",
-            fax: contact.fax || "",
-            email: contact.email || "",
-            address: contact.address || "",
-            documentLanguage: contact.lang || "",
-            notes: contact.notes || "",
-          });
+        setLoading(true);
+
+        // get crm_contact to find the person_id and type
+  const crmContact = await getCrmContactById(Number(id));
+        if (!crmContact) {
+          setErrorMessage("Contact record not found");
+          setErrorOpen(true);
+          setLoading(false);
+          return;
         }
-      } catch (err) {
+
+  const personId = crmContact.person_id;
+  // store original crm contact so we can update its type later
+  setOriginalCrmContact(crmContact);
+        if (!personId) {
+          setErrorMessage("Person ID is missing from contact record");
+          setErrorOpen(true);
+          setLoading(false);
+          return;
+        }
+
+        // fetch person details
+        const personResp = await axios.get(`http://localhost:8000/api/crm-persons/${personId}`);
+        const person = personResp.data;
+
+        // split name into first/last
+        let firstName = "";
+        let lastName = "";
+        if (person?.name) {
+          const parts = person.name.split(" ");
+          firstName = parts[0];
+          lastName = parts.slice(1).join(" ");
+        }
+
+        setFormData({
+          firstName: firstName || "",
+          lastName: lastName || person?.name2 || "",
+          reference: person?.ref || "",
+          contactActiveFor: String(crmContact.type || ""),
+          phone: person?.phone || "",
+          secondaryPhone: person?.phone2 || "",
+          fax: person?.fax || "",
+          email: person?.email || "",
+          address: person?.address || "",
+          documentLanguage: person?.lang || "",
+          notes: person?.notes || "",
+        });
+      } catch (err: any) {
         console.error("Failed to fetch contact:", err);
+        setErrorMessage(err?.response?.data?.message || err?.message || "Failed to load contact information. Please try again.");
+        setErrorOpen(true);
+      } finally {
+        setLoading(false);
       }
     };
 
-    if (id) fetchContact();
+    fetchContact();
   }, [id]);
 
 
   const handleSubmit = async () => {
     if (validate()) {
       try {
-        await updateSupplierContact(id!, {
+        // Convert contactActiveFor to number when provided
+        let assignment: number | undefined;
+        if (formData.contactActiveFor) {
+          const parsed = parseInt(formData.contactActiveFor, 10);
+          if (!isNaN(parsed)) assignment = parsed;
+        }
+
+        if (!id) throw new Error("Contact ID is missing");
+
+        // Update the person record first
+        await updateSupplierContact(id, {
           name: formData.firstName,
           name2: formData.lastName,
           ref: formData.reference,
-          assignment: formData.contactActiveFor,
+          assignment: undefined, // assignment lives on crm_contacts; keep undefined here
           phone: formData.phone,
           phone2: formData.secondaryPhone,
           fax: formData.fax,
@@ -135,11 +192,36 @@ export default function UpdateSuppliersContactsForm() {
           notes: formData.notes,
         });
 
+        // Then update crm_contacts.type if we have the original crm contact and assignment was provided
+        if (originalCrmContact && typeof assignment !== 'undefined') {
+          try {
+            // Derive action from contact category subtype when possible
+            let actionValue = originalCrmContact.action || 'assigned';
+            try {
+              const category = await getContactCategory(assignment);
+              if (category && category.subtype) actionValue = category.subtype;
+            } catch (catErr) {
+              console.warn('Failed to fetch category for assignment, falling back to original action', catErr);
+            }
+
+            await updateCrmContact(originalCrmContact.id, {
+              person_id: originalCrmContact.person_id,
+              type: assignment,
+              action: actionValue,
+              entity_id: originalCrmContact.entity_id ? String(originalCrmContact.entity_id) : undefined,
+            });
+          } catch (crmErr) {
+            console.error('Failed to update crm_contacts type/action:', crmErr);
+            // non-blocking: we don't fail the whole update if crm contact update fails
+          }
+        }
+
         setOpen(true);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Update failed:", error);
         setErrorMessage(
           error?.response?.data?.message ||
+          error?.message ||
           "Failed to update contact Please try again."
         );
         setErrorOpen(true);
@@ -165,6 +247,11 @@ export default function UpdateSuppliersContactsForm() {
           Update Supplier Contact
         </Typography>
 
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+            <Typography>Loading contact data...</Typography>
+          </Box>
+        ) : (
         <Stack spacing={2}>
           {/* First Name */}
           <TextField
@@ -306,7 +393,8 @@ export default function UpdateSuppliersContactsForm() {
             onChange={handleInputChange}
             helperText=" "
           />
-        </Stack>
+  </Stack>
+  )}
 
         <Box
           sx={{
