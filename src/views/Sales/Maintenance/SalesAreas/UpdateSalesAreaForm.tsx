@@ -15,6 +15,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
 import ErrorModal from "../../../../components/ErrorModal";
+import useFormPersist from "../../../../hooks/useFormPersist";
 interface SalesAreaFormData {
   name: string;
 }
@@ -23,18 +24,23 @@ export default function UpdateSalesAreaForm() {
   const [open, setOpen] = useState(false);
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [formData, setFormData] = useState<SalesAreaFormData>({
-    name: "",
-  });
+  const { id } = useParams<{ id: string }>();
+  // Use a unique storage key for each sales area being edited
+  const [formData, setFormData, clearFormData] = useFormPersist<SalesAreaFormData>(
+    `update-sales-area-${id}`,
+    { name: "" }
+  );
   const [error, setError] = useState<string>("");
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
 
   useEffect(() => {
     if (id) {
-      getSalesArea(Number(id)).then((res) => setFormData({ name: res.name }));
+      // Only load from API if the form doesn't already have user-edited data
+      if (!formData.name) {
+        getSalesArea(Number(id)).then((res) => setFormData({ name: res.name }));
+      }
     }
   }, [id]);
 
@@ -59,6 +65,8 @@ export default function UpdateSalesAreaForm() {
       try {
         await updateSalesArea(Number(id), formData);
         queryClient.invalidateQueries({ queryKey: ["salesAreas"] });
+        // Clear persisted form data on successful update
+        clearFormData();
         setOpen(true);
       } catch (error) {
         console.error(error);
@@ -100,7 +108,13 @@ export default function UpdateSalesAreaForm() {
         </Stack>
 
         <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3, flexDirection: isMobile ? "column" : "row", gap: isMobile ? 2 : 0, }}>
-          <Button onClick={() => navigate(-1)}>Back</Button>
+          <Button onClick={() => {
+            // Ask user if they want to save the data for later or discard it
+            if (formData.name && !confirm("Do you want to save your progress for later?")) {
+              clearFormData();
+            }
+            navigate(-1);
+          }}>Back</Button>
 
           <Button
             variant="contained"
@@ -117,7 +131,10 @@ export default function UpdateSalesAreaForm() {
         title="Success"
         content="Sales Area has been updated successfully!"
         handleClose={() => setOpen(false)}
-        onSuccess={() => window.history.back()}
+        onSuccess={() => {
+          // Form was already cleared on successful update
+          window.history.back();
+        }}
       />
       <ErrorModal
         open={errorOpen}

@@ -5,7 +5,7 @@ import ImageCarousel from "../../components/ImageCarousel";
 import LoginForm from "./LoginForm";
 import useCurrentUser from "../../hooks/useCurrentUser";
 import PageLoader from "../../components/PageLoader";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import index1 from "../../assets/new1.png";
 import index2 from "../../assets/new2.png";
 import index3 from "../../assets/new3.png";
@@ -14,6 +14,7 @@ function LoginPage() {
   const theme = useTheme();
   const isMdUp = useMediaQuery(theme.breakpoints.up(990));
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { user, status } = useCurrentUser();
 
@@ -22,6 +23,7 @@ function LoginPage() {
   }
 
   if (user) {
+    // Always navigate to dashboard when user is already logged in
     navigate("/dashboard");
   }
 

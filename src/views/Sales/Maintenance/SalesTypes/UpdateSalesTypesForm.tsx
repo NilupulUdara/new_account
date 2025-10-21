@@ -17,6 +17,7 @@ import theme from "../../../../theme";
 import { getSalesType, updateSalesType, SalesType } from "../../../../api/SalesMaintenance/salesService";
 import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
+import useFormPersist from "../../../../hooks/useFormPersist";
 
 interface SalesTypeFormData {
   salesTypeName: string;
@@ -30,11 +31,15 @@ export default function UpdateSalesTypesForm() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const { id } = useParams<{ id: string }>();
-  const [formData, setFormData] = useState<SalesTypeFormData>({
-    salesTypeName: "",
-    calculationFactor: "",
-    taxIncluded: false,
-  });
+  // Use a unique storage key for each sales type being edited
+  const [formData, setFormData, clearFormData] = useFormPersist<SalesTypeFormData>(
+    `update-sales-type-${id}`,
+    {
+      salesTypeName: "",
+      calculationFactor: "",
+      taxIncluded: false,
+    }
+  );
 
   const [errors, setErrors] = useState<Partial<SalesTypeFormData>>({});
   const navigate = useNavigate();
@@ -46,23 +51,25 @@ export default function UpdateSalesTypesForm() {
   // Load existing sales type data
   useEffect(() => {
     if (!id) return;
-    getSalesType(Number(id))
-      .then((res: SalesType) => {
-        setFormData({
-          salesTypeName: res.typeName,
-          calculationFactor: res.factor.toString(),
-          taxIncluded: res.taxIncl,
+    // Only load from API if the form doesn't already have user-edited data
+    if (!formData.salesTypeName && !formData.calculationFactor) {
+      getSalesType(Number(id))
+        .then((res: SalesType) => {
+          setFormData({
+            salesTypeName: res.typeName,
+            calculationFactor: res.factor.toString(),
+            taxIncluded: res.taxIncl,
+          });
+        })
+        .catch((err) => {
+          console.error(err);
+          setErrorMessage(
+            err?.response?.data?.message ||
+            "Failed to load Sales Type Please try again."
+          );
+          setErrorOpen(true);
         });
-      })
-      .catch((err) => {
-        console.error(err);
-        setErrorMessage(
-          err?.response?.data?.message ||
-          "Failed to load Sales Type Please try again."
-        );
-        setErrorOpen(true);
-
-      });
+    }
   }, [id]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -96,14 +103,16 @@ export default function UpdateSalesTypesForm() {
         });
 
         queryClient.invalidateQueries({ queryKey: ["salesTypes"] });
-
+        
+        // Clear persisted form data on successful update
+        clearFormData();
         setOpen(true);
 
       } catch (error) {
         console.error(error);
         setErrorMessage(
           error?.response?.data?.message ||
-          "Failed to add Sales Type Please try again."
+          "Failed to update Sales Type. Please try again."
         );
         setErrorOpen(true);
       }
@@ -169,7 +178,14 @@ export default function UpdateSalesTypesForm() {
             gap: isMobile ? 2 : 0,
           }}
         >
-          <Button onClick={() => navigate(-1)}>Back</Button>
+          <Button onClick={() => {
+            // Ask user if they want to save the data for later or discard it
+            if ((formData.salesTypeName || formData.calculationFactor) && 
+                !confirm("Do you want to save your progress for later?")) {
+              clearFormData();
+            }
+            navigate(-1);
+          }}>Back</Button>
 
           <Button
             variant="contained"
@@ -186,7 +202,10 @@ export default function UpdateSalesTypesForm() {
         title="Success"
         content="Sales type has been updated successfully!"
         handleClose={() => setOpen(false)}
-        onSuccess={() => window.history.back()}
+        onSuccess={() => {
+          // Form was already cleared on successful update
+          window.history.back();
+        }}
       />
       <ErrorModal
         open={errorOpen}

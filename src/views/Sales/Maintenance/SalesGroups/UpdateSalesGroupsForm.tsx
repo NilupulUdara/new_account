@@ -15,6 +15,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
 import ErrorModal from "../../../../components/ErrorModal";
+import useFormPersist from "../../../../hooks/useFormPersist";
 interface SalesGroupFormData {
   groupName: string;
 }
@@ -24,9 +25,11 @@ export default function UpdateSalesGroupsForm() {
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const { id } = useParams<{ id: string }>();
-  const [formData, setFormData] = useState<SalesGroupFormData>({
-    groupName: "",
-  });
+  // Use a unique storage key for each sales group being edited
+  const [formData, setFormData, clearFormData] = useFormPersist<SalesGroupFormData>(
+    `update-sales-group-${id}`,
+    { groupName: "" }
+  );
 
   const [error, setError] = useState<string>("");
   const muiTheme = useTheme();
@@ -35,16 +38,19 @@ export default function UpdateSalesGroupsForm() {
 
   useEffect(() => {
     if (!id) return;
-    getSalesGroup(Number(id))
-      .then((res) => setFormData({ groupName: res.name }))
-      .catch((err) => {
-        console.error(err);
-        setErrorMessage(
-          err?.response?.data?.message ||
-          "Failed to load sales group Please try again."
-        );
-        setErrorOpen(true);
-      });
+    // Only load from API if the form doesn't already have user-edited data
+    if (!formData.groupName) {
+      getSalesGroup(Number(id))
+        .then((res) => setFormData({ groupName: res.name }))
+        .catch((err) => {
+          console.error(err);
+          setErrorMessage(
+            err?.response?.data?.message ||
+            "Failed to load sales group Please try again."
+          );
+          setErrorOpen(true);
+        });
+    }
   }, [id]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,6 +75,8 @@ export default function UpdateSalesGroupsForm() {
       try {
         await updateSalesGroup(Number(id), { name: formData.groupName });
         queryClient.invalidateQueries({ queryKey: ["salesGroups"] });
+        // Clear persisted form data on successful update
+        clearFormData();
         setOpen(true);
       } catch (error) {
         console.error(error);
@@ -121,7 +129,13 @@ export default function UpdateSalesGroupsForm() {
             gap: isMobile ? 2 : 0,
           }}
         >
-          <Button onClick={() => window.history.back()}>Back</Button>
+          <Button onClick={() => {
+            // Ask user if they want to save the data for later or discard it
+            if (formData.groupName && !confirm("Do you want to save your progress for later?")) {
+              clearFormData();
+            }
+            window.history.back();
+          }}>Back</Button>
 
           <Button
             variant="contained"
@@ -138,7 +152,10 @@ export default function UpdateSalesGroupsForm() {
         title="Success"
         content="Sales Group has been updated successfully!"
         handleClose={() => setOpen(false)}
-        onSuccess={() => window.history.back()}
+        onSuccess={() => {
+          // Form was already cleared on successful update
+          window.history.back();
+        }}
       />
 
       <ErrorModal

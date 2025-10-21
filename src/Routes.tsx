@@ -257,6 +257,7 @@ const OtherInputs = React.lazy(
   () => import("./views/Components/OtherInputs")
 );
 
+
 const AccordianAndDividers = React.lazy(
   () => import("./views/Components/AccordianAndDividers")
 );
@@ -298,7 +299,9 @@ const ProtectedRoute = () => {
   });
 
   // While checking user, show loader
-  
+  if (status === 'pending') {
+    return <PageLoader />;
+  }
 
   // If no user, redirect to login and save the page they tried to access
   if (!user) {
@@ -1271,7 +1274,6 @@ const AppRoutes = () => {
           path="/setup/miscellaneous/update-point-of-sale/"
           element={withLayout(MainLayout, UpdatePosForm)}
         />
-
         <Route
           path="/dashboard"
           element={withLayout(MainLayout, Dashboard)}
