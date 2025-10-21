@@ -50,8 +50,27 @@ export default function SuppliersContactsTable({ supplierId }: SupplierContacsPr
   useEffect(() => {
     const fetchContacts = async () => {
       try {
+        // if supplierId is not provided don't call API and clear list
+        if (!supplierId) {
+          setContacts([]);
+          return;
+        }
+
         const data = await getSupplierContacts(supplierId); // fetch merged contacts
-        setContacts(data); // set directly without mapping
+        // map to the same UI shape used by CustomersContactsTable
+        const mapped = data.map((item: any) => ({
+          id: item.id,
+          reference: item.reference,
+    fullName: item.name ? item.name : `${item.firstName || ""} ${item.lastName || ""}`.trim(),
+          phone: item.phone || "",
+          secPhone: item.secPhone || "",
+          fax: item.fax || "",
+          email: item.email || "",
+          assignment: item.assignment || "",
+          inactive: item.inactive,
+        }));
+
+        setContacts(mapped);
       } catch (error: any) {
         console.error("Failed to load contacts:", error);
         // optionally show error modal
@@ -204,7 +223,7 @@ export default function SuppliersContactsTable({ supplierId }: SupplierContacsPr
                   <TableRow key={contact.id} hover>
                     <TableCell>{contact.assignment}</TableCell>
                     <TableCell>{contact.reference}</TableCell>
-                    <TableCell>{`${contact.firstName} ${contact.lastName}`}</TableCell>
+                    <TableCell>{contact.fullName}</TableCell>
                     <TableCell>{contact.phone}</TableCell>
                     <TableCell>{contact.secPhone}</TableCell>
                     <TableCell>{contact.fax}</TableCell>
