@@ -12,6 +12,8 @@ import {
 } from "@mui/material";
 import { useParams, useNavigate } from "react-router";
 import { updateCustomerContact, getCustomerContacts } from "../../../../../api/Customer/CustomerContactApi";
+import { getContactCategory } from "../../../../../api/ContactCategory/ContactCategoryApi";
+import { updateCrmContact } from "../../../../../api/CrmContact/CrmContact";
 import { useEffect } from "react";
 import ErrorModal from "../../../../../components/ErrorModal";
 import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal";
@@ -150,10 +152,10 @@ export default function UpdateCustomersContactsForm() {
           return;
         }
         
-        // Store the original contact data for reference
+        // Store the original contact and person separately so we don't overwrite crm_contact.id with person.id
         setOriginalContact({
-          ...contactRecord,
-          ...personData
+          contact: contactRecord,
+          person: personData,
         });
         
         // Set form data based on the retrieved information
@@ -205,11 +207,12 @@ export default function UpdateCustomersContactsForm() {
           throw new Error("Contact ID is missing");
         }
         
+        // prevent the helper from updating crm_contacts directly; we'll update crm_contacts explicitly below
         await updateCustomerContact(id, {
           name: formData.firstName,
           name2: formData.lastName,
           ref: formData.reference,
-          assignment: assignment, // Pass as number, not string
+          assignment: undefined,
           phone: formData.phone,
           phone2: formData.secondaryPhone,
           fax: formData.fax,
@@ -218,6 +221,30 @@ export default function UpdateCustomersContactsForm() {
           lang: formData.documentLanguage,
           notes: formData.notes,
         });
+
+        // Also update crm_contacts.type and crm_contacts.action when assignment provided
+        if (originalContact && typeof assignment !== 'undefined') {
+          try {
+            // derive action from contact category (prefer subtype, then name/description)
+            let actionValue = originalContact.contact?.action || 'assigned';
+            try {
+              const category = await getContactCategory(assignment);
+              if (category) actionValue = category.subtype || category.name || category.description || actionValue;
+            } catch (catErr) {
+              console.warn('Failed to fetch category for assignment, falling back to original action', catErr);
+            }
+
+            await updateCrmContact(originalContact.contact.id, {
+              person_id: originalContact.contact.person_id,
+              type: assignment,
+              action: actionValue,
+              entity_id: originalContact.contact.entity_id ? String(originalContact.contact.entity_id) : undefined,
+            });
+          } catch (crmErr) {
+            console.error('Failed to update crm_contacts type/action:', crmErr);
+            // non-blocking
+          }
+        }
 
         setOpen(true);
       } catch (error: any) {

@@ -49,6 +49,24 @@ const AddAndManageCustomers = () => {
     fetchCustomers();
   }, []);
 
+  // Read query params on mount to select a customer/tab when navigated from other pages
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const customerParam = params.get("customer");
+    const tabParam = params.get("tab");
+
+    if (customerParam) {
+      // if the param is numeric, convert to number so it matches MenuItem values
+      const numeric = /^\d+$/.test(customerParam);
+      setSelectedCustomer(numeric ? Number(customerParam) : customerParam);
+    }
+
+    if (tabParam) {
+      const t = parseInt(tabParam, 10);
+      if (!isNaN(t)) setTabValue(t);
+    }
+  }, []);
+
   // Tab change handler
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -57,7 +75,8 @@ const AddAndManageCustomers = () => {
   // Customer select handler
   const handleCustomerChange = (value: string | number) => {
     setSelectedCustomer(value);
-    setTabValue(0); // always switch to General Settings tab
+    // only switch to General Settings when creating a new customer
+    if (value === "new") setTabValue(0);
   };
 
   return (
