@@ -16,6 +16,7 @@ import { useEffect } from "react";
 import ErrorModal from "../../../../../components/ErrorModal";
 import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal";
 import { getContactCategories } from "../../../../../api/ContactCategory/ContactCategoryApi";
+import axios from "axios";
 
 interface UpdateCustomersContactsData {
   firstName: string;
@@ -62,9 +63,20 @@ export default function UpdateCustomersContactsForm() {
       try {
         const data = await getContactCategories(); // fetch all categories
         const filtered = data.filter((category: any) => category.type === "customer");
+        
+        if (filtered.length === 0) {
+          console.warn("No customer contact categories found. Contact type selection will be empty.");
+        }
+        
         setCategories(filtered);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to fetch CRM categories:", error);
+        setErrorMessage(
+          error?.response?.data?.message || 
+          error?.message || 
+          "Failed to load contact categories. Some form options may be unavailable."
+        );
+        setErrorOpen(true);
       }
     };
 
@@ -92,43 +104,112 @@ export default function UpdateCustomersContactsForm() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Store the original contact data for reference
+  const [originalContact, setOriginalContact] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     const fetchContact = async () => {
+      if (!id) {
+        setLoading(false);
+        return;
+      }
+      
       try {
-        const allContacts = await getCustomerContacts(""); // or customerId if available
-        const contact = allContacts.find((c: any) => c.id === Number(id));
-        if (contact) {
-          setFormData({
-            firstName: contact.name || "",
-            lastName: contact.name2 || "",
-            reference: contact.ref || "",
-            contactActiveFor: contact.assignment || "",
-            phone: contact.phone || "",
-            secondaryPhone: contact.phone2 || "",
-            fax: contact.fax || "",
-            email: contact.email || "",
-            address: contact.address || "",
-            documentLanguage: contact.lang || "",
-            notes: contact.notes || "",
-          });
+        setLoading(true);
+        
+        // First, get the crm_contact record to get the type ID and person_id
+        const contactResponse = await axios.get(`http://localhost:8000/api/crm-contacts/${id}`);
+        const contactRecord = contactResponse.data;
+        
+        if (!contactRecord) {
+          setErrorMessage("Contact record not found");
+          setErrorOpen(true);
+          setLoading(false);
+          return;
         }
-      } catch (err) {
+        
+        const typeId = contactRecord.type;
+        const personId = contactRecord.person_id;
+        
+        if (!personId) {
+          setErrorMessage("Person ID is missing from contact record");
+          setErrorOpen(true);
+          setLoading(false);
+          return;
+        }
+        
+        // Get the person details directly
+        const personResponse = await axios.get(`http://localhost:8000/api/crm-persons/${personId}`);
+        const personData = personResponse.data;
+        
+        if (!personData) {
+          setErrorMessage("Person data not found");
+          setErrorOpen(true);
+          setLoading(false);
+          return;
+        }
+        
+        // Store the original contact data for reference
+        setOriginalContact({
+          ...contactRecord,
+          ...personData
+        });
+        
+        // Set form data based on the retrieved information
+        setFormData({
+          firstName: personData.name || "",
+          lastName: personData.name2 || "",
+          reference: personData.ref || "",
+          contactActiveFor: typeId?.toString() || "",
+          phone: personData.phone || "",
+          secondaryPhone: personData.phone2 || "",
+          fax: personData.fax || "",
+          email: personData.email || "",
+          address: personData.address || "",
+          documentLanguage: personData.lang || "",
+          notes: personData.notes || "",
+        });
+      } catch (err: any) {
         console.error("Failed to fetch contact:", err);
+        setErrorMessage(
+          err?.response?.data?.message || 
+          err?.message || 
+          "Failed to load contact information. Please try again."
+        );
+        setErrorOpen(true);
+      } finally {
+        setLoading(false);
       }
     };
 
-    if (id) fetchContact();
+    fetchContact();
   }, [id]);
 
 
   const handleSubmit = async () => {
     if (validate()) {
       try {
-        await updateCustomerContact(id!, {
+        // Convert contactActiveFor to number when it exists
+        let assignment: number | undefined;
+        
+        if (formData.contactActiveFor) {
+          const parsed = parseInt(formData.contactActiveFor, 10);
+          // Verify that it parsed to a valid number
+          if (!isNaN(parsed)) {
+            assignment = parsed;
+          }
+        }
+        
+        if (!id) {
+          throw new Error("Contact ID is missing");
+        }
+        
+        await updateCustomerContact(id, {
           name: formData.firstName,
           name2: formData.lastName,
           ref: formData.reference,
-          assignment: formData.contactActiveFor,
+          assignment: assignment, // Pass as number, not string
           phone: formData.phone,
           phone2: formData.secondaryPhone,
           fax: formData.fax,
@@ -139,11 +220,12 @@ export default function UpdateCustomersContactsForm() {
         });
 
         setOpen(true);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Update failed:", error);
         setErrorMessage(
-          error?.response?.data?.message ||
-          "Failed to update contact Please try again."
+          error?.response?.data?.message || 
+          error?.message || 
+          "Failed to update contact. Please try again."
         );
         setErrorOpen(true);
       }
@@ -168,7 +250,12 @@ export default function UpdateCustomersContactsForm() {
         >
           Update Customer Contact
         </Typography>
-
+        
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+            <Typography>Loading contact data...</Typography>
+          </Box>
+        ) : (
         <Stack spacing={2}>
           {/* First Name */}
           <TextField
@@ -311,7 +398,8 @@ export default function UpdateCustomersContactsForm() {
             helperText=" "
           />
         </Stack>
-
+        )}
+        
         <Box
           sx={{
             display: "flex",

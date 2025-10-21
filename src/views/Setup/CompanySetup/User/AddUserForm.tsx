@@ -16,7 +16,7 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import theme from "../../../../theme";
-import { createUser } from "../../../../api/UserManagement/userProfile";
+import { createUser } from "../../../../api/UserManagement/userManagement";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
