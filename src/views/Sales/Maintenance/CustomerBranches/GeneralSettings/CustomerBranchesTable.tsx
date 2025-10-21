@@ -82,38 +82,78 @@ export default function CustomerBranchesTable({ customerId }: CustomerBranchesTa
         const data: CustomerBranch[] = await getBranches(customerId);
         // filter branches by selected customer
         const filtered = data.filter(b => b.debtor_no === customerId);
-        // map only the filtered branches
-        const mapped: MappedBranch[] = filtered.map((b) => ({
-          id: b.branch_code,
-          shortName: b.branch_ref,
-          name: b.br_name,
-          contact: "",
-          salesPerson:
-            b.sales_person
-              ? typeof b.sales_person === "object"
-                ? b.sales_person.name || b.sales_person.label || ""
-                : String(b.sales_person)
-              : "",
-          area:
-            b.sales_area
-              ? typeof b.sales_area === "object"
-                ? b.sales_area.name || b.sales_area.label || ""
-                : String(b.sales_area)
-              : "",
-          phone: "",
-          fax: "",
-          email: "",
-          taxGroup:
-            b.tax_group
-              ? typeof b.tax_group === "object"
-                ? b.tax_group.description || b.tax_group.name || ""
-                : String(b.tax_group)
-              : "",
-          inactive: b.inactive,
-        }));
-
-
-        setBranches(mapped);
+        
+        // Create an array to store the mapped branches
+        let mappedBranches: MappedBranch[] = [];
+        
+        // Process each branch and get its contacts
+        for (const branch of filtered) {
+          // First, map the basic branch data
+          const mappedBranch: MappedBranch = {
+            id: branch.branch_code,
+            shortName: branch.branch_ref,
+            name: branch.br_name,
+            contact: "", // Will be populated below if contacts exist
+            salesPerson:
+              branch.sales_person
+                ? typeof branch.sales_person === "object"
+                  ? branch.sales_person.name || branch.sales_person.label || ""
+                  : String(branch.sales_person)
+                : "",
+            area:
+              branch.sales_area
+                ? typeof branch.sales_area === "object"
+                  ? branch.sales_area.name || branch.sales_area.label || ""
+                  : String(branch.sales_area)
+                : "",
+            phone: "", // Will be populated below if contacts exist
+            fax: "", // Will be populated below if contacts exist
+            email: "", // Will be populated below if contacts exist
+            taxGroup:
+              branch.tax_group
+                ? typeof branch.tax_group === "object"
+                  ? branch.tax_group.description || branch.tax_group.name || ""
+                  : String(branch.tax_group)
+                : "",
+            inactive: branch.inactive,
+          };
+          
+          try {
+            // Fetch contacts for this branch using branch_code
+            console.log(`Fetching contacts for branch code: ${branch.branch_code}`);
+            // Directly import the API module to avoid any caching issues
+            const CustomerBranchContactApi = await import('../../../../../api/CustomerBranch/CustomerBranchContactApi');
+            
+            // Get contacts where crm_persons.id = cust_branch.branch_code
+            // This ensures each branch gets its own specific contact
+            const branchContacts = await CustomerBranchContactApi.getCustomerContacts(branch.branch_code);
+            
+            console.log(`Contacts for branch ${branch.branch_code}:`, branchContacts);
+            
+            // If contacts exist, use the first contact's information
+            if (branchContacts && Array.isArray(branchContacts) && branchContacts.length > 0) {
+              const primaryContact = branchContacts[0];
+              console.log(`Primary contact selected for branch ${branch.branch_code}:`, primaryContact);
+              
+              // Safely extract contact info with fallbacks
+              mappedBranch.contact = primaryContact?.name || "";
+              mappedBranch.phone = primaryContact?.phone || "";
+              mappedBranch.fax = primaryContact?.fax || "";
+              mappedBranch.email = primaryContact?.email || "";
+              
+              console.log(`Mapped branch data with contact info:`, mappedBranch);
+            } else {
+              console.warn(`No contacts found for branch ${branch.branch_code}`);
+            }
+          } catch (contactError) {
+            console.error(`Failed to fetch contacts for branch ${branch.branch_code}:`, contactError);
+            // Continue with empty contact fields
+          }
+          
+          mappedBranches.push(mappedBranch);
+        }
+        
+        setBranches(mappedBranches);
       } catch (error) {
         console.error("Failed to fetch branches:", error);
       }
