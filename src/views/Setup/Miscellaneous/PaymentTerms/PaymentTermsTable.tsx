@@ -26,7 +26,12 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
-import { getPaymentTerms, deletePaymentTerm } from "../../../../api/PaymentTerm/PaymentTermApi";
+import {
+  getPaymentTerms,
+  deletePaymentTerm,
+} from "../../../../api/PaymentTerm/PaymentTermApi";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function PaymentTermsTable() {
   const [page, setPage] = useState(0);
@@ -34,6 +39,10 @@ export default function PaymentTermsTable() {
   const [paymentTerms, setPaymentTerms] = useState<any[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedTermId, setSelectedTermId] = useState<number | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
@@ -44,6 +53,8 @@ export default function PaymentTermsTable() {
         setPaymentTerms(data);
       } catch (error) {
         console.error("Error fetching payment terms:", error);
+        setErrorMessage("Failed to fetch payment terms. Please try again.");
+        setErrorOpen(true);
       }
     };
     fetchData();
@@ -83,14 +94,24 @@ export default function PaymentTermsTable() {
     setPage(0);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm("Are you sure you want to delete this payment term?")) {
-      try {
-        await deletePaymentTerm(id);
-        setPaymentTerms((prev) => prev.filter((p) => p.terms_indicator !== id));
-      } catch (error) {
-        console.error("Error deleting payment term:", error);
-      }
+  const handleDelete = async () => {
+    if (!selectedTermId) return;
+
+    try {
+      await deletePaymentTerm(selectedTermId);
+      setPaymentTerms((prev) =>
+        prev.filter((p) => p.terms_indicator !== selectedTermId)
+      );
+    } catch (error: any) {
+      console.error("Error deleting payment term:", error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+          "Failed to delete payment term. Please try again."
+      );
+      setErrorOpen(true);
+    } finally {
+      setOpenDeleteModal(false);
+      setSelectedTermId(null);
     }
   };
 
@@ -101,6 +122,7 @@ export default function PaymentTermsTable() {
 
   return (
     <Stack>
+      {/* Header Section */}
       <Box
         sx={{
           padding: theme.spacing(2),
@@ -137,6 +159,7 @@ export default function PaymentTermsTable() {
         </Stack>
       </Box>
 
+      {/* Filters */}
       <Stack
         direction={isMobile ? "column" : "row"}
         spacing={2}
@@ -161,6 +184,7 @@ export default function PaymentTermsTable() {
         </Box>
       </Stack>
 
+      {/* Table */}
       <Stack sx={{ alignItems: "center" }}>
         <TableContainer
           component={Paper}
@@ -207,7 +231,10 @@ export default function PaymentTermsTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(term.terms_indicator)}
+                          onClick={() => {
+                            setSelectedTermId(term.terms_indicator);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -242,6 +269,24 @@ export default function PaymentTermsTable() {
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Payment Term"
+        content="Are you sure you want to delete this Payment Term? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedTermId(null)}
+        deleteFunc={handleDelete}
+        onSuccess={() => console.log("Payment Term deleted successfully!")}
+      />
+
+      {/* Error Modal */}
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }
