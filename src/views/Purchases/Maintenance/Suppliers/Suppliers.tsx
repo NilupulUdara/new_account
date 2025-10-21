@@ -49,6 +49,23 @@ const AddAndManageSuppliers = () => {
     fetchSuppliers();
   }, []);
 
+  // Read query params on mount to select a supplier/tab when navigated from other pages
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const supplierParam = params.get("supplier");
+    const tabParam = params.get("tab");
+
+    if (supplierParam) {
+      const numeric = /^\d+$/.test(supplierParam);
+      setSelectedSupplier(numeric ? Number(supplierParam) : supplierParam);
+    }
+
+    if (tabParam) {
+      const t = parseInt(tabParam, 10);
+      if (!isNaN(t)) setTabValue(t);
+    }
+  }, []);
+
   // Tab change handler
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -57,7 +74,8 @@ const AddAndManageSuppliers = () => {
   // Supplier select handler
   const handleSupplierChange = (value: string | number) => {
     setSelectedSupplier(value);
-    setTabValue(0); // always switch to General Settings tab
+    // only switch to General Settings when creating a new supplier
+    if (value === "new") setTabValue(0);
   };
 
   return (
