@@ -13,7 +13,7 @@ import {
 import { useLocation, useNavigate } from "react-router-dom";
 import { createSupplierContact } from "../../../../../api/Supplier/SupplierContactApi";
 import { createCrmContact } from "../../../../../api/CrmContact/CrmContact";
-import { getContactCategories } from "../../../../../api/ContactCategory/ContactCategoryApi";
+import { getContactCategories, getContactCategory } from "../../../../../api/ContactCategory/ContactCategoryApi";
 import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
 import ErrorModal from "../../../../../components/ErrorModal";
 
@@ -127,15 +127,36 @@ export default function AddSuppliersContactsForm() {
       const createdPerson = await createSupplierContact(supplierPayload);
       const personId = createdPerson.id;
 
-      // Step 2: Create CRM contact linked to this person
-      const contactPayload = {
-        person_id: personId,
-        type: Number(formData.contactActiveFor),
-        action: "assigned",
-        entity_id: supplierId.toString(),
-      };
+      // Step 2: Create CRM contact linked to this person (non-blocking)
+      (async () => {
+        try {
+          const typeId = Number(formData.contactActiveFor) || undefined;
+          if (!typeId) return; // no category selected
 
-      await createCrmContact(contactPayload);
+          // fetch action (subtype) from crm-categories
+          const category = await getContactCategory(typeId);
+          const action = category?.subtype || "assigned";
+
+          // determine entity_id: prefer location.state.supplierId, then URL query 'supplier', then form reference
+          let entityId: string | number = "";
+          if ((location as any)?.state && (location as any).state.supplierId) {
+            entityId = (location as any).state.supplierId;
+          } else {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get("supplier")) entityId = params.get("supplier")!;
+            else if (formData.reference) entityId = formData.reference;
+          }
+
+          await createCrmContact({
+            person_id: personId,
+            type: typeId,
+            action,
+            entity_id: String(entityId),
+          });
+        } catch (crmErr) {
+          console.error("Failed to create crm_contacts entry for supplier contact:", crmErr);
+        }
+      })();
 
       // Show success modal
       setOpen(true);
