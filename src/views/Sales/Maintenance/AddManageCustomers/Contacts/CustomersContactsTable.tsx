@@ -55,12 +55,14 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
         const data = await getCustomerContacts(customerId);
         const mappedData = data.map((item: any) => ({
           id: item.id,
-          reference: item.ref,
+          reference: item.reference,
           fullName: item.name,
           phone: item.phone,
           secPhone: item.phone2,
           fax: item.fax,
           email: item.email,
+          assignment: item.assignment, // Include assignment from the enhanced API
+          inactive: item.inactive
         }));
         setContacts(mappedData);
       } catch (error: any) {
@@ -81,7 +83,7 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
       const lower = searchQuery.toLowerCase();
       data = data.filter(
         (c) =>
-          // c.assignment.toLowerCase().includes(lower) ||
+          c.assignment?.toLowerCase().includes(lower) ||
           c.reference?.toLowerCase().includes(lower) ||
           c.fullName?.toLowerCase().includes(lower) ||
           c.phone?.toLowerCase().includes(lower) ||
@@ -112,10 +114,11 @@ export default function CustomersContactsTable({ customerId }: CustomerContacsPr
     try {
       await deleteCustomerContact(selectedContactId);
       setContacts((prev) => prev.filter((c) => c.id !== selectedContactId));
+      // You can add a success notification here if needed
     } catch (error: any) {
       console.error("Delete failed:", error);
       setErrorMessage(
-        error?.response?.data?.message ||
+        error?.response?.data?.message || error?.message ||
         "Failed to delete contact. Please try again."
       );
       setErrorOpen(true);

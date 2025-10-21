@@ -34,7 +34,7 @@ export default function TaxGroupTable() {
 
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
-const [errorOpen, setErrorOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
@@ -88,10 +88,10 @@ const [errorOpen, setErrorOpen] = useState(false);
       setTaxGroups((prev) => prev.filter((g) => g.id !== selectedGroupId));
     } catch (error) {
       setErrorMessage(
-          error?.response?.data?.message ||
-          "Failed to delete tax group Please try again."
-        );
-        setErrorOpen(true);
+        error?.response?.data?.message ||
+        "Failed to delete tax group Please try again."
+      );
+      setErrorOpen(true);
       console.error("Error deleting tax group:", error);
     } finally {
       setOpenDeleteModal(false);
@@ -254,7 +254,7 @@ const [errorOpen, setErrorOpen] = useState(false);
           console.log("Tax Group deleted successfully!");
         }}
       />
-<ErrorModal
+      <ErrorModal
         open={errorOpen}
         onClose={() => setErrorOpen(false)}
         message={errorMessage}

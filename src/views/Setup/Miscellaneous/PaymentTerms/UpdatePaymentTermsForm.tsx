@@ -20,6 +20,8 @@ import {
 import theme from "../../../../theme";
 import { getPaymentTerm, updatePaymentTerm } from "../../../../api/PaymentTerm/PaymentTermApi";
 import { getPaymentTypes } from "../../../../api/PaymentType/PaymentTypeApi";
+import ErrorModal from "../../../../components/ErrorModal";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal";
 
 interface PaymentTermsFormData {
   termsDescription: string;
@@ -40,6 +42,9 @@ export default function UpdatePaymentTermsForm() {
     paymentType: "",
   });
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<Partial<PaymentTermsFormData>>({});
   const [additionalDays, setAdditionalDays] = useState<string>("");
   const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>([]);
@@ -98,11 +103,14 @@ export default function UpdatePaymentTermsForm() {
         };
 
         await updatePaymentTerm(Number(id), payload);
-        alert("Payment term updated successfully!");
-        navigate(-1);
+        setOpen(true);
       } catch (error) {
         console.error(error);
-        alert("Failed to update payment term");
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to update Payment Term Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -237,6 +245,18 @@ export default function UpdatePaymentTermsForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Payment Term has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

@@ -14,7 +14,7 @@ import {
 import theme from "../../../../theme";
 import { getTaxGroup, updateTaxGroup } from "../../../../api/Tax/taxServices";
 import { useParams } from "react-router";
-import UpdateConfirmationModal  from "../../../../components/UpdateConfirmationModal"
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
 import ErrorModal from "../../../../components/ErrorModal";
 
 interface TaxGroupFormData {
@@ -26,7 +26,7 @@ interface TaxGroupFormData {
 export default function UpdateTaxGroupsForm() {
   const [open, setOpen] = useState(false);
   const [errorOpen, setErrorOpen] = useState(false);
-    const [errorMessage, setErrorMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const { id } = useParams<{ id: string }>();
@@ -177,17 +177,17 @@ export default function UpdateTaxGroupsForm() {
         </Box>
       </Paper>
       <UpdateConfirmationModal
-              open={open}
-              title="Success"
-              content="Tax Group has been updated successfully!"
-              handleClose={() => setOpen(false)} 
-              onSuccess={() => window.history.back()} 
-            />
-            <ErrorModal
-                    open={errorOpen}
-                    onClose={() => setErrorOpen(false)}
-                    message={errorMessage}
-                  />
+        open={open}
+        title="Success"
+        content="Tax Group has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

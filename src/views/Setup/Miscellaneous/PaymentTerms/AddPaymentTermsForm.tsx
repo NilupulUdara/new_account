@@ -19,6 +19,8 @@ import {
 import theme from "../../../../theme";
 import { createPaymentTerm } from "../../../../api/PaymentTerm/PaymentTermApi";
 import { getPaymentTypes } from "../../../../api/PaymentType/PaymentTypeApi";
+import ErrorModal from "../../../../components/ErrorModal";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 
 interface PaymentTermsFormData {
   termsDescription: string;
@@ -36,6 +38,9 @@ export default function AddPaymentTermsForm() {
     paymentType: "",
   });
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<Partial<PaymentTermsFormData>>({});
   const [additionalDays, setAdditionalDays] = useState<string>("");
   const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>([]);
@@ -112,11 +117,14 @@ export default function AddPaymentTermsForm() {
         };
 
         await createPaymentTerm(payload);
-        alert("Payment term created successfully!");
-        window.history.back();
+        setOpen(true);
       } catch (error) {
         console.error(error);
-        alert("Failed to create payment term");
+        setErrorMessage(
+          error?.response?.data?.message ||
+          "Failed to create payment term. Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -218,6 +226,20 @@ export default function AddPaymentTermsForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Payment Term has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }
