@@ -124,24 +124,30 @@ export default function CustomerBranchesTable({ customerId }: CustomerBranchesTa
             // Directly import the API module to avoid any caching issues
             const CustomerBranchContactApi = await import('../../../../../api/CustomerBranch/CustomerBranchContactApi');
             
-            // Get contacts where crm_persons.id = cust_branch.branch_code
-            // This ensures each branch gets its own specific contact
+            // Get contacts where crm_contacts.entity_id = branch.branch_code
+            // This ensures each branch gets its own specific contacts
             const branchContacts = await CustomerBranchContactApi.getCustomerContacts(branch.branch_code);
             
             console.log(`Contacts for branch ${branch.branch_code}:`, branchContacts);
+            console.log(`Number of contacts found for branch ${branch.branch_code}: ${branchContacts?.length || 0}`);
             
-            // If contacts exist, use the first contact's information
+              // If contacts exist, use the first contact's information
             if (branchContacts && Array.isArray(branchContacts) && branchContacts.length > 0) {
+              // Important: Debug all contacts for this branch
+              console.log(`Found ${branchContacts.length} contacts for branch ${branch.branch_code}:`);
+              branchContacts.forEach((contact, i) => {
+                console.log(`  Contact ${i+1}: id=${contact.id}, ref=${contact.ref}, name=${contact.name}`);
+              });
+            
               const primaryContact = branchContacts[0];
               console.log(`Primary contact selected for branch ${branch.branch_code}:`, primaryContact);
+              console.log(`Contact details: id=${primaryContact?.id}, ref=${primaryContact?.ref || 'N/A'}, name=${primaryContact?.name || 'N/A'}`);
               
               // Safely extract contact info with fallbacks
-              mappedBranch.contact = primaryContact?.name || "";
+              mappedBranch.contact = primaryContact?.ref || ""; // Use ref field from crm_persons as the contact name
               mappedBranch.phone = primaryContact?.phone || "";
               mappedBranch.fax = primaryContact?.fax || "";
-              mappedBranch.email = primaryContact?.email || "";
-              
-              console.log(`Mapped branch data with contact info:`, mappedBranch);
+              mappedBranch.email = primaryContact?.email || "";              console.log(`Mapped branch data with contact info:`, mappedBranch);
             } else {
               console.warn(`No contacts found for branch ${branch.branch_code}`);
             }
@@ -298,7 +304,7 @@ export default function CustomerBranchesTable({ customerId }: CustomerBranchesTa
                           size="small"
                           startIcon={<EditIcon />}
                           onClick={() =>
-                            navigate(`/sales/maintenance/customer-branches/update-general-settings/${branch.id}`)
+                            navigate(`/sales/maintenance/customer-branches/edit/${branch.id}`)
                           }
                         >
                           Edit

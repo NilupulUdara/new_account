@@ -20,7 +20,7 @@ import {
 import { useMemo, useState, useEffect } from "react";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Breadcrumb from "../../../../../components/BreadCrumb";
 import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
@@ -28,15 +28,16 @@ import SearchBar from "../../../../../components/SearchBar";
 import {
   getCustomerContacts,
   deleteCustomerContact,
-} from "../../../../../api/Customer/CustomerContactApi";
+} from "../../../../../api/CustomerBranch/ContactofBranchApi";
 import DeleteConfirmationModal from "../../../../../components/DeleteConfirmationModal";
 import ErrorModal from "../../../../../components/ErrorModal";
 
 interface ContacsProps {
   customerId?: string | number;
+  onRefreshNeeded?: () => void;
 }
 
-export default function ContactsTable({ customerId }: ContacsProps) {
+export default function ContactsTable({ customerId, onRefreshNeeded }: ContacsProps) {
   const [contacts, setContacts] = useState<any[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -44,6 +45,7 @@ export default function ContactsTable({ customerId }: ContacsProps) {
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
+  const location = useLocation();
 
   // --- Delete Modal States ---
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
@@ -51,20 +53,48 @@ export default function ContactsTable({ customerId }: ContacsProps) {
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  // Add a refresh counter to trigger re-fetching
+  const [refreshCounter, setRefreshCounter] = useState(0);
+
+  // Function to manually trigger a refresh
+  const refreshContacts = () => {
+    setRefreshCounter(prev => prev + 1);
+    
+    // Call the parent's refresh function if provided
+    if (onRefreshNeeded) {
+      onRefreshNeeded();
+    }
+  };
+
+  // Check for new contact flag on component mount/update and location changes
+  useEffect(() => {
+    const contactAdded = sessionStorage.getItem('contactAdded');
+    if (contactAdded === 'true') {
+      // Clear the flag
+      sessionStorage.removeItem('contactAdded');
+      // Refresh the contacts
+      refreshContacts();
+    }
+  }, [location]);
+
   // Fetch contacts
   useEffect(() => {
     const fetchContacts = async () => {
       try {
         const data = await getCustomerContacts(customerId);
+        console.log('Raw contacts data:', data); // Debug log
+        
         const mappedData = data.map((item: any) => ({
           id: item.id,
-          reference: item.ref,
-          fullName: item.name,
-          phone: item.phone,
-          secPhone: item.phone2,
-          fax: item.fax,
-          email: item.email,
+          assignment: item.assignment || "Unknown", // Handle null/undefined values
+          reference: item.reference || "",
+          fullName: item.name || "",
+          phone: item.phone || "",
+          secPhone: item.phone2 || "",
+          fax: item.fax || "",
+          email: item.email || "",
         }));
+        console.log('Mapped contacts data:', mappedData); // Debug log
         setContacts(mappedData);
       } catch (error: any) {
         console.error("Failed to load contacts:", error);
@@ -73,7 +103,7 @@ export default function ContactsTable({ customerId }: ContacsProps) {
       }
     };
     fetchContacts();
-  }, [customerId]);
+  }, [customerId, refreshCounter]);
 
   // Filter by inactive & search
   const filteredData = useMemo(() => {
@@ -83,6 +113,7 @@ export default function ContactsTable({ customerId }: ContacsProps) {
       const lower = searchQuery.toLowerCase();
       data = data.filter(
         (c) =>
+          c.assignment?.toLowerCase().includes(lower) ||
           c.reference?.toLowerCase().includes(lower) ||
           c.fullName?.toLowerCase().includes(lower) ||
           c.phone?.toLowerCase().includes(lower) ||
@@ -111,7 +142,14 @@ export default function ContactsTable({ customerId }: ContacsProps) {
     if (!selectedContactId) return;
     try {
       await deleteCustomerContact(selectedContactId);
+      
+      // First update the UI immediately by filtering out the deleted contact
       setContacts((prev) => prev.filter((c) => c.id !== selectedContactId));
+      
+      // Then refresh from the backend to ensure data consistency
+      setTimeout(() => {
+        refreshContacts();
+      }, 500);
     } catch (error: any) {
       console.error("Delete failed:", error);
       setErrorMessage(
@@ -195,6 +233,7 @@ export default function ContactsTable({ customerId }: ContacsProps) {
           <Table aria-label="contacts table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
+                <TableCell>Assignment</TableCell>
                 <TableCell>Reference</TableCell>
                 <TableCell>Full Name</TableCell>
                 <TableCell>Phone</TableCell>
@@ -209,6 +248,7 @@ export default function ContactsTable({ customerId }: ContacsProps) {
               {paginatedData.length > 0 ? (
                 paginatedData.map((contact) => (
                   <TableRow key={contact.id} hover>
+                    <TableCell>{contact.assignment}</TableCell>
                     <TableCell>{contact.reference}</TableCell>
                     <TableCell>{contact.fullName}</TableCell>
                     <TableCell>{contact.phone}</TableCell>
@@ -247,7 +287,7 @@ export default function ContactsTable({ customerId }: ContacsProps) {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={8} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -258,7 +298,7 @@ export default function ContactsTable({ customerId }: ContacsProps) {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={7}
+                  colSpan={8}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}

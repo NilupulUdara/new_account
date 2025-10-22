@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import axios from "axios";
 import {
   Box,
   Stack,
@@ -10,7 +11,7 @@ import {
   useMediaQuery,
   MenuItem,
 } from "@mui/material";
-import { updateCustomerContact, getCustomerContacts } from "../../../../../api/Customer/CustomerContactApi";
+import { updateCustomerContact, getCustomerContacts } from "../../../../../api/CustomerBranch/ContactofBranchApi";
 import { useParams } from "react-router";
 import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal";
 import ErrorModal from "../../../../../components/ErrorModal";
@@ -91,25 +92,53 @@ export default function UpdateContactsForm() {
   useEffect(() => {
     const fetchContact = async () => {
       try {
-        const allContacts = await getCustomerContacts("");
-        const contact = allContacts.find((c: any) => c.id === Number(id));
-        if (contact) {
-          setFormData({
-            firstName: contact.name || "",
-            lastName: contact.name2 || "",
-            reference: contact.ref || "",
-            contactActiveFor: contact.assignment || "",
-            phone: contact.phone || "",
-            secondaryPhone: contact.phone2 || "",
-            fax: contact.fax || "",
-            email: contact.email || "",
-            address: contact.address || "",
-            documentLanguage: contact.lang || "",
-            notes: contact.notes || "",
-          });
+        console.log('Fetching contact with ID:', id);
+        
+        // First, get the contact record to find the person_id
+        const contactResponse = await axios.get(`http://localhost:8000/api/crm-contacts/${id}`);
+        const contact = contactResponse.data;
+        
+        if (!contact) {
+          console.error('No contact found with ID:', id);
+          setErrorMessage("Contact not found. Please try again.");
+          setErrorOpen(true);
+          return;
         }
+        
+        // Get the person details
+        const personResponse = await axios.get(`http://localhost:8000/api/crm-persons/${contact.person_id}`);
+        const personData = personResponse.data;
+        
+        if (!personData) {
+          console.error('No person found with ID:', contact.person_id);
+          setErrorMessage("Contact person details not found. Please try again.");
+          setErrorOpen(true);
+          return;
+        }
+        
+        // Get the category details
+        const categoryResponse = await axios.get(`http://localhost:8000/api/crm-categories/${contact.type}`);
+        const categoryData = categoryResponse.data;
+        console.log('Category data:', categoryData);
+        
+        setFormData({
+          firstName: personData.name || "",
+          lastName: personData.name2 || "",
+          reference: personData.ref || "",
+          contactActiveFor: contact.type.toString() || "", // Make sure to convert to string for the select
+          phone: personData.phone || "",
+          secondaryPhone: personData.phone2 || "",
+          fax: personData.fax || "",
+          email: personData.email || "",
+          address: personData.address || "",
+          documentLanguage: personData.lang || "",
+          notes: personData.notes || "",
+        });
+        
       } catch (err) {
         console.error("Failed to fetch contact:", err);
+        setErrorMessage("Failed to load contact details. Please try again.");
+        setErrorOpen(true);
       }
     };
     if (id) fetchContact();
@@ -118,11 +147,13 @@ export default function UpdateContactsForm() {
   const handleSubmit = async () => {
     if (validate()) {
       try {
+        console.log('Submitting updated contact data for ID:', id);
+        
         await updateCustomerContact(id!, {
           name: formData.firstName,
           name2: formData.lastName,
           ref: formData.reference,
-          assignment: formData.contactActiveFor,
+          assignment: parseInt(formData.contactActiveFor), // Convert to number for the API
           phone: formData.phone,
           phone2: formData.secondaryPhone,
           fax: formData.fax,
@@ -131,13 +162,15 @@ export default function UpdateContactsForm() {
           lang: formData.documentLanguage,
           notes: formData.notes,
         });
+        
+        console.log('Contact updated successfully');
         setOpen(true);
       }
-      catch (error) {
+      catch (error: any) {
         console.error("Update failed:", error);
         setErrorMessage(
-          error?.response?.data?.message ||
-          "Failed to update contact Please try again."
+          error?.response?.data?.message || error?.message ||
+          "Failed to update contact. Please try again."
         );
         setErrorOpen(true);
       }
@@ -331,7 +364,12 @@ export default function UpdateContactsForm() {
         title="Success"
         content="Customer Contact has been updated successfully!"
         handleClose={() => setOpen(false)}
-        onSuccess={() => window.history.back()}
+        onSuccess={() => {
+          // Set a flag in sessionStorage to indicate a contact was just updated
+          sessionStorage.setItem('contactAdded', 'true');
+          // Navigate back to the contacts list
+          window.history.back();
+        }}
       />
 
       <ErrorModal
