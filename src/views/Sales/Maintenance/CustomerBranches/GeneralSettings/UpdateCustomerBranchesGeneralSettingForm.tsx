@@ -577,7 +577,7 @@ export default function UpdateCustomerBranchesGeneralSettingForm() {
           <Button
             variant="outlined"
             fullWidth
-            onClick={() => window.history.back()}
+            onClick={() => navigate("/sales/maintenance/customer-branches")}
           >
             Back
           </Button>
@@ -596,7 +596,7 @@ export default function UpdateCustomerBranchesGeneralSettingForm() {
         title="Success"
         content="Customer Branch has been updated successfully!"
         handleClose={() => setOpen(false)}
-        onSuccess={() => window.history.back()}
+        onSuccess={() => navigate("/sales/maintenance/customer-branches")}
       />
 
       <ErrorModal

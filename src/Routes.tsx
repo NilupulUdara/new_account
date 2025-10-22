@@ -573,6 +573,10 @@ const AppRoutes = () => {
           element={withLayout(MainLayout, UpdateCustomerBranchesGeneralSettingForm)}
         />
         <Route
+          path="/sales/maintenance/customer-branches/edit/:branchCode"
+          element={withLayout(MainLayout, CustomersBranches)}
+        />
+        <Route
           path="/sales/maintenance/customer-branches/branches-contacts"
           element={withLayout(MainLayout, ContactsTable)}
         />
