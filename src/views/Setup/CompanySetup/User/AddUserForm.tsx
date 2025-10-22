@@ -303,8 +303,8 @@ export default function AddUserForm() {
               onChange={handleSelectChange}
               label="Role"
             >
-              <MenuItem value="admin">Admin</MenuItem>
-              <MenuItem value="user">User</MenuItem>
+              <MenuItem value="Admin">Admin</MenuItem>
+              <MenuItem value="User">User</MenuItem>
             </Select>
             <FormHelperText>{errors.role}</FormHelperText>
           </FormControl>

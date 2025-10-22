@@ -52,7 +52,7 @@ function RegistrationForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const roleOptions = ["Admin", "Manager", "Employee"];
+  const roleOptions = ["Admin", "User"];
   const statusOptions = ["active", "inactive"];
 
   const [formData, setFormData] = useState<UserFormData>({

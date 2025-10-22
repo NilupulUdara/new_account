@@ -3,7 +3,6 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogContentText,
   DialogActions,
   Typography,
   CircularProgress,
@@ -59,7 +58,7 @@ const DeleteConfirmationModal = ({
         {title}
       </DialogTitle>
       <DialogContent dividers>
-        <DialogContentText>{content}</DialogContentText>
+        {content}
       </DialogContent>
       <DialogActions>
         <CustomButton
