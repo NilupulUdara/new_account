@@ -10,7 +10,7 @@ import {
   useMediaQuery,
   MenuItem,
 } from "@mui/material";
-import { createCustomerContact } from "../../../../../api/Customer/CustomerContactApi";
+import { createCustomerContact } from "../../../../../api/CustomerBranch/ContactofBranchApi";
 import { createCrmContact } from "../../../../../api/CrmContact/CrmContact";
 import { getContactCategory } from "../../../../../api/ContactCategory/ContactCategoryApi";
 import { useLocation } from "react-router";
@@ -108,46 +108,74 @@ export default function AddContactsForm() {
           lang: formData.documentLanguage,
           notes: formData.notes
         }
+        console.log('Sending payload to create customer contact:', payload);
         const created = await createCustomerContact(payload);
+        console.log('Person created successfully:', created);
 
-        // Create crm_contacts entry for branch contact (non-blocking)
-        (async () => {
-          try {
-            const typeId = Number(formData.contactActiveFor) || undefined;
-            if (!typeId) return; // no category selected
-
-            const category = await getContactCategory(typeId);
-            const action = category?.subtype || "";
-
-            // entity_id resolution order:
-            // 1) location.state.branch_code
-            // 2) URL param 'branch'
-            // 3) URL param 'customer' (selected customer's debtor_no)
-            // 4) form reference
-            let entityId: string | number = "";
-            if ((location as any)?.state && (location as any).state.branch_code) {
-              entityId = (location as any).state.branch_code;
-            } else {
-              const params = new URLSearchParams(window.location.search);
-              if (params.get("branch")) entityId = params.get("branch")!;
-              else if (params.get("customer")) entityId = params.get("customer")!;
-              else if (formData.reference) entityId = formData.reference;
-            }
-
-            await createCrmContact({
-              person_id: (created as any).id,
-              type: typeId,
-              action,
-              entity_id: String(entityId),
-            });
-          } catch (crmErr) {
-            // Log but don't block
-            // eslint-disable-next-line no-console
-            console.error("Failed to create crm_contacts entry for branch contact:", crmErr);
+        // Create crm_contacts entry for branch contact (making it blocking to ensure it completes)
+        try {
+          const typeId = Number(formData.contactActiveFor) || undefined;
+          if (!typeId) {
+            console.warn('No type/category selected. Contact will be created but not associated with a branch.');
+            setOpen(true);
+            return;
           }
-        })();
 
-        setOpen(true);
+          const category = await getContactCategory(typeId);
+          const action = category?.subtype || "";
+
+          // entity_id resolution order for crm_contacts table:
+          // For customer branch contacts, entity_id must be the branch_code
+          // 1) location.state.branch_code (if available)
+          // 2) URL param 'branch' (should be the branch ID)
+          // 3) URL param 'customer' (if no branch param, as fallback)
+          // 4) form reference (last resort)
+          let entityId: string | number = "";
+          const params = new URLSearchParams(window.location.search);
+          
+          // Check for branch_code in location state (from navigation)
+          if ((location as any)?.state && (location as any).state.branch_code) {
+            entityId = (location as any).state.branch_code;
+            console.log('Using branch_code from location state:', entityId);
+          } 
+          // Check for branch parameter in URL
+          else if (params.get("branch")) {
+            entityId = params.get("branch")!;
+            console.log('Using branch from URL param:', entityId);
+          }
+          // Fall back to customer parameter 
+          else if (params.get("customer")) {
+            entityId = params.get("customer")!;
+            console.log('Using customer from URL param as fallback:', entityId);
+          }
+          // Last resort: use reference field
+          else if (formData.reference) {
+            entityId = formData.reference;
+            console.log('Using reference field as last resort:', entityId);
+          }
+          
+          if (!entityId) {
+            console.warn('No branch ID found for entity_id. Contact may not be properly associated with a branch.');
+          }
+
+          const crmContactPayload = {
+            person_id: (created as any).id,
+            type: typeId,
+            action,
+            entity_id: String(entityId),
+          };
+          
+          console.log('Creating CRM contact with payload:', crmContactPayload);
+          const crmContactResult = await createCrmContact(crmContactPayload);
+          console.log('CRM contact created successfully:', crmContactResult);
+          
+          // Only show success after both person and contact are created
+          setOpen(true);
+        } catch (crmErr) {
+          console.error("Failed to create crm_contacts entry for branch contact:", crmErr);
+          setErrorMessage("Contact person was created but could not be associated with the branch. Please try again.");
+          setErrorOpen(true);
+        }
       } catch (error) {
         console.error("Error creating customer contact:", error.response?.data || error);
         setErrorMessage(
@@ -348,7 +376,26 @@ export default function AddContactsForm() {
         content="Customer contact has been added successfully!"
         addFunc={async () => { }}
         handleClose={() => setOpen(false)}
-        onSuccess={() => window.history.back()}
+        onSuccess={() => {
+          // Set flag to refresh contacts list when returning to the list view
+          sessionStorage.setItem('contactAdded', 'true');
+          
+          // Force the browser to reload the previous page to ensure we get fresh data
+          const returnURL = document.referrer;
+          console.log('Navigating back to:', returnURL);
+          
+          // Use history.back() which will trigger the location change detection in ContactsTable
+          window.history.back();
+          
+          // Add a fallback timeout to check if we need to force a refresh
+          setTimeout(() => {
+            if (sessionStorage.getItem('contactAdded') === 'true') {
+              console.log('Contact flag still present, forcing reload');
+              sessionStorage.removeItem('contactAdded');
+              window.location.reload();
+            }
+          }, 1000);
+        }}
       />
 
       <ErrorModal
