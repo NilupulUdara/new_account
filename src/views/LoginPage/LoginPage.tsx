@@ -1,4 +1,5 @@
 import { Stack, Typography, useMediaQuery, useTheme } from "@mui/material";
+import { useEffect } from "react";
 import leftLandingLeave from "../../assets/b_leaf_l.svg";
 import rightLandingLeave from "../../assets/b_leaf_r.svg";
 import ImageCarousel from "../../components/ImageCarousel";
@@ -18,13 +19,15 @@ function LoginPage() {
 
   const { user, status } = useCurrentUser();
 
+  useEffect(() => {
+    if (user) {
+      // Always navigate to dashboard when user is already logged in
+      navigate("/dashboard", { replace: true });
+    }
+  }, [user, navigate]);
+
   if (status === "loading" || status === "idle") {
     return <PageLoader />;
-  }
-
-  if (user) {
-    // Always navigate to dashboard when user is already logged in
-    navigate("/dashboard");
   }
 
   return (

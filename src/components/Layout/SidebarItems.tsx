@@ -47,13 +47,11 @@ export interface SidebarItem {
   }[];
 }
 
-export const sidebarItems: Array<SidebarItem> = [
-
+const baseSidebarItems: Array<SidebarItem> = [
   {
     title: "Dashboard",
     href: "/dashboard",
     icon: <DashboardIcon fontSize="small" />,
-    
   },
   {
     title: "Sales",
@@ -192,23 +190,34 @@ export const sidebarItems: Array<SidebarItem> = [
       },
     ],
   },
-  {
-    title: "Setup",
-    href: "/setup",
-    icon: <SettingsOutlinedIcon fontSize="small" />,
-    nestedItems: [
-      {
-        title: "Company Setup",
-        href: "/setup/companysetup",
-      },
-      {
-        title: "Miscellaneous",
-        href: "/setup/miscellaneous",
-      },
-      {
-        title: "Maintenance",
-        href: "/setup/maintenance",
-      },
-    ],
-  },
 ];
+
+// NEW: Export a function that returns filtered items based on user role
+export const getSidebarItems = (userRole?: string | null): Array<SidebarItem> => {
+  const items = [...baseSidebarItems];
+
+  // Conditionally add Setup only for admins
+  if (userRole === 'Admin') {
+    items.push({
+      title: "Setup",
+      href: "/setup",
+      icon: <SettingsOutlinedIcon fontSize="small" />,
+      nestedItems: [
+        {
+          title: "Company Setup",
+          href: "/setup/companysetup",
+        },
+        {
+          title: "Miscellaneous",
+          href: "/setup/miscellaneous",
+        },
+        {
+          title: "Maintenance",
+          href: "/setup/maintenance",
+        },
+      ],
+    });
+  }
+
+  return items;
+};

@@ -25,7 +25,7 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import { Link, useLocation, useNavigate } from "react-router";
-import { SidebarItem, sidebarItems } from "./SidebarItems";
+import { SidebarItem, getSidebarItems } from "./SidebarItems";
 import theme from "../../theme";
 import useIsMobile from "../../customHooks/useIsMobile";
 import LogoutIcon from "@mui/icons-material/Logout";
@@ -294,7 +294,7 @@ export default function MainLayout({ children }: Props) {
             },
           }}
         >
-          <DrawerContent handleDrawerClose={handleDrawerClose} openProfileDrawer={openProfileDrawer} />
+          <DrawerContent handleDrawerClose={handleDrawerClose} openProfileDrawer={openProfileDrawer} user={user} />
         </MobileDrawer>
       ) : (
         <Drawer
@@ -308,7 +308,7 @@ export default function MainLayout({ children }: Props) {
             },
           }}
         >
-          <DrawerContent handleDrawerClose={handleDrawerClose} openProfileDrawer={openProfileDrawer} />
+          <DrawerContent handleDrawerClose={handleDrawerClose} openProfileDrawer={openProfileDrawer} user={user} />
         </Drawer>
       )}
       <Box component="main" sx={{ flexGrow: 1, }}>
@@ -322,14 +322,15 @@ export default function MainLayout({ children }: Props) {
 const DrawerContent = ({
   handleDrawerClose,
   openProfileDrawer,
+  user,
 }: {
   handleDrawerClose: () => void;
   openProfileDrawer: () => void;
+  user: any;  // Type as your User type if available
 }) => {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
-  const { user } = useCurrentUser();
   const [activeMainItem, setActiveMainItem] = useState<string | null>(null); // State to track active main item
 
   const userPermissionObject = useMemo(() => {
@@ -337,6 +338,8 @@ const DrawerContent = ({
       return user.permissionObject;
     }
   }, [user]);
+
+  const sidebarItems = useMemo(() => getSidebarItems(user?.role), [user?.role]);
 
   return (
     <>
@@ -506,13 +509,11 @@ const DrawerContent = ({
           }
           handleClose={() => setLogoutDialogOpen(false)}
           deleteFunc={async () => {
-            localStorage.removeItem("token");
-            navigate("/");
-          }}
-          onSuccess={() => {
-            setLogoutDialogOpen(false);
             enqueueSnackbar("Logged Out Successfully!", { variant: "success" });
+            localStorage.removeItem("token");
+            window.location.href = "/";
           }}
+          onSuccess={() => {}}
           handleReject={() => setLogoutDialogOpen(false)}
         />
       )}
