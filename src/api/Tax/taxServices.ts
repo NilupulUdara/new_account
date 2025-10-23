@@ -63,10 +63,6 @@ const TAX_GROUPS_API_URL = "http://localhost:8000/api/tax-groups";
 export interface TaxGroup {
   id?: number;               // optional for create
   description: string;
-  tax: boolean;
-  shipping_tax: number;
-  created_at?: string;
-  updated_at?: string;
 }
 
 // --------------------
