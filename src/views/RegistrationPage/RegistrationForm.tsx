@@ -22,6 +22,7 @@ import { useSnackbar } from "notistack";
 import { useNavigate } from "react-router";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { createUser } from "../../api/UserManagement/userManagement";
+import { getSecurityRoles } from "../../api/AccessSetup/AccessSetupApi";
 
 // API Imports
 import { fetchDepartmentData } from "../../api/departmentApi";
@@ -52,7 +53,10 @@ function RegistrationForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const roleOptions = ["Admin", "User"];
+  const { data: securityRoles } = useQuery({
+    queryKey: ["securityRoles"],
+    queryFn: getSecurityRoles,
+  });
   const statusOptions = ["active", "inactive"];
 
   const [formData, setFormData] = useState<UserFormData>({
@@ -146,7 +150,7 @@ function RegistrationForm() {
         address: formData.address,
         email: formData.email,
         password: formData.password,
-        role: formData.role,
+        role_id: formData.role,
         status: formData.status,
         job_position: formData.jobPosition,
         assigned_factory: formData.assignedFactory,
@@ -294,9 +298,9 @@ function RegistrationForm() {
             onChange={(e) => setFormData({ ...formData, role: e.target.value })}
             label="Role"
           >
-            {roleOptions.map((role) => (
-              <MenuItem key={role} value={role}>
-                {role}
+            {(securityRoles || []).map((r: any) => (
+              <MenuItem key={r.id} value={String(r.id)}>
+                {r.role}
               </MenuItem>
             ))}
           </Select>

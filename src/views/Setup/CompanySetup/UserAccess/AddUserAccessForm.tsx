@@ -273,7 +273,7 @@ const PERMISSION_ID_MAP: Record<string, number> = {
   "Banking & GL Transactions": 3100,
   "Banking & GL Analytics": 3200,
 
-  // Company Setup nested (parent 1010)
+  // Company Setup nested
   "Company parameters": 1101,
   "Access levels edition": 1102,
   "Users setup": 1103,
@@ -283,13 +283,13 @@ const PERMISSION_ID_MAP: Record<string, number> = {
   "Payment terms": 1107,
   "Shipping ways": 1108,
   "Credit status definitions changes": 1109,
-  "Inventory locations changes": 1110, // note: 1020 overlaps a top-level; adjust if needed
+  "Inventory locations changes": 1110,
   "Inventory movement types": 1111,
   "Manufacture work centres": 1112,
   "Forms setup": 1113,
   "Contact categories": 1114,
 
-  // Special Maintenance nested (parent 1020)
+  // Special Maintenance nested
   "Voiding transactions": 1201,
   "Database backup/restore": 1202,
   "Common view/print transactions interface": 1203,
@@ -298,7 +298,7 @@ const PERMISSION_ID_MAP: Record<string, number> = {
   "Password changes": 1206,
   "Edit other users transactions": 1207,
 
-  // Sales Configuration nested (parent 1030)
+  // Sales Configuration nested
   "Sales types": 1301,
   "Sales prices edition": 1302,
   "Sales staff maintenance": 1303,
@@ -307,7 +307,7 @@ const PERMISSION_ID_MAP: Record<string, number> = {
   "Sales templates": 1306,
   "Recurrent invoices definitions": 1307,
 
-  // Sales Transactions nested (parent 1040)
+  // Sales Transactions nested
   "Sales transactions view": 1401,
   "Sales customer and branches changes": 1402,
   "Sales quotations": 1403,
@@ -319,7 +319,7 @@ const PERMISSION_ID_MAP: Record<string, number> = {
   "Customer payments entry": 1409,
   "Customer payments allocation": 1410,
 
-  // Sales Related Reports nested (parent 1050)
+  // Sales Related Reports nested
   "Sales analytical reports": 1501,
   "Sales document bulk reports": 1502,
   "Sales prices listing": 1503,
@@ -328,10 +328,10 @@ const PERMISSION_ID_MAP: Record<string, number> = {
   "Customer status report": 1506,
   "Customer payments report": 1507,
 
-  // Purchase Configuration nested (parent 1060)
+  // Purchase Configuration nested
   "Purchase price changes": 1601,
 
-  // Purchase Transactions nested (parent 1070)
+  // Purchase Transactions nested
   "Supplier transactions view": 1701,
   "Suppliers changes": 1702,
   "Purchase order entry": 1703,
@@ -342,68 +342,68 @@ const PERMISSION_ID_MAP: Record<string, number> = {
   "Supplier payments": 1708,
   "Supplier payments allocations": 1709,
 
-  // Purchase Analytics nested (parent 1080)
+  // Purchase Analytics nested
   "Supplier analytical reports": 1801,
   "Supplier document bulk reports": 1802,
   "Supplier payments report": 1803,
 
-  // Inventory Configuration nested (parent 1090)
+  // Inventory Configuration nested
   "Stock items add/edit": 1901,
   "Sales kits": 1902,
   "Item categories": 1903,
   "Units of measure": 1904,
 
-  // Inventory Operations nested (parent 1100)
+  // Inventory Operations nested
   "Stock status view": 2001,
   "Stock transactions view": 2002,
   "Foreign item codes entry": 2003,
   "Inventory location transfers": 2004,
   "Inventory adjustments": 2005,
 
-  // Inventory Analytics nested (parent 1110)
+  // Inventory Analytics nested
   "Reorder levels": 2101,
   "Items analytical reports and inquiries": 2102,
   "Inventory valuation report": 2103,
 
-  // Fixed Assets Configuration nested (parent 1120)
+  // Fixed Assets Configuration nested
   "Fixed Asset items add/edit": 2201,
   "Fixed Asset categories": 2202,
   "Fixed Asset classes": 2203,
 
-  // Fixed Assets Operations nested (parent 1130)
+  // Fixed Assets Operations nested
   "Fixed Asset transactions view": 2301,
   "Fixed Asset location transfers": 2302,
   "Fixed Asset disposals": 2303,
   "Depreciation": 2304,
 
-  // Fixed Assets Analytics nested (parent 1140)
+  // Fixed Assets Analytics nested
   "Fixed Asset analytical reports and inquiries": 2401,
 
-  // Manufacturing Configuration nested (parent 1150)
+  // Manufacturing Configuration nested
   "Bill of Materials": 2501,
 
-  // Manufacturing Transactions nested (parent 1160)
+  // Manufacturing Transactions nested
   "Manufacturing operations view": 2601,
   "Work order entry": 2602,
   "Material issues entry": 2603,
   "Final product receive": 2604,
   "Work order releases": 2605,
 
-  // Manufacturing Analytics nested (parent 1170)
+  // Manufacturing Analytics nested
   "Work order analytical reports and inquiries": 2701,
   "Manufacturing cost inquiry": 2702,
   "Work order bulk reports": 2703,
   "Bill of materials reports": 2704,
 
-  // Dimensions Configuration nested (parent 1180)
+  // Dimensions Configuration nested
   "Dimension tags": 2801,
 
-  // Dimensions nested (parent 1190)
+  // Dimensions nested
   "Dimension view": 2901,
   "Dimension entry": 2902,
   "Dimension reports": 2903,
 
-  // Banking & GL Configuration nested (parent 1200)
+  // Banking & GL Configuration nested
   "Item tax type definitions": 3001,
   "GL accounts edition": 3002,
   "GL account groups": 3003,
@@ -419,7 +419,7 @@ const PERMISSION_ID_MAP: Record<string, number> = {
   "Closing GL transactions": 3013,
   "Allow entry on non closed Fiscal years": 3014,
 
-  // Banking & GL Transactions nested (parent 1210)
+  // Banking & GL Transactions nested
   "Bank transactions view": 3101,
   "GL postings view": 3102,
   "Exchange rate table changes": 3103,
@@ -433,7 +433,7 @@ const PERMISSION_ID_MAP: Record<string, number> = {
   "Item standard costs": 3111,
   "Revenue / Cost Accruals": 3112,
 
-  // Banking & GL Analytics nested (parent 1220)
+  // Banking & GL Analytics nested
   "GL analytical reports and inquiries": 3201,
   "Tax reports and inquiries": 3202,
   "Bank reports and inquiries": 3203,

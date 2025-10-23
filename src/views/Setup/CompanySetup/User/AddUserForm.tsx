@@ -17,7 +17,8 @@ import {
 } from "@mui/material";
 import theme from "../../../../theme";
 import { createUser } from "../../../../api/UserManagement/userManagement";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { getSecurityRoles } from "../../../../api/AccessSetup/AccessSetupApi";
 import { useNavigate } from "react-router";
 import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
@@ -63,6 +64,10 @@ export default function AddUserForm() {
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const queryClient = useQueryClient();
+  const { data: securityRoles } = useQuery({
+    queryKey: ["securityRoles"],
+    queryFn: getSecurityRoles,
+  });
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData({
@@ -303,8 +308,11 @@ export default function AddUserForm() {
               onChange={handleSelectChange}
               label="Role"
             >
-              <MenuItem value="Admin">Admin</MenuItem>
-              <MenuItem value="User">User</MenuItem>
+                {(securityRoles || []).map((r: any) => (
+                  <MenuItem key={r.id} value={r.role}>
+                    {r.role}
+                  </MenuItem>
+                ))}
             </Select>
             <FormHelperText>{errors.role}</FormHelperText>
           </FormControl>
