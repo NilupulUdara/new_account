@@ -19,6 +19,7 @@ import {
 } from "@mui/material";
 import theme from "../../../../theme";
 import { createTaxGroup, getTaxTypes } from "../../../../api/Tax/taxServices";
+import { createTaxGroupItem } from "../../../../api/Tax/TaxGroupItemApi";
 import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
 
@@ -114,19 +115,24 @@ export default function AddTaxGroupsForm() {
   const handleSubmit = async () => {
     if (validate()) {
       try {
-        // The backend expects: description, tax (boolean), shipping_tax (number)
-        // We'll use the first selected tax type as the main tax, and shipping tax as 1 if any shipping tax is checked
         const payload = {
           description: formData.description,
-          tax: formData.selectedTaxTypeIds.length > 0, // true if any tax type selected
-          shipping_tax: Object.values(formData.shippingTaxMap).some(Boolean) ? 1 : 0, // 1 if any shipping tax checked
         };
-        await createTaxGroup(payload);
-        // If you want to send the full custom payload, use:
-        // await createTaxGroup({ ...payload, tax_type_ids: formData.selectedTaxTypeIds, shipping_tax_map: formData.shippingTaxMap });
+        // Create the tax group first
+        const createdGroup = await createTaxGroup(payload);
+        // Send tax group items for each selected tax type
+        const groupId = createdGroup.id;
+        const promises = formData.selectedTaxTypeIds.map((taxTypeId) => {
+          return createTaxGroupItem({
+            tax_group_id: groupId,
+            tax_type_id: taxTypeId,
+            tax_shipping: !!formData.shippingTaxMap[taxTypeId],
+          });
+        });
+        await Promise.all(promises);
         setOpen(true);
       } catch (error) {
-        console.error("Error creating tax group:", error);
+        console.error("Error creating tax group or items:", error);
         setErrorMessage(
           error?.response?.data?.message ||
             "Failed to create Tax Group. Please try again."
