@@ -4,26 +4,40 @@ import {
   Stack,
   Typography,
   TextField,
-  FormControlLabel,
-  Checkbox,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
   Button,
   Paper,
   useTheme,
   useMediaQuery,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Checkbox,
 } from "@mui/material";
 import theme from "../../../../theme";
 import { getItemTaxType, updateItemTaxType } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
+import { getTaxTypes } from "../../../../api/Tax/taxServices";
+import { createItemTaxTypeExemption, deleteItemTaxTypeExemption, getItemTaxTypeExemptions } from "../../../../api/ItemTaxTypeException/ItemTaxTypeExceptionApi";
 import { useParams, useNavigate } from "react-router-dom";
 import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
 import ErrorModal from "../../../../components/ErrorModal";
 
-interface ItemTaxTypeFormData {
+interface TaxType {
+  id: number;
   description: string;
-  isFullyTaxExempt: boolean;
+  default_rate: number;
 }
 
-interface UpdateItemTaxTypesProps {
-  id: string | number; // ID of the item tax type to update
+interface ItemTaxTypeFormData {
+  description: string;
+  isFullyTaxExempt: string;
+  selectedTaxTypes: number[];
 }
 
 export default function UpdateItemTaxTypes() {
@@ -36,34 +50,63 @@ export default function UpdateItemTaxTypes() {
 
   const [formData, setFormData] = useState<ItemTaxTypeFormData>({
     description: "",
-    isFullyTaxExempt: false,
+    isFullyTaxExempt: "",
+    selectedTaxTypes: [],
   });
+  const [taxTypes, setTaxTypes] = useState<TaxType[]>([]);
   const [errors, setErrors] = useState<Partial<ItemTaxTypeFormData>>({});
   const [loading, setLoading] = useState(false);
 
-  // Fetch existing data
+  // Fetch tax types and existing data
   useEffect(() => {
     const fetchData = async () => {
-      if (!id) return;
       try {
-        const data = await getItemTaxType(id);
+        // Fetch tax types
+        const taxTypesData = await getTaxTypes();
+        setTaxTypes(taxTypesData);
+
+        if (!id) return;
+
+        // Fetch item tax type data
+        const itemTaxType = await getItemTaxType(id);
+
+        // Fetch existing exceptions
+        const exceptions = await getItemTaxTypeExemptions();
+        const selectedTaxIds = exceptions
+          .filter((exc: any) => exc.item_tax_type_id === Number(id))
+          .map((exc: any) => exc.tax_type_id);
+
         setFormData({
-          description: data.name,
-          isFullyTaxExempt: data.exempt,
+          description: itemTaxType.name,
+          isFullyTaxExempt: itemTaxType.exempt ? "yes" : "no",
+          selectedTaxTypes: selectedTaxIds,
         });
       } catch (error) {
-        console.error("Failed to fetch Item Tax Type:", error);
+        console.error("Failed to fetch data:", error);
+        setErrorMessage("Failed to load item tax type data. Please try again.");
+        setErrorOpen(true);
       }
     };
     fetchData();
   }, [id]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === "checkbox" ? checked : value,
-    });
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement> | any) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value,
+      // Reset selected tax types when changing to "yes"
+      selectedTaxTypes: name === 'isFullyTaxExempt' && value === 'yes' ? [] : prev.selectedTaxTypes
+    }));
+  };
+
+  const handleTaxTypeToggle = (taxTypeId: number) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedTaxTypes: prev.selectedTaxTypes.includes(taxTypeId)
+        ? prev.selectedTaxTypes.filter(id => id !== taxTypeId)
+        : [...prev.selectedTaxTypes, taxTypeId]
+    }));
   };
 
   const validate = (): boolean => {
@@ -77,22 +120,68 @@ export default function UpdateItemTaxTypes() {
 
   const handleSubmit = async () => {
     if (validate()) {
-      const payload = {
-        name: formData.description,
-        exempt: formData.isFullyTaxExempt,
-      };
-
       try {
         setLoading(true);
+        // Update item tax type
+        const payload = {
+          name: formData.description,
+          exempt: formData.isFullyTaxExempt === 'yes'
+        };
+
         await updateItemTaxType(id, payload);
+
+        // Handle tax type exceptions
+        if (formData.isFullyTaxExempt === 'no') {
+          // Get current exceptions
+          const currentExceptions = await getItemTaxTypeExemptions();
+          const currentTaxTypeIds = currentExceptions
+            .filter((exc: any) => exc.item_tax_type_id === Number(id))
+            .map((exc: any) => exc.tax_type_id);
+
+          // Remove exceptions that are no longer selected
+          const exceptionsToRemove = currentTaxTypeIds.filter(
+            taxId => !formData.selectedTaxTypes.includes(taxId)
+          );
+
+          // Add new exceptions
+          const exceptionsToAdd = formData.selectedTaxTypes.filter(
+            taxId => !currentTaxTypeIds.includes(taxId)
+          );
+
+          // Process removals
+          await Promise.all(
+            exceptionsToRemove.map(taxId =>
+              deleteItemTaxTypeExemption(Number(id), taxId)
+            )
+          );
+
+          // Process additions
+          await Promise.all(
+            exceptionsToAdd.map(taxId =>
+              createItemTaxTypeExemption({
+                item_tax_type_id: Number(id),
+                tax_type_id: taxId
+              })
+            )
+          );
+        } else {
+          // If fully tax exempt, remove all exceptions
+          const currentExceptions = await getItemTaxTypeExemptions();
+          await Promise.all(
+            currentExceptions
+              .filter((exc: any) => exc.item_tax_type_id === Number(id))
+              .map((exc: any) => deleteItemTaxTypeExemption(Number(id), exc.tax_type_id))
+          );
+        }
+
         setOpen(true);
       } catch (error) {
+        console.error(error);
         setErrorMessage(
           error?.response?.data?.message ||
-          "Failed to update item tax type Please try again."
+          "Failed to update item tax type. Please try again."
         );
         setErrorOpen(true);
-        console.error(error);
       } finally {
         setLoading(false);
       }
@@ -129,16 +218,53 @@ export default function UpdateItemTaxTypes() {
             helperText={errors.description}
           />
 
-          <FormControlLabel
-            control={
-              <Checkbox
-                name="isFullyTaxExempt"
-                checked={formData.isFullyTaxExempt}
-                onChange={handleChange}
-              />
-            }
-            label="Is Fully Tax-exempt"
-          />
+          <FormControl fullWidth={false} sx={{ width: 150 }}>
+            <InputLabel id="tax-exempt-label">Is Fully Tax-exempt</InputLabel>
+            <Select
+              labelId="tax-exempt-label"
+              id="isFullyTaxExempt"
+              name="isFullyTaxExempt"
+              value={formData.isFullyTaxExempt}
+              label="Is Fully Tax-exempt"
+              onChange={handleChange}
+            >
+              <MenuItem value="yes">Yes</MenuItem>
+              <MenuItem value="no">No</MenuItem>
+            </Select>
+          </FormControl>
+
+          {formData.isFullyTaxExempt === 'no' && (
+            <>
+              <Typography sx={{ mt: 2, mb: 1 }}>
+                Select which taxes this item tax type is exempt from.
+              </Typography>
+              <TableContainer component={Paper} sx={{ mt: 2 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Tax Name</TableCell>
+                      <TableCell align="right">Rate (%)</TableCell>
+                      <TableCell align="center">Is exempt</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {taxTypes.map((tax) => (
+                      <TableRow key={tax.id}>
+                        <TableCell>{tax.description}</TableCell>
+                        <TableCell align="right">{tax.default_rate}</TableCell>
+                        <TableCell align="center">
+                          <Checkbox
+                            checked={formData.selectedTaxTypes.includes(tax.id)}
+                            onChange={() => handleTaxTypeToggle(tax.id)}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
+          )}
         </Stack>
 
         <Box

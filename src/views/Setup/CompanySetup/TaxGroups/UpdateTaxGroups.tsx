@@ -64,21 +64,21 @@ export default function UpdateTaxGroupsForm() {
       try {
         const group = await getTaxGroup(Number(id));
         console.log('Fetched tax group:', group);
-        
+
         const items = await getTaxGroupItemsByGroupId(Number(id));
         console.log('Fetched tax group items:', items);
-        
+
         // Filter items to only include those matching the current tax_group_id
         const currentGroupItems = items.filter(item => item.tax_group_id === Number(id));
         console.log('Current group items:', currentGroupItems);
-        
+
         const formDataUpdate = {
           description: group.description,
           selectedTaxTypeIds: currentGroupItems.map(item => item.tax_type_id),
           shippingTaxMap: Object.fromEntries(currentGroupItems.map(item => [item.tax_type_id, item.tax_shipping])),
         };
         console.log('Setting form data to:', formDataUpdate);
-        
+
         setFormData(formDataUpdate);
       } catch (err: any) {
         console.error('Error fetching tax group data:', err);
@@ -141,10 +141,10 @@ export default function UpdateTaxGroupsForm() {
       await Promise.all(
         formData.selectedTaxTypeIds.map(async taxTypeId => {
           const shipping = formData.shippingTaxMap[taxTypeId] || false; // Default to false if not set
-          const existing = existingItems.find(item => 
+          const existing = existingItems.find(item =>
             item.tax_group_id === Number(id) && item.tax_type_id === taxTypeId
           );
-          
+
           console.log('Processing tax type:', taxTypeId, {
             exists: !!existing,
             shipping,
@@ -195,6 +195,10 @@ export default function UpdateTaxGroupsForm() {
             error={!!errors.description}
             helperText={errors.description}
           />
+
+          <Typography sx={{ mt: 2, mb: 1 }}>
+            Select the taxes that are included in this group.
+          </Typography>
 
           <TableContainer component={Paper} sx={{ mt: 2 }}>
             <Table size="small">

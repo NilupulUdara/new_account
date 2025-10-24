@@ -101,7 +101,7 @@ export default function TaxGroupTable() {
 
 
   const breadcrumbItems = [
-    { title: "Home", href: "/home" },
+    { title: "Company Setup", href: "/companysetup" },
     { title: "Tax Groups" },
   ];
 
