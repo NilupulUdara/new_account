@@ -19,6 +19,8 @@ import theme from "../../../../theme";
 import { getUser, updateUser } from "../../../../api/UserManagement/userManagement";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { getSecurityRoles } from "../../../../api/AccessSetup/AccessSetupApi";
 import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
 
@@ -63,6 +65,10 @@ export default function UpdateUserForm() {
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const queryClient = useQueryClient();
+  const { data: securityRoles } = useQuery({
+    queryKey: ["securityRoles"],
+    queryFn: getSecurityRoles,
+  });
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData({
@@ -85,8 +91,16 @@ export default function UpdateUserForm() {
           email: user.email,
           password: "",
           confirmPassword: "",
-          role: "",
-          status: "",
+          // role: prefer role string, fallback to role_id
+          role: user.role ?? (user.role_id ? String(user.role_id) : ""),
+          // status: prefer status string, fallback to inactive boolean
+          status:
+            user.status ??
+            (typeof user.inactive === "boolean"
+              ? user.inactive
+                ? "inactive"
+                : "active"
+              : ""),
         });
       });
     }
@@ -307,8 +321,11 @@ export default function UpdateUserForm() {
               onChange={handleSelectChange}
               label="Role"
             >
-              <MenuItem value="admin">Admin</MenuItem>
-              <MenuItem value="user">User</MenuItem>
+              {(securityRoles || []).map((r: any) => (
+                <MenuItem key={r.id} value={r.role}>
+                  {r.role}
+                </MenuItem>
+              ))}
             </Select>
             <FormHelperText>{errors.role}</FormHelperText>
           </FormControl>

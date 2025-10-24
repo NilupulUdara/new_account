@@ -200,7 +200,8 @@ import PosTable from "./views/Setup/Miscellaneous/PointsOfSales/PosTable";
 import AddPosForm from "./views/Setup/Miscellaneous/PointsOfSales/AddPosForm";
 import UpdatePosForm from "./views/Setup/Miscellaneous/PointsOfSales/UpdatePosForm";
 import UpdateGlAccount from "./views/BankindAndGeneralLedger/Maintenance/GlAccounts/UpdateGlAccount";
-import AdminRoute from "./components/AdminRoute";
+import ProtectedRoute from "./components/ProtectedRoute";
+import { PERMISSION_ID_MAP } from "./permissions/map";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -291,26 +292,8 @@ function withoutLayout(Component: React.LazyExoticComponent<any>) {
   );
 }
 
-const ProtectedRoute = () => {
-  const location = useLocation();
-  const { data: user, status } = useQuery({
-    queryKey: ["current-user"],
-    queryFn: validateUser,
-  });
-
-  // While checking user, show loader
-  if (status === 'pending') {
-    return <PageLoader />;
-  }
-
-  // If no user, redirect to login and save the page they tried to access
-  if (!user) {
-    return <Navigate to="/" replace state={{ from: location }} />;
-  }
-
-  // If user exists, render child routes
-  return <Outlet />;
-};
+// Note: auth and permission checks are handled by `src/context/AuthContext` and
+// `src/components/ProtectedRoute`. Use the component below to guard routes.
 
 const AppRoutes = () => {
   const { data: user, status } = useQuery<User>({
@@ -328,6 +311,7 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/" element={withoutLayout(LoginPage)} />
       <Route path="/register" element={withoutLayout(RegistrationPage)} />
+  <Route path="/not-authorized" element={withLayout(MainLayout, PermissionDenied)} />
       <Route element={<ProtectedRoute />}>
         <Route
           path="/dashboard"
@@ -496,7 +480,7 @@ const AppRoutes = () => {
         )}
       />
 
-      <Route path="/setup" element={<AdminRoute />}>
+        <Route path="/setup" element={<ProtectedRoute required={PERMISSION_ID_MAP['Company Setup']} />}>
         <Route
           path="companysetup"
           element={withLayout(MainLayout, CompanySetup)}
@@ -505,77 +489,155 @@ const AppRoutes = () => {
           path="companysetup/company-setup"
           element={withLayout(MainLayout, CompanySetupForm)}
         />
-        <Route
+        {/* <Route
           path="companysetup/user-account-setup"
           element={withLayout(MainLayout, UserManagementTable)}
+        /> */}
+
+        {/* users setup page - require Users setup permission */}
+        <Route
+          path="companysetup/user-account-setup"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Users setup']}>
+              {withLayout(MainLayout, UserManagementTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/add-user"
-          element={withLayout(MainLayout, AddUserForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Users setup']}>
+              {withLayout(MainLayout, AddUserForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/update-user/:id"
-          element={withLayout(MainLayout, UpdateUserForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Users setup']}>
+              {withLayout(MainLayout, UpdateUserForm)}
+            </ProtectedRoute>
+          }
         />
-        <Route  // Fixed: Added leading / to path if missing
+        <Route
           path="companysetup/access-setup"
-          element={withLayout(MainLayout, AddUserAccessForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Access levels edition']}>
+              {withLayout(MainLayout, AddUserAccessForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/edit-access-setup"
-          element={withLayout(MainLayout, UpdateUserAccessForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Access levels edition']}>
+              {withLayout(MainLayout, UpdateUserAccessForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/fiscal-years"
-          element={withLayout(MainLayout, FiscalYearTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fiscal years maintenance']}>
+              {withLayout(MainLayout, FiscalYearTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/add-fiscal-year"
-          element={withLayout(MainLayout, AddFiscalYear)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fiscal years maintenance']}>
+              {withLayout(MainLayout, AddFiscalYear)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/update-fiscal-year/:id"
-          element={withLayout(MainLayout, UpdateFiscalYear)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fiscal years maintenance']}>
+              {withLayout(MainLayout, UpdateFiscalYear)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/tax-groups"
-          element={withLayout(MainLayout, TaxGroupsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Tax groups']}>
+              {withLayout(MainLayout, TaxGroupsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/add-tax-groups"
-          element={withLayout(MainLayout, AddTaxGroupsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Tax groups']}>
+              {withLayout(MainLayout, AddTaxGroupsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/update-tax-groups/:id"
-          element={withLayout(MainLayout, UpdateTaxGroupsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Tax groups']}>
+              {withLayout(MainLayout, UpdateTaxGroupsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/taxes"
-          element={withLayout(MainLayout, TaxTypesTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Tax rates']}>
+              {withLayout(MainLayout, TaxTypesTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/add-tax-types"
-          element={withLayout(MainLayout, AddTaxTypes)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Tax rates']}>
+              {withLayout(MainLayout, AddTaxTypes)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/update-tax-types/:id"
-          element={withLayout(MainLayout, UpdateTaxTypes)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Tax rates']}>
+              {withLayout(MainLayout, UpdateTaxTypes)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/item-tax-types"
-          element={withLayout(MainLayout, ItemTaxTypesTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Item tax type definitions']}>
+              {withLayout(MainLayout, ItemTaxTypesTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/add-item-tax-types"
-          element={withLayout(MainLayout, AddItemTaxTypes)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Item tax type definitions']}>
+              {withLayout(MainLayout, AddItemTaxTypes)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/update-item-tax-types/:id"
-          element={withLayout(MainLayout, UpdateItemTaxTypes)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Item tax type definitions']}>
+              {withLayout(MainLayout, UpdateItemTaxTypes)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/system-and-general-gl-setup"
-          element={withLayout(MainLayout, SystemGLSetupForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Company GL setup']}>
+              {withLayout(MainLayout, SystemGLSetupForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/transaction-references"
@@ -590,687 +652,1313 @@ const AppRoutes = () => {
           element={withLayout(MainLayout, UpdateTransactionReferencesForm)}
         />
         <Route path="miscellaneous" element={withLayout(MainLayout, Miscellaneous)} />
-        <Route path="maintenance" element={withLayout(MainLayout, SetupMaintenance)} />
-        <Route
-          path="maintenance/install-chart-of-accounts"
-          element={withLayout(MainLayout, InstallChartOfAccounts)}
-        />
-        <Route
-          path="maintenance/void-a-transaction"
-          element={withLayout(MainLayout, VoidTransactionTable)}
-        />
-        <Route
-          path="maintenance/add-void-a-transaction"
-          element={withLayout(MainLayout, VoidTransaction)}
-        />
-        <Route
-          path="maintenance/view-or-print-transaction"
-          element={withLayout(MainLayout, ViewPrintTransactions)}
-        />
-        <Route
-          path="maintenance/attach-documents"
-          element={withLayout(MainLayout, DocumentsTable)}
-        />
-        <Route
-          path="maintenance/add-document"
-          element={withLayout(MainLayout, AddDocumentsForm)}
-        />
-        <Route
-          path="maintenance/update-document"
-          element={withLayout(MainLayout, UpdateDocumentsForm)}
-        />
-        <Route
-          path="maintenance/backup-and-restore"
-          element={withLayout(MainLayout, BackupRestore)}
-        />
-        <Route
-          path="maintenance/create-update-companies"
-          element={withLayout(MainLayout, CompanyTable)}
-        />
-        <Route
-          path="maintenance/add-company"
-          element={withLayout(MainLayout, AddCompanyForm)}
-        />
-        <Route
-          path="maintenance/update-company"
-          element={withLayout(MainLayout, UpdateCompanyForm)}
-        />
-        <Route
-          path="maintenance/install-languages"
-          element={withLayout(MainLayout, LanguagesTable)}
-        />
-        <Route
-          path="maintenance/add-language"
-          element={withLayout(MainLayout, AddLanguagesForm)}
-        />
-        <Route
-          path="maintenance/update-language"
-          element={withLayout(MainLayout, UpdateLanguagesForm)}
-        />
-        <Route
-          path="maintenance/install-extensions"
-          element={withLayout(MainLayout, InstallExtensions)}
-        />
-        <Route
-          path="maintenance/install-themes"
-          element={withLayout(MainLayout, InstallThemes)}
-        />
-        <Route
-          path="maintenance/software-upgrade"
-          element={withLayout(MainLayout, SoftwareUpdateTable)}
-        />
-        <Route
-          path="maintenance/system-diagnostics"
-          element={withLayout(MainLayout, SystemDiagnostics)}
-        />
+
+        <Route path="maintenance" element={<ProtectedRoute required={PERMISSION_ID_MAP['Special Maintenance']} />}>
+          <Route
+            path="install-chart-of-accounts"
+            element={withLayout(MainLayout, InstallChartOfAccounts)}
+          />
+          <Route
+            path="void-a-transaction"
+            element={
+              <ProtectedRoute required={PERMISSION_ID_MAP['Voiding transactions']}>
+                {withLayout(MainLayout, VoidTransactionTable)}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="add-void-a-transaction"
+            element={
+              <ProtectedRoute required={PERMISSION_ID_MAP['Voiding transactions']}>
+                {withLayout(MainLayout, VoidTransaction)}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="view-or-print-transaction"
+            element={
+              <ProtectedRoute required={PERMISSION_ID_MAP['Common view/print transactions interface']}>
+                {withLayout(MainLayout, ViewPrintTransactions)}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="attach-documents"
+            element={
+              <ProtectedRoute required={PERMISSION_ID_MAP['Attaching documents']}>
+                {withLayout(MainLayout, DocumentsTable)}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="add-document"
+            element={
+              <ProtectedRoute required={PERMISSION_ID_MAP['Attaching documents']}>
+                {withLayout(MainLayout, AddDocumentsForm)}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="update-document"
+            element={
+              <ProtectedRoute required={PERMISSION_ID_MAP['Attaching documents']}>
+                {withLayout(MainLayout, UpdateDocumentsForm)}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="backup-and-restore"
+            element={
+              <ProtectedRoute required={PERMISSION_ID_MAP['Database backup/restore']}>
+                {withLayout(MainLayout, BackupRestore)}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="create-update-companies"
+            element={withLayout(MainLayout, CompanyTable)}
+          />
+          <Route
+            path="add-company"
+            element={withLayout(MainLayout, AddCompanyForm)}
+          />
+          <Route
+            path="update-company"
+            element={withLayout(MainLayout, UpdateCompanyForm)}
+          />
+          <Route
+            path="install-languages"
+            element={withLayout(MainLayout, LanguagesTable)}
+          />
+          <Route
+            path="add-language"
+            element={withLayout(MainLayout, AddLanguagesForm)}
+          />
+          <Route
+            path="update-language"
+            element={withLayout(MainLayout, UpdateLanguagesForm)}
+          />
+          <Route
+            path="install-extensions"
+            element={withLayout(MainLayout, InstallExtensions)}
+          />
+          <Route
+            path="install-themes"
+            element={withLayout(MainLayout, InstallThemes)}
+          />
+          <Route
+            path="software-upgrade"
+            element={withLayout(MainLayout, SoftwareUpdateTable)}
+          />
+          <Route
+            path="system-diagnostics"
+            element={withLayout(MainLayout, SystemDiagnostics)}
+          />
+        </Route>
         <Route
           path="miscellaneous/payment-terms"
-          element={withLayout(MainLayout, PaymentTermsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Payment terms']}>
+              {withLayout(MainLayout, PaymentTermsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="miscellaneous/add-payment-term"
-          element={withLayout(MainLayout, AddPaymentTermsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Payment terms']}>
+              {withLayout(MainLayout, AddPaymentTermsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="miscellaneous/update-payment-term/:id"
-          element={withLayout(MainLayout, UpdatePaymentTermsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Payment terms']}>
+              {withLayout(MainLayout, UpdatePaymentTermsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="miscellaneous/shipping-company"
-          element={withLayout(MainLayout, ShippingCompanyTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Shipping ways']}>
+              {withLayout(MainLayout, ShippingCompanyTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="miscellaneous/add-shipping-company"
-          element={withLayout(MainLayout, AddShippingCompanyForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Shipping ways']}>
+              {withLayout(MainLayout, AddShippingCompanyForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="miscellaneous/contact-categories"
-          element={withLayout(MainLayout, ContactCategoryTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Contact categories']}>
+              {withLayout(MainLayout, ContactCategoryTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="miscellaneous/add-contact-category"
-          element={withLayout(MainLayout, AddContactCategory)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Contact categories']}>
+              {withLayout(MainLayout, AddContactCategory)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="miscellaneous/update-contact-category/:id"
-          element={withLayout(MainLayout, UpdateContactCategory)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Contact categories']}>
+              {withLayout(MainLayout, UpdateContactCategory)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="miscellaneous/update-shipping-company/:shipper_id"
-          element={withLayout(MainLayout, UpdateShippingCompanyForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Shipping ways']}>
+              {withLayout(MainLayout, UpdateShippingCompanyForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="miscellaneous/printers"
-          element={withLayout(MainLayout, PrintersTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Printers configuration']}>
+              {withLayout(MainLayout, PrintersTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="miscellaneous/add-printer"
-          element={withLayout(MainLayout, AddPrintersForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Printers configuration']}>
+              {withLayout(MainLayout, AddPrintersForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="miscellaneous/update-printer"
-          element={withLayout(MainLayout, UpdatePrintersForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Printers configuration']}>
+              {withLayout(MainLayout, UpdatePrintersForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="miscellaneous/point-of-sale"
-          element={withLayout(MainLayout, PosTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Point of Sale definitions']}>
+              {withLayout(MainLayout, PosTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="miscellaneous/add-point-of-sale"
-          element={withLayout(MainLayout, AddPosForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Point of Sale definitions']}>
+              {withLayout(MainLayout, AddPosForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="miscellaneous/update-point-of-sale/"
-          element={withLayout(MainLayout, UpdatePosForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Point of Sale definitions']}>
+              {withLayout(MainLayout, UpdatePosForm)}
+            </ProtectedRoute>
+          }
         />
       </Route>
 
       <Route element={<ProtectedRoute />}>
+        <Route path="/maintenance" element={<ProtectedRoute required={PERMISSION_ID_MAP['Special Maintenance']} />} />
         <Route
           path="/sales/transactions"
-          element={withLayout(MainLayout, SalesTransactions)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales Transactions']}>
+              {withLayout(MainLayout, SalesTransactions)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/transactions/sales-quotation-entry"
-          element={withLayout(MainLayout, SalesQuotationEntry)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales quotations']}>
+              {withLayout(MainLayout, SalesQuotationEntry)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/inquiriesandreports"
-          element={withLayout(MainLayout, InquiriesAndReports)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales Related Reports']}>
+              {withLayout(MainLayout, InquiriesAndReports)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance"
-          element={withLayout(MainLayout, Maintenance)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales Configuration']}>
+              {withLayout(MainLayout, Maintenance)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/add-and-manage-customers"
-          element={withLayout(MainLayout, AddManageCutomers)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, AddManageCutomers)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/add-and-manage-customers/general-settings"
-          element={withLayout(MainLayout, GeneralSettingsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, GeneralSettingsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/add-and-manage-customers/update-customer/:id"
-          element={withLayout(MainLayout, UpdateGeneralSettingsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, UpdateGeneralSettingsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/add-and-manage-customers/contacts"
-          element={withLayout(MainLayout, CustomersContactsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, CustomersContactsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/add-and-manage-customers/add-customers-contacts"
-          element={withLayout(MainLayout, AddCustomersContactsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, AddCustomersContactsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/add-and-manage-customers/update-customers-contacts/:id"
-          element={withLayout(MainLayout, UpdateCustomersContactsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, UpdateCustomersContactsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/add-and-manage-customers/transactions"
-          element={withLayout(MainLayout, TransactionsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, TransactionsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/add-and-manage-customers/sales-orders"
-          element={withLayout(MainLayout, SalesOrdersTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, SalesOrdersTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/add-and-manage-customers/attachments"
-          element={withLayout(MainLayout, AttachmentsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, AttachmentsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/add-and-manage-customers/add-attachments"
-          element={withLayout(MainLayout, AddAttachmentsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, AddAttachmentsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/add-and-manage-customers/update-attachments"
-          element={withLayout(MainLayout, UpdateAttachmentsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, UpdateAttachmentsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/customer-branches"
-          element={withLayout(MainLayout, CustomersBranches)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, CustomersBranches)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/customer-branches/general-settings"
-          element={withLayout(MainLayout, CustomerBranchesTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, CustomerBranchesTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/customer-branches/add-general-settings/:id"
-          element={withLayout(MainLayout, AddCustomerBranchesGeneralSettingForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, AddCustomerBranchesGeneralSettingForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/customer-branches/update-general-settings/:branchCode"
-          element={withLayout(MainLayout, UpdateCustomerBranchesGeneralSettingForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, UpdateCustomerBranchesGeneralSettingForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/customer-branches/edit/:branchCode"
-          element={withLayout(MainLayout, CustomersBranches)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, CustomersBranches)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/customer-branches/branches-contacts"
-          element={withLayout(MainLayout, ContactsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, ContactsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/customer-branches/add-customer-branches-contacts/"
-          element={withLayout(MainLayout, AddContactsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, AddContactsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/customer-branches/update-customer-branches-contacts/:id"
-          element={withLayout(MainLayout, UpdateContactsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales customer and branches changes']}>
+              {withLayout(MainLayout, UpdateContactsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/sales-groups"
-          element={withLayout(MainLayout, SalesGroupsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales groups changes']}>
+              {withLayout(MainLayout, SalesGroupsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/sales-groups/add-sales-groups"
-          element={withLayout(MainLayout, AddSalesGroupsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales groups changes']}>
+              {withLayout(MainLayout, AddSalesGroupsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/sales-groups/update-sales-groups/:id"
-          element={withLayout(MainLayout, UpdateSalesGroupsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales groups changes']}>
+              {withLayout(MainLayout, UpdateSalesGroupsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/sales-persons"
-          element={withLayout(MainLayout, SalesPersonTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales staff maintenance']}>
+              {withLayout(MainLayout, SalesPersonTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/sales-persons/add-sales-person"
-          element={withLayout(MainLayout, AddSalesPerson)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales staff maintenance']}>
+              {withLayout(MainLayout, AddSalesPerson)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/sales-persons/update-sales-person/:id"
-          element={withLayout(MainLayout, UpdateSalesPerson)}
-        /><Route
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales staff maintenance']}>
+              {withLayout(MainLayout, UpdateSalesPerson)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/sales/maintenance/sales-areas"
-          element={withLayout(MainLayout, SalesAreaTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales areas maintenance']}>
+              {withLayout(MainLayout, SalesAreaTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/sales-areas/add-sales-area"
-          element={withLayout(MainLayout, AddSalesAreaForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales areas maintenance']}>
+              {withLayout(MainLayout, AddSalesAreaForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/sales-areas/update-sales-area/:id"
-          element={withLayout(MainLayout, UpdateSalesAreaForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales areas maintenance']}>
+              {withLayout(MainLayout, UpdateSalesAreaForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/sales-types/"
-          element={withLayout(MainLayout, SalesTypesTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales types']}>
+              {withLayout(MainLayout, SalesTypesTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/sales-areas/add-sales-types"
-          element={withLayout(MainLayout, AddSalesTypesForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales types']}>
+              {withLayout(MainLayout, AddSalesTypesForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/sales-areas/update-sales-types/:id"
-          element={withLayout(MainLayout, UpdateSalesTypesForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales types']}>
+              {withLayout(MainLayout, UpdateSalesTypesForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/credit-status-setup"
-          element={withLayout(MainLayout, CreditStatusTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Credit status definitions changes']}>
+              {withLayout(MainLayout, CreditStatusTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/credit-status-setup/add-credit-status"
-          element={withLayout(MainLayout, AddCreditStatusForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Credit status definitions changes']}>
+              {withLayout(MainLayout, AddCreditStatusForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/sales/maintenance/credit-status-setup/update-credit-status/:id"
-          element={withLayout(MainLayout, UpdateCreditStatusForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Credit status definitions changes']}>
+              {withLayout(MainLayout, UpdateCreditStatusForm)}
+            </ProtectedRoute>
+          }
         />
-
 
         <Route
           path="/purchase/transactions"
-          element={withLayout(MainLayout, PurchaseTransactions)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, PurchaseTransactions)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/purchase/inquiriesandreports"
-          element={withLayout(MainLayout, PurchaseInquiriesAndReports)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Analytics']}>
+              {withLayout(MainLayout, PurchaseInquiriesAndReports)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/purchase/maintenance"
-          element={withLayout(MainLayout, PurchaseMaintenance)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Configuration']}>
+              {withLayout(MainLayout, PurchaseMaintenance)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/purchase/maintenance/suppliers"
-          element={withLayout(MainLayout, Suppliers)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Suppliers changes']}>
+              {withLayout(MainLayout, Suppliers)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/purchase/maintenance/suppliers/general-settings"
-          element={withLayout(MainLayout, SupplierGeneralSettingsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Suppliers changes']}>
+              {withLayout(MainLayout, SupplierGeneralSettingsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/purchase/maintenance/suppliers/update/:id"
-          element={withLayout(MainLayout, UpdateSupplierGeneralSettingsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Suppliers changes']}>
+              {withLayout(MainLayout, UpdateSupplierGeneralSettingsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/purchase/maintenance/suppliers/contacts"
-          element={withLayout(MainLayout, SuppliersContactsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Suppliers changes']}>
+              {withLayout(MainLayout, SuppliersContactsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/purchase/maintenance/suppliers/add-supplier-contact/"
-          element={withLayout(MainLayout, AddSuppliersContactsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Suppliers changes']}>
+              {withLayout(MainLayout, AddSuppliersContactsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/purchase/maintenance/suppliers/update-supplier-contact/:id"
-          element={withLayout(MainLayout, UpdateSuppliersContactsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Suppliers changes']}>
+              {withLayout(MainLayout, UpdateSuppliersContactsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/purchase/maintenance/suppliers/attachments"
-          element={withLayout(MainLayout, SuppliersAttachmentsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Suppliers changes']}>
+              {withLayout(MainLayout, SuppliersAttachmentsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/purchase/maintenance/suppliers/add-attachments"
-          element={withLayout(MainLayout, AddSuppliersAttachmentsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Suppliers changes']}>
+              {withLayout(MainLayout, AddSuppliersAttachmentsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/purchase/maintenance/suppliers/update-attachments"
-          element={withLayout(MainLayout, UpdateSuppliersAttachmentsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Suppliers changes']}>
+              {withLayout(MainLayout, UpdateSuppliersAttachmentsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/purchase/maintenance/suppliers/transactions"
-          element={withLayout(MainLayout, SuppliersTransactionsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Suppliers changes']}>
+              {withLayout(MainLayout, SuppliersTransactionsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/purchase/maintenance/suppliers/purchases-orders"
-          element={withLayout(MainLayout, SupplierPurchaseOrdersTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Suppliers changes']}>
+              {withLayout(MainLayout, SupplierPurchaseOrdersTable)}
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/itemsandinventory/transactions"
-          element={withLayout(MainLayout, ItemsTransactions)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory Operations']}>
+              {withLayout(MainLayout, ItemsTransactions)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/inquiriesandreports"
-          element={withLayout(MainLayout, ItemsInquiriesAndReports)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory Analytics']}>
+              {withLayout(MainLayout, ItemsInquiriesAndReports)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance"
-          element={withLayout(MainLayout, ItemsMaintenance)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory Configuration']}>
+              {withLayout(MainLayout, ItemsMaintenance)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/units-of-measure"
-          element={withLayout(MainLayout, UnitsOfMeasureTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Units of measure']}>
+              {withLayout(MainLayout, UnitsOfMeasureTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/units-of-measure/add-units-of-measure"
-          element={withLayout(MainLayout, AddUnitsOfMeasureForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Units of measure']}>
+              {withLayout(MainLayout, AddUnitsOfMeasureForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/units-of-measure/update-units-of-measure/:id"
-          element={withLayout(MainLayout, UpdateUnitsOfMeasureForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Units of measure']}>
+              {withLayout(MainLayout, UpdateUnitsOfMeasureForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/items"
-          element={withLayout(MainLayout, Items)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Stock items add/edit']}>
+              {withLayout(MainLayout, Items)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/items/general-settings"
-          element={withLayout(MainLayout, ItemsGeneralSettingsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Stock items add/edit']}>
+              {withLayout(MainLayout, ItemsGeneralSettingsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/items/sales-pricing"
-          element={withLayout(MainLayout, SalesPricingTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales prices edition']}>
+              {withLayout(MainLayout, SalesPricingTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/items/add-sales-pricing"
-          element={withLayout(MainLayout, AddSalesPricingForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales prices edition']}>
+              {withLayout(MainLayout, AddSalesPricingForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/items/update-sales-pricing/:id"
-          element={withLayout(MainLayout, UpdateSalesPricingForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales prices edition']}>
+              {withLayout(MainLayout, UpdateSalesPricingForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/items/purchasing-pricing"
-          element={withLayout(MainLayout, PurchasingPricingTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase price changes']}>
+              {withLayout(MainLayout, PurchasingPricingTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/items/add-purchasing-pricing"
-          element={withLayout(MainLayout, AddPurchasingPricingForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase price changes']}>
+              {withLayout(MainLayout, AddPurchasingPricingForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/items/update-purchasing-pricing"
-          element={withLayout(MainLayout, UpdatePurchasePricingForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase price changes']}>
+              {withLayout(MainLayout, UpdatePurchasePricingForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/items/standard-costs"
-          element={withLayout(MainLayout, AddStandardCostForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Item standard costs']}>
+              {withLayout(MainLayout, AddStandardCostForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/items/reorder-levels"
-          element={withLayout(MainLayout, ReOrderLevelsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Reorder levels']}>
+              {withLayout(MainLayout, ReOrderLevelsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/items/transactions"
-          element={withLayout(MainLayout, ItemTransactionsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Stock transactions view']}>
+              {withLayout(MainLayout, ItemTransactionsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/items/status"
-          element={withLayout(MainLayout, StatusTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Stock status view']}>
+              {withLayout(MainLayout, StatusTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/items/attachments"
-          element={withLayout(MainLayout, ItemAttachmentsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Stock items add/edit']}>
+              {withLayout(MainLayout, ItemAttachmentsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/items/add-attachments"
-          element={withLayout(MainLayout, AddItemAttachmentsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Stock items add/edit']}>
+              {withLayout(MainLayout, AddItemAttachmentsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/items/update-attachments"
-          element={withLayout(MainLayout, UpdateItemAttachmentsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Stock items add/edit']}>
+              {withLayout(MainLayout, UpdateItemAttachmentsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/update-units-of-measure"
-          element={withLayout(MainLayout, UpdateUnitsOfMeasureForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Units of measure']}>
+              {withLayout(MainLayout, UpdateUnitsOfMeasureForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/foreign-item-codes"
-          element={withLayout(MainLayout, ForeignItemCodesTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Foreign item codes entry']}>
+              {withLayout(MainLayout, ForeignItemCodesTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/add-foreign-item-codes"
-          element={withLayout(MainLayout, AddForeignItemCodesForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Foreign item codes entry']}>
+              {withLayout(MainLayout, AddForeignItemCodesForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/update-foreign-item-codes"
-          element={withLayout(MainLayout, UpdateForeignItemCodesForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Foreign item codes entry']}>
+              {withLayout(MainLayout, UpdateForeignItemCodesForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/sales-kits"
-          element={withLayout(MainLayout, AddSalesKitsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales kits']}>
+              {withLayout(MainLayout, AddSalesKitsForm)}
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/itemsandinventory/maintenance/inventory-locations"
-          element={withLayout(MainLayout, InventoryLocationTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory locations changes']}>
+              {withLayout(MainLayout, InventoryLocationTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/add-inventory-location"
-          element={withLayout(MainLayout, AddInventoryLocationForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory locations changes']}>
+              {withLayout(MainLayout, AddInventoryLocationForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/update-inventory-location/:id"
-          element={withLayout(MainLayout, UpdateInventoryLocationForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory locations changes']}>
+              {withLayout(MainLayout, UpdateInventoryLocationForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/item-categories"
-          element={withLayout(MainLayout, ItemCategoriesTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Item categories']}>
+              {withLayout(MainLayout, ItemCategoriesTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/add-item-categories"
-          element={withLayout(MainLayout, AddItemCategoriesForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Item categories']}>
+              {withLayout(MainLayout, AddItemCategoriesForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/update-item-categories"
-          element={withLayout(MainLayout, UpdateItemCategoriesForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Item categories']}>
+              {withLayout(MainLayout, UpdateItemCategoriesForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/maintenance/reorder-levels"
-          element={withLayout(MainLayout, ReOrderLevelsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Reorder levels']}>
+              {withLayout(MainLayout, ReOrderLevelsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/pricingandcosts/sales-pricing"
-          element={withLayout(MainLayout, SalesPricingTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales prices edition']}>
+              {withLayout(MainLayout, SalesPricingTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/pricingandcosts/purchasing-pricing"
-          element={withLayout(MainLayout, PurchasingPricingTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase price changes']}>
+              {withLayout(MainLayout, PurchasingPricingTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/itemsandinventory/pricingandcosts/standard-costs"
-          element={withLayout(MainLayout, AddStandardCostForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Item standard costs']}>
+              {withLayout(MainLayout, AddStandardCostForm)}
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/itemsandinventory/pricingandcosts"
-          element={withLayout(MainLayout, ItemsPricingAndCosts)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory Configuration']}>
+              {withLayout(MainLayout, ItemsPricingAndCosts)}
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/manufacturing/transactions"
-          element={withLayout(MainLayout, ManufacturingTransactions)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Manufacturing Transactions']}>
+              {withLayout(MainLayout, ManufacturingTransactions)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/manufacturing/inquiriesandreports"
-          element={withLayout(MainLayout, ManufacturingInquiriesAndReports)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Manufacturing Analytics']}>
+              {withLayout(MainLayout, ManufacturingInquiriesAndReports)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/manufacturing/maintenance"
-          element={withLayout(MainLayout, ManufacturingMaintenance)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Manufacturing Configuration']}>
+              {withLayout(MainLayout, ManufacturingMaintenance)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/manufacturing/maintenance/work-centres"
-          element={withLayout(MainLayout, WorkCentresTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Manufacture work centres']}>
+              {withLayout(MainLayout, WorkCentresTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/manufacturing/maintenance/add-work-centres"
-          element={withLayout(MainLayout, AddWorkCentresForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Manufacture work centres']}>
+              {withLayout(MainLayout, AddWorkCentresForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/manufacturing/maintenance/update-work-centres/:id"
-          element={withLayout(MainLayout, UpdateWorkCentresForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Manufacture work centres']}>
+              {withLayout(MainLayout, UpdateWorkCentresForm)}
+            </ProtectedRoute>
+          }
         />
-
 
         <Route
           path="/fixedassets/transactions"
-          element={withLayout(MainLayout, FixedAssestsTransactions)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Operations']}>
+              {withLayout(MainLayout, FixedAssestsTransactions)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/fixedassets/inquiriesandreports"
-          element={withLayout(MainLayout, FixedAssestsInquiriesAndReports)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Analytics']}>
+              {withLayout(MainLayout, FixedAssestsInquiriesAndReports)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/fixedassets/maintenance"
-          element={withLayout(MainLayout, FixedAssestsMaintenance)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Configuration']}>
+              {withLayout(MainLayout, FixedAssestsMaintenance)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/fixedassets/maintenance/fixed-asset-locations"
-          element={withLayout(MainLayout, FixedAssetsLocationsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Asset items add/edit']}>
+              {withLayout(MainLayout, FixedAssetsLocationsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/fixedassets/maintenance/add-fixed-asset-location"
-          element={withLayout(MainLayout, AddFixedAssetsLocations)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Asset items add/edit']}>
+              {withLayout(MainLayout, AddFixedAssetsLocations)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/fixedassets/maintenance/update-fixed-asset-location/:id"
-          element={withLayout(MainLayout, UpdateFixedAssetsLocations)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Asset items add/edit']}>
+              {withLayout(MainLayout, UpdateFixedAssetsLocations)}
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/dimension/transactions"
-          element={withLayout(MainLayout, DimensionTransactions)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Dimensions']}>
+              {withLayout(MainLayout, DimensionTransactions)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/dimension/inquiriesandreports"
-          element={withLayout(MainLayout, DimensionInquiriesAndReports)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Dimension reports']}>
+              {withLayout(MainLayout, DimensionInquiriesAndReports)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/dimension/maintenance"
-          element={withLayout(MainLayout, DimensionMaintenance)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Dimensions Configuration']}>
+              {withLayout(MainLayout, DimensionMaintenance)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/dimension/maintenance/dimension-tags"
-          element={withLayout(MainLayout, DimensionTagsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Dimension tags']}>
+              {withLayout(MainLayout, DimensionTagsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/dimension/maintenance/add-dimension-tags"
-          element={withLayout(MainLayout, AddDimensionTagsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Dimension tags']}>
+              {withLayout(MainLayout, AddDimensionTagsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/dimension/maintenance/update-dimension-tags/:id"
-          element={withLayout(MainLayout, UpdateDimensionTagsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Dimension tags']}>
+              {withLayout(MainLayout, UpdateDimensionTagsForm)}
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/bankingandgeneralledger/transactions"
-          element={withLayout(MainLayout, BankingTransactions)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Banking & GL Transactions']}>
+              {withLayout(MainLayout, BankingTransactions)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/inquiriesandreports"
-          element={withLayout(MainLayout, BankingInquiriesAndReports)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Banking & GL Analytics']}>
+              {withLayout(MainLayout, BankingInquiriesAndReports)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance"
-          element={withLayout(MainLayout, BankingMaintenance)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Banking & GL Configuration']}>
+              {withLayout(MainLayout, BankingMaintenance)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/bank-accounts"
-          element={withLayout(MainLayout, BankAccountsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Bank accounts']}>
+              {withLayout(MainLayout, BankAccountsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/add-bank-accounts"
-          element={withLayout(MainLayout, AddBankAccountsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Bank accounts']}>
+              {withLayout(MainLayout, AddBankAccountsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/update-bank-accounts/:id"
-          element={withLayout(MainLayout, UpdateBankAccountsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Bank accounts']}>
+              {withLayout(MainLayout, UpdateBankAccountsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/account-tags"
-          element={withLayout(MainLayout, AccountTagsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL Account tags']}>
+              {withLayout(MainLayout, AccountTagsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/add-account-tags"
-          element={withLayout(MainLayout, AddAccountTagsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL Account tags']}>
+              {withLayout(MainLayout, AddAccountTagsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/exchange-rates"
-          element={withLayout(MainLayout, ExchangeRateTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Exchange rate table changes']}>
+              {withLayout(MainLayout, ExchangeRateTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/add-exchange-rate"
-          element={withLayout(MainLayout, AddExchangeRateForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Exchange rate table changes']}>
+              {withLayout(MainLayout, AddExchangeRateForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/update-exchange-rate/:id"
-          element={withLayout(MainLayout, UpdateExchangeRateForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Exchange rate table changes']}>
+              {withLayout(MainLayout, UpdateExchangeRateForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/gl-accounts"
-          element={withLayout(MainLayout, AddGlAccount)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL accounts edition']}>
+              {withLayout(MainLayout, AddGlAccount)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/update-gl-account/:id"
-          element={withLayout(MainLayout, UpdateGlAccount)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL accounts edition']}>
+              {withLayout(MainLayout, UpdateGlAccount)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/update-account-tags/:id"
-          element={withLayout(MainLayout, UpdateAccountTagsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL Account tags']}>
+              {withLayout(MainLayout, UpdateAccountTagsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/currencies"
-          element={withLayout(MainLayout, CurrenciesTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Currencies']}>
+              {withLayout(MainLayout, CurrenciesTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/add-currency"
-          element={withLayout(MainLayout, AddCurrencies)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Currencies']}>
+              {withLayout(MainLayout, AddCurrencies)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/update-currency/:id"
-          element={withLayout(MainLayout, UpdateCurrencies)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Currencies']}>
+              {withLayout(MainLayout, UpdateCurrencies)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/quick-entries"
-          element={withLayout(MainLayout, QuickEntriesTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Quick GL entry definitions']}>
+              {withLayout(MainLayout, QuickEntriesTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/add-quick-entry"
-          element={withLayout(MainLayout, AddQuickEntriesForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Quick GL entry definitions']}>
+              {withLayout(MainLayout, AddQuickEntriesForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/update-quick-entry"
-          element={withLayout(MainLayout, UpdateQuickEntriesForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Quick GL entry definitions']}>
+              {withLayout(MainLayout, UpdateQuickEntriesForm)}
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/bankingandgeneralledger/maintenance/gl-account-groups"
-          element={withLayout(MainLayout, GlAccountGroupsTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL account groups']}>
+              {withLayout(MainLayout, GlAccountGroupsTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/add-gl-account-groups"
-          element={withLayout(MainLayout, AddGlAccountGroupsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL account groups']}>
+              {withLayout(MainLayout, AddGlAccountGroupsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/update-gl-account-groups/:id"
-          element={withLayout(MainLayout, UpdateGlAccountGroupsForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL account groups']}>
+              {withLayout(MainLayout, UpdateGlAccountGroupsForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/gl-account-classes"
-          element={withLayout(MainLayout, GlAccountClassesTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL account classes']}>
+              {withLayout(MainLayout, GlAccountClassesTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/add-gl-account-classes"
-          element={withLayout(MainLayout, AddGlAccountClassesForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL account classes']}>
+              {withLayout(MainLayout, AddGlAccountClassesForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/update-gl-account-classes/:id"
-          element={withLayout(MainLayout, UpdateGlAccountClassesForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL account classes']}>
+              {withLayout(MainLayout, UpdateGlAccountClassesForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="/bankingandgeneralledger/maintenance/revaluation-of-currency-accounts"
-          element={withLayout(MainLayout, RevaluateCurrenciesForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Exchange rate table changes']}>
+              {withLayout(MainLayout, RevaluateCurrenciesForm)}
+            </ProtectedRoute>
+          }
         />
 
         <Route

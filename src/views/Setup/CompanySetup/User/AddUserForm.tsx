@@ -17,7 +17,8 @@ import {
 } from "@mui/material";
 import theme from "../../../../theme";
 import { createUser } from "../../../../api/UserManagement/userManagement";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { getSecurityRoles } from "../../../../api/AccessSetup/AccessSetupApi";
 import { useNavigate } from "react-router";
 import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
@@ -63,6 +64,10 @@ export default function AddUserForm() {
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const queryClient = useQueryClient();
+  const { data: securityRoles } = useQuery({
+    queryKey: ["securityRoles"],
+    queryFn: getSecurityRoles,
+  });
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData({
@@ -136,8 +141,34 @@ export default function AddUserForm() {
       // send as FormData
       const user = await createUser(payload);
       console.log("User created:", user);
+
+      // Update the cached `users` list so the table shows the new user immediately
+      try {
+        const mapped = {
+          id: (user as any).id,
+          fullName: `${(user as any).first_name || ""} ${(user as any).last_name || ""}`.trim(),
+          department: (user as any).department || "",
+          email: (user as any).email || "",
+          role: (user as any).role || "",
+          status: (user as any).status || "",
+        };
+
+        queryClient.setQueryData(["users"], (old: any[] | undefined) => {
+          // Append the new user to the end. If cache is empty, return single item.
+          if (!old) return [mapped];
+          // Avoid creating duplicates if the backend returned a cached list
+          if (old.some((u) => u.id === mapped.id)) return old;
+          return [...old, mapped];
+        });
+
+        // Also invalidate to ensure server/other clients sync
+        queryClient.invalidateQueries({ queryKey: ["users"] });
+      } catch (cacheErr) {
+        // don't block on cache failures
+        console.warn("Failed to update users cache:", cacheErr);
+      }
+
       setOpen(true);
-      queryClient.invalidateQueries({ queryKey: ["users"] });
       setErrors({});
     } catch (err: any) {
       setErrorMessage(
@@ -303,8 +334,11 @@ export default function AddUserForm() {
               onChange={handleSelectChange}
               label="Role"
             >
-              <MenuItem value="Admin">Admin</MenuItem>
-              <MenuItem value="User">User</MenuItem>
+                {(securityRoles || []).map((r: any) => (
+                  <MenuItem key={r.id} value={r.role}>
+                    {r.role}
+                  </MenuItem>
+                ))}
             </Select>
             <FormHelperText>{errors.role}</FormHelperText>
           </FormControl>
