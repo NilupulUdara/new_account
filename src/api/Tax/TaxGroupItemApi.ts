@@ -49,7 +49,9 @@ export const updateTaxGroupItem = async (
 };
 
 //  Delete a Tax Group Item
-export const deleteTaxGroupItem = (tax_group_id: number, tax_type_id: number) => {
-  return axios.delete(`${API_URL}/${tax_group_id}/${tax_type_id}`);
+export const deleteTaxGroupItem = async (taxGroupId: number, taxTypeId: number) => {
+  const response = await axios.delete(`${API_URL}/${taxGroupId}/${taxTypeId}`);
+  return response.data;
 };
+
 

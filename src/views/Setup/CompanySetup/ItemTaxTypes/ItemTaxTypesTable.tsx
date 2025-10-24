@@ -108,7 +108,7 @@ export default function ItemTaxTypesTable() {
   };
 
   const breadcrumbItems = [
-    { title: "Home", href: "/home" },
+    { title: "Company Setup", href: "/setup/companysetup" },
     { title: "Item Tax Types" },
   ];
 

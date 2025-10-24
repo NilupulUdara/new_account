@@ -65,7 +65,7 @@ export default function AddTaxGroupsForm() {
   }, []);
 
   const [errors, setErrors] = useState<Partial<TaxGroupFormData>>({});
-  
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -135,7 +135,7 @@ export default function AddTaxGroupsForm() {
         console.error("Error creating tax group or items:", error);
         setErrorMessage(
           error?.response?.data?.message ||
-            "Failed to create Tax Group. Please try again."
+          "Failed to create Tax Group. Please try again."
         );
         setErrorOpen(true);
       }
@@ -173,6 +173,10 @@ export default function AddTaxGroupsForm() {
             helperText={errors.description}
           />
 
+          <Typography sx={{ mt: 2, mb: 1 }}>
+            Select the taxes that are included in this group.
+          </Typography>
+          
           <TableContainer component={Paper} sx={{ mt: 2 }}>
             <Table size="small">
               <TableHead>
@@ -240,8 +244,8 @@ export default function AddTaxGroupsForm() {
         open={open}
         title="Success"
         content="Tax Group has been added successfully!"
-        addFunc={async () => {}} 
-        handleClose={() => setOpen(false)} 
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
         onSuccess={() => window.history.back()}
       />
 
