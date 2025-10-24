@@ -141,8 +141,34 @@ export default function AddUserForm() {
       // send as FormData
       const user = await createUser(payload);
       console.log("User created:", user);
+
+      // Update the cached `users` list so the table shows the new user immediately
+      try {
+        const mapped = {
+          id: (user as any).id,
+          fullName: `${(user as any).first_name || ""} ${(user as any).last_name || ""}`.trim(),
+          department: (user as any).department || "",
+          email: (user as any).email || "",
+          role: (user as any).role || "",
+          status: (user as any).status || "",
+        };
+
+        queryClient.setQueryData(["users"], (old: any[] | undefined) => {
+          // Append the new user to the end. If cache is empty, return single item.
+          if (!old) return [mapped];
+          // Avoid creating duplicates if the backend returned a cached list
+          if (old.some((u) => u.id === mapped.id)) return old;
+          return [...old, mapped];
+        });
+
+        // Also invalidate to ensure server/other clients sync
+        queryClient.invalidateQueries({ queryKey: ["users"] });
+      } catch (cacheErr) {
+        // don't block on cache failures
+        console.warn("Failed to update users cache:", cacheErr);
+      }
+
       setOpen(true);
-      queryClient.invalidateQueries({ queryKey: ["users"] });
       setErrors({});
     } catch (err: any) {
       setErrorMessage(

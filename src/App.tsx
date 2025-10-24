@@ -8,6 +8,7 @@ import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFnsV3";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { OrganizationHeadSetter } from "../src/utils/index.html";
 import queryClient from "./state/queryClient.ts";
+import { AuthProvider } from "./context/AuthContext";
 
 function App() {
   return (
@@ -16,10 +17,12 @@ function App() {
         <ThemeProvider theme={theme}>
           <CssBaseline />
           <BrowserRouter>
-            <SnackbarProvider maxSnack={3} autoHideDuration={2500}>
-              <OrganizationHeadSetter />
-              <AppRoutes />
-            </SnackbarProvider>
+            <AuthProvider>
+              <SnackbarProvider maxSnack={3} autoHideDuration={2500}>
+                <OrganizationHeadSetter />
+                <AppRoutes />
+              </SnackbarProvider>
+            </AuthProvider>
           </BrowserRouter>
         </ThemeProvider>
       </LocalizationProvider>

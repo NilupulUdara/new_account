@@ -193,11 +193,13 @@ const baseSidebarItems: Array<SidebarItem> = [
 ];
 
 // NEW: Export a function that returns filtered items based on user role
-export const getSidebarItems = (userRole?: string | null): Array<SidebarItem> => {
+// getSidebarItems now accepts a permission flag indicating whether the
+// current user can access the Setup section. This lets the caller (layout)
+// decide based on role/permissions instead of hardcoding an Admin check.
+export const getSidebarItems = (canAccessSetup = false): Array<SidebarItem> => {
   const items = [...baseSidebarItems];
 
-  // Conditionally add Setup only for admins
-  if (userRole === 'Admin') {
+  if (canAccessSetup) {
     items.push({
       title: "Setup",
       href: "/setup",

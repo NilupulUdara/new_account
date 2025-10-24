@@ -19,6 +19,7 @@ import ForgotPasswordDialog from "./ForgotPasswordDialog";
 import { useSnackbar } from "notistack";
 import { useNavigate, useLocation } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "../../context/AuthContext";
 // import { login } from "../../api/userApi";
 import { login } from "../../api/UserManagement/userLogin";
 
@@ -29,6 +30,7 @@ function LoginForm() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
+  const { reloadPermissions } = useAuth();
 
   const [showPassword, setShowPassword] = useState(false);
   const [openForgotPasswordDialog, setOpenForgotPasswordDialog] =
@@ -47,21 +49,36 @@ function LoginForm() {
   });
 
   const { mutate: loginMutation, isPending } = useMutation({
-  mutationFn: login,
-  onSuccess: (data) => {
-    // Store token in localStorage
-    localStorage.setItem("token", data.access_token);
-    // Optionally store user in React Query cache
-    queryClient.setQueryData(["current-user"], data.user);
-    
-    enqueueSnackbar("Welcome Back!", { variant: "success" });
-    // Always navigate to dashboard after login
-    navigate("/dashboard");
-  },
-  onError: () => {
-    enqueueSnackbar("Login Failed", { variant: "error" });
-  },
-});
+    mutationFn: login,
+    onSuccess: async (data) => {
+      try {
+        // normalize token name if backend returns different key
+        const token = data?.access_token || (data as any)?.token;
+        if (token) {
+          localStorage.setItem("token", token);
+        }
+
+        // store user snapshot in cache (optional)
+        if (data?.user) queryClient.setQueryData(["current-user"], data.user);
+
+        // Ensure queries use the new token and AuthContext has up-to-date permissions
+  await queryClient.invalidateQueries({ queryKey: ["current-user"] });
+  await queryClient.refetchQueries({ queryKey: ["current-user"] });
+        await reloadPermissions();
+
+        enqueueSnackbar("Welcome Back!", { variant: "success" });
+
+        // Navigate to saved location or dashboard; use replace to avoid history stack growth
+        const from = (location.state as any)?.from?.pathname || "/dashboard";
+        navigate(from, { replace: true });
+      } catch (err) {
+        console.error("Login post-processing failed", err);
+      }
+    },
+    onError: () => {
+      enqueueSnackbar("Login Failed", { variant: "error" });
+    },
+  });
 
   const onLoginSubmit = (data: { email: string; password: string }) => {
     loginMutation(data);
