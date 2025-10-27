@@ -1547,7 +1547,7 @@ const AppRoutes = () => {
           }
         />
         <Route
-          path="/itemsandinventory/maintenance/update-item-categories"
+          path="/itemsandinventory/maintenance/update-item-categories/:id"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Item categories']}>
               {withLayout(MainLayout, UpdateItemCategoriesForm)}

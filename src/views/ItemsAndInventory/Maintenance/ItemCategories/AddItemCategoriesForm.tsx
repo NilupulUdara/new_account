@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Stack,
@@ -15,8 +15,16 @@ import {
   Paper,
   useMediaQuery,
   useTheme,
+  ListSubheader,
 } from "@mui/material";
 import theme from "../../../../theme";
+import { getChartMasters } from "../../../../api/GLAccounts/ChartMasterApi";
+import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
+import { getItemTaxTypes } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
+import { createItemCategory } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getItemTypes } from "../../../../api/ItemType/ItemType";
+import { useNavigate } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface ItemCategoriesFormData {
   categoryName: string;
@@ -33,6 +41,10 @@ interface ItemCategoriesFormData {
 }
 
 export default function AddItemCategoriesForm() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+
   const [formData, setFormData] = useState<ItemCategoriesFormData>({
     categoryName: "",
     itemTaxType: "",
@@ -47,9 +59,72 @@ export default function AddItemCategoriesForm() {
     itemAssemblyCostAccount: "",
   });
 
+  const accountTypeMap: { [key: number]: string } = {
+    1: "Current Assets",
+    2: "Inventory Assets",
+    3: "Capital Assets",
+    4: "Current Liabilities",
+    5: "Long Term Liabilities",
+    6: "Share Capital",
+    7: "Retained Earnings",
+    8: "Sales Revenue",
+    9: "Other Revenue",
+    10: "Cost of Good Sold",
+    11: "Payroll Expenses",
+    12: "General and Administrative Expenses",
+  };
+
+  const [itemCategories, setItemCategories] = useState([]);
+  const [chartMasters, setChartMasters] = useState<any[]>([]);
+  const [itemTaxTypes, setItemTaxTypes] = useState<any[]>([]);
+  const [unitsOfMeasure, setUnitsOfMeasure] = useState<any[]>([]);
+  const [itemTypes, setItemTypes] = useState<any[]>([]);
   const [errors, setErrors] = useState<Partial<ItemCategoriesFormData>>({});
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+
+  const selectedItemType = itemTypes.find((t) => String(t.id) === formData.itemType);
+  const isPurchase = selectedItemType?.name?.toLowerCase() === "purchased";
+  const isService = selectedItemType?.name?.toLowerCase() === "service";
+
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch all data in parallel
+        const [chartMastersRes, taxTypesRes, unitsRes, itemTypesRes] = await Promise.all([
+          getChartMasters(),
+          getItemTaxTypes(),
+          getItemUnits(),
+          getItemTypes(),
+        ]);
+
+        const filteredTaxTypes = (taxTypesRes || []).filter((type) => !type.inactive);
+        const filteredUnits = (unitsRes || []).filter((unit) => !unit.inactive);
+
+        setChartMasters(chartMastersRes || []);
+        setItemTaxTypes(filteredTaxTypes);
+        setUnitsOfMeasure(filteredUnits);
+        setItemTypes(itemTypesRes || []);
+
+        // Set default values for dropdowns
+        setFormData((prev) => ({
+          ...prev,
+          itemTaxType: filteredTaxTypes.length > 0 ? String(filteredTaxTypes[0].id) : "",
+          itemType: itemTypesRes.length > 0 ? String(itemTypesRes[0].id) : "",
+          unitOfMeasure: filteredUnits.length > 0 ? String(filteredUnits[0].id) : "",
+          salesAccount: chartMastersRes.find((acc) => acc.account_code === "4010")?.account_code || "",
+          inventoryAccount: chartMastersRes.find((acc) => acc.account_code === "1510")?.account_code || "",
+          cogsAccount: chartMastersRes.find((acc) => acc.account_code === "5010")?.account_code || "",
+          inventoryAdjustmentAccount: chartMastersRes.find((acc) => acc.account_code === "5040")?.account_code || "",
+          itemAssemblyCostAccount: chartMastersRes.find((acc) => acc.account_code === "1530")?.account_code || "",
+        }));
+      } catch (err) {
+        console.error("Failed to fetch data:", err);
+      }
+    };
+    fetchData();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -77,17 +152,44 @@ export default function AddItemCategoriesForm() {
     if (!formData.salesAccount) newErrors.salesAccount = "Select Sales Account";
     if (!formData.inventoryAccount) newErrors.inventoryAccount = "Select Inventory Account";
     if (!formData.cogsAccount) newErrors.cogsAccount = "Select C.O.G.S. Account";
-    if (!formData.inventoryAdjustmentAccount) newErrors.inventoryAdjustmentAccount = "Select Inventory Adjustment Account";
-    if (!formData.itemAssemblyCostAccount) newErrors.itemAssemblyCostAccount = "Select Item Assembly Cost Account";
+    if (!formData.inventoryAdjustmentAccount)
+      newErrors.inventoryAdjustmentAccount = "Select Inventory Adjustment Account";
+    if (!formData.itemAssemblyCostAccount)
+      newErrors.itemAssemblyCostAccount = "Select Item Assembly Cost Account";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
-    if (validate()) {
-      console.log("Submitted Data:", formData);
+  const handleSubmit = async () => {
+    if (!validate()) return;
+
+    const payload = {
+      description: formData.categoryName,
+      dflt_tax_type: parseInt(formData.itemTaxType),
+      dflt_mb_flag: parseInt(formData.itemType),
+      dflt_units: parseInt(formData.unitOfMeasure),
+      dflt_sales_act: formData.salesAccount,
+      dflt_inventory_act: formData.inventoryAccount,
+      dflt_cogs_act: formData.cogsAccount,
+      dflt_adjustment_act: formData.inventoryAdjustmentAccount,
+      dflt_wip_act: formData.itemAssemblyCostAccount,
+      dflt_dim1: null,
+      dflt_dim2: null,
+      inactive: 0,
+      dflt_no_sale: formData.excludeFromSales ? 1 : 0,
+      dflt_no_purchase: formData.excludeFromPurchases ? 1 : 0,
+    };
+
+    try {
+      const res = await createItemCategory(payload);
       alert("Item Category added successfully!");
+      console.log("Created:", res);
+      queryClient.invalidateQueries({ queryKey: ["itemCategories"], exact: false });
+      navigate("/itemsandinventory/maintenance/item-categories");
+    } catch (err) {
+      console.error("Failed to create item category:", err);
+      alert("Failed to add Item Category.");
     }
   };
 
@@ -118,90 +220,254 @@ export default function AddItemCategoriesForm() {
             helperText={errors.categoryName || " "}
           />
 
-          <Typography variant="subtitle1" sx={{ mt: 2 }}>Default Values for New Items</Typography>
-
           <FormControl size="small" fullWidth error={!!errors.itemTaxType}>
             <InputLabel>Item Tax Type</InputLabel>
-            <Select name="itemTaxType" value={formData.itemTaxType} onChange={handleSelectChange} label="Item Tax Type">
-              <MenuItem value="Taxable">Taxable</MenuItem>
-              <MenuItem value="Non-Taxable">Non-Taxable</MenuItem>
+            <Select
+              name="itemTaxType"
+              value={formData.itemTaxType}
+              onChange={handleSelectChange}
+              label="Item Tax Type"
+            >
+              {itemTaxTypes.map((type) => (
+                <MenuItem key={type.id} value={String(type.id)}>
+                  {type.name}
+                </MenuItem>
+              ))}
             </Select>
             <FormHelperText>{errors.itemTaxType || " "}</FormHelperText>
           </FormControl>
 
           <FormControl size="small" fullWidth error={!!errors.itemType}>
             <InputLabel>Item Type</InputLabel>
-            <Select name="itemType" value={formData.itemType} onChange={handleSelectChange} label="Item Type">
-              <MenuItem value="Inventory">Inventory</MenuItem>
-              <MenuItem value="Non-Inventory">Non-Inventory</MenuItem>
+            <Select
+              name="itemType"
+              value={formData.itemType}
+              onChange={handleSelectChange}
+              label="Item Type"
+            >
+              {itemTypes.map((type) => (
+                <MenuItem key={type.id} value={String(type.id)}>
+                  {type.name}
+                </MenuItem>
+              ))}
             </Select>
             <FormHelperText>{errors.itemType || " "}</FormHelperText>
           </FormControl>
 
           <FormControl size="small" fullWidth error={!!errors.unitOfMeasure}>
             <InputLabel>Unit of Measure</InputLabel>
-            <Select name="unitOfMeasure" value={formData.unitOfMeasure} onChange={handleSelectChange} label="Unit of Measure">
-              <MenuItem value="kg">kg</MenuItem>
-              <MenuItem value="pcs">pcs</MenuItem>
-              <MenuItem value="ltr">ltr</MenuItem>
+            <Select
+              name="unitOfMeasure"
+              value={formData.unitOfMeasure}
+              onChange={handleSelectChange}
+              label="Unit of Measure"
+            >
+              {unitsOfMeasure.map((unit) => (
+                <MenuItem key={unit.id} value={String(unit.id)}>
+                  {unit.name}
+                </MenuItem>
+              ))}
             </Select>
             <FormHelperText>{errors.unitOfMeasure || " "}</FormHelperText>
           </FormControl>
 
           <FormControlLabel
-            control={<Checkbox checked={formData.excludeFromSales} onChange={handleCheckboxChange} name="excludeFromSales" />}
+            control={
+              <Checkbox
+                checked={formData.excludeFromSales}
+                onChange={handleCheckboxChange}
+                name="excludeFromSales"
+              />
+            }
             label="Exclude from Sales"
           />
 
           <FormControlLabel
-            control={<Checkbox checked={formData.excludeFromPurchases} onChange={handleCheckboxChange} name="excludeFromPurchases" />}
+            control={
+              <Checkbox
+                checked={formData.excludeFromPurchases}
+                onChange={handleCheckboxChange}
+                name="excludeFromPurchases"
+              />
+            }
             label="Exclude from Purchases"
           />
 
           <FormControl size="small" fullWidth error={!!errors.salesAccount}>
             <InputLabel>Sales Account</InputLabel>
-            <Select name="salesAccount" value={formData.salesAccount} onChange={handleSelectChange} label="Sales Account">
-              <MenuItem value="SA001">SA001</MenuItem>
-              <MenuItem value="SA002">SA002</MenuItem>
+            <Select
+              name="salesAccount"
+              value={formData.salesAccount}
+              onChange={handleSelectChange}
+              label="Sales Account"
+            >
+              {(() => {
+                const groupedAccounts: { [key: string]: any[] } = {};
+                chartMasters.forEach((acc) => {
+                  const type = acc.account_type || "Unknown";
+                  if (!groupedAccounts[type]) groupedAccounts[type] = [];
+                  groupedAccounts[type].push(acc);
+                });
+
+                return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+                  const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+                  return [
+                    <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                    ...accounts.map((acc) => (
+                      <MenuItem key={acc.account_code} value={acc.account_code}>
+                        <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                          {acc.account_code}- {acc.account_name}
+                        </Stack>
+                      </MenuItem>
+                    )),
+                  ];
+                });
+              })()}
             </Select>
             <FormHelperText>{errors.salesAccount || " "}</FormHelperText>
           </FormControl>
 
-          <FormControl size="small" fullWidth error={!!errors.inventoryAccount}>
-            <InputLabel>Inventory Account</InputLabel>
-            <Select name="inventoryAccount" value={formData.inventoryAccount} onChange={handleSelectChange} label="Inventory Account">
-              <MenuItem value="IA001">IA001</MenuItem>
-              <MenuItem value="IA002">IA002</MenuItem>
-            </Select>
-            <FormHelperText>{errors.inventoryAccount || " "}</FormHelperText>
-          </FormControl>
+          {!isService && (
+            <FormControl size="small" fullWidth error={!!errors.inventoryAccount}>
+              <InputLabel>Inventory Account</InputLabel>
+              <Select
+                name="inventoryAccount"
+                value={formData.inventoryAccount}
+                onChange={handleSelectChange}
+                label="Inventory Account"
+              >
+                {(() => {
+                  const groupedAccounts: { [key: string]: any[] } = {};
+                  chartMasters.forEach((acc) => {
+                    const type = acc.account_type || "Unknown";
+                    if (!groupedAccounts[type]) groupedAccounts[type] = [];
+                    groupedAccounts[type].push(acc);
+                  });
+
+                  return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+                    const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+                    return [
+                      <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                      ...accounts.map((acc) => (
+                        <MenuItem key={acc.account_code} value={acc.account_code}>
+                          <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                            {acc.account_code}- {acc.account_name}
+                          </Stack>
+                        </MenuItem>
+                      )),
+                    ];
+                  });
+                })()}
+              </Select>
+              <FormHelperText>{errors.inventoryAccount || " "}</FormHelperText>
+            </FormControl>
+          )}
 
           <FormControl size="small" fullWidth error={!!errors.cogsAccount}>
             <InputLabel>C.O.G.S. Account</InputLabel>
-            <Select name="cogsAccount" value={formData.cogsAccount} onChange={handleSelectChange} label="C.O.G.S. Account">
-              <MenuItem value="C001">C001</MenuItem>
-              <MenuItem value="C002">C002</MenuItem>
+            <Select
+              name="cogsAccount"
+              value={formData.cogsAccount}
+              onChange={handleSelectChange}
+              label="C.O.G.S. Account"
+            >
+              {(() => {
+                const groupedAccounts: { [key: string]: any[] } = {};
+                chartMasters.forEach((acc) => {
+                  const type = acc.account_type || "Unknown";
+                  if (!groupedAccounts[type]) groupedAccounts[type] = [];
+                  groupedAccounts[type].push(acc);
+                });
+
+                return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+                  const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+                  return [
+                    <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                    ...accounts.map((acc) => (
+                      <MenuItem key={acc.account_code} value={acc.account_code}>
+                        <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                          {acc.account_code}- {acc.account_name}
+                        </Stack>
+                      </MenuItem>
+                    )),
+                  ];
+                });
+              })()}
             </Select>
             <FormHelperText>{errors.cogsAccount || " "}</FormHelperText>
           </FormControl>
 
-          <FormControl size="small" fullWidth error={!!errors.inventoryAdjustmentAccount}>
-            <InputLabel>Inventory Adjustment Account</InputLabel>
-            <Select name="inventoryAdjustmentAccount" value={formData.inventoryAdjustmentAccount} onChange={handleSelectChange} label="Inventory Adjustment Account">
-              <MenuItem value="IA001">IA001</MenuItem>
-              <MenuItem value="IA002">IA002</MenuItem>
-            </Select>
-            <FormHelperText>{errors.inventoryAdjustmentAccount || " "}</FormHelperText>
-          </FormControl>
+          {!isService && (
+            <FormControl size="small" fullWidth error={!!errors.inventoryAdjustmentAccount}>
+              <InputLabel>Inventory Adjustment Account</InputLabel>
+              <Select
+                name="inventoryAdjustmentAccount"
+                value={formData.inventoryAdjustmentAccount}
+                onChange={handleSelectChange}
+                label="Inventory Adjustment Account"
+              >
+                {(() => {
+                  const groupedAccounts: { [key: string]: any[] } = {};
+                  chartMasters.forEach((acc) => {
+                    const type = acc.account_type || "Unknown";
+                    if (!groupedAccounts[type]) groupedAccounts[type] = [];
+                    groupedAccounts[type].push(acc);
+                  });
 
-          <FormControl size="small" fullWidth error={!!errors.itemAssemblyCostAccount}>
-            <InputLabel>Item Assembly Cost Account</InputLabel>
-            <Select name="itemAssemblyCostAccount" value={formData.itemAssemblyCostAccount} onChange={handleSelectChange} label="Item Assembly Cost Account">
-              <MenuItem value="AC001">AC001</MenuItem>
-              <MenuItem value="AC002">AC002</MenuItem>
-            </Select>
-            <FormHelperText>{errors.itemAssemblyCostAccount || " "}</FormHelperText>
-          </FormControl>
+                  return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+                    const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+                    return [
+                      <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                      ...accounts.map((acc) => (
+                        <MenuItem key={acc.account_code} value={acc.account_code}>
+                          <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                            {acc.account_code}- {acc.account_name}
+                          </Stack>
+                        </MenuItem>
+                      )),
+                    ];
+                  });
+                })()}
+              </Select>
+              <FormHelperText>{errors.inventoryAdjustmentAccount || " "}</FormHelperText>
+            </FormControl>
+          )}
+
+          {!isPurchase && !isService && (
+            <FormControl size="small" fullWidth error={!!errors.itemAssemblyCostAccount}>
+              <InputLabel>Item Assembly Cost Account</InputLabel>
+              <Select
+                name="itemAssemblyCostAccount"
+                value={formData.itemAssemblyCostAccount}
+                onChange={handleSelectChange}
+                label="Item Assembly Cost Account"
+              >
+                {(() => {
+                  const groupedAccounts: { [key: string]: any[] } = {};
+                  chartMasters.forEach((acc) => {
+                    const type = acc.account_type || "Unknown";
+                    if (!groupedAccounts[type]) groupedAccounts[type] = [];
+                    groupedAccounts[type].push(acc);
+                  });
+
+                  return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+                    const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+                    return [
+                      <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                      ...accounts.map((acc) => (
+                        <MenuItem key={acc.account_code} value={acc.account_code}>
+                          <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                            {acc.account_code}- {acc.account_name}
+                          </Stack>
+                        </MenuItem>
+                      )),
+                    ];
+                  });
+                })()}
+              </Select>
+              <FormHelperText>{errors.itemAssemblyCostAccount || " "}</FormHelperText>
+            </FormControl>
+          )}
         </Stack>
 
         <Box

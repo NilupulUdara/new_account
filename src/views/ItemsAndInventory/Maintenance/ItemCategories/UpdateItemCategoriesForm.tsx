@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Stack,
@@ -15,8 +15,16 @@ import {
   Paper,
   useMediaQuery,
   useTheme,
+  ListSubheader,
 } from "@mui/material";
 import theme from "../../../../theme";
+import { getChartMasters } from "../../../../api/GLAccounts/ChartMasterApi";
+import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
+import { getItemTaxTypes } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
+import { getItemCategoryById, updateItemCategory } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { useNavigate, useParams } from "react-router-dom";
+import { getItemTypes } from "../../../../api/ItemType/ItemType";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface ItemCategoriesFormData {
   categoryName: string;
@@ -47,9 +55,83 @@ export default function UpdateItemCategoriesForm() {
     itemAssemblyCostAccount: "",
   });
 
+  const accountTypeMap: { [key: number]: string } = {
+    1: "Current Assets",
+    2: "Inventory Assets",
+    3: "Capital Assets",
+    4: "Current Liabilities",
+    5: "Long Term Liabilities",
+    6: "Share Capital",
+    7: "Retained Earnings",
+    8: "Sales Revenue",
+    9: "Other Revenue",
+    10: "Cost of Good Sold",
+    11: "Payroll Expenses",
+    12: "General and Adminitrative Expenses",
+  };
+
+  const [itemTypes, setItemTypes] = useState<any[]>([]);
+  const [chartMasters, setChartMasters] = useState<any[]>([]);
+  const [itemTaxTypes, setItemTaxTypes] = useState<any[]>([]);
+  const [unitsOfMeasure, setUnitsOfMeasure] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [errors, setErrors] = useState<Partial<ItemCategoriesFormData>>({});
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const queryClient = useQueryClient();
+
+  // ✅ FIXED HERE: Proper number comparison
+  const selectedItemType = itemTypes.find(
+    (t) => Number(t.id) === Number(formData.itemType)
+  );
+  const isPurchase = selectedItemType?.name?.toLowerCase() === "purchased";
+  const isService = selectedItemType?.name?.toLowerCase() === "service";
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const [chartMastersRes, taxTypesRes, unitsRes, categoryRes, itemTypesRes] =
+          await Promise.all([
+            getChartMasters(),
+            getItemTaxTypes(),
+            getItemUnits(),
+            getItemCategoryById(Number(id)),
+            getItemTypes(),
+          ]);
+
+        setChartMasters(chartMastersRes || []);
+        setItemTaxTypes((taxTypesRes || []).filter((type) => !type.inactive));
+        setUnitsOfMeasure((unitsRes || []).filter((unit) => !unit.inactive));
+        setItemTypes(itemTypesRes || []);
+
+        if (categoryRes) {
+          setFormData({
+            categoryName: categoryRes.description,
+            itemTaxType: categoryRes.dflt_tax_type,
+            itemType: categoryRes.dflt_mb_flag,
+            unitOfMeasure: categoryRes.dflt_units,
+            excludeFromSales: categoryRes.dflt_no_sale,
+            excludeFromPurchases: categoryRes.dflt_no_purchase,
+            salesAccount: categoryRes.dflt_sales_act,
+            inventoryAccount: categoryRes.dflt_inventory_act,
+            cogsAccount: categoryRes.dflt_cogs_act,
+            inventoryAdjustmentAccount: categoryRes.dflt_adjustment_act,
+            itemAssemblyCostAccount: categoryRes.dflt_wip_act,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch data:", err);
+        alert("Failed to load category data. Please try again.");
+        navigate(-1);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [id, navigate]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -75,156 +157,396 @@ export default function UpdateItemCategoriesForm() {
     if (!formData.itemType) newErrors.itemType = "Select Item Type";
     if (!formData.unitOfMeasure) newErrors.unitOfMeasure = "Select Unit of Measure";
     if (!formData.salesAccount) newErrors.salesAccount = "Select Sales Account";
-    if (!formData.inventoryAccount) newErrors.inventoryAccount = "Select Inventory Account";
+    if (!formData.inventoryAccount)
+      newErrors.inventoryAccount = "Select Inventory Account";
     if (!formData.cogsAccount) newErrors.cogsAccount = "Select C.O.G.S. Account";
-    if (!formData.inventoryAdjustmentAccount) newErrors.inventoryAdjustmentAccount = "Select Inventory Adjustment Account";
-    if (!formData.itemAssemblyCostAccount) newErrors.itemAssemblyCostAccount = "Select Item Assembly Cost Account";
+    if (!formData.inventoryAdjustmentAccount)
+      newErrors.inventoryAdjustmentAccount =
+        "Select Inventory Adjustment Account";
+    if (!formData.itemAssemblyCostAccount)
+      newErrors.itemAssemblyCostAccount = "Select Item Assembly Cost Account";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (validate()) {
-      console.log("Submitted Data:", formData);
-      alert("Item Category updated successfully!");
+      try {
+        const payload = {
+          description: formData.categoryName,
+          dflt_tax_type: formData.itemTaxType,
+          dflt_mb_flag: formData.itemType,
+          dflt_units: formData.unitOfMeasure,
+          dflt_no_sale: formData.excludeFromSales,
+          dflt_no_purchase: formData.excludeFromPurchases,
+          dflt_sales_act: formData.salesAccount,
+          dflt_inventory_act: formData.inventoryAccount,
+          dflt_cogs_act: formData.cogsAccount,
+          dflt_adjustment_act: formData.inventoryAdjustmentAccount,
+          dflt_wip_act: formData.itemAssemblyCostAccount,
+        };
+
+        await updateItemCategory(Number(id), payload);
+        queryClient.invalidateQueries({ queryKey: ["itemCategories"] });
+        alert("Item Category updated successfully!");
+        navigate(-1);
+      } catch (error: any) {
+        console.error("Failed to update category:", error);
+        if (error.response?.data?.errors) {
+          const backendErr = error.response.data.errors;
+          setErrors({
+            categoryName: backendErr.description?.[0],
+            itemTaxType: backendErr.dflt_tax_type?.[0],
+            itemType: backendErr.dflt_mb_flag?.[0],
+            unitOfMeasure: backendErr.dflt_units?.[0],
+            salesAccount: backendErr.dflt_sales_act?.[0],
+            inventoryAccount: backendErr.dflt_inventory_act?.[0],
+            cogsAccount: backendErr.dflt_cogs_act?.[0],
+            inventoryAdjustmentAccount: backendErr.dflt_adjustment_act?.[0],
+            itemAssemblyCostAccount: backendErr.dflt_wip_act?.[0],
+          });
+          alert("Validation errors occurred. Please check the fields.");
+        } else {
+          alert("Failed to update Item Category. Please try again.");
+        }
+      }
     }
   };
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
-      <Paper
-        sx={{
-          p: theme.spacing(3),
-          maxWidth: "600px",
-          width: "100%",
-          boxShadow: 2,
-          borderRadius: 2,
-        }}
-      >
-        <Typography variant="h6" sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}>
-          Update Item Category
-        </Typography>
-
-        <Stack spacing={2}>
-          <TextField
-            label="Category Name"
-            name="categoryName"
-            size="small"
-            fullWidth
-            value={formData.categoryName}
-            onChange={handleInputChange}
-            error={!!errors.categoryName}
-            helperText={errors.categoryName || " "}
-          />
-
-          <Typography variant="subtitle1" sx={{ mt: 2 }}>Default Values for New Items</Typography>
-
-          <FormControl size="small" fullWidth error={!!errors.itemTaxType}>
-            <InputLabel>Item Tax Type</InputLabel>
-            <Select name="itemTaxType" value={formData.itemTaxType} onChange={handleSelectChange} label="Item Tax Type">
-              <MenuItem value="Taxable">Taxable</MenuItem>
-              <MenuItem value="Non-Taxable">Non-Taxable</MenuItem>
-            </Select>
-            <FormHelperText>{errors.itemTaxType || " "}</FormHelperText>
-          </FormControl>
-
-          <FormControl size="small" fullWidth error={!!errors.itemType}>
-            <InputLabel>Item Type</InputLabel>
-            <Select name="itemType" value={formData.itemType} onChange={handleSelectChange} label="Item Type">
-              <MenuItem value="Inventory">Inventory</MenuItem>
-              <MenuItem value="Non-Inventory">Non-Inventory</MenuItem>
-            </Select>
-            <FormHelperText>{errors.itemType || " "}</FormHelperText>
-          </FormControl>
-
-          <FormControl size="small" fullWidth error={!!errors.unitOfMeasure}>
-            <InputLabel>Unit of Measure</InputLabel>
-            <Select name="unitOfMeasure" value={formData.unitOfMeasure} onChange={handleSelectChange} label="Unit of Measure">
-              <MenuItem value="kg">kg</MenuItem>
-              <MenuItem value="pcs">pcs</MenuItem>
-              <MenuItem value="ltr">ltr</MenuItem>
-            </Select>
-            <FormHelperText>{errors.unitOfMeasure || " "}</FormHelperText>
-          </FormControl>
-
-          <FormControlLabel
-            control={<Checkbox checked={formData.excludeFromSales} onChange={handleCheckboxChange} name="excludeFromSales" />}
-            label="Exclude from Sales"
-          />
-
-          <FormControlLabel
-            control={<Checkbox checked={formData.excludeFromPurchases} onChange={handleCheckboxChange} name="excludeFromPurchases" />}
-            label="Exclude from Purchases"
-          />
-
-          <FormControl size="small" fullWidth error={!!errors.salesAccount}>
-            <InputLabel>Sales Account</InputLabel>
-            <Select name="salesAccount" value={formData.salesAccount} onChange={handleSelectChange} label="Sales Account">
-              <MenuItem value="SA001">SA001</MenuItem>
-              <MenuItem value="SA002">SA002</MenuItem>
-            </Select>
-            <FormHelperText>{errors.salesAccount || " "}</FormHelperText>
-          </FormControl>
-
-          <FormControl size="small" fullWidth error={!!errors.inventoryAccount}>
-            <InputLabel>Inventory Account</InputLabel>
-            <Select name="inventoryAccount" value={formData.inventoryAccount} onChange={handleSelectChange} label="Inventory Account">
-              <MenuItem value="IA001">IA001</MenuItem>
-              <MenuItem value="IA002">IA002</MenuItem>
-            </Select>
-            <FormHelperText>{errors.inventoryAccount || " "}</FormHelperText>
-          </FormControl>
-
-          <FormControl size="small" fullWidth error={!!errors.cogsAccount}>
-            <InputLabel>C.O.G.S. Account</InputLabel>
-            <Select name="cogsAccount" value={formData.cogsAccount} onChange={handleSelectChange} label="C.O.G.S. Account">
-              <MenuItem value="C001">C001</MenuItem>
-              <MenuItem value="C002">C002</MenuItem>
-            </Select>
-            <FormHelperText>{errors.cogsAccount || " "}</FormHelperText>
-          </FormControl>
-
-          <FormControl size="small" fullWidth error={!!errors.inventoryAdjustmentAccount}>
-            <InputLabel>Inventory Adjustment Account</InputLabel>
-            <Select name="inventoryAdjustmentAccount" value={formData.inventoryAdjustmentAccount} onChange={handleSelectChange} label="Inventory Adjustment Account">
-              <MenuItem value="IA001">IA001</MenuItem>
-              <MenuItem value="IA002">IA002</MenuItem>
-            </Select>
-            <FormHelperText>{errors.inventoryAdjustmentAccount || " "}</FormHelperText>
-          </FormControl>
-
-          <FormControl size="small" fullWidth error={!!errors.itemAssemblyCostAccount}>
-            <InputLabel>Item Assembly Cost Account</InputLabel>
-            <Select name="itemAssemblyCostAccount" value={formData.itemAssemblyCostAccount} onChange={handleSelectChange} label="Item Assembly Cost Account">
-              <MenuItem value="AC001">AC001</MenuItem>
-              <MenuItem value="AC002">AC002</MenuItem>
-            </Select>
-            <FormHelperText>{errors.itemAssemblyCostAccount || " "}</FormHelperText>
-          </FormControl>
-        </Stack>
-
-        <Box
+      {isLoading ? (
+        <Typography>Loading...</Typography>
+      ) : (
+        <Paper
           sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            mt: 3,
-            flexDirection: isMobile ? "column" : "row",
-            gap: isMobile ? 2 : 0,
+            p: theme.spacing(3),
+            maxWidth: "600px",
+            width: "100%",
+            boxShadow: 2,
+            borderRadius: 2,
           }}
         >
-          <Button onClick={() => window.history.back()}>Back</Button>
-
-          <Button
-            variant="contained"
-            fullWidth={isMobile}
-            sx={{ backgroundColor: "var(--pallet-blue)" }}
-            onClick={handleSubmit}
+          <Typography
+            variant="h6"
+            sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}
           >
-            Update
-          </Button>
-        </Box>
-      </Paper>
+            Update Item Category
+          </Typography>
+
+          <Stack spacing={2}>
+            <TextField
+              label="Category Name"
+              name="categoryName"
+              size="small"
+              fullWidth
+              value={formData.categoryName}
+              onChange={handleInputChange}
+              error={!!errors.categoryName}
+              helperText={errors.categoryName || " "}
+            />
+
+            <FormControl size="small" fullWidth error={!!errors.itemTaxType}>
+              <InputLabel>Item Tax Type</InputLabel>
+              <Select
+                name="itemTaxType"
+                value={formData.itemTaxType}
+                onChange={handleSelectChange}
+                label="Item Tax Type"
+              >
+                {itemTaxTypes.map((type) => (
+                  <MenuItem key={type.id} value={type.id}>
+                    {type.name}
+                  </MenuItem>
+                ))}
+              </Select>
+              <FormHelperText>{errors.itemTaxType || " "}</FormHelperText>
+            </FormControl>
+
+            <FormControl size="small" fullWidth error={!!errors.itemType}>
+              <InputLabel>Item Type</InputLabel>
+              <Select
+                name="itemType"
+                value={formData.itemType}
+                onChange={handleSelectChange}
+                label="Item Type"
+              >
+                {itemTypes.map((type) => (
+                  <MenuItem key={type.id} value={type.id}>
+                    {type.name}
+                  </MenuItem>
+                ))}
+              </Select>
+              <FormHelperText>{errors.itemType || " "}</FormHelperText>
+            </FormControl>
+
+            <FormControl size="small" fullWidth error={!!errors.unitOfMeasure}>
+              <InputLabel>Unit of Measure</InputLabel>
+              <Select
+                name="unitOfMeasure"
+                value={formData.unitOfMeasure}
+                onChange={handleSelectChange}
+                label="Unit of Measure"
+              >
+                {unitsOfMeasure.map((unit) => (
+                  <MenuItem key={unit.id} value={unit.id}>
+                    {unit.name}
+                  </MenuItem>
+                ))}
+              </Select>
+              <FormHelperText>{errors.unitOfMeasure || " "}</FormHelperText>
+            </FormControl>
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.excludeFromSales}
+                  onChange={handleCheckboxChange}
+                  name="excludeFromSales"
+                />
+              }
+              label="Exclude from Sales"
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.excludeFromPurchases}
+                  onChange={handleCheckboxChange}
+                  name="excludeFromPurchases"
+                />
+              }
+              label="Exclude from Purchases"
+            />
+
+            {/* Sales Account */}
+            <FormControl size="small" fullWidth error={!!errors.salesAccount}>
+              <InputLabel>Sales Account</InputLabel>
+              <Select
+                name="salesAccount"
+                value={formData.salesAccount}
+                onChange={handleSelectChange}
+                label="Sales Account"
+              >
+                {Object.entries(
+                  chartMasters.reduce((acc: any, item: any) => {
+                    const type = item.account_type || "Unknown";
+                    if (!acc[type]) acc[type] = [];
+                    acc[type].push(item);
+                    return acc;
+                  }, {})
+                ).flatMap(([typeKey, accounts]: any) => {
+                  const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+                  return [
+                    <ListSubheader key={`header-${typeKey}`}>
+                      {typeText}
+                    </ListSubheader>,
+                    ...accounts.map((acc: any) => (
+                      <MenuItem
+                        key={acc.account_code}
+                        value={acc.account_code}
+                      >
+                        {acc.account_code} - {acc.account_name}
+                      </MenuItem>
+                    )),
+                  ];
+                })}
+              </Select>
+              <FormHelperText>{errors.salesAccount || " "}</FormHelperText>
+            </FormControl>
+
+            {/* Inventory Account */}
+            {!isService && (
+              <FormControl
+                size="small"
+                fullWidth
+                error={!!errors.inventoryAccount}
+              >
+                <InputLabel>Inventory Account</InputLabel>
+                <Select
+                  name="inventoryAccount"
+                  value={formData.inventoryAccount}
+                  onChange={handleSelectChange}
+                  label="Inventory Account"
+                >
+                  {Object.entries(
+                    chartMasters.reduce((acc: any, item: any) => {
+                      const type = item.account_type || "Unknown";
+                      if (!acc[type]) acc[type] = [];
+                      acc[type].push(item);
+                      return acc;
+                    }, {})
+                  ).flatMap(([typeKey, accounts]: any) => {
+                    const typeText =
+                      accountTypeMap[Number(typeKey)] || "Unknown";
+                    return [
+                      <ListSubheader key={`header-${typeKey}`}>
+                        {typeText}
+                      </ListSubheader>,
+                      ...accounts.map((acc: any) => (
+                        <MenuItem
+                          key={acc.account_code}
+                          value={acc.account_code}
+                        >
+                          {acc.account_code} - {acc.account_name}
+                        </MenuItem>
+                      )),
+                    ];
+                  })}
+                </Select>
+                <FormHelperText>
+                  {errors.inventoryAccount || " "}
+                </FormHelperText>
+              </FormControl>
+            )}
+
+            {/* C.O.G.S Account */}
+            <FormControl size="small" fullWidth error={!!errors.cogsAccount}>
+              <InputLabel>C.O.G.S. Account</InputLabel>
+              <Select
+                name="cogsAccount"
+                value={formData.cogsAccount}
+                onChange={handleSelectChange}
+                label="C.O.G.S. Account"
+              >
+                {Object.entries(
+                  chartMasters.reduce((acc: any, item: any) => {
+                    const type = item.account_type || "Unknown";
+                    if (!acc[type]) acc[type] = [];
+                    acc[type].push(item);
+                    return acc;
+                  }, {})
+                ).flatMap(([typeKey, accounts]: any) => {
+                  const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+                  return [
+                    <ListSubheader key={`header-${typeKey}`}>
+                      {typeText}
+                    </ListSubheader>,
+                    ...accounts.map((acc: any) => (
+                      <MenuItem
+                        key={acc.account_code}
+                        value={acc.account_code}
+                      >
+                        {acc.account_code} - {acc.account_name}
+                      </MenuItem>
+                    )),
+                  ];
+                })}
+              </Select>
+              <FormHelperText>{errors.cogsAccount || " "}</FormHelperText>
+            </FormControl>
+
+            {/* Inventory Adjustment Account */}
+            {!isService && (
+              <FormControl
+                size="small"
+                fullWidth
+                error={!!errors.inventoryAdjustmentAccount}
+              >
+                <InputLabel>Inventory Adjustment Account</InputLabel>
+                <Select
+                  name="inventoryAdjustmentAccount"
+                  value={formData.inventoryAdjustmentAccount}
+                  onChange={handleSelectChange}
+                  label="Inventory Adjustment Account"
+                >
+                  {Object.entries(
+                    chartMasters.reduce((acc: any, item: any) => {
+                      const type = item.account_type || "Unknown";
+                      if (!acc[type]) acc[type] = [];
+                      acc[type].push(item);
+                      return acc;
+                    }, {})
+                  ).flatMap(([typeKey, accounts]: any) => {
+                    const typeText =
+                      accountTypeMap[Number(typeKey)] || "Unknown";
+                    return [
+                      <ListSubheader key={`header-${typeKey}`}>
+                        {typeText}
+                      </ListSubheader>,
+                      ...accounts.map((acc: any) => (
+                        <MenuItem
+                          key={acc.account_code}
+                          value={acc.account_code}
+                        >
+                          {acc.account_code} - {acc.account_name}
+                        </MenuItem>
+                      )),
+                    ];
+                  })}
+                </Select>
+                <FormHelperText>
+                  {errors.inventoryAdjustmentAccount || " "}
+                </FormHelperText>
+              </FormControl>
+            )}
+
+            {/* Item Assembly Cost Account */}
+            {!isPurchase && !isService && (
+              <FormControl
+                size="small"
+                fullWidth
+                error={!!errors.itemAssemblyCostAccount}
+              >
+                <InputLabel>Item Assembly Cost Account</InputLabel>
+                <Select
+                  name="itemAssemblyCostAccount"
+                  value={formData.itemAssemblyCostAccount}
+                  onChange={handleSelectChange}
+                  label="Item Assembly Cost Account"
+                >
+                  {Object.entries(
+                    chartMasters.reduce((acc: any, item: any) => {
+                      const type = item.account_type || "Unknown";
+                      if (!acc[type]) acc[type] = [];
+                      acc[type].push(item);
+                      return acc;
+                    }, {})
+                  ).flatMap(([typeKey, accounts]: any) => {
+                    const typeText =
+                      accountTypeMap[Number(typeKey)] || "Unknown";
+                    return [
+                      <ListSubheader key={`header-${typeKey}`}>
+                        {typeText}
+                      </ListSubheader>,
+                      ...accounts.map((acc: any) => (
+                        <MenuItem
+                          key={acc.account_code}
+                          value={acc.account_code}
+                        >
+                          {acc.account_code} - {acc.account_name}
+                        </MenuItem>
+                      )),
+                    ];
+                  })}
+                </Select>
+                <FormHelperText>
+                  {errors.itemAssemblyCostAccount || " "}
+                </FormHelperText>
+              </FormControl>
+            )}
+          </Stack>
+
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              mt: 3,
+              flexDirection: isMobile ? "column" : "row",
+              gap: isMobile ? 2 : 0,
+            }}
+          >
+            <Button onClick={() => window.history.back()}>Back</Button>
+            <Button
+              variant="contained"
+              fullWidth={isMobile}
+              onClick={handleSubmit}
+            >
+              Update Category
+            </Button>
+          </Box>
+        </Paper>
+      )}
     </Stack>
   );
 }
