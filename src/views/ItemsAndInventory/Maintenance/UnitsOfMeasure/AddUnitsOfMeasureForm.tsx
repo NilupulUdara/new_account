@@ -136,6 +136,7 @@ export default function AddUnitsOfMeasureForm() {
               <MenuItem value="3">3</MenuItem>
               <MenuItem value="4">4</MenuItem>
               <MenuItem value="5">5</MenuItem>
+              <MenuItem value="6">6</MenuItem>
             </Select>
             <FormHelperText>{errors.decimalPlaces || " "}</FormHelperText>
           </FormControl>
