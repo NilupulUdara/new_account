@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -21,42 +21,18 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
 import theme from "../../../../theme";
+import { getItemCategories, updateItemCategory, deleteItemCategory } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getItemTaxTypes } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
+import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
+import { getItemTypes } from "../../../../api/ItemType/ItemType";
 
-// API function to get Item Categories
-const getItemCategories = async () => [
-  {
-    id: 1,
-    name: "Charges",
-    taxType: "Regular",
-    units: "each",
-    type: "Service",
-    salesAccount: "4010",
-    inventoryAccount: "1510",
-    cogsAccount: "5010",
-    adjustmentAccount: "5040",
-    assemblyAccount: "1503",
-    status: "Active",
-  },
-  {
-    id: 2,
-    name: "Components",
-    taxType: "Regular",
-    units: "each",
-    type: "Purchased",
-    salesAccount: "4010",
-    inventoryAccount: "1510",
-    cogsAccount: "5010",
-    adjustmentAccount: "5040",
-    assemblyAccount: "1503",
-    status: "Inactive",
-  },
-];
+
 
 function ItemCategoriesTable() {
   const [page, setPage] = useState(0);
@@ -66,29 +42,61 @@ function ItemCategoriesTable() {
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
+  const queryClient = useQueryClient();
+
   const { data: categoriesData = [] } = useQuery({
-    queryKey: ["itemCategories"],
-    queryFn: getItemCategories,
+    queryKey: ["itemCategories", showInactive],
+    queryFn: () => getItemCategories(showInactive),
+    // ensure we refetch when the component mounts or window regains focus so new items appear
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
+
+  // Reference data for mapping
+  const [taxTypes, setTaxTypes] = useState([]);
+  const [units, setUnits] = useState([]);
+  const [itemTypes, setItemTypes] = useState([]);
+
+  useEffect(() => {
+    async function fetchRefs() {
+      const [taxRes, unitRes, typeRes] = await Promise.all([
+        getItemTaxTypes(),
+        getItemUnits(),
+        getItemTypes()
+      ]);
+      setTaxTypes(taxRes || []);
+      setUnits(unitRes || []);
+      setItemTypes(typeRes || []);
+    }
+    fetchRefs();
+  }, []);
+
+  // Lookup maps
+  const taxTypeMap = useMemo(() => Object.fromEntries(taxTypes.map(t => [t.id, t.name])), [taxTypes]);
+  const unitMap = useMemo(() => Object.fromEntries(units.map(u => [u.id, u.name])), [units]);
+  const itemTypeMap = useMemo(() => Object.fromEntries(itemTypes.map(i => [i.id, i.name])), [itemTypes]);
 
   const filteredCategories = useMemo(() => {
     if (!categoriesData) return [];
     let filtered = categoriesData;
 
-    if (!showInactive) filtered = filtered.filter((item) => item.status === "Active");
-
     if (searchQuery.trim()) {
       const lowerQuery = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (item) =>
-          item.name.toLowerCase().includes(lowerQuery) ||
-          item.taxType.toLowerCase().includes(lowerQuery) ||
-          item.units.toLowerCase().includes(lowerQuery)
+          (item.description || "").toLowerCase().includes(lowerQuery) ||
+          (taxTypeMap[item.dflt_tax_type] || "").toLowerCase().includes(lowerQuery) ||
+          (unitMap[item.dflt_units] || "").toLowerCase().includes(lowerQuery)
       );
     }
 
+    // Only show inactive items if showInactive is checked, otherwise show only active items
+    if (!showInactive) {
+      filtered = filtered.filter(item => !item.inactive);
+    }
+
     return filtered;
-  }, [categoriesData, searchQuery, showInactive]);
+  }, [categoriesData, searchQuery, showInactive, taxTypeMap, unitMap]);
 
   const paginatedCategories = useMemo(() => {
     if (rowsPerPage === -1) return filteredCategories;
@@ -101,7 +109,23 @@ function ItemCategoriesTable() {
     setPage(0);
   };
 
-  const handleDelete = (id: number) => alert(`Delete Category with id: ${id}`);
+  const deleteCategoryMutation = useMutation({
+    mutationFn: (id: number) => deleteItemCategory(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["itemCategories"], exact: false });
+    },
+  });
+
+  const handleDelete = (id: number) => {
+    deleteCategoryMutation.mutate(id);
+  };
+
+  const updateCategoryMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => updateItemCategory(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["itemCategories"], exact: false });
+    },
+  });
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
@@ -184,6 +208,7 @@ function ItemCategoriesTable() {
                 <TableCell>COGS Account</TableCell>
                 <TableCell>Adjustment Account</TableCell>
                 <TableCell>Assembly Account</TableCell>
+                {showInactive && <TableCell>Inactive</TableCell>}
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -193,22 +218,46 @@ function ItemCategoriesTable() {
                 paginatedCategories.map((item, index) => (
                   <TableRow key={item.id} hover>
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                    <TableCell>{item.name}</TableCell>
-                    <TableCell>{item.taxType}</TableCell>
-                    <TableCell>{item.units}</TableCell>
-                    <TableCell>{item.type}</TableCell>
-                    <TableCell>{item.salesAccount}</TableCell>
-                    <TableCell>{item.inventoryAccount}</TableCell>
-                    <TableCell>{item.cogsAccount}</TableCell>
-                    <TableCell>{item.adjustmentAccount}</TableCell>
-                    <TableCell>{item.assemblyAccount}</TableCell>
+                    <TableCell>{item.description}</TableCell>
+                    <TableCell>{taxTypeMap[item.dflt_tax_type] || item.dflt_tax_type} </TableCell>
+                    <TableCell>{unitMap[item.dflt_units] || item.dflt_units}</TableCell>
+                    <TableCell>{itemTypeMap[item.dflt_mb_flag] || item.dflt_mb_flag}</TableCell>
+                    <TableCell>{item.dflt_sales_act}</TableCell>
+                    <TableCell>{item.dflt_inventory_act}</TableCell>
+                    <TableCell>{item.dflt_cogs_act}</TableCell>
+                    <TableCell>{item.dflt_adjustment_act}</TableCell>
+                    <TableCell>{item.dflt_wip_act}</TableCell>
+                    {showInactive && (
+                      <TableCell>
+                        <Checkbox
+                          checked={item.inactive}
+                          onChange={(e) => {
+                            updateCategoryMutation.mutate(
+                              {
+                                id: item.category_id, // use category_id if that’s what API expects
+                                data: { ...item, inactive: e.target.checked },
+                              },
+                              {
+                                onSuccess: () => {
+                                  queryClient.invalidateQueries({ queryKey: ["itemCategories", showInactive], exact: false });
+                                },
+                                onError: (err) => {
+                                  console.error("Error updating category:", err);
+                                },
+                              }
+                            );
+                          }}
+                        />
+                      </TableCell>
+                    )}
+
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
                           variant="contained"
                           size="small"
                           startIcon={<EditIcon />}
-                          onClick={() => navigate("/itemsandinventory/maintenance/update-item-categories")}
+                          onClick={() => navigate(`/itemsandinventory/maintenance/update-item-categories/${item.category_id}`)}
                         >
                           Edit
                         </Button>
@@ -217,7 +266,7 @@ function ItemCategoriesTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() => handleDelete(item.category_id)}
                         >
                           Delete
                         </Button>
@@ -227,7 +276,7 @@ function ItemCategoriesTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={11} align="center">
+                  <TableCell colSpan={showInactive ? 12 : 11} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -238,7 +287,7 @@ function ItemCategoriesTable() {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={11}
+                  colSpan={showInactive ? 12 : 11}
                   count={filteredCategories.length}
                   rowsPerPage={rowsPerPage}
                   page={page}
