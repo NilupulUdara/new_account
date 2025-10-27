@@ -61,9 +61,9 @@ export default function SuppliersContactsTable({ supplierId }: SupplierContacsPr
         const mapped = data.map((item: any) => ({
           id: item.id,
           reference: item.reference,
-    fullName: item.name ? item.name : `${item.firstName || ""} ${item.lastName || ""}`.trim(),
+          fullName: item.name ? item.name : `${item.firstName || ""} ${item.lastName || ""}`.trim(),
           phone: item.phone || "",
-          secPhone: item.secPhone || "",
+          secPhone: item.phone2 || "",
           fax: item.fax || "",
           email: item.email || "",
           assignment: item.assignment || "",

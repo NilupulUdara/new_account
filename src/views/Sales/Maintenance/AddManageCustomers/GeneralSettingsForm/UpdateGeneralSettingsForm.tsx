@@ -315,6 +315,7 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
 
             await updateCustomer(customerIdToUse, payload);
             setOpen(true);
+            navigate("/sales/maintenance/add-and-manage-customers");
         } catch (error) {
             console.error("Error updating customer:", error);
             setErrorMessage(

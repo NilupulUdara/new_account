@@ -65,9 +65,7 @@ const AddedConfirmationModal = ({
       onClose={handleClose}
       aria-labelledby={title + "-dialog"}
     >
-      <DialogTitle id={title + "-dialog"}>
-        <Typography variant="h6">{title}</Typography>
-      </DialogTitle>
+      <DialogTitle id={title + "-dialog"}>{title}</DialogTitle>
 
       <DialogContent dividers>
         <DialogContentText>
