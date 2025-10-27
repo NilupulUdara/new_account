@@ -185,7 +185,7 @@ export default function UpdateUnitsOfMeasureForm() {
               onChange={handleSelectChange}
               label="Decimal Places"
             >
-              {Array.from({ length: 6 }, (_, i) => (
+              {Array.from({ length: 7 }, (_, i) => (
                 <MenuItem key={i} value={String(i)}>
                   {i}
                 </MenuItem>

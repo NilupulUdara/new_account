@@ -15,6 +15,8 @@ import {
   Typography,
   useMediaQuery,
   Theme,
+  FormControlLabel,
+  Checkbox,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -23,7 +25,7 @@ import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
-import { getItemUnits, deleteItemUnit } from "../../../../api/ItemUnit/ItemUnitApi";
+import { getItemUnits, deleteItemUnit, updateItemUnit } from "../../../../api/ItemUnit/ItemUnitApi";
 import SearchBar from "../../../../components/SearchBar";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
@@ -33,6 +35,7 @@ export default function UnitsOfMeasureTable() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
   const [selectedId, setSelectedId] = useState<number | string | null>(null);
   const [errorOpen, setErrorOpen] = useState(false);
@@ -47,11 +50,11 @@ export default function UnitsOfMeasureTable() {
       setUnitsData(data);
     } catch (error) {
       console.error("Failed to fetch Units of Measure:", error);
-       setErrorMessage(
-          error?.response?.data?.message ||
-          "Failed to load units Please try again."
-        );
-        setErrorOpen(true);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to load units Please try again."
+      );
+      setErrorOpen(true);
     }
   };
 
@@ -59,16 +62,27 @@ export default function UnitsOfMeasureTable() {
     loadData();
   }, []);
 
-  // Filter units based on search query
+  // Filter units based on search query and inactive status
   const filteredUnits = useMemo(() => {
-    if (!searchQuery.trim()) return unitsData;
-    const lowerQuery = searchQuery.toLowerCase();
-    return unitsData.filter(
-      (u) =>
-        u.abbr.toLowerCase().includes(lowerQuery) ||
-        u.name.toLowerCase().includes(lowerQuery)
-    );
-  }, [unitsData, searchQuery]);
+    let filtered = unitsData;
+
+    // Apply inactive filter
+    if (!showInactive) {
+      filtered = filtered.filter(u => !u.inactive);
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const lowerQuery = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (u) =>
+          u.abbr.toLowerCase().includes(lowerQuery) ||
+          u.name.toLowerCase().includes(lowerQuery)
+      );
+    }
+
+    return filtered;
+  }, [unitsData, searchQuery, showInactive]);
 
   // Pagination
   const paginatedUnits = useMemo(() => {
@@ -94,6 +108,20 @@ export default function UnitsOfMeasureTable() {
       setErrorMessage(
         error?.response?.data?.message ||
         "Failed to delete item unit Please try again."
+      );
+      setErrorOpen(true);
+    }
+  };
+
+  const handleInactiveChange = async (item: any, checked: boolean) => {
+    try {
+      await updateItemUnit(item.id, { ...item, inactive: checked });
+      loadData(); // Reload the data to get the updated state
+    } catch (error) {
+      console.error(error);
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to update unit status. Please try again."
       );
       setErrorOpen(true);
     }
@@ -139,16 +167,51 @@ export default function UnitsOfMeasureTable() {
         </Stack>
       </Box>
 
-      {/* Search */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", width: "100%", mb: 2 }}>
-        <Box sx={{ width: isMobile ? "150px" : "250px" }}>
+      {/* Search and Filter */}
+      {/* Search & Filter Section */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          width: "100%",
+          mb: 2,
+          px: 2,
+          flexWrap: "wrap", // ✅ allows wrapping on small screens
+          gap: 2, // ✅ adds space between checkbox and search bar
+        }}
+      >
+        {/* ✅ Show Inactive Checkbox (Left Side) */}
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={showInactive}
+                onChange={(e) => setShowInactive(e.target.checked)}
+                sx={{
+                  color: "var(--pallet-light-blue)",
+                  "&.Mui-checked": { color: "var(--pallet-dark-blue)" },
+                }}
+              />
+            }
+            label={
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                Show also Inactive
+              </Typography>
+            }
+          />
+        </Box>
+
+        {/* 🔍 Search Bar (Right Side) */}
+        <Box sx={{ width: isMobile ? "180px" : "280px" }}>
           <SearchBar
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            placeholder="Search Abbr or Name"
+            placeholder="Search..."
           />
         </Box>
       </Box>
+
 
       {/* Table */}
       <TableContainer component={Paper} sx={{ overflowX: "auto", maxWidth: "100%", p: 1 }}>
@@ -159,6 +222,7 @@ export default function UnitsOfMeasureTable() {
               <TableCell>Unit</TableCell>
               <TableCell>Description</TableCell>
               <TableCell>Decimals</TableCell>
+              {showInactive && <TableCell>Inactive</TableCell>}
               <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -171,6 +235,15 @@ export default function UnitsOfMeasureTable() {
                   <TableCell>{item.abbr}</TableCell>
                   <TableCell>{item.name}</TableCell>
                   <TableCell>{item.decimals}</TableCell>
+                  {showInactive && (
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        checked={item.inactive || false}
+                        onChange={(e) => handleInactiveChange(item, e.target.checked)}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell align="center">
                     <Stack direction="row" spacing={1} justifyContent="center">
                       <Button
@@ -203,7 +276,7 @@ export default function UnitsOfMeasureTable() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={5} align="center">
+                <TableCell colSpan={showInactive ? 6 : 5} align="center">
                   <Typography>No Records Found</Typography>
                 </TableCell>
               </TableRow>
@@ -214,7 +287,7 @@ export default function UnitsOfMeasureTable() {
             <TableRow>
               <TablePagination
                 rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                colSpan={5}
+                colSpan={showInactive ? 6 : 5}
                 count={filteredUnits.length}
                 rowsPerPage={rowsPerPage}
                 page={page}
