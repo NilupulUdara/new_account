@@ -7,6 +7,7 @@ const API_URL = "http://localhost:8000/api/item-types"; // adjust if needed
 interface ItemType {
   id?: number;       // optional for creation
   name: string;
+  inactive?: boolean;
 }
 
 
