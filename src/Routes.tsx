@@ -296,9 +296,11 @@ function withoutLayout(Component: React.LazyExoticComponent<any>) {
 // `src/components/ProtectedRoute`. Use the component below to guard routes.
 
 const AppRoutes = () => {
+  const token = localStorage.getItem("token");
   const { data: user, status } = useQuery<User>({
     queryKey: ["current-user"],
     queryFn: validateUser,
+    enabled: !!token, // Only run query if token exists
   });
 
   const userPermissionObject = useMemo(() => {
@@ -306,7 +308,7 @@ const AppRoutes = () => {
       return user?.permissionObject;
     }
   }, [user]);
-  console.log("user", user);
+  // console.log("user", user);
   return (
     <Routes>
       <Route path="/" element={withoutLayout(LoginPage)} />

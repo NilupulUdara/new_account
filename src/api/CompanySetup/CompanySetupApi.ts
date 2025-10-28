@@ -2,9 +2,13 @@ import axios from "axios";
 
 const API_URL = "http://localhost:8000/api/company-setup";
 
-export const createCompany = async (companyData: any) => {
+export const createCompany = async (companyData: FormData) => {
   try {
-    const response = await axios.post(API_URL, companyData);
+    const response = await axios.post(API_URL, companyData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   } catch (error: any) {
     console.error(error.response?.data || error);

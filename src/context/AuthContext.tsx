@@ -50,6 +50,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadingRef.current = true;
     setInitializing(true);
     try {
+      // Check if token exists before making API call
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setUser(null);
+        setPermissions(new Set());
+        return;
+      }
+
         const u = await validateUser();
         setUser(u || null);
 

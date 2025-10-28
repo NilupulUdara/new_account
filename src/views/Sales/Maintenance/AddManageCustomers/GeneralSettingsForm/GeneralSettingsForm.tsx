@@ -36,14 +36,16 @@ import { getPaymentTerms } from "../../../../../api/PaymentTerm/PaymentTermApi";
 
 interface GeneralSettingsFormProps {
   customerId?: string | number;
+  onCustomerAdded?: (customer: {debtor_no: number | string, name: string}) => void;
 }
 
 
-export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormProps) {
+export default function GeneralSettingsForm({ customerId, onCustomerAdded }: GeneralSettingsFormProps) {
   const [open, setOpen] = useState(false);
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [formData, setFormData] = useState({
+
+  const initialFormData = {
     customerName: "",
     customerShortName: "",
     address: "",
@@ -67,7 +69,9 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
     defaultShippingCompany: "",
     salesArea: "",
     taxGroup: "",
-  });
+  };
+
+  const [formData, setFormData] = useState(initialFormData);
 
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   useEffect(() => {
@@ -306,6 +310,11 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
         }
       })();
 
+      if (onCustomerAdded) {
+        onCustomerAdded({ debtor_no: customer.debtor_no, name: customer.name });
+      }
+      setFormData(initialFormData);
+      setErrors({});
       setOpen(true);
 
     } catch (error: any) {
@@ -701,7 +710,7 @@ export default function GeneralSettingsForm({ customerId }: GeneralSettingsFormP
         content="Customer has been added successfully!"
         addFunc={async () => { }}
         handleClose={() => setOpen(false)}
-        onSuccess={() => window.history.back()}
+        onSuccess={() => setOpen(false)}
       />
 
       <ErrorModal

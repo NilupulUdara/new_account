@@ -21,7 +21,7 @@ const ProtectedRoute: React.FC<Props> = ({ required, children }) => {
 
     // If not initializing and no user, redirect to login (root). Keep
     // the current location in state so login can redirect back after signin.
-    return <Navigate to="/" replace state={{ from: location }} />;
+    //return <Navigate to="/" replace state={{ from: location }} />;
   }
 
   if (!required) return children ? <>{children}</> : <Outlet />;

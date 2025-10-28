@@ -31,9 +31,10 @@ import { getContactCategories } from "../../../../../api/ContactCategory/Contact
 
 interface SupplierGeneralSettingProps {
   supplierId?: string | number;
+  onSupplierAdded?: (supplier: {supplier_id: number | string, supp_name: string}) => void;
 }
 
-export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGeneralSettingProps) {
+export default function SupplierGeneralSettingsForm({ supplierId, onSupplierAdded }: SupplierGeneralSettingProps) {
   const [formData, setFormData] = useState({
     supplierName: "",
     supplierShortName: "",
@@ -233,8 +234,9 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
 
       await createCrmContact(crmContactPayload);
 
-      setOpen(true);
-
+      if (onSupplierAdded) {
+        onSupplierAdded({ supplier_id: supplier.supplier_id, supp_name: supplier.supp_name });
+      }
       setFormData({
         supplierName: "",
         supplierShortName: "",
@@ -260,7 +262,9 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
         mailingAddress: "",
         physicalAddress: "",
         generalNotes: "",
-      })
+      });
+      setErrors({});
+      setOpen(true);
 
     } catch (error: any) {
       console.error("Error creating supplier:", error);
@@ -704,7 +708,7 @@ export default function SupplierGeneralSettingsForm({ supplierId }: SupplierGene
         content="Supplier has been added successfully!"
         addFunc={async () => { }}
         handleClose={() => setOpen(false)}
-        onSuccess={() => window.history.back()}
+        onSuccess={() => setOpen(false)}
       />
 
       <ErrorModal
