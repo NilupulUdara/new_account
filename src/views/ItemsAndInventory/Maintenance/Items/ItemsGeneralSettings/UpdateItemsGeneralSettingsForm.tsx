@@ -14,11 +14,20 @@ import {
   Checkbox,
   FormControlLabel,
   Grid,
+  ListSubheader,
 } from "@mui/material";
 import theme from "../../../../../theme";
+import { getChartMasters } from "../../../../../api/GLAccounts/ChartMasterApi";
+import { getItemUnits } from "../../../../../api/ItemUnit/ItemUnitApi";
+import { getItemTaxTypes } from "../../../../../api/ItemTaxType/ItemTaxTypeApi";
+import { getItemCategories } from "../../../../../api/ItemCategories/ItemCategoriesApi";
+import { getItemById, updateItem, deleteItem } from "../../../../../api/Item/ItemApi";
+import { useNavigate, useParams } from "react-router-dom";
+import { getItemTypes } from "../../../../../api/ItemType/ItemType";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 
 interface ItemGeneralSettingProps {
-  itemId: string | number; // ✅ always required now
+  itemId: string | number; //  always required now
 }
 
 export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingProps) {
@@ -36,40 +45,137 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
     salesAccount: "",
     inventoryAccount: "",
     cogsAccount: "",
+    wipAccount: "",
     inventoryAdjustmentAccount: "",
     imageFile: null as File | null,
     itemStatus: "",
   });
 
+  const accountTypeMap: { [key: number]: string } = {
+    1: "Current Assets",
+    2: "Inventory Assets",
+    3: "Capital Assets",
+    4: "Current Liabilities",
+    5: "Long Term Liabilities",
+    6: "Share Capital",
+    7: "Retained Earnings",
+    8: "Sales Revenue",
+    9: "Other Revenue",
+    10: "Cost of Good Sold",
+    11: "Payroll Expenses",
+    12: "General and Adminitrative Expenses",
+  };
+
+  const [itemTypes, setItemTypes] = useState<any[]>([]);
+  const [chartMasters, setChartMasters] = useState<any[]>([]);
+  const [itemTaxTypes, setItemTaxTypes] = useState<any[]>([]);
+  const [unitsOfMeasure, setUnitsOfMeasure] = useState<any[]>([]);
+  const [itemCategories, setItemCategories] = useState<any[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  const queryClient = useQueryClient();
+
+  const selectedItemType = itemTypes.find(
+    (t) => Number(t.id) === Number(formData.itemType)
+  );
+  const isPurchase = selectedItemType?.name?.toLowerCase() === "purchased";
+  const isService = selectedItemType?.name?.toLowerCase() === "service";
 
   // 🔹 preload existing item
   useEffect(() => {
-    if (itemId) {
-      // TODO: replace with API call getItem(itemId)
-      console.log("Fetching item data for:", itemId);
-      setFormData({
-        ...formData,
-        itemCode: "ITM-001",
-        itemName: "Sample Item",
-        description: "Demo item for editing",
-        category: "Category 1",
-        itemTaxType: "Standard",
-        itemType: "Stock",
-        unitOfMeasure: "PCS",
-        salesAccount: "SA-001",
-        inventoryAccount: "INV-001",
-        cogsAccount: "COGS-001",
-        inventoryAdjustmentAccount: "INVADJ-001",
-        itemStatus: "Active",
-        editableDescription: true,
-        excludedFromSales: false,
-        excludedFromPurchases: false,
-        imageFile: null,
-      });
-    }
-    // eslint-disable-next-line
-  }, [itemId]);
+    const fetchData = async () => {
+      try {
+        // Fetch all data in parallel
+        const [chartMastersRes, taxTypesRes, unitsRes, itemTypesRes, itemCategoriesRes] = await Promise.all([
+          getChartMasters(),
+          getItemTaxTypes(),
+          getItemUnits(),
+          getItemTypes(),
+          getItemCategories(),
+        ]);
+
+        const filteredTaxTypes = (taxTypesRes || []).filter((type) => !type.inactive);
+        const filteredUnits = (unitsRes || []).filter((unit) => !unit.inactive);
+        const filteredItemTypes = (itemTypesRes || []).filter((type) => !type.inactive);
+        const filteredItemCategories = (itemCategoriesRes || []).filter((cat) => !cat.inactive);
+
+        setChartMasters(chartMastersRes || []);
+        setItemTaxTypes(filteredTaxTypes);
+        setUnitsOfMeasure(filteredUnits);
+        setItemTypes(filteredItemTypes);
+        setItemCategories(filteredItemCategories);
+
+        // Set default values for dropdowns
+        setFormData((prev) => ({
+          ...prev,
+          // use category_id (API uses this key) for defaults
+          category: filteredItemCategories.length > 0 ? String(filteredItemCategories[0].category_id ?? filteredItemCategories[0].id) : "",
+          itemTaxType: filteredTaxTypes.length > 0 ? String(filteredTaxTypes[0].id) : "",
+          itemType: filteredItemTypes.length > 0 ? String(filteredItemTypes[0].id) : "",
+          unitOfMeasure: filteredUnits.length > 0 ? String(filteredUnits[0].id) : "",
+          salesAccount: chartMastersRes.find((acc) => acc.account_code === "4010")?.account_code || "",
+          inventoryAccount: chartMastersRes.find((acc) => acc.account_code === "1510")?.account_code || "",
+          cogsAccount: chartMastersRes.find((acc) => acc.account_code === "5010")?.account_code || "",
+          inventoryAdjustmentAccount: chartMastersRes.find((acc) => acc.account_code === "5040")?.account_code || "",
+          wipAccount: chartMastersRes.find((acc) => acc.account_code === "1530")?.account_code || "",
+        }));
+      } catch (err) {
+        console.error("Failed to fetch data:", err);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // fetch the specific item by id and populate form
+  const {
+    data: itemData,
+    isLoading: itemLoading,
+    isError: itemError,
+    error: itemFetchError,
+  } = useQuery({
+    queryKey: ["item", itemId],
+    queryFn: () => getItemById(itemId),
+    enabled: !!itemId,
+  });
+
+  // map fetched itemData into form state
+  useEffect(() => {
+    if (!itemData) return;
+    const data = itemData as any;
+    setFormData((prev) => ({
+      ...prev,
+      itemCode: data.stock_id ?? "",
+      itemName: data.description ?? "",
+      description: data.long_description ?? "",
+      category: data.category_id ? String(data.category_id) : prev.category || "",
+      itemTaxType: data.tax_type_id ? String(data.tax_type_id) : prev.itemTaxType || "",
+      itemType: data.mb_flag ? String(data.mb_flag) : prev.itemType || "",
+      unitOfMeasure: data.units ? String(data.units) : prev.unitOfMeasure || "",
+      editableDescription: !!data.editable,
+      excludedFromSales: !!data.no_sale,
+      excludedFromPurchases: !!data.no_purchase,
+      salesAccount: data.sales_account ?? prev.salesAccount ?? "",
+      inventoryAccount: data.inventory_account ?? prev.inventoryAccount ?? "",
+      cogsAccount: data.cogs_account ?? prev.cogsAccount ?? "",
+      wipAccount: data.wip_account ?? prev.wipAccount ?? "",
+      inventoryAdjustmentAccount: data.adjustment_account ?? prev.inventoryAdjustmentAccount ?? "",
+      itemStatus: data.inactive ? "Inactive" : "Active",
+    }));
+  }, [itemData]);
+
+  // mutation to update item
+  const updateMutation = useMutation({
+    mutationFn: (payload: any) => updateItem(itemId, payload),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ["items"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["item", itemId], exact: true });
+      alert("Item updated successfully!");
+    },
+    onError: (err: any) => {
+      console.error("Failed to update item:", err);
+      alert("Failed to update item");
+    },
+  });
 
   const handleChange = (field: string, value: string | boolean | File | null) => {
     setFormData({ ...formData, [field]: value });
@@ -95,10 +201,44 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
   };
 
   const handleUpdate = () => {
-    if (validate()) {
-      console.log("Updated Item:", formData);
-      alert("Item updated successfully!");
-    }
+    if (!validate()) return;
+    const payload = {
+      stock_id: formData.itemCode,
+      category_id: parseInt(formData.category),
+      tax_type_id: parseInt(formData.itemTaxType),
+      description: formData.itemName,
+      long_description: formData.description,
+      units: parseInt(formData.unitOfMeasure),
+      mb_flag: parseInt(formData.itemType),
+      sales_account: formData.salesAccount,
+      inventory_account: formData.inventoryAccount,
+      cogs_account: formData.cogsAccount,
+      adjustment_account: formData.inventoryAdjustmentAccount,
+      wip_account: formData.wipAccount,
+      editable: formData.editableDescription ? 1 : 0,
+      inactive: formData.itemStatus === "Inactive" ? 1 : 0,
+      no_sale: formData.excludedFromSales ? 1 : 0,
+      no_purchase: formData.excludedFromPurchases ? 1 : 0,
+
+      // imageFile handling can be added here if API supports itpurchase_cost: 0,
+      purchase_cost: 0,
+      material_cost: 0,
+      labour_cost: 0,
+      overhead_cost: 0,
+      depreciation_method: "S",
+      depreciation_rate: 0,
+      depreciation_factor: 0,
+      depreciation_start: "2020-10-10",
+      depreciation_date: "2020-10-10",
+      fa_class_id: "FA001",
+    };
+    updateMutation.mutate(payload);
+  };
+
+  const handleSelectChange = (e: any) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    setErrors({ ...errors, [name]: "" });
   };
 
   const handleClone = () => {
@@ -108,32 +248,39 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
     setFormData(cloned);
   };
 
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteItem(itemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["items"], exact: false });
+      alert("Item deleted successfully!");
+    },
+    onError: (err) => {
+      console.error("Failed to delete item:", err);
+      alert("Failed to delete item!");
+    },
+  });
+
   const handleDelete = () => {
     if (window.confirm("Are you sure you want to delete this item?")) {
-      console.log("Deleted Item with ID:", itemId);
-      alert("Item deleted successfully!");
-      // reset form
-      setFormData({
-        itemCode: "",
-        itemName: "",
-        description: "",
-        category: "",
-        itemTaxType: "",
-        itemType: "",
-        unitOfMeasure: "",
-        editableDescription: false,
-        excludedFromSales: false,
-        excludedFromPurchases: false,
-        salesAccount: "",
-        inventoryAccount: "",
-        cogsAccount: "",
-        inventoryAdjustmentAccount: "",
-        imageFile: null,
-        itemStatus: "",
-      });
+      deleteMutation.mutate();
     }
   };
 
+  // show loading / error for fetch-item
+  if (itemLoading) {
+    return (
+      <Stack alignItems="center" sx={{ p: { xs: 2, md: 3 } }}>
+        <Typography>Loading item...</Typography>
+      </Stack>
+    );
+  }
+  if (itemError) {
+    return (
+      <Stack alignItems="center" sx={{ p: { xs: 2, md: 3 } }}>
+        <Typography color="error">Failed to load item</Typography>
+      </Stack>
+    );
+  }
   return (
     <Stack alignItems="center" sx={{ p: { xs: 2, md: 3 } }}>
       <Box
@@ -151,196 +298,376 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
         </Typography>
 
         <Grid container spacing={4}>
-                  {/* General Settings */}
-                  <Grid item xs={12} md={6}>
-                    <Stack spacing={2}>
-                      <Typography variant="subtitle1">General</Typography>
-                      <Divider />
-                      <TextField
-                        label="Item Code"
-                        value={formData.itemCode}
-                        onChange={(e) => handleChange("itemCode", e.target.value)}
-                        size="small"
-                        fullWidth
-                        error={!!errors.itemCode}
-                        helperText={errors.itemCode}
-                      />
-                      <TextField
-                        label="Name"
-                        value={formData.itemName}
-                        onChange={(e) => handleChange("itemName", e.target.value)}
-                        size="small"
-                        fullWidth
-                        error={!!errors.itemName}
-                        helperText={errors.itemName}
-                      />
-                      <TextField
-                        label="Description"
-                        value={formData.description}
-                        onChange={(e) => handleChange("description", e.target.value)}
-                        size="small"
-                        fullWidth
-                        error={!!errors.description}
-                        helperText={errors.description}
-                      />
-                      <FormControl size="small" fullWidth error={!!errors.category}>
-                        <InputLabel>Category</InputLabel>
-                        <Select
-                          value={formData.category}
-                          onChange={(e) => handleChange("category", e.target.value)}
-                        >
-                          <MenuItem value="Category 1">Category 1</MenuItem>
-                          <MenuItem value="Category 2">Category 2</MenuItem>
-                        </Select>
-                        <FormHelperText>{errors.category}</FormHelperText>
-                      </FormControl>
-                      <FormControl size="small" fullWidth error={!!errors.itemTaxType}>
-                        <InputLabel>Item Tax Type</InputLabel>
-                        <Select
-                          value={formData.itemTaxType}
-                          onChange={(e) => handleChange("itemTaxType", e.target.value)}
-                        >
-                          <MenuItem value="Standard">Standard</MenuItem>
-                          <MenuItem value="Exempt">Exempt</MenuItem>
-                        </Select>
-                        <FormHelperText>{errors.itemTaxType}</FormHelperText>
-                      </FormControl>
-                      <FormControl size="small" fullWidth error={!!errors.itemType}>
-                        <InputLabel>Item Type</InputLabel>
-                        <Select
-                          value={formData.itemType}
-                          onChange={(e) => handleChange("itemType", e.target.value)}
-                        >
-                          <MenuItem value="Stock">Stock</MenuItem>
-                          <MenuItem value="Non-Stock">Non-Stock</MenuItem>
-                        </Select>
-                        <FormHelperText>{errors.itemType}</FormHelperText>
-                      </FormControl>
-                      <FormControl size="small" fullWidth error={!!errors.unitOfMeasure}>
-                        <InputLabel>Unit of Measure</InputLabel>
-                        <Select
-                          value={formData.unitOfMeasure}
-                          onChange={(e) => handleChange("unitOfMeasure", e.target.value)}
-                        >
-                          <MenuItem value="PCS">PCS</MenuItem>
-                          <MenuItem value="KG">KG</MenuItem>
-                        </Select>
-                        <FormHelperText>{errors.unitOfMeasure}</FormHelperText>
-                      </FormControl>
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={formData.editableDescription}
-                            onChange={(e) => handleChange("editableDescription", e.target.checked)}
-                          />
-                        }
-                        label="Editable Description"
-                      />
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={formData.excludedFromSales}
-                            onChange={(e) => handleChange("excludedFromSales", e.target.checked)}
-                          />
-                        }
-                        label="Excluded from Sales"
-                      />
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={formData.excludedFromPurchases}
-                            onChange={(e) => handleChange("excludedFromPurchases", e.target.checked)}
-                          />
-                        }
-                        label="Excluded from Purchases"
-                      />
-                    </Stack>
-                  </Grid>
-        
-                  {/* GL Accounts */}
-                  <Grid item xs={12} md={6}>
-                    <Stack spacing={4}>
-                      <Stack spacing={2}>
-                        <Typography variant="subtitle1">GL Account</Typography>
-                        <Divider />
-                        <FormControl size="small" fullWidth error={!!errors.salesAccount}>
-                          <InputLabel>Sales Account</InputLabel>
-                          <Select
-                            value={formData.salesAccount}
-                            onChange={(e) => handleChange("salesAccount", e.target.value)}
+          {/* General Settings */}
+          <Grid item xs={12} md={6}>
+            <Stack spacing={2}>
+              <Typography variant="subtitle1">General</Typography>
+              <Divider />
+              <TextField
+                label="Item Code"
+                value={formData.itemCode}
+                onChange={(e) => handleChange("itemCode", e.target.value)}
+                size="small"
+                fullWidth
+                error={!!errors.itemCode}
+                helperText={errors.itemCode}
+                disabled
+              />
+              <TextField
+                label="Name"
+                value={formData.itemName}
+                onChange={(e) => handleChange("itemName", e.target.value)}
+                size="small"
+                fullWidth
+                error={!!errors.itemName}
+                helperText={errors.itemName}
+              />
+              <TextField
+                label="Description"
+                value={formData.description}
+                onChange={(e) => handleChange("description", e.target.value)}
+                size="small"
+                fullWidth
+                error={!!errors.description}
+                helperText={errors.description}
+              />
+              <FormControl size="small" fullWidth error={!!errors.category}>
+                <InputLabel>Category</InputLabel>
+                <Select
+                  value={formData.category}
+                  name="category"
+                  onChange={handleSelectChange} // same as other dropdowns
+                >
+                  {itemCategories.map((cat) => (
+                    <MenuItem key={cat.category_id} value={String(cat.category_id ?? cat.id)}>
+                      {cat.description}
+                    </MenuItem>
+                  ))}
+                </Select>
+                <FormHelperText>{errors.category}</FormHelperText>
+              </FormControl>
+              <FormControl size="small" fullWidth error={!!errors.itemTaxType}>
+                <InputLabel>Item Tax Type</InputLabel>
+                <Select
+                  name="itemTaxType"
+                  value={formData.itemTaxType}
+                  onChange={handleSelectChange}
+                  label="Item Tax Type"
+                >
+                  {itemTaxTypes.map((type) => (
+                    <MenuItem key={type.id} value={String(type.id)}>
+                      {type.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+                <FormHelperText>{errors.itemTaxType}</FormHelperText>
+              </FormControl>
+              <FormControl size="small" fullWidth error={!!errors.itemType}>
+                <InputLabel>Item Type</InputLabel>
+                <Select
+                  name="itemType"
+                  value={formData.itemType}
+                  onChange={handleSelectChange}
+                  label="Item Type"
+                >
+                  {itemTypes.map((type) => (
+                    <MenuItem key={type.id} value={String(type.id)}>
+                      {type.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+                <FormHelperText>{errors.itemType}</FormHelperText>
+              </FormControl>
+              <FormControl size="small" fullWidth error={!!errors.unitOfMeasure}>
+                <InputLabel>Unit of Measure</InputLabel>
+                <Select
+                  name="unitOfMeasure"
+                  value={formData.unitOfMeasure}
+                  onChange={handleSelectChange}
+                  label="Unit of Measure"
+                >
+                  {unitsOfMeasure.map((unit) => (
+                    <MenuItem key={unit.id} value={String(unit.id)}>
+                      {unit.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+                <FormHelperText>{errors.unitOfMeasure}</FormHelperText>
+              </FormControl>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.editableDescription}
+                    onChange={(e) => handleChange("editableDescription", e.target.checked)}
+                  />
+                }
+                label="Editable Description"
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.excludedFromSales}
+                    onChange={(e) => handleChange("excludedFromSales", e.target.checked)}
+                  />
+                }
+                label="Excluded from Sales"
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.excludedFromPurchases}
+                    onChange={(e) => handleChange("excludedFromPurchases", e.target.checked)}
+                  />
+                }
+                label="Excluded from Purchases"
+              />
+            </Stack>
+          </Grid>
+
+          {/* GL Accounts */}
+          <Grid item xs={12} md={6}>
+            <Stack spacing={4}>
+              <Stack spacing={2}>
+                <Typography variant="subtitle1">GL Account</Typography>
+                <Divider />
+                {/* Sales Account */}
+                <FormControl size="small" fullWidth error={!!errors.salesAccount}>
+                  <InputLabel>Sales Account</InputLabel>
+                  <Select
+                    name="salesAccount"
+                    value={formData.salesAccount}
+                    onChange={handleSelectChange}
+                    label="Sales Account"
+                  >
+                    {Object.entries(
+                      chartMasters.reduce((acc: any, item: any) => {
+                        const type = item.account_type || "Unknown";
+                        if (!acc[type]) acc[type] = [];
+                        acc[type].push(item);
+                        return acc;
+                      }, {})
+                    ).flatMap(([typeKey, accounts]: any) => {
+                      const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+                      return [
+                        <ListSubheader key={`header-${typeKey}`}>
+                          {typeText}
+                        </ListSubheader>,
+                        ...accounts.map((acc: any) => (
+                          <MenuItem
+                            key={acc.account_code}
+                            value={acc.account_code}
                           >
-                            <MenuItem value="SA-001">SA-001</MenuItem>
-                            <MenuItem value="SA-002">SA-002</MenuItem>
-                          </Select>
-                          <FormHelperText>{errors.salesAccount}</FormHelperText>
-                        </FormControl>
-                        <FormControl size="small" fullWidth error={!!errors.inventoryAccount}>
-                          <InputLabel>Inventory Account</InputLabel>
-                          <Select
-                            value={formData.inventoryAccount}
-                            onChange={(e) => handleChange("inventoryAccount", e.target.value)}
+                            {acc.account_code} - {acc.account_name}
+                          </MenuItem>
+                        )),
+                      ];
+                    })}
+                  </Select>
+                  <FormHelperText>{errors.salesAccount || " "}</FormHelperText>
+                </FormControl>
+
+                {/* Inventory Account */}
+                {!isService && (
+                  <FormControl
+                    size="small"
+                    fullWidth
+                    error={!!errors.inventoryAccount}
+                  >
+                    <InputLabel>Inventory Account</InputLabel>
+                    <Select
+                      name="inventoryAccount"
+                      value={formData.inventoryAccount}
+                      onChange={handleSelectChange}
+                      label="Inventory Account"
+                    >
+                      {Object.entries(
+                        chartMasters.reduce((acc: any, item: any) => {
+                          const type = item.account_type || "Unknown";
+                          if (!acc[type]) acc[type] = [];
+                          acc[type].push(item);
+                          return acc;
+                        }, {})
+                      ).flatMap(([typeKey, accounts]: any) => {
+                        const typeText =
+                          accountTypeMap[Number(typeKey)] || "Unknown";
+                        return [
+                          <ListSubheader key={`header-${typeKey}`}>
+                            {typeText}
+                          </ListSubheader>,
+                          ...accounts.map((acc: any) => (
+                            <MenuItem
+                              key={acc.account_code}
+                              value={acc.account_code}
+                            >
+                              {acc.account_code} - {acc.account_name}
+                            </MenuItem>
+                          )),
+                        ];
+                      })}
+                    </Select>
+                    <FormHelperText>
+                      {errors.inventoryAccount || " "}
+                    </FormHelperText>
+                  </FormControl>
+                )}
+
+                {/* C.O.G.S Account */}
+                <FormControl size="small" fullWidth error={!!errors.cogsAccount}>
+                  <InputLabel>C.O.G.S. Account</InputLabel>
+                  <Select
+                    name="cogsAccount"
+                    value={formData.cogsAccount}
+                    onChange={handleSelectChange}
+                    label="C.O.G.S. Account"
+                  >
+                    {Object.entries(
+                      chartMasters.reduce((acc: any, item: any) => {
+                        const type = item.account_type || "Unknown";
+                        if (!acc[type]) acc[type] = [];
+                        acc[type].push(item);
+                        return acc;
+                      }, {})
+                    ).flatMap(([typeKey, accounts]: any) => {
+                      const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+                      return [
+                        <ListSubheader key={`header-${typeKey}`}>
+                          {typeText}
+                        </ListSubheader>,
+                        ...accounts.map((acc: any) => (
+                          <MenuItem
+                            key={acc.account_code}
+                            value={acc.account_code}
                           >
-                            <MenuItem value="INV-001">INV-001</MenuItem>
-                            <MenuItem value="INV-002">INV-002</MenuItem>
-                          </Select>
-                          <FormHelperText>{errors.inventoryAccount}</FormHelperText>
-                        </FormControl>
-                        <FormControl size="small" fullWidth error={!!errors.cogsAccount}>
-                          <InputLabel>C.O.G.S. Account</InputLabel>
-                          <Select
-                            value={formData.cogsAccount}
-                            onChange={(e) => handleChange("cogsAccount", e.target.value)}
-                          >
-                            <MenuItem value="COGS-001">COGS-001</MenuItem>
-                            <MenuItem value="COGS-002">COGS-002</MenuItem>
-                          </Select>
-                          <FormHelperText>{errors.cogsAccount}</FormHelperText>
-                        </FormControl>
-                        <FormControl size="small" fullWidth error={!!errors.inventoryAdjustmentAccount}>
-                          <InputLabel>Inventory Adjustment Account</InputLabel>
-                          <Select
-                            value={formData.inventoryAdjustmentAccount}
-                            onChange={(e) => handleChange("inventoryAdjustmentAccount", e.target.value)}
-                          >
-                            <MenuItem value="INVADJ-001">INVADJ-001</MenuItem>
-                            <MenuItem value="INVADJ-002">INVADJ-002</MenuItem>
-                          </Select>
-                          <FormHelperText>{errors.inventoryAdjustmentAccount}</FormHelperText>
-                        </FormControl>
-                      </Stack>
-        
-        
-                      {/* Other */}
-        
-                      <Stack spacing={2}>
-                        <Typography variant="subtitle1">Other</Typography>
-                        <Divider />
-                        <Button
-                          variant="outlined"
-                          component="label"
-                        >
-                          Upload Image (.jpg)
-                          <input
-                            type="file"
-                            hidden
-                            accept=".jpg"
-                            onChange={(e) => handleChange("imageFile", e.target.files ? e.target.files[0] : null)}
-                          />
-                        </Button>
-                        <FormControl size="small" fullWidth>
-                          <InputLabel>Item Status</InputLabel>
-                          <Select
-                            value={formData.itemStatus}
-                            onChange={(e) => handleChange("itemStatus", e.target.value)}
-                          >
-                            <MenuItem value="Active">Active</MenuItem>
-                            <MenuItem value="Inactive">Inactive</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Stack>
-                    </Stack>
-                  </Grid>
-                </Grid>
+                            {acc.account_code} - {acc.account_name}
+                          </MenuItem>
+                        )),
+                      ];
+                    })}
+                  </Select>
+                  <FormHelperText>{errors.cogsAccount || " "}</FormHelperText>
+                </FormControl>
+
+                {!isService && (
+                  <FormControl
+                    size="small"
+                    fullWidth
+                    error={!!errors.inventoryAdjustmentAccount}
+                  >
+                    <InputLabel>Inventory Adjustment Account</InputLabel>
+                    <Select
+                      name="inventoryAdjustmentAccount"
+                      value={formData.inventoryAdjustmentAccount}
+                      onChange={handleSelectChange}
+                      label="Inventory Adjustment Account"
+                    >
+                      {Object.entries(
+                        chartMasters.reduce((acc: any, item: any) => {
+                          const type = item.account_type || "Unknown";
+                          if (!acc[type]) acc[type] = [];
+                          acc[type].push(item);
+                          return acc;
+                        }, {})
+                      ).flatMap(([typeKey, accounts]: any) => {
+                        const typeText =
+                          accountTypeMap[Number(typeKey)] || "Unknown";
+                        return [
+                          <ListSubheader key={`header-${typeKey}`}>
+                            {typeText}
+                          </ListSubheader>,
+                          ...accounts.map((acc: any) => (
+                            <MenuItem
+                              key={acc.account_code}
+                              value={acc.account_code}
+                            >
+                              {acc.account_code} - {acc.account_name}
+                            </MenuItem>
+                          )),
+                        ];
+                      })}
+                    </Select>
+                    <FormHelperText>
+                      {errors.inventoryAdjustmentAccount || " "}
+                    </FormHelperText>
+                  </FormControl>
+                )}
+
+                {!isPurchase && !isService && (
+                  <FormControl
+                    size="small"
+                    fullWidth
+                    error={!!errors.itemAssemblyCostAccount}
+                  >
+                    <InputLabel>WIP Account</InputLabel>
+                    <Select
+                      name="wipAccount"
+                      value={formData.wipAccount}
+                      onChange={handleSelectChange}
+                      label="Item Assembly Cost Account"
+                    >
+                      {Object.entries(
+                        chartMasters.reduce((acc: any, item: any) => {
+                          const type = item.account_type || "Unknown";
+                          if (!acc[type]) acc[type] = [];
+                          acc[type].push(item);
+                          return acc;
+                        }, {})
+                      ).flatMap(([typeKey, accounts]: any) => {
+                        const typeText =
+                          accountTypeMap[Number(typeKey)] || "Unknown";
+                        return [
+                          <ListSubheader key={`header-${typeKey}`}>
+                            {typeText}
+                          </ListSubheader>,
+                          ...accounts.map((acc: any) => (
+                            <MenuItem
+                              key={acc.account_code}
+                              value={acc.account_code}
+                            >
+                              {acc.account_code} - {acc.account_name}
+                            </MenuItem>
+                          )),
+                        ];
+                      })}
+                    </Select>
+                    <FormHelperText>
+                      {errors.wipAccount || " "}
+                    </FormHelperText>
+                  </FormControl>
+                )}
+              </Stack>
+
+
+              {/* Other */}
+
+              <Stack spacing={2}>
+                <Typography variant="subtitle1">Other</Typography>
+                <Divider />
+                <Button
+                  variant="outlined"
+                  component="label"
+                >
+                  Upload Image (.jpg)
+                  <input
+                    type="file"
+                    hidden
+                    accept=".jpg"
+                    onChange={(e) => handleChange("imageFile", e.target.files ? e.target.files[0] : null)}
+                  />
+                </Button>
+                <FormControl size="small" fullWidth>
+                  <InputLabel>Item Status</InputLabel>
+                  <Select
+                    value={formData.itemStatus}
+                    onChange={(e) => handleChange("itemStatus", e.target.value)}
+                  >
+                    <MenuItem value="Active">Active</MenuItem>
+                    <MenuItem value="Inactive">Inactive</MenuItem>
+                  </Select>
+                </FormControl>
+              </Stack>
+            </Stack>
+          </Grid>
+        </Grid>
 
         <Box
           sx={{
@@ -351,16 +678,16 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
             gap: theme.spacing(2),
           }}
         >
-          <Button variant="outlined" fullWidth onClick={() => window.history.back()}>
+          <Button variant="outlined" sx={{ width: '140px' }} onClick={() => window.history.back()}>
             Back
           </Button>
-          <Button variant="contained" color="primary" onClick={handleUpdate}>
+          <Button variant="contained" color="primary" sx={{ width: '140px' }} onClick={handleUpdate}>
             Update Item
           </Button>
-          <Button variant="contained" color="secondary" onClick={handleClone}>
+          <Button variant="contained" color="secondary" sx={{ width: '140px' }} onClick={handleClone}>
             Clone Item
           </Button>
-          <Button variant="outlined" color="error" onClick={handleDelete}>
+          <Button variant="outlined" color="error" sx={{ width: '140px' }} onClick={handleDelete}>
             Delete Item
           </Button>
         </Box>

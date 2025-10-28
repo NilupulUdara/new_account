@@ -82,7 +82,7 @@ export default function UpdateItemCategoriesForm() {
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const queryClient = useQueryClient();
 
-  // ✅ FIXED HERE: Proper number comparison
+  // FIXED HERE: Proper number comparison
   const selectedItemType = itemTypes.find(
     (t) => Number(t.id) === Number(formData.itemType)
   );

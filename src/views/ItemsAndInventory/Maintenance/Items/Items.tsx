@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Box,
   Button,
@@ -10,10 +10,15 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  ListSubheader,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router";
-// import { getItems } from "../../../../../api/Item/ItemApi";
+import { getItems } from "../../../../api/Item/ItemApi";
+import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { useQuery } from "@tanstack/react-query";
 
 // Import item-specific components
 import ItemGeneralSettingsForm from "./ItemsGeneralSettings/ItemsGeneralSettingsForm";
@@ -36,21 +41,20 @@ const Items = () => {
   const [tabValue, setTabValue] = useState(0);
 
   // Item dropdown state
-  const [items, setItems] = useState<{ id: string | number; item_name: string }[]>([]);
   const [selectedItem, setSelectedItem] = useState<string | number>("new");
+  const [showInactive, setShowInactive] = useState(false);
 
-  // Fetch items from backend
-  // useEffect(() => {
-  //   const fetchItems = async () => {
-  //     try {
-  //       const data = await getItems();
-  //       setItems(data);
-  //     } catch (error) {
-  //       console.error("Failed to load items:", error);
-  //     }
-  //   };
-  //   fetchItems();
-  // }, []);
+  // Fetch items using React Query
+  const { data: items = [] } = useQuery<{ stock_id: string | number; category_id: string | number; description: string; inactive: number }[]>({
+    queryKey: ["items"],
+    queryFn: () => getItems() as Promise<{ stock_id: string | number; category_id: string | number; description: string; inactive: number }[]>,
+  });
+
+  // Fetch categories using React Query
+  const { data: categories = [] } = useQuery<{ category_id: number; description: string }[]>({
+    queryKey: ["itemCategories"],
+    queryFn: () => getItemCategories() as Promise<{ category_id: number; description: string }[]>,
+  });
 
   // Tab change handler
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -65,7 +69,7 @@ const Items = () => {
 
   return (
     <Stack sx={{ minHeight: "100vh", backgroundColor: "#f0f0f0", p: { xs: 2, sm: 3, md: 5 } }} spacing={3}>
-      
+
       {/* Header + Dropdown + Back */}
       <Box
         sx={{
@@ -80,24 +84,57 @@ const Items = () => {
           Manage Items
         </Typography>
 
-        {/* Item dropdown */}
-        <FormControl sx={{ minWidth: 250 }}>
-          <InputLabel>Select Item</InputLabel>
-          <Select
-            value={selectedItem}
-            label="Select Item"
-            onChange={(e) => handleItemChange(e.target.value)}
-          >
-            <MenuItem value="new" key="new">
-              + Add New Item
-            </MenuItem>
-            {items.map((item) => (
-              <MenuItem key={item.id} value={item.id}>
-                {item.item_name}
+        {/* Item dropdown and checkbox */}
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <FormControl sx={{ minWidth: 250 }}>
+            <InputLabel>Select Item</InputLabel>
+            <Select
+              value={selectedItem}
+              label="Select Item"
+              onChange={(e) => handleItemChange(e.target.value)}
+            >
+              <MenuItem value="new" key="new">
+                + Add New Item
               </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+
+              {/* Group items by category_id */}
+              {(() => {
+                const filteredItems = items.filter(item => showInactive || item.inactive !== 1);
+                return Object.entries(
+                  filteredItems.reduce((groups, item) => {
+                    const catId = item.category_id || "Uncategorized";
+                    if (!groups[catId]) groups[catId] = [];
+                    groups[catId].push(item);
+                    return groups;
+                  }, {} as Record<string, typeof filteredItems>)
+                ).map(([categoryId, groupedItems]) => {
+                  const category = categories.find(cat => cat.category_id === Number(categoryId));
+                  const categoryLabel = category ? category.description : `Category ${categoryId}`;
+                  return [
+                    <ListSubheader key={`cat-${categoryId}`}>
+                      {categoryLabel}
+                    </ListSubheader>,
+                    groupedItems.map((item) => (
+                      <MenuItem key={item.stock_id} value={item.stock_id}>
+                        {item.description}
+                      </MenuItem>
+                    ))
+                  ];
+                });
+              })()}
+            </Select>
+          </FormControl>
+
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={showInactive}
+                onChange={(e) => setShowInactive(e.target.checked)}
+              />
+            }
+            label="Show Inactive Items"
+          />
+        </Stack>
 
         {/* Back Button */}
         <Button
@@ -132,7 +169,7 @@ const Items = () => {
       {/* Tab Panels */}
       <TabPanel value={tabValue} index={0}>
         {selectedItem === "new" ? (
-          <ItemGeneralSettingsForm />
+          <ItemGeneralSettingsForm/>
         ) : (
           <UpdateItemGeneralSettingsForm itemId={selectedItem} />
         )}
