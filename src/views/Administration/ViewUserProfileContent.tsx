@@ -230,11 +230,6 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
             value={selectedUser?.role}
             sx={{ flex: 1 }}
           />
-          <DrawerContentItem
-            label="Gender"
-            value={selectedUser?.gender}
-            sx={{ flex: 1 }}
-          />
         </Stack>
 
         <Stack

@@ -12,7 +12,7 @@ import {
   MenuItem,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 
 // Import your form/table components
@@ -67,14 +67,49 @@ const AddAndManageCustomers = () => {
     }
   }, []);
 
+  const location = useLocation();
+
   // Tab change handler
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
+
+    // persist tab in URL so it survives refresh
+    try {
+      const params = new URLSearchParams(location.search);
+      params.set("tab", String(newValue));
+      // keep customer param as-is (if present)
+      const qs = params.toString();
+      if (qs) navigate(`${location.pathname}?${qs}`, { replace: true });
+      else navigate(location.pathname, { replace: true });
+    } catch (err) {
+      // ignore
+    }
   };
 
   // Customer select handler
   const handleCustomerChange = (value: string | number) => {
     setSelectedCustomer(value);
+
+    try {
+      const params = new URLSearchParams(location.search);
+      if (value === "new") {
+        // remove customer and reset tab
+        params.delete("customer");
+        params.set("tab", "0");
+        const qs = params.toString();
+        if (qs) navigate(`${location.pathname}?${qs}`, { replace: true });
+        else navigate(location.pathname, { replace: true });
+        setTabValue(0);
+      } else {
+        params.set("customer", String(value));
+        params.set("tab", String(tabValue));
+        const qs = params.toString();
+        navigate(`${location.pathname}?${qs}`, { replace: true });
+      }
+    } catch (err) {
+      // ignore
+    }
+
     // only switch to General Settings when creating a new customer
     if (value === "new") setTabValue(0);
   };

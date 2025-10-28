@@ -263,17 +263,14 @@ export async function updateUserProfileImage({
 export async function updateUserProfileDetails({
   id,
   name,
-  gender,
   telephone,
 }: {
   id: number;
   name: string;
-  gender: string;
   telephone: string;
 }) {
   const data = {
     name,
-    gender,
     telephone,
   };
 

@@ -62,8 +62,8 @@ function LoginForm() {
         if (data?.user) queryClient.setQueryData(["current-user"], data.user);
 
         // Ensure queries use the new token and AuthContext has up-to-date permissions
-  await queryClient.invalidateQueries({ queryKey: ["current-user"] });
-  await queryClient.refetchQueries({ queryKey: ["current-user"] });
+        await queryClient.invalidateQueries({ queryKey: ["current-user"] });
+        await queryClient.refetchQueries({ queryKey: ["current-user"] });
         await reloadPermissions();
 
         enqueueSnackbar("Welcome Back!", { variant: "success" });
