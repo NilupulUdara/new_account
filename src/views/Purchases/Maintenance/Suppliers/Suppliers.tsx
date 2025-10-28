@@ -174,7 +174,10 @@ const AddAndManageSuppliers = () => {
       {/* Tab Panels */}
       <TabPanel value={tabValue} index={0}>
         {selectedSupplier === "new" ? (
-          <GeneralSettingsForm />
+          <GeneralSettingsForm onSupplierAdded={(newSupp) => {
+            setSuppliers(prev => [...prev, newSupp]);
+            setSelectedSupplier(newSupp.supplier_id);
+          }} />
         ) : (
           <UpdateGeneralSettingsForm supplierId={selectedSupplier} />
         )}

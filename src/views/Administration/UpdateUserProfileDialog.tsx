@@ -85,7 +85,6 @@ export default function UpdateUserProfile({
     profileUpdateMutation({
       id: data.id!,
       name: data.first_name!,
-      gender: data.gender!,
       telephone: data.telephone,
     });
   };

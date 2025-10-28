@@ -176,7 +176,10 @@ const AddAndManageCustomers = () => {
       {/* Tab Panels */}
       <TabPanel value={tabValue} index={0}>
         {selectedCustomer === "new" ? (
-          <GeneralSettingsForm />
+          <GeneralSettingsForm onCustomerAdded={(newCust) => {
+            setCustomers(prev => [...prev, newCust]);
+            setSelectedCustomer(newCust.debtor_no);
+          }} />
         ) : (
           <UpdateGeneralSettingsForm customerId={selectedCustomer} />
         )}

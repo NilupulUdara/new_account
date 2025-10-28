@@ -37,7 +37,7 @@ interface CompanyFormData {
   official_company_number: string;
   GSTNo: string;
   home_currency_id: string;
-  new_company_logo: string;
+  new_company_logo: File | null;
   delete_company_logo: boolean;
   timezone_on_reports: boolean;
   company_logo_on_reports: boolean;
@@ -82,7 +82,7 @@ export default function CompanySetupForm() {
     official_company_number: "",
     GSTNo: "",
     home_currency_id: "",
-    new_company_logo: "",
+    new_company_logo: null,
     delete_company_logo: false,
     timezone_on_reports: false,
     company_logo_on_reports: false,
@@ -184,12 +184,12 @@ export default function CompanySetupForm() {
     const name = target?.name;
     if (!name) return;
 
-    let value: string | boolean;
+    let value: string | boolean | File | null;
     if (param !== undefined && typeof param === 'boolean') {
       // Checkbox
       value = param;
     } else if (target.type === 'file') {
-      value = target.files ? target.files[0]?.name || '' : '';
+      value = target.files ? target.files[0] : null;
     } else {
       value = target.value;
     }
@@ -205,9 +205,21 @@ export default function CompanySetupForm() {
 
     if (isValid) {
       try {
-        const payload = formData;
+        const formDataToSend = new FormData();
+        for (const key in formData) {
+          const value = (formData as any)[key];
+          if (value !== null && value !== undefined && value !== '') {
+            if (value instanceof File) {
+              formDataToSend.append(key, value);
+            } else if (typeof value === 'boolean') {
+              formDataToSend.append(key, value ? '1' : '0');
+            } else {
+              formDataToSend.append(key, String(value));
+            }
+          }
+        }
 
-        await createCompany(payload);
+        await createCompany(formDataToSend);
         setOpen(true);
       } catch (error: any) {
         console.error(error);
