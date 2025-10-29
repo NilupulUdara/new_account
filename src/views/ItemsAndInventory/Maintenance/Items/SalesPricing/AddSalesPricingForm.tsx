@@ -15,13 +15,14 @@ import {
   useTheme,
   useMediaQuery,
 } from "@mui/material";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import theme from "../../../../../theme";
 import { getCurrencies } from "../../../../../api/Currency/currencyApi";
 import { getSalesTypes } from "../../../../../api/SalesMaintenance/salesService";
 import { createSalesPricing } from "../../../../../api/SalesPricing/SalesPricingApi";
 
 interface SalesPricingFormData {
+  stock_id: number | "";
   currency_id: number | "";
   sales_type_id: number | "";
   price: string;
@@ -29,6 +30,7 @@ interface SalesPricingFormData {
 
 // Separate type for errors
 interface SalesPricingFormErrors {
+  stock_id?: string;
   currency_id?: string;
   sales_type_id?: string;
   price?: string;
@@ -46,7 +48,9 @@ interface SalesType {
 }
 
 export default function AddSalesPricingForm() {
+  const { itemId } = useParams<{ itemId: string }>();
   const [formData, setFormData] = useState<SalesPricingFormData>({
+    stock_id: itemId ? Number(itemId) : "",
     currency_id: "",
     sales_type_id: "",
     price: "",
@@ -90,6 +94,7 @@ export default function AddSalesPricingForm() {
 
   const validate = () => {
     const newErrors: SalesPricingFormErrors = {};
+    if (!formData.stock_id) newErrors.stock_id = "Stock ID is required";
     if (!formData.currency_id) newErrors.currency_id = "Currency is required";
     if (!formData.sales_type_id) newErrors.sales_type_id = "Sales Type is required";
     if (!formData.price) newErrors.price = "Price is required";
@@ -102,12 +107,13 @@ export default function AddSalesPricingForm() {
     if (!validate()) return;
     try {
       await createSalesPricing({
+        stock_id: formData.stock_id,
         currency_id: formData.currency_id,
         sales_type_id: formData.sales_type_id,
         price: Number(formData.price),
       });
       alert("Sales Pricing added successfully!");
-      navigate("/itemsandinventory/maintenance/items/sales-pricing");
+      navigate("/itemsandinventory/maintenance/items", { state: { tab: 1, selectedItem: itemId } });
     } catch (error) {
       console.error("API Error:", error);
       alert("Failed to add Sales Pricing");
@@ -178,7 +184,7 @@ export default function AddSalesPricingForm() {
             gap: isMobile ? 2 : 0,
           }}
         >
-          <Button onClick={() => navigate("/itemsandinventory/maintenance/items/sales-pricing")}>
+          <Button onClick={() => navigate("/itemsandinventory/maintenance/items", { state: { tab: 1, selectedItem: itemId } })}>
             Back
           </Button>
 

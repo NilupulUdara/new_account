@@ -225,12 +225,12 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
       material_cost: 0,
       labour_cost: 0,
       overhead_cost: 0,
-      depreciation_method: "S",
+      depreciation_method: null,
       depreciation_rate: 0,
       depreciation_factor: 0,
       depreciation_start: "2020-10-10",
       depreciation_date: "2020-10-10",
-      fa_class_id: "FA001",
+      fa_class_id: null,
     };
     updateMutation.mutate(payload);
   };

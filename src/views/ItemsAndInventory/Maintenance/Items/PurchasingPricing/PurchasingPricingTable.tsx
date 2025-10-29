@@ -15,6 +15,7 @@ import {
   Typography,
   useMediaQuery,
   Theme,
+  CircularProgress,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -24,71 +25,84 @@ import theme from "../../../../../theme";
 import Breadcrumb from "../../../../../components/BreadCrumb";
 import PageTitle from "../../../../../components/PageTitle";
 import SearchBar from "../../../../../components/SearchBar";
+import { getPurchData, PurchData, deletePurchData } from "../../../../../api/PurchasingPricing/PurchasingPricingApi";
+import { getSuppliers } from "../../../../../api/Supplier/SupplierApi";
 
 interface ItemPurchasinPricingProps {
   itemId?: string | number;
 }
 
+interface Supplier {
+  supplier_id: number;
+  supp_name: string;
+}
+
 interface PurchasingPricing {
-  id: number;
-  supplier: string;
+  supplier_id: number;
+  stock_id: string;
   price: number;
-  currency: string;
-  supplierUnit: string;
-  conversionFactor: number;
-  supplierDescription: string;
+  suppliers_uom: string;
+  conversion_factor: number;
+  supplier_description?: string;
+  supplier_name?: string; // Added for display
 }
 
 function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
   const [purchaseData, setPurchaseData] = useState<PurchasingPricing[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
 
-  // Dummy data
+  // Fetch data from backend
   useEffect(() => {
-    const dummyData: PurchasingPricing[] = [
-      {
-        id: 1,
-        supplier: "ABC Traders",
-        price: 50,
-        currency: "USD",
-        supplierUnit: "Box",
-        conversionFactor: 10,
-        supplierDescription: "ABC Item 123",
-      },
-      {
-        id: 2,
-        supplier: "XYZ Supplies",
-        price: 45,
-        currency: "USD",
-        supplierUnit: "Pack",
-        conversionFactor: 5,
-        supplierDescription: "XYZ Special Pack",
-      },
-      {
-        id: 3,
-        supplier: "Global Imports",
-        price: 12000,
-        currency: "LKR",
-        supplierUnit: "Carton",
-        conversionFactor: 20,
-        supplierDescription: "Sri Lanka Carton",
-      },
-    ];
-    setPurchaseData(dummyData);
-  }, []);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+
+        // Fetch purchasing pricing data
+        const purchData = await getPurchData();
+
+        // Fetch suppliers for name mapping
+        const suppliersData = await getSuppliers();
+        setSuppliers(suppliersData);
+
+        // Filter by itemId if provided and map supplier names
+        let filteredData = purchData;
+        if (itemId) {
+          filteredData = purchData.filter(item => item.stock_id === itemId.toString());
+        }
+
+        // Map supplier names
+        const dataWithSupplierNames = filteredData.map(item => ({
+          ...item,
+          supplier_name: suppliersData.find(s => s.supplier_id === item.supplier_id)?.supp_name || 'Unknown Supplier'
+        }));
+
+        setPurchaseData(dataWithSupplierNames);
+      } catch (error) {
+        console.error("Failed to fetch purchasing pricing data:", error);
+        setPurchaseData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [itemId]);
 
   // Filter by search
   const filteredData = useMemo(() => {
     return purchaseData.filter((item) => {
       return (
-        item.supplier.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.supplierDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.currency.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.price.toString().includes(searchQuery)
+        (item.supplier_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.supplier_description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.suppliers_uom.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.price.toString().includes(searchQuery) ||
+        item.stock_id.toLowerCase().includes(searchQuery.toLowerCase())
       );
     });
   }, [purchaseData, searchQuery]);
@@ -106,9 +120,25 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
     setPage(0);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (supplierId: number, stockId: string) => {
     if (window.confirm("Are you sure you want to delete this entry?")) {
-      setPurchaseData((prev) => prev.filter((item) => item.id !== id));
+      try {
+        await deletePurchData(supplierId, stockId);
+        // Refresh data after deletion
+        const updatedData = await getPurchData();
+        let filteredData = updatedData;
+        if (itemId) {
+          filteredData = updatedData.filter(item => item.stock_id === itemId.toString());
+        }
+        const dataWithSupplierNames = filteredData.map(item => ({
+          ...item,
+          supplier_name: suppliers.find(s => s.supplier_id === item.supplier_id)?.supp_name || 'Unknown Supplier'
+        }));
+        setPurchaseData(dataWithSupplierNames);
+      } catch (error) {
+        console.error("Failed to delete purchasing pricing:", error);
+        alert("Failed to delete the record. Please try again.");
+      }
     }
   };
 
@@ -141,18 +171,10 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
             variant="contained"
             color="primary"
             onClick={() =>
-              navigate("/itemsandinventory/maintenance/items/add-purchasing-pricing")
+              navigate(`/itemsandinventory/maintenance/items/add-purchasing-pricing/${itemId}`)
             }
           >
             Add Purchasing Pricing
-          </Button>
-
-          <Button
-            variant="outlined"
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate("/itemsandinventory/maintenance/items")}
-          >
-            Back
           </Button>
         </Stack>
       </Box>
@@ -166,7 +188,7 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
           <SearchBar
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            placeholder="Search Supplier, Description, Currency or Price..."
+            placeholder="Search Supplier, Description, UOM, Price or Stock ID..."
           />
         </Box>
       </Stack>
@@ -193,16 +215,22 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
             </TableHead>
 
             <TableBody>
-              {paginatedData.length > 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={8} align="center">
+                    <CircularProgress />
+                  </TableCell>
+                </TableRow>
+              ) : paginatedData.length > 0 ? (
                 paginatedData.map((item, index) => (
-                  <TableRow key={item.id} hover>
+                  <TableRow key={`${item.supplier_id}-${item.stock_id}`} hover>
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                    <TableCell>{item.supplier}</TableCell>
+                    <TableCell>{item.supplier_name}</TableCell>
                     <TableCell>{item.price}</TableCell>
-                    <TableCell>{item.currency}</TableCell>
-                    <TableCell>{item.supplierUnit}</TableCell>
-                    <TableCell>{item.conversionFactor}</TableCell>
-                    <TableCell>{item.supplierDescription}</TableCell>
+                    <TableCell>USD</TableCell>
+                    <TableCell>{item.suppliers_uom}</TableCell>
+                    <TableCell>{item.conversion_factor}</TableCell>
+                    <TableCell>{item.supplier_description || ''}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -211,7 +239,7 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
                           startIcon={<EditIcon />}
                           onClick={() =>
                             navigate(
-                              `/itemsandinventory/maintenance/items/update-purchasing-pricing/${item.id}`
+                              `/itemsandinventory/maintenance/items/update-purchasing-pricing/${item.supplier_id}/${item.stock_id}`
                             )
                           }
                         >
@@ -222,7 +250,7 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() => handleDelete(item.supplier_id, item.stock_id)}
                         >
                           Delete
                         </Button>
