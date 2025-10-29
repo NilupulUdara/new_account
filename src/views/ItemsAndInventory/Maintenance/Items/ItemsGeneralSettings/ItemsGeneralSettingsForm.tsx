@@ -178,12 +178,12 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
       material_cost: 0,
       labour_cost: 0,
       overhead_cost: 0,
-      depreciation_method: "S",
+      depreciation_method: null,
       depreciation_rate: 0,
       depreciation_factor: 0,
       depreciation_start: "2020-10-10",
       depreciation_date: "2020-10-10",
-      fa_class_id: "FA001",
+      fa_class_id: null,
     };
 
 
@@ -418,7 +418,7 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
                             ...accounts.map((acc) => (
                               <MenuItem key={acc.account_code} value={acc.account_code}>
                                 <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                                  {acc.account_code}- {acc.account_name}
+                                  {acc.account_code} - {acc.account_name}
                                 </Stack>
                               </MenuItem>
                             )),
@@ -453,7 +453,7 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
                           ...accounts.map((acc) => (
                             <MenuItem key={acc.account_code} value={acc.account_code}>
                               <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                                {acc.account_code}- {acc.account_name}
+                                {acc.account_code} - {acc.account_name}
                               </Stack>
                             </MenuItem>
                           )),
@@ -488,7 +488,7 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
                             ...accounts.map((acc) => (
                               <MenuItem key={acc.account_code} value={acc.account_code}>
                                 <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                                  {acc.account_code}- {acc.account_name}
+                                  {acc.account_code} - {acc.account_name}
                                 </Stack>
                               </MenuItem>
                             )),
@@ -524,7 +524,7 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
                             ...accounts.map((acc) => (
                               <MenuItem key={acc.account_code} value={acc.account_code}>
                                 <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                                  {acc.account_code}- {acc.account_name}
+                                  {acc.account_code} - {acc.account_name}
                                 </Stack>
                               </MenuItem>
                             )),

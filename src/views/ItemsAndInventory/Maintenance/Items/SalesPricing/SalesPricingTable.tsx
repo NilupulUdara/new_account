@@ -35,6 +35,7 @@ interface SalesPricing {
     currency: string;
     salesType: string;
     price: number;
+    stock_id: string | number;
 }
 
 function SalesPricingTable({ itemId }: ItemSalesPricingProps) {
@@ -51,17 +52,22 @@ function SalesPricingTable({ itemId }: ItemSalesPricingProps) {
                 const data = await getSalesPricing();
                 const mappedData = data.map((item: any) => ({
                     id: item.id,
-                    currency: item.currency.currency_abbreviation,
-                    salesType: item.sales_type.typeName,
+                    currency: item.currency_abbreviation || item.currency?.currency_abbreviation,
+                    salesType: item.sales_type_name || item.sales_type?.typeName,
                     price: item.price,
+                    stock_id: item.stock_id,
                 }));
-                setSalesData(mappedData);
+                const filteredData = mappedData.filter((item) => item.stock_id == itemId);
+                setSalesData(filteredData);
+                setPage(0); // reset page when item changes
             } catch (error) {
                 console.error("Failed to fetch sales pricing:", error);
             }
         };
-        fetchData();
-    }, []);
+        if (itemId) {
+            fetchData();
+        }
+    }, [itemId]);
 
     const filteredData = useMemo(() => {
         return salesData.filter((item) =>
@@ -108,11 +114,8 @@ function SalesPricingTable({ itemId }: ItemSalesPricingProps) {
                 </Box>
 
                 <Stack direction="row" spacing={1}>
-                    <Button variant="contained" color="primary" onClick={() => navigate("/itemsandinventory/maintenance/items/add-sales-pricing")}>
+                    <Button variant="contained" color="primary" onClick={() => navigate(`/itemsandinventory/maintenance/items/add-sales-pricing/${itemId}`)}>
                         Add Sales Pricing
-                    </Button>
-                    <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate("/itemsandinventory/maintenance/items")}>
-                        Back
                     </Button>
                 </Stack>
             </Box>

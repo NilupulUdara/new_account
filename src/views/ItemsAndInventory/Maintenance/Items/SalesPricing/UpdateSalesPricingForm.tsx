@@ -37,6 +37,7 @@ export default function UpdateSalesPricingForm() {
     sales_type_id: "",
     price: "",
   });
+  const [stockId, setStockId] = useState<number | "">("");
   const [errors, setErrors] = useState<{
     currency_id?: string;
     sales_type_id?: string;
@@ -70,10 +71,11 @@ export default function UpdateSalesPricingForm() {
       try {
         const pricingRes = await getSalesPricingById(id);
         setFormData({
-          currency_id: pricingRes.currency?.id ?? "",
-          sales_type_id: pricingRes.sales_type?.id ?? "",
-          price: pricingRes.price?.toString() ?? "",
+          currency_id: pricingRes.currency_id || pricingRes.currency?.id || "",
+          sales_type_id: pricingRes.sales_type_id || pricingRes.sales_type?.id || "",
+          price: pricingRes.price?.toString() || "",
         });
+        setStockId(pricingRes.stock_id || "");
       } catch (error) {
         console.error("Failed to fetch data", error);
         alert("Failed to fetch sales pricing data");
@@ -111,12 +113,13 @@ export default function UpdateSalesPricingForm() {
 
     try {
       await updateSalesPricing(id, {
+        stock_id: stockId,
         currency_id: formData.currency_id,
         sales_type_id: formData.sales_type_id,
         price: Number(formData.price),
       });
       alert("Sales Pricing updated successfully!");
-      navigate("/itemsandinventory/maintenance/items/sales-pricing");
+      navigate("/itemsandinventory/maintenance/items/");
     } catch (error) {
       console.error("API Error:", error);
       alert("Failed to update Sales Pricing");

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Stack,
@@ -15,30 +15,84 @@ import {
   useTheme,
   useMediaQuery,
 } from "@mui/material";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import theme from "../../../../../theme";
+import { getPurchDataById, updatePurchData } from "../../../../../api/PurchasingPricing/PurchasingPricingApi";
+import { getSuppliers } from "../../../../../api/Supplier/SupplierApi";
 
 interface PurchasingPricingFormData {
-  supplier: string;
+  supplier_id: number | "";
   price: string;
-  supplierUOM: string;
-  conversionFactor: string;
-  supplierCode: string;
+  suppliers_uom: string;
+  conversion_factor: string;
+  supplier_description: string;
+}
+
+interface PurchasingPricingErrors {
+  price?: string;
+  suppliers_uom?: string;
+  conversion_factor?: string;
+  supplier_description?: string;
+}
+
+interface Supplier {
+  supplier_id: number;
+  supp_name: string;
 }
 
 export default function UpdatePurchasingPricingForm() {
+  const { supplierId, stockId } = useParams<{ supplierId: string; stockId: string }>();
   const [formData, setFormData] = useState<PurchasingPricingFormData>({
-    supplier: "",
+    supplier_id: "",
     price: "",
-    supplierUOM: "",
-    conversionFactor: "",
-    supplierCode: "",
+    suppliers_uom: "",
+    conversion_factor: "",
+    supplier_description: "",
   });
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [errors, setErrors] = useState<Partial<PurchasingPricingFormData>>({});
+  const [errors, setErrors] = useState<PurchasingPricingErrors>({});
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const navigate = useNavigate();
+
+  // Fetch suppliers
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        const suppliersRes = await getSuppliers();
+        setSuppliers(suppliersRes);
+      } catch (error) {
+        console.error("Failed to fetch suppliers", error);
+      }
+    };
+    fetchSuppliers();
+  }, []);
+
+  // Fetch existing purchasing pricing data
+  useEffect(() => {
+    if (!supplierId || !stockId) return;
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const pricingRes = await getPurchDataById(Number(supplierId), stockId);
+        setFormData({
+          supplier_id: pricingRes.supplier_id || "",
+          price: pricingRes.price?.toString() || "",
+          suppliers_uom: pricingRes.suppliers_uom || "",
+          conversion_factor: pricingRes.conversion_factor?.toString() || "",
+          supplier_description: pricingRes.supplier_description || "",
+        });
+      } catch (error) {
+        console.error("Failed to fetch purchasing pricing data", error);
+        alert("Failed to fetch purchasing pricing data");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [supplierId, stockId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -48,33 +102,44 @@ export default function UpdatePurchasingPricingForm() {
 
   const handleSelectChange = (e: SelectChangeEvent<string>) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    if (name === "supplier_id") {
+      setFormData({ ...formData, [name]: value === "" ? "" : Number(value) });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
     setErrors({ ...errors, [name]: "" });
   };
 
   const validate = () => {
-    const newErrors: Partial<PurchasingPricingFormData> = {};
-    if (!formData.supplier) newErrors.supplier = "Supplier is required";
+    const newErrors: PurchasingPricingErrors = {};
     if (!formData.price) newErrors.price = "Price is required";
-    if (!formData.supplierUOM) newErrors.supplierUOM = "Supplier UOM is required";
-    if (!formData.conversionFactor) newErrors.conversionFactor = "Conversion factor is required";
-    if (!formData.supplierCode) newErrors.supplierCode = "Supplier code/description is required";
+    if (!formData.suppliers_uom) newErrors.suppliers_uom = "Supplier UOM is required";
+    if (!formData.conversion_factor) newErrors.conversion_factor = "Conversion factor is required";
+    if (!formData.supplier_description) newErrors.supplier_description = "Supplier code/description is required";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
-    if (validate()) {
-      console.log("Purchasing Pricing Submitted:", formData);
-      alert("Purchasing Pricing updated successfully!");
-      setFormData({
-        supplier: "",
-        price: "",
-        supplierUOM: "",
-        conversionFactor: "",
-        supplierCode: "",
+  const handleSubmit = async () => {
+    if (!validate() || !supplierId || !stockId) return;
+
+    try {
+      await updatePurchData(Number(supplierId), stockId, {
+        supplier_id: formData.supplier_id as number,
+        stock_id: stockId,
+        price: Number(formData.price),
+        suppliers_uom: formData.suppliers_uom,
+        conversion_factor: Number(formData.conversion_factor),
+        supplier_description: formData.supplier_description,
       });
+      alert("Purchasing Pricing updated successfully!");
+      navigate("/itemsandinventory/maintenance/items/", {
+        state: { tab: 2, selectedItem: stockId }
+      });
+    } catch (error) {
+      console.error("API Error:", error);
+      alert("Failed to update Purchasing Pricing");
     }
   };
 
@@ -94,20 +159,21 @@ export default function UpdatePurchasingPricingForm() {
         </Typography>
 
         <Stack spacing={2}>
-          {/* Supplier Dropdown */}
-          <FormControl size="small" fullWidth error={!!errors.supplier}>
+          <FormControl size="small" fullWidth>
             <InputLabel>Supplier</InputLabel>
             <Select
-              name="supplier"
-              value={formData.supplier}
+              name="supplier_id"
+              value={formData.supplier_id.toString()}
               onChange={handleSelectChange}
               label="Supplier"
+              disabled
             >
-              <MenuItem value="ABC Traders">ABC Traders</MenuItem>
-              <MenuItem value="XYZ Supplies">XYZ Supplies</MenuItem>
-              <MenuItem value="Global Imports">Global Imports</MenuItem>
+              {suppliers.map((supplier) => (
+                <MenuItem key={supplier.supplier_id} value={supplier.supplier_id}>
+                  {supplier.supp_name}
+                </MenuItem>
+              ))}
             </Select>
-            <FormHelperText>{errors.supplier}</FormHelperText>
           </FormControl>
 
           {/* Price */}
@@ -126,38 +192,41 @@ export default function UpdatePurchasingPricingForm() {
           {/* Supplier UOM */}
           <TextField
             label="Supplier Units of Measure"
-            name="supplierUOM"
+            name="suppliers_uom"
             size="small"
             fullWidth
-            value={formData.supplierUOM}
+            value={formData.suppliers_uom}
             onChange={handleInputChange}
-            error={!!errors.supplierUOM}
-            helperText={errors.supplierUOM}
+            error={!!errors.suppliers_uom}
+            helperText={errors.suppliers_uom}
+            disabled={loading}
           />
 
           {/* Conversion Factor */}
           <TextField
             label="Conversion Factor (to our UOM)"
-            name="conversionFactor"
+            name="conversion_factor"
             size="small"
             fullWidth
             type="number"
-            value={formData.conversionFactor}
+            value={formData.conversion_factor}
             onChange={handleInputChange}
-            error={!!errors.conversionFactor}
-            helperText={errors.conversionFactor}
+            error={!!errors.conversion_factor}
+            helperText={errors.conversion_factor}
+            disabled={loading}
           />
 
           {/* Supplier Code / Description */}
           <TextField
             label="Supplier's Code or Description"
-            name="supplierCode"
+            name="supplier_description"
             size="small"
             fullWidth
-            value={formData.supplierCode}
+            value={formData.supplier_description}
             onChange={handleInputChange}
-            error={!!errors.supplierCode}
-            helperText={errors.supplierCode}
+            error={!!errors.supplier_description}
+            helperText={errors.supplier_description}
+            disabled={loading}
           />
         </Stack>
 
@@ -170,7 +239,9 @@ export default function UpdatePurchasingPricingForm() {
             gap: isMobile ? 2 : 0,
           }}
         >
-          <Button onClick={() => navigate("/itemsandinventory/maintenance/items/purchasing-pricing")}>
+          <Button onClick={() => navigate("/itemsandinventory/maintenance/items/", {
+            state: { tab: 2, selectedItem: stockId }
+          })}>
             Back
           </Button>
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Stack,
@@ -15,8 +15,15 @@ import {
   useTheme,
   useMediaQuery,
 } from "@mui/material";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import theme from "../../../../../theme";
+import { getSuppliers } from "../../../../../api/Supplier/SupplierApi";
+import { createPurchData, PurchData } from "../../../../../api/PurchasingPricing/PurchasingPricingApi";
+
+interface Supplier {
+  supplier_id: number;
+  supp_name: string;
+}
 
 interface PurchasingPricingFormData {
   supplier: string;
@@ -26,7 +33,13 @@ interface PurchasingPricingFormData {
   supplierCode: string;
 }
 
-export default function AddPurchasingPricingForm() {
+interface AddPurchasingPricingFormProps {
+  itemId?: string | number;
+}
+
+export default function AddPurchasingPricingForm({ itemId }: AddPurchasingPricingFormProps) {
+  const params = useParams();
+  const actualItemId = itemId || params.itemId;
   const [formData, setFormData] = useState<PurchasingPricingFormData>({
     supplier: "",
     price: "",
@@ -36,9 +49,23 @@ export default function AddPurchasingPricingForm() {
   });
 
   const [errors, setErrors] = useState<Partial<PurchasingPricingFormData>>({});
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        const suppliersData = await getSuppliers();
+        setSuppliers(suppliersData);
+      } catch (error) {
+        console.error("Failed to fetch suppliers:", error);
+      }
+    };
+
+    fetchSuppliers();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -64,17 +91,40 @@ export default function AddPurchasingPricingForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (validate()) {
-      console.log("Purchasing Pricing Submitted:", formData);
-      alert("Purchasing Pricing added successfully!");
-      setFormData({
-        supplier: "",
-        price: "",
-        supplierUOM: "",
-        conversionFactor: "",
-        supplierCode: "",
-      });
+      try {
+        const purchData: PurchData = {
+          supplier_id: parseInt(formData.supplier),
+          stock_id: actualItemId as string,
+          price: parseFloat(formData.price),
+          suppliers_uom: formData.supplierUOM,
+          conversion_factor: parseFloat(formData.conversionFactor),
+          supplier_description: formData.supplierCode,
+        };
+
+        await createPurchData(purchData);
+
+        console.log("Purchasing Pricing Submitted:", purchData);
+        alert("Purchasing Pricing added successfully!");
+
+        // Reset form
+        setFormData({
+          supplier: "",
+          price: "",
+          supplierUOM: "",
+          conversionFactor: "",
+          supplierCode: "",
+        });
+
+        // Navigate back to items page with purchasing pricing tab selected
+        navigate("/itemsandinventory/maintenance/items/", {
+          state: { tab: 2, selectedItem: actualItemId }
+        });
+      } catch (error) {
+        console.error("Failed to save purchasing pricing:", error);
+        alert("Failed to save purchasing pricing. Please try again.");
+      }
     }
   };
 
@@ -89,11 +139,7 @@ export default function AddPurchasingPricingForm() {
           borderRadius: 2,
         }}
       >
-        <Typography variant="h6" sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}>
-          Add Purchasing Pricing
-        </Typography>
-
-        <Stack spacing={2}>
+         <Stack spacing={2}>
           {/* Supplier Dropdown */}
           <FormControl size="small" fullWidth error={!!errors.supplier}>
             <InputLabel>Supplier</InputLabel>
@@ -103,16 +149,18 @@ export default function AddPurchasingPricingForm() {
               onChange={handleSelectChange}
               label="Supplier"
             >
-              <MenuItem value="ABC Traders">ABC Traders</MenuItem>
-              <MenuItem value="XYZ Supplies">XYZ Supplies</MenuItem>
-              <MenuItem value="Global Imports">Global Imports</MenuItem>
+              {suppliers.map((supplier) => (
+                <MenuItem key={supplier.supplier_id} value={supplier.supplier_id}>
+                  {supplier.supp_name}
+                </MenuItem>
+              ))}
             </Select>
             <FormHelperText>{errors.supplier}</FormHelperText>
           </FormControl>
 
           {/* Price */}
           <TextField
-            label="Price"
+            label="Price (USD)"
             name="price"
             size="small"
             fullWidth
@@ -170,7 +218,7 @@ export default function AddPurchasingPricingForm() {
             gap: isMobile ? 2 : 0,
           }}
         >
-          <Button onClick={() => navigate("/itemsandinventory/maintenance/items/purchasing-pricing")}>
+          <Button onClick={() => navigate("/itemsandinventory/maintenance/items/")}>
             Back
           </Button>
 

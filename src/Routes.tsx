@@ -1363,16 +1363,16 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-        <Route
+        {/* <Route
           path="/itemsandinventory/maintenance/items/sales-pricing"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales prices edition']}>
               {withLayout(MainLayout, SalesPricingTable)}
             </ProtectedRoute>
           }
-        />
+        /> */}
         <Route
-          path="/itemsandinventory/maintenance/items/add-sales-pricing"
+          path="/itemsandinventory/maintenance/items/add-sales-pricing/:itemId"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales prices edition']}>
               {withLayout(MainLayout, AddSalesPricingForm)}
@@ -1387,16 +1387,16 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-        <Route
+        {/* <Route
           path="/itemsandinventory/maintenance/items/purchasing-pricing"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Purchase price changes']}>
               {withLayout(MainLayout, PurchasingPricingTable)}
             </ProtectedRoute>
           }
-        />
+        /> */}
         <Route
-          path="/itemsandinventory/maintenance/items/add-purchasing-pricing"
+          path="/itemsandinventory/maintenance/items/add-purchasing-pricing/:itemId"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Purchase price changes']}>
               {withLayout(MainLayout, AddPurchasingPricingForm)}
@@ -1404,7 +1404,7 @@ const AppRoutes = () => {
           }
         />
         <Route
-          path="/itemsandinventory/maintenance/items/update-purchasing-pricing"
+          path="/itemsandinventory/maintenance/items/update-purchasing-pricing/:supplierId/:stockId"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Purchase price changes']}>
               {withLayout(MainLayout, UpdatePurchasePricingForm)}

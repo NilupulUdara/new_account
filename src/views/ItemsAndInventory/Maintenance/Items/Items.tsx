@@ -16,6 +16,7 @@ import {
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router";
+import { useLocation } from "react-router-dom";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import { useQuery } from "@tanstack/react-query";
@@ -38,10 +39,11 @@ function TabPanel({ children, value, index }: { children: React.ReactNode; value
 
 const Items = () => {
   const navigate = useNavigate();
-  const [tabValue, setTabValue] = useState(0);
+  const location = useLocation();
+  const [tabValue, setTabValue] = useState(location.state?.tab || 0);
 
   // Item dropdown state
-  const [selectedItem, setSelectedItem] = useState<string | number>("new");
+  const [selectedItem, setSelectedItem] = useState<string | number>(location.state?.selectedItem || "new");
   const [showInactive, setShowInactive] = useState(false);
 
   // Fetch items using React Query
@@ -64,7 +66,6 @@ const Items = () => {
   // Item select handler
   const handleItemChange = (value: string | number) => {
     setSelectedItem(value);
-    setTabValue(0); // always reset to General Settings
   };
 
   return (
