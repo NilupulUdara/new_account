@@ -11,27 +11,34 @@ type StorageFile = {
 type ProfileImageProps = {
   name?: string;
   files?: (File | StorageFile)[];
+  imageUrl?: string; // Direct image URL
   size?: string;
-  fontSize?: string,
+  fontSize?: string;
   onClick?: () => void;
 };
 
 const ProfileImage: React.FC<ProfileImageProps> = ({
   name,
   files = [],
+  imageUrl,
   size = "12rem",
   onClick,
   fontSize
 }) => {
-  const firstImageFile = files.find((file) => {
-    const fileName = file instanceof File ? file.name : file.fileName;
-    return getStorageFileTypeFromName(fileName || "") === "image";
-  });
-
-  const imageUrl =
-    firstImageFile instanceof File
-      ? URL.createObjectURL(firstImageFile)
-      : firstImageFile?.imageUrl;
+  // Priority: imageUrl prop > files array > fallback to initials
+  let displayImageUrl = imageUrl;
+  if (!displayImageUrl && files.length > 0) {
+    const firstImageFile = files.find((file) => {
+      const fileName = file instanceof File ? file.name : (file as StorageFile).fileName;
+      return getStorageFileTypeFromName(fileName || "") === "image";
+    });
+    if (firstImageFile) {
+      displayImageUrl =
+        firstImageFile instanceof File
+          ? URL.createObjectURL(firstImageFile)
+          : (firstImageFile as StorageFile)?.imageUrl;
+    }
+  }
 
   return (
     <Avatar
@@ -40,12 +47,19 @@ const ProfileImage: React.FC<ProfileImageProps> = ({
         bgcolor: "var(--pallet-light-blue)",
         height: size,
         width: size,
-        fontSize: {fontSize},
+        fontSize: fontSize, // Fixed: was {fontSize} (object syntax error)
         cursor: onClick ? "pointer" : "default",
       }}
-      src={imageUrl}
+      src={displayImageUrl}
+      // Optional: Add imgProps for error handling if image fails to load
+      imgProps={{
+        onError: (e) => {
+          console.warn("Failed to load profile image:", displayImageUrl);
+          (e.target as HTMLImageElement).style.display = "none"; // Hide broken image
+        }
+      }}
     >
-      {!imageUrl && name?.charAt(0).toUpperCase()}
+      {!displayImageUrl && name?.charAt(0).toUpperCase()}
     </Avatar>
   );
 };
