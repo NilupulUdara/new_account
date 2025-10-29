@@ -51,6 +51,8 @@ export const userSchema = z.object({
   profileImage: z
     .array(z.union([z.instanceof(File), StorageFileSchema]))
     .optional(),
+  image: z.string().optional(), // Path to stored image
+  image_url: z.string().optional(), // Full URL to access image
   status: z.string(),
   isCompanyEmployee: z.boolean(),
   createdAt: z.string(),

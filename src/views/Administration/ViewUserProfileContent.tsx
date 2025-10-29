@@ -14,7 +14,7 @@ import {
 } from "@mui/material";
 import { DrawerContentItem } from "../../components/ViewDataDrawer";
 import useIsMobile from "../../customHooks/useIsMobile";
-import { updateUserProfileImage, User } from "../../api/userApi";
+import { User } from "../../api/userApi"; // Keep User type if needed; adjust if in usermanagement.ts
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import queryClient from "../../state/queryClient";
@@ -24,10 +24,12 @@ import UpdateUserProfile from "./UpdateUserProfileDialog";
 import useCurrentUser from "../../hooks/useCurrentUser";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ProfileImage from "../../components/ProfileImageComponent";
-import PasswordResetDialog from "./OpenPasswordResetDiaolg";
-import ResetEmailDialog from "./OpenEmailResetDialog";
+// import PasswordResetDialog from "./OpenPasswordResetDiaolg"; // Commented out as resets not needed
+// import ResetEmailDialog from "./OpenEmailResetDialog"; // Commented out as resets not needed
 import CustomButton from "../../components/CustomButton";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+// Import from usermanagement API
+import { updateUser } from "../../api/UserManagement/userManagement";
 
 function ViewUserContent({ selectedUser }: { selectedUser: User }) {
   const { isTablet } = useIsMobile();
@@ -50,27 +52,53 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
   const statusColor = selectedUser?.availability ? "#44b700" : "#f44336";
 
   const { mutate: profileUpdateMutation, isPending } = useMutation({
-    mutationFn: updateUserProfileImage,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["current-user"] });
-      enqueueSnackbar("Profile updated successfully!", { variant: "success" });
+    mutationFn: ({ id, imageFile, removeImage = false }: { id: number; imageFile?: File; removeImage?: boolean }) => {
+      const formData = new FormData();
+      if (imageFile) {
+        formData.append('image', imageFile);
+      }
+      if (removeImage) {
+        formData.append('remove_image', 'true');
+      }
+      // No other fields—backend now allows partial
+      return updateUser(id.toString(), formData);
     },
-    onError: () => {
-      enqueueSnackbar("Profile update failed", { variant: "error" });
+    onSuccess: (response) => {
+      console.log('Image upload success:', response); // Debug log
+
+      // Clear the image states first
+      setImagePreview(null);
+      setImageFile(null);
+
+      // Invalidate queries to refresh data from server
+      queryClient.invalidateQueries({ queryKey: ["current-user"] });
+      queryClient.invalidateQueries({ queryKey: ["user", selectedUser.id] });
+      queryClient.invalidateQueries({ queryKey: ["user-managements"] });
+
+      enqueueSnackbar("Profile image updated successfully!", { variant: "success" });
+    },
+    onError: (error) => {
+      console.error('Image upload error:', error); // Debug log
+      enqueueSnackbar("Profile image update failed", { variant: "error" });
     },
   });
 
   const saveImage = () => {
-    if (imageFile) {
+    if (imageFile && selectedUser.id) {
       profileUpdateMutation({ id: selectedUser.id, imageFile });
     }
   };
+
+  const removeImage = () => {
+    if (selectedUser.id && !imageFile) { // Only if no new image selected
+      profileUpdateMutation({ id: selectedUser.id, removeImage: true });
+    }
+  };
+
   const [openViewProfileDrawer, setOpenViewProfileDrawer] = useState(false);
   const [openEditUserRoleDialog, setOpenEditUserRoleDialog] = useState(false);
-  const [openEditUserPasswordResetDialog, setOpenEditUserPasswordResetDialog] =
-    useState(false);
-  const [openEditUserEmailResetDialog, setOpenEditUserEmailResetDialog] =
-    useState(false);
+  // const [openEditUserPasswordResetDialog, setOpenEditUserPasswordResetDialog] = useState(false); // Commented out
+  // const [openEditUserEmailResetDialog, setOpenEditUserEmailResetDialog] = useState(false); // Commented out
 
   return (
     <Stack
@@ -110,7 +138,8 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
         >
           <ProfileImage
             name={`${selectedUser?.first_name ?? ""} ${selectedUser?.last_name ?? ""}`.trim()}
-            files={imageFile ? [imageFile] : selectedUser?.profileImage}
+            imageUrl={selectedUser?.image_url}
+            files={imageFile ? [imageFile] : undefined}
             fontSize="5rem"
           />
         </Badge>
@@ -140,7 +169,6 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
               onChange={handleImageChange}
             />
           </CustomButton>
-
           {imageFile && (
             <CustomButton
               variant="contained"
@@ -156,9 +184,19 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
               Save
             </CustomButton>
           )}
+          {selectedUser?.image_url && !imageFile && (
+            <CustomButton
+              variant="outlined"
+              color="error"
+              onClick={removeImage}
+              sx={{ mt: 2 }}
+              disabled={isPending}
+            >
+              Remove Image
+            </CustomButton>
+          )}
         </Box>
       </Box>
-
       <Stack
         sx={{
           display: "flex",
@@ -210,7 +248,6 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
             sx={{ flex: 1 }}
           />
         </Stack>
-
         <Stack direction={isTablet ? "column" : "row"}>
           <DrawerContentItem
             label="Full Name"
@@ -223,7 +260,6 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
             sx={{ flex: 1 }}
           />
         </Stack>
-
         <Stack direction={isTablet ? "column" : "row"}>
           <DrawerContentItem
             label="Designation"
@@ -231,7 +267,6 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
             sx={{ flex: 1 }}
           />
         </Stack>
-
         <Stack
           sx={{
             mt: "1rem",
@@ -273,6 +308,7 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
               </Box>
             </AccordionSummary>
             <AccordionDetails style={{ paddingTop: 0 }}>
+              {/* Commented out resets as not needed right now
               <DrawerUpdateButtons
                 onResetEmail={() => {
                   setOpenEditUserEmailResetDialog(true);
@@ -281,11 +317,11 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
                   setOpenEditUserPasswordResetDialog(true);
                 }}
               />
+              */}
             </AccordionDetails>
           </Accordion>
         </Stack>
       </Stack>
-
       {openEditUserRoleDialog && (
         <UpdateUserProfile
           open={openEditUserRoleDialog}
@@ -296,9 +332,10 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
           defaultValues={user}
         />
       )}
+      {/* Commented out reset dialogs as not needed right now
       {openEditUserPasswordResetDialog && (
         <PasswordResetDialog
-          open={openEditUserPasswordResetDialog}
+          open={openEditUserPasswordResetDialog
           handleClose={() => {
             setOpenEditUserPasswordResetDialog(false);
             setOpenEditUserRoleDialog(false);
@@ -317,6 +354,7 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
           defaultValues={user}
         />
       )}
+      */}
     </Stack>
   );
 }
