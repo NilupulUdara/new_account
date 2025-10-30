@@ -264,17 +264,22 @@ export async function updateUserProfileImage({
 
 export async function updateUserProfileDetails({
   id,
-  name,
+  first_name,
+  last_name,
+  email,
   telephone,
 }: {
   id: number;
-  name: string;
-  telephone: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  telephone?: string;
 }) {
-  const data = {
-    name,
-    telephone,
-  };
+  const data: any = {};
+  if (first_name !== undefined) data.first_name = first_name;
+  if (last_name !== undefined) data.last_name = last_name;
+  if (email !== undefined) data.email = email;
+  if (telephone !== undefined) data.telephone = telephone;
 
   const res = await axios.post(`/api/user/${id}/profile-update`, data);
 

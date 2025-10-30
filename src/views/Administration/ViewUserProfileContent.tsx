@@ -15,7 +15,7 @@ import {
 import { DrawerContentItem } from "../../components/ViewDataDrawer";
 import useIsMobile from "../../customHooks/useIsMobile";
 import { User } from "../../api/userApi"; // Keep User type if needed; adjust if in usermanagement.ts
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import queryClient from "../../state/queryClient";
 import { enqueueSnackbar } from "notistack";
@@ -36,6 +36,17 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const { user } = useCurrentUser();
+
+  // When this profile view is mounted, refetch the user data so
+  // any external edits (for example, by an admin) are reflected
+  // immediately when navigating to the profile page.
+  useEffect(() => {
+    if (selectedUser?.id) {
+      queryClient.invalidateQueries({ queryKey: ["user", selectedUser.id], refetchType: "all" });
+    }
+    // Also refresh current-user in case this view is showing the logged-in user
+    queryClient.invalidateQueries({ queryKey: ["current-user"], refetchType: "all" });
+  }, [selectedUser?.id]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -70,10 +81,10 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
       setImagePreview(null);
       setImageFile(null);
 
-      // Invalidate queries to refresh data from server
-      queryClient.invalidateQueries({ queryKey: ["current-user"] });
-      queryClient.invalidateQueries({ queryKey: ["user", selectedUser.id] });
-      queryClient.invalidateQueries({ queryKey: ["user-managements"] });
+  // Invalidate queries to refresh data from server. Use refetchType: 'all' to ensure refetch
+  queryClient.invalidateQueries({ queryKey: ["current-user"], refetchType: 'all' });
+  queryClient.invalidateQueries({ queryKey: ["user", selectedUser.id], refetchType: 'all' });
+  queryClient.invalidateQueries({ queryKey: ["user-managements"], refetchType: 'all' });
 
       enqueueSnackbar("Profile image updated successfully!", { variant: "success" });
     },
@@ -138,7 +149,15 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
         >
           <ProfileImage
             name={`${selectedUser?.first_name ?? ""} ${selectedUser?.last_name ?? ""}`.trim()}
-            imageUrl={selectedUser?.image_url}
+            // Support multiple possible backend field names for the stored image
+            imageUrl={
+              selectedUser?.image_url ??
+              selectedUser?.image ??
+              (selectedUser as any)?.imageUrl ??
+              (selectedUser as any)?.profile_image_url ??
+              (selectedUser as any)?.profile_image ??
+              undefined
+            }
             files={imageFile ? [imageFile] : undefined}
             fontSize="5rem"
           />
@@ -272,54 +291,7 @@ function ViewUserContent({ selectedUser }: { selectedUser: User }) {
             mt: "1rem",
           }}
         >
-          <Accordion
-            variant="elevation"
-            sx={{
-              paddingTop: 0,
-              borderRadius: "8px",
-              marginTop: "1rem",
-            }}
-          >
-            <AccordionSummary
-              expandIcon={<ExpandMoreIcon />}
-              aria-controls="panel1a-content"
-              style={{
-                borderBottom: `1px solid${colors.grey[100]}`,
-                borderRadius: "8px",
-              }}
-              id="panel1a-header"
-            >
-              <Box
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  margin: "10px 0",
-                }}
-              >
-                <Typography
-                  color="textSecondary"
-                  variant="body2"
-                  sx={{
-                    color: "var(--pallet-red)",
-                  }}
-                >
-                  DANGER ZONE
-                </Typography>
-              </Box>
-            </AccordionSummary>
-            <AccordionDetails style={{ paddingTop: 0 }}>
-              {/* Commented out resets as not needed right now
-              <DrawerUpdateButtons
-                onResetEmail={() => {
-                  setOpenEditUserEmailResetDialog(true);
-                }}
-                onResetPassword={() => {
-                  setOpenEditUserPasswordResetDialog(true);
-                }}
-              />
-              */}
-            </AccordionDetails>
-          </Accordion>
+          {/* DANGER ZONE (commented out) */}
         </Stack>
       </Stack>
       {openEditUserRoleDialog && (

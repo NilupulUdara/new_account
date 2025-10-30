@@ -20,10 +20,8 @@ import { useMutation } from "@tanstack/react-query";
 import { useSnackbar } from "notistack";
 import CustomButton from "../../components/CustomButton";
 import useIsMobile from "../../customHooks/useIsMobile";
-import {
-  updateUserProfileDetails,
-  User,
-} from "../../api/userApi";
+import { User } from "../../api/userApi"; // Keep User type if needed for typing
+import { updateUser } from "../../api/UserManagement/userManagement";
 import queryClient from "../../state/queryClient";
 import { genderOptions } from "../../constants/accidentConstants";
 
@@ -46,7 +44,6 @@ export default function UpdateUserProfile({
     control,
     formState: { errors },
     reset,
-    watch,
     register,
     setValue,
   } = useForm<User>({
@@ -55,10 +52,11 @@ export default function UpdateUserProfile({
     },
   });
 
-  const isAvailability = watch("availability");
-
   const { mutate: profileUpdateMutation, isPending } = useMutation({
-    mutationFn: updateUserProfileDetails,
+    mutationFn: async (payload: any) => {
+      const { id, ...data } = payload;
+      return updateUser(id?.toString?.() ?? String(id), data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["current-user"] });
       enqueueSnackbar("Profile updated successfully!", { variant: "success" });
@@ -71,7 +69,13 @@ export default function UpdateUserProfile({
 
   useEffect(() => {
     if (defaultValues) {
-      reset(defaultValues);
+      // Ensure the form has the expected fields populated
+      reset({
+        first_name: defaultValues.first_name ?? "",
+        last_name: defaultValues.last_name ?? "",
+        email: defaultValues.email ?? "",
+        telephone: defaultValues.telephone ?? "",
+      } as any);
     } else {
       reset();
     }
@@ -81,10 +85,13 @@ export default function UpdateUserProfile({
     reset();
   };
 
-  const onSubmitForm = (data: User) => {
+  const onSubmitForm = (data: any) => {
+    // Only send allowed fields: first_name, last_name, email, telephone
     profileUpdateMutation({
-      id: data.id!,
-      name: data.first_name!,
+      id: defaultValues?.id ?? data.id,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      email: data.email,
       telephone: data.telephone,
     });
   };
@@ -125,64 +132,58 @@ export default function UpdateUserProfile({
       </DialogTitle>
       <Divider />
       <DialogContent>
-        <Stack direction="column" gap={1}>
-          {isAvailability && (
-            <>
-              <Box sx={{ display: "flex" }}>
-                <TextField
-                  id="name"
-                  type="text"
-                  label="Full Name"
-                  required
-                  error={!!errors.first_name}
-                  helperText={errors.first_name ? "Required *" : ""}
-                  size="small"
-                  sx={{ flex: 1, margin: "0.5rem" }}
-                  {...register("first_name", { required: true })}
-                />
-              </Box>
+        <Stack direction="column" gap={2} sx={{ mt: 1 }}>
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <TextField
+              id="first_name"
+              type="text"
+              label="First Name"
+              required
+              error={!!errors.first_name}
+              helperText={errors.first_name ? "Required *" : ""}
+              size="small"
+              fullWidth
+              {...register("first_name", { required: true })}
+            />
 
-              <Box sx={{ display: "flex" }}>
-                <TextField
-                  id="mobile"
-                  type="text"
-                  label="Mobile Number"
-                  required
-                  error={!!errors.telephone}
-                  helperText={errors.telephone ? "Required *" : ""}
-                  size="small"
-                  sx={{ flex: 1, margin: "0.5rem" }}
-                  {...register("telephone", { required: true })}
-                />
-              </Box>
+            <TextField
+              id="last_name"
+              type="text"
+              label="Last Name"
+              required
+              error={!!errors.last_name}
+              helperText={errors.last_name ? "Required *" : ""}
+              size="small"
+              fullWidth
+              {...register("last_name", { required: true })}
+            />
+          </Box>
 
-              <Box sx={{ flex: 1 }}>
-                <Controller
-                  control={control}
-                  name="gender"
-                  rules={{ required: true }}
-                  render={({ field }) => (
-                    <Autocomplete
-                      options={genderOptions}
-                      size="small"
-                      sx={{ flex: 1, margin: "0.5rem" }}
-                      value={field.value || null}
-                      onChange={(_, value) => field.onChange(value)}
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          required
-                          error={!!errors.gender}
-                          label="Gender"
-                          name="gender"
-                        />
-                      )}
-                    />
-                  )}
-                />
-              </Box>
-            </>
-          )}
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <TextField
+              id="email"
+              type="email"
+              label="Email"
+              required
+              error={!!errors.email}
+              helperText={errors.email ? "Required *" : ""}
+              size="small"
+              fullWidth
+              {...register("email", { required: true })}
+            />
+
+            <TextField
+              id="telephone"
+              type="text"
+              label="Mobile Number"
+              required
+              error={!!errors.telephone}
+              helperText={errors.telephone ? "Required *" : ""}
+              size="small"
+              fullWidth
+              {...register("telephone", { required: true })}
+            />
+          </Box>
         </Stack>
       </DialogContent>
       <Divider />

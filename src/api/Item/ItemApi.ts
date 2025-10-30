@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/stock-masters"; // replace with your backend URL
+const API_URL = "http://localhost:8000/api/stock-masters";
 
 export const getItems = async () => {
   try {

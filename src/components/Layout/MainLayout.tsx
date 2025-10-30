@@ -468,6 +468,10 @@ const DrawerContent = ({
           >
             <ProfileImage
               name={user?.first_name}
+              // Support multiple backend field names for the user's avatar
+              imageUrl={
+                user?.image_url ?? user?.image ?? (user as any)?.imageUrl ?? (user as any)?.profile_image_url ?? (user as any)?.profile_image
+              }
               files={user?.profileImage}
               size="3rem"
             />

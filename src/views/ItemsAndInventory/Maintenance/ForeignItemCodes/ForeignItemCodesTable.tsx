@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
     Box,
     Button,
@@ -29,20 +29,8 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import { useQuery } from "@tanstack/react-query";
-
-// Mock API function for Foreign Item Codes
-const getForeignItemCodes = async () => [
-    { id: 1, code: "123456789012", quantity: 100, units: "pcs", description: "Item 1", category: "Electronics" },
-    { id: 2, code: "987654321098", quantity: 50, units: "pcs", description: "Item 2", category: "Toys" },
-    { id: 3, code: "555555555555", quantity: 200, units: "boxes", description: "Item 3", category: "Stationery" },
-];
-
-// Mock API function for Items dropdown
-const getItems = async () => [
-    { id: "1", item_name: "Laptop" },
-    { id: "2", item_name: "Toy Car" },
-    { id: "3", item_name: "Notebook" },
-];
+import { getItems } from "../../../../api/Item/ItemApi";
+import { getItemCodes } from "../../../../api/ItemCodes/ItemCodesApi";
 
 function ForeignItemCodesTable() {
     const [page, setPage] = useState(0);
@@ -53,29 +41,55 @@ function ForeignItemCodesTable() {
     const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
     const navigate = useNavigate();
 
-    const { data: foreignItemData = [] } = useQuery({
-        queryKey: ["foreignItemCodes"],
-        queryFn: getForeignItemCodes,
+    const { data: rawForeignItemData } = useQuery({
+        queryKey: ["item-codes"],
+        queryFn: getItemCodes,
     });
 
-    const { data: items = [] } = useQuery({
+    const { data: rawItems } = useQuery({
         queryKey: ["items"],
         queryFn: getItems,
     });
 
+    // Backend may return `{ data: [...] }` or the array directly. Normalize to array.
+    const foreignItemData = rawForeignItemData?.data ?? rawForeignItemData ?? [];
+    const items = rawItems?.data ?? rawItems ?? [];
+
+    // Auto-select the first item when items load and nothing is selected yet
+    useEffect(() => {
+        if ((!selectedItem || String(selectedItem).trim() === "") && items && items.length > 0) {
+            const first = items[0];
+            const firstStockId = first?.stock_id ?? first?.id ?? first?.stock_master_id ?? first?.item_id ?? 0;
+            setSelectedItem(String(firstStockId));
+        }
+    }, [items]);
+
     // Filter data based on selected item and search query
    const filteredData = useMemo(() => {
-    if (!selectedItem) return []; // No data if item not selected
-    let result = foreignItemData.filter(item => item.id.toString() === selectedItem); // convert id to string
+    // Only filter when an item is selected
+    if (!selectedItem) return [];
+
+    // The only shared column between items and item-codes is `stock_id`.
+    // Match item-codes where code.stock_id === selectedItem.
+    const result = foreignItemData.filter((code: any) => {
+        const codeStockId = code.stock_id ?? code.stockMasterId ?? code.stock_master?.stock_id ?? code.stock_master_id ?? code.item_id ?? code.itemId;
+        return String(codeStockId) === String(selectedItem);
+    });
+
     if (searchQuery.trim()) {
         const lowerQuery = searchQuery.toLowerCase();
-        result = result.filter(
-            (item) =>
-                item.code.includes(lowerQuery) ||
-                item.description.toLowerCase().includes(lowerQuery) ||
-                item.category.toLowerCase().includes(lowerQuery)
-        );
+        return result.filter((item: any) => {
+            const codeStr = String(item.item_code ?? item.code ?? "").toLowerCase();
+            const desc = String(item.description ?? "").toLowerCase();
+            const cat = String(item.category_id ?? item.category ?? "").toLowerCase();
+            return (
+                codeStr.includes(lowerQuery) ||
+                desc.includes(lowerQuery) ||
+                cat.includes(lowerQuery)
+            );
+        });
     }
+
     return result;
 }, [foreignItemData, selectedItem, searchQuery]);
 
@@ -129,20 +143,33 @@ function ForeignItemCodesTable() {
                             label="Select Item"
                             onChange={(e) => setSelectedItem(e.target.value)}
                         >
-                            {items.map((item) => (
-                                <MenuItem key={item.id} value={item.id}>
-                                    {item.item_name}
+                                {items && items.length > 0 ? (
+                                items.map((item, idx) => {
+                                    // Prefer stock_id as the join key between items and item-codes
+                                    const stockId = item.stock_id ?? item.id ?? item.stock_master_id ?? item.item_id ?? idx;
+                                    const key = stockId;
+                                    const label = item.item_name ?? item.name ?? item.description ?? String(stockId);
+                                    const value = String(stockId);
+                                    return (
+                                        <MenuItem key={String(key)} value={value}>
+                                            {label}
+                                        </MenuItem>
+                                    );
+                                })
+                            ) : (
+                                <MenuItem disabled value="">
+                                    No items
                                 </MenuItem>
-                            ))}
+                            )}
                         </Select>
                     </FormControl>
                 </Box>
 
-                <Stack direction="row" spacing={1}>
+                    <Stack direction="row" spacing={1}>
                     <Button
                         variant="contained"
                         color="primary"
-                        onClick={() => navigate("/itemsandinventory/maintenance/add-foreign-item-codes")}
+                        onClick={() => navigate("/itemsandinventory/maintenance/add-foreign-item-codes", { state: { stock_id: selectedItem } })}
                     >
                         Add Item
                     </Button>
@@ -189,20 +216,20 @@ function ForeignItemCodesTable() {
                             <TableBody>
                                 {paginatedData.length > 0 ? (
                                     paginatedData.map((item, index) => (
-                                        <TableRow key={item.id} hover>
+                                        <TableRow key={item.id ?? index} hover>
                                             <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                                            <TableCell>{item.code}</TableCell>
+                                            <TableCell>{item.item_code ?? item.code}</TableCell>
                                             <TableCell>{item.quantity}</TableCell>
-                                            <TableCell>{item.units}</TableCell>
+                                            <TableCell>each</TableCell>
                                             <TableCell>{item.description}</TableCell>
-                                            <TableCell>{item.category}</TableCell>
+                                            <TableCell>{item.category_id ?? item.category}</TableCell>
                                             <TableCell align="center">
                                                 <Stack direction="row" spacing={1} justifyContent="center">
                                                     <Button
                                                         variant="contained"
                                                         size="small"
                                                         startIcon={<EditIcon />}
-                                                        onClick={() => navigate("/itemsandinventory/maintenance/update-foreign-item-codes")}
+                                                        onClick={() => navigate("/itemsandinventory/maintenance/update-foreign-item-codes", { state: { stock_id: selectedItem, itemCode: item } })}
                                                     >
                                                         Edit
                                                     </Button>
@@ -221,7 +248,7 @@ function ForeignItemCodesTable() {
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={7} align="center">
+                                        <TableCell colSpan={6} align="center">
                                             <Typography variant="body2">No Records Found</Typography>
                                         </TableCell>
                                     </TableRow>
