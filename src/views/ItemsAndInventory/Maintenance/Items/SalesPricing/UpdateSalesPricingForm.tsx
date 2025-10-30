@@ -19,7 +19,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import theme from "../../../../../theme";
 import { getCurrencies } from "../../../../../api/Currency/currencyApi";
 import { getSalesTypes } from "../../../../../api/SalesMaintenance/salesService";
-import { getSalesPricingById, updateSalesPricing } from "../../../../../api/SalesPricing/SalesPricingApi";
+import { getSalesPricingById, updateSalesPricing, getSalesPricingByStockId } from "../../../../../api/SalesPricing/SalesPricingApi";
 
 interface SalesPricingFormData {
   currency_id: number | "";
@@ -91,10 +91,26 @@ export default function UpdateSalesPricingForm() {
   };
 
   // MUI Select always returns string, so cast to number
-  const handleSelectChange = (e: SelectChangeEvent<string>) => {
+  const handleSelectChange = async (e: SelectChangeEvent<string>) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value === "" ? "" : Number(value) });
+    const newValue = value === "" ? "" : Number(value);
+    setFormData({ ...formData, [name]: newValue });
     setErrors({ ...errors, [name]: "" });
+
+    // If changing sales_type_id, check if it already exists and auto-fill price
+    if (name === "sales_type_id" && newValue && stockId) {
+      try {
+        const existingPricings = await getSalesPricingByStockId(stockId);
+        const existingPricing = existingPricings.find(
+          (p: any) => p.sales_type_id === newValue && p.currency_id === formData.currency_id && p.id !== Number(id)
+        );
+        if (existingPricing) {
+          setFormData(prev => ({ ...prev, price: existingPricing.price.toString() }));
+        }
+      } catch (error) {
+        console.error("Failed to fetch existing pricings", error);
+      }
+    }
   };
 
   const validate = () => {
@@ -180,7 +196,7 @@ export default function UpdateSalesPricingForm() {
             gap: isMobile ? 2 : 0,
           }}
         >
-          <Button onClick={() => navigate("/itemsandinventory/maintenance/items/sales-pricing")}>Back</Button>
+          <Button onClick={() => navigate("/itemsandinventory/maintenance/items/")}>Back</Button>
           <Button variant="contained" fullWidth={isMobile} sx={{ backgroundColor: "var(--pallet-blue)" }} onClick={handleSubmit}>
             Update
           </Button>

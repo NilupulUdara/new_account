@@ -12,6 +12,8 @@ import {
 } from "@mui/material";
 import theme from "../../../../theme";
 import { createInventoryLocation } from "../../../../api/InventoryLocation/InventoryLocationApi";
+import { getItems } from "../../../../api/Item/ItemApi";
+import { createLocStock } from "../../../../api/LocStock/LocStockApi";
 import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
 
@@ -85,6 +87,21 @@ export default function AddInventoryLocationForm() {
         };
 
         await createInventoryLocation(payload);
+
+        // Get all items
+        const items = await getItems();
+
+        // Create loc_stock entries for each item
+        const locStockPromises = items.map((item: any) =>
+          createLocStock({
+            stock_id: item.stock_id,
+            loc_code: formData.locationCode,
+            reorder_level: 0, // default reorder level
+          })
+        );
+
+        await Promise.all(locStockPromises);
+
         setOpen(true);
       } catch (error) {
         console.error(error);

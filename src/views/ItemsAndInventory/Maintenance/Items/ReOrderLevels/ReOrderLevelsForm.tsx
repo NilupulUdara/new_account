@@ -1,130 +1,272 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Box,
-  Stack,
-  Typography,
-  TextField,
   Button,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TableFooter,
+  TablePagination,
   Paper,
-  useTheme,
+  Typography,
   useMediaQuery,
+  Theme,
+  TextField,
 } from "@mui/material";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
 import theme from "../../../../../theme";
+import Breadcrumb from "../../../../../components/BreadCrumb";
+import PageTitle from "../../../../../components/PageTitle";
+import SearchBar from "../../../../../components/SearchBar";
+import { getInventoryLocations } from "../../../../../api/InventoryLocation/InventoryLocationApi";
+import { getLocStocks, updateLocStock } from "../../../../../api/LocStock/LocStockApi";
+import { getItemById } from "../../../../../api/Item/ItemApi";
+import { getItemUnits } from "../../../../../api/ItemUnit/ItemUnitApi";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface ItemReOderlevelProps {
   itemId?: string | number;
 }
 
-interface ReOrderLevelsFormData {
-  location: string;
-  quantityOnHand: string;
-  reorderLevel: string;
-}
-
 export default function ReOrderLevelsForm({ itemId }: ItemReOderlevelProps) {
-  const [formData, setFormData] = useState<ReOrderLevelsFormData>({
-    location: "Main Warehouse", // example pre-filled value
-    quantityOnHand: "150", // example pre-filled value
-    reorderLevel: "",
+  const [reorderLevels, setReorderLevels] = useState<Record<string, string>>({});
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Fetch inventory locations
+  const { data: locations = [], isLoading } = useQuery({
+    queryKey: ["inventoryLocations"],
+    queryFn: getInventoryLocations,
+    refetchOnWindowFocus: true,
+    refetchInterval: 1000,
   });
 
-  const [errors, setErrors] = useState<Partial<ReOrderLevelsFormData>>({});
-  const muiTheme = useTheme();
-  const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
-  const navigate = useNavigate();
+  // Fetch loc stock data for the item
+  const { data: locStocks = [] } = useQuery({
+    queryKey: ["locStocks", itemId],
+    queryFn: getLocStocks,
+    enabled: !!itemId,
+    refetchOnWindowFocus: true,
+    refetchInterval: 1000,
+  });
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-    setErrors({ ...errors, [name]: "" });
+  // Fetch item data
+  const { data: itemData } = useQuery({
+    queryKey: ["item", itemId],
+    queryFn: () => getItemById(itemId),
+    enabled: !!itemId,
+  });
+
+  // Fetch item units
+  const { data: itemUnits = [] } = useQuery({
+    queryKey: ["itemUnits"],
+    queryFn: getItemUnits,
+  });
+
+  // Populate reorder levels from loc stock data
+  useEffect(() => {
+    if (locStocks.length > 0 && itemId) {
+      const filteredStocks = locStocks.filter(stock => stock.stock_id === itemId.toString());
+      const levels: Record<string, string> = {};
+      filteredStocks.forEach(stock => {
+        levels[stock.loc_code] = stock.reorder_level.toString();
+      });
+      setReorderLevels(levels);
+    }
+  }, [locStocks, itemId]);
+
+  // Find the unit text
+  const unitText = useMemo(() => {
+    if (itemData?.units && itemUnits.length > 0) {
+      const unit = itemUnits.find((u: any) => u.id === itemData.units);
+      return unit?.description || unit?.name || itemData.units;
+    }
+    return itemData?.units || "N/A";
+  }, [itemData, itemUnits]);
+
+  // Filter by search
+  const filteredLocations = useMemo(() => {
+    return locations.filter((location) => {
+      return location.location_name.toLowerCase().includes(searchQuery.toLowerCase());
+    });
+  }, [locations, searchQuery]);
+
+  const paginatedLocations = useMemo(() => {
+    if (rowsPerPage === -1) return filteredLocations;
+    return filteredLocations.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [filteredLocations, page, rowsPerPage]);
+
+  const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
+  const handleChangeRowsPerPage = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
   };
 
-  const validate = () => {
-    const newErrors: Partial<ReOrderLevelsFormData> = {};
-    if (!formData.reorderLevel) newErrors.reorderLevel = "Reorder Level is required";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const handleReorderLevelChange = (locCode: string, value: string) => {
+    setReorderLevels({ ...reorderLevels, [locCode]: value });
   };
 
-  const handleSubmit = () => {
-    if (validate()) {
-      console.log("Reorder Level Submitted:", formData);
-      alert("Reorder Level updated successfully!");
-      setFormData({ ...formData, reorderLevel: "" }); // reset only reorderLevel
+  const handleSave = async () => {
+    if (!itemId) return;
+
+    try {
+      const updates = Object.entries(reorderLevels).map(([locCode, reorderLevel]) => {
+        if (reorderLevel.trim() !== '') {
+          return updateLocStock(locCode, itemId.toString(), { loc_code: locCode, stock_id: itemId.toString(), reorder_level: parseFloat(reorderLevel) });
+        }
+        return null;
+      }).filter(Boolean);
+
+      await Promise.all(updates);
+      queryClient.invalidateQueries({ queryKey: ["locStocks", itemId] });
+      alert("Reorder Levels updated successfully!");
+    } catch (error) {
+      console.error("Error updating reorder levels:", error);
+      alert("Failed to update reorder levels.");
     }
   };
 
+  const breadcrumbItems = [
+    { title: "Home", href: "/home" },
+    { title: "Reorder Levels" },
+  ];
+
+  if (isLoading) {
+    return (
+      <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
+        <Typography>Loading locations...</Typography>
+      </Stack>
+    );
+  }
+
   return (
-    <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
-      <Paper
+    <Stack spacing={2}>
+      {/* Header */}
+      <Box
         sx={{
-          p: theme.spacing(3),
-          maxWidth: "500px",
-          width: "100%",
+          padding: theme.spacing(2),
           boxShadow: 2,
-          borderRadius: 2,
+          marginY: 2,
+          borderRadius: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
         }}
       >
-        <Typography variant="h6" sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}>
-          Add / Update Reorder Level
-        </Typography>
+        <Box>
+          <PageTitle title="Reorder Levels" />
+          <Breadcrumb breadcrumbs={breadcrumbItems} />
+        </Box>
 
-        <Stack spacing={2}>
-          <TextField
-            label="Location"
-            name="location"
-            size="small"
-            fullWidth
-            value={formData.location}
-            InputProps={{ readOnly: true }}
-          />
-
-          <TextField
-            label="Quantity on Hand"
-            name="quantityOnHand"
-            size="small"
-            fullWidth
-            value={formData.quantityOnHand}
-            InputProps={{ readOnly: true }}
-          />
-
-          <TextField
-            label="Reorder Level"
-            name="reorderLevel"
-            size="small"
-            fullWidth
-            type="number"
-            value={formData.reorderLevel}
-            onChange={handleInputChange}
-            error={!!errors.reorderLevel}
-            helperText={errors.reorderLevel}
-          />
-        </Stack>
-
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            mt: 3,
-            flexDirection: isMobile ? "column" : "row",
-            gap: isMobile ? 2 : 0,
-          }}
-        >
-          <Button onClick={() => navigate("/itemsandinventory/maintenance/items")}>
-            Back
-          </Button>
-
+        <Stack direction="row" spacing={1}>
           <Button
             variant="contained"
-            fullWidth={isMobile}
-            sx={{ backgroundColor: "var(--pallet-blue)" }}
-            onClick={handleSubmit}
+            color="primary"
+            onClick={handleSave}
           >
-            Add Reorder Level
+            Update
           </Button>
+        </Stack>
+      </Box>
+
+      {/* Search */}
+      <Stack
+        direction="row"
+        sx={{ px: 2, mb: 2, width: "100%", justifyContent: "flex-end" }}
+      >
+        <Box sx={{ width: isMobile ? "100%" : "300px" }}>
+          <SearchBar
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            placeholder="Search Location Name..."
+          />
         </Box>
-      </Paper>
+      </Stack>
+
+      {/* Table */}
+      <Stack sx={{ alignItems: "center" }}>
+        {/* Item Info */}
+        <Box sx={{ width: "100%", mb: 2, px: 2, textAlign: "center" }}>
+          <Typography variant="body1" sx={{ fontWeight: "bold", mb: 1 }}>
+            {itemData?.stock_id || itemId} - {itemData?.description || "N/A"}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            In unit of: {unitText}
+          </Typography>
+        </Box>
+
+        <TableContainer
+          component={Paper}
+          elevation={2}
+          sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}
+        >
+          <Table aria-label="reorder levels table">
+            <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
+              <TableRow>
+                <TableCell>No</TableCell>
+                <TableCell>Location Name</TableCell>
+                <TableCell>Quantity On Hand</TableCell>
+                <TableCell>Reorder Level</TableCell>
+              </TableRow>
+            </TableHead>
+
+            <TableBody>
+              {paginatedLocations.length > 0 ? (
+                paginatedLocations.map((location, index) => (
+                  <TableRow key={location.loc_code} hover>
+                    <TableCell>{page * rowsPerPage + index + 1}</TableCell>
+                    <TableCell>{location.location_name}</TableCell>
+                    <TableCell>N/A</TableCell>
+                    <TableCell>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={reorderLevels[location.loc_code] || ""}
+                        onChange={(e) => handleReorderLevelChange(location.loc_code, e.target.value)}
+                        placeholder="Enter reorder level"
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} align="center">
+                    <Typography variant="body2">No Locations Found</Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+
+            <TableFooter>
+              <TableRow>
+                <TablePagination
+                  rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
+                  colSpan={4}
+                  count={filteredLocations.length}
+                  rowsPerPage={rowsPerPage}
+                  page={page}
+                  onPageChange={handleChangePage}
+                  onRowsPerPageChange={handleChangeRowsPerPage}
+                  showFirstButton
+                  showLastButton
+                />
+              </TableRow>
+            </TableFooter>
+          </Table>
+        </TableContainer>
+      </Stack>
     </Stack>
   );
 }

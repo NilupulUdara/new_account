@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Stack,
@@ -11,6 +11,9 @@ import {
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import theme from "../../../../../theme";
+import { getItemById, updateItem } from "../../../../../api/Item/ItemApi";
+import { getItemTypes } from "../../../../../api/ItemType/ItemType";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface ItemStandardCostProps {
   itemId?: string | number;
@@ -18,6 +21,8 @@ interface ItemStandardCostProps {
 
 interface StandardCostFormData {
   unitCost: string;
+  standardLabourCost: string;
+  standardOverheadCost: string;
   referenceLine: string;
   memo: string;
 }
@@ -25,6 +30,8 @@ interface StandardCostFormData {
 export default function AddStandardCostForm({ itemId }: ItemStandardCostProps) {
   const [formData, setFormData] = useState<StandardCostFormData>({
     unitCost: "",
+    standardLabourCost: "",
+    standardOverheadCost: "",
     referenceLine: "",
     memo: "",
   });
@@ -33,6 +40,50 @@ export default function AddStandardCostForm({ itemId }: ItemStandardCostProps) {
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Fetch item data
+  const { data: itemData, isLoading: itemLoading } = useQuery({
+    queryKey: ["item", itemId],
+    queryFn: () => getItemById(itemId),
+    enabled: !!itemId,
+  });
+
+  // Fetch item types
+  const { data: itemTypes = [] } = useQuery({
+    queryKey: ["itemTypes"],
+    queryFn: getItemTypes,
+  });
+
+  // Determine if item is manufactured
+  const selectedItemType = itemTypes.find((t) => t.id === itemData?.mb_flag);
+  const isManufacture = selectedItemType?.name?.toLowerCase() === "manufactured";
+
+  // Populate form with existing costs when item data loads
+  useEffect(() => {
+    if (itemData) {
+      setFormData({
+        unitCost: itemData.material_cost?.toString() || "",
+        standardLabourCost: itemData.labour_cost?.toString() || "",
+        standardOverheadCost: itemData.overhead_cost?.toString() || "",
+        referenceLine: "",
+        memo: "",
+      });
+    }
+  }, [itemData]);
+
+  // Mutation to update item costs
+  const updateCostMutation = useMutation({
+    mutationFn: (payload: any) => updateItem(itemId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["item", itemId] });
+      alert("Standard Cost updated successfully!");
+    },
+    onError: (err: any) => {
+      console.error("Failed to update standard cost:", err);
+      alert("Failed to update standard cost");
+    },
+  });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -43,8 +94,9 @@ export default function AddStandardCostForm({ itemId }: ItemStandardCostProps) {
   const validate = () => {
     const newErrors: Partial<StandardCostFormData> = {};
     if (!formData.unitCost) newErrors.unitCost = "Unit Cost is required";
-    if (!formData.referenceLine) newErrors.referenceLine = "Reference Line is required";
-    if (!formData.memo) newErrors.memo = "Memo is required";
+    if (isManufacture && !formData.standardLabourCost) newErrors.standardLabourCost = "Standard Labour Cost is required";
+    if (isManufacture && !formData.standardOverheadCost) newErrors.standardOverheadCost = "Standard Overhead Cost is required";
+   
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -52,15 +104,23 @@ export default function AddStandardCostForm({ itemId }: ItemStandardCostProps) {
 
   const handleSubmit = () => {
     if (validate()) {
-      console.log("Standard Cost Submitted:", formData);
-      alert("Standard Cost added successfully!");
-      setFormData({
-        unitCost: "",
-        referenceLine: "",
-        memo: "",
-      });
+      const payload = {
+        ...itemData,
+        material_cost: parseFloat(formData.unitCost) || 0,
+        labour_cost: isManufacture ? (parseFloat(formData.standardLabourCost) || 0) : 0,
+        overhead_cost: isManufacture ? (parseFloat(formData.standardOverheadCost) || 0) : 0,
+      };
+      updateCostMutation.mutate(payload);
     }
   };
+
+  if (itemLoading) {
+    return (
+      <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
+        <Typography>Loading item details...</Typography>
+      </Stack>
+    );
+  }
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
@@ -73,10 +133,6 @@ export default function AddStandardCostForm({ itemId }: ItemStandardCostProps) {
           borderRadius: 2,
         }}
       >
-        <Typography variant="h6" sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}>
-          Add Standard Cost
-        </Typography>
-
         <Stack spacing={2}>
           <TextField
             label="Unit Cost"
@@ -89,6 +145,34 @@ export default function AddStandardCostForm({ itemId }: ItemStandardCostProps) {
             error={!!errors.unitCost}
             helperText={errors.unitCost}
           />
+
+          {isManufacture && (
+            <TextField
+              label="Standard Labour Cost Per Unit"
+              name="standardLabourCost"
+              size="small"
+              fullWidth
+              type="number"
+              value={formData.standardLabourCost}
+              onChange={handleInputChange}
+              error={!!errors.standardLabourCost}
+              helperText={errors.standardLabourCost}
+            />
+          )}
+
+          {isManufacture && (
+            <TextField
+              label="Standard Overhead Cost Per Unit"
+              name="standardOverheadCost"
+              size="small"
+              fullWidth
+              type="number"
+              value={formData.standardOverheadCost}
+              onChange={handleInputChange}
+              error={!!errors.standardOverheadCost}
+              helperText={errors.standardOverheadCost}
+            />
+          )}
 
           <TextField
             label="Reference Line"

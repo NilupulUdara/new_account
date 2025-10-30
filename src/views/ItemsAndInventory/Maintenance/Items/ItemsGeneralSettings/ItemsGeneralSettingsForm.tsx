@@ -23,6 +23,8 @@ import { getItemUnits } from "../../../../../api/ItemUnit/ItemUnitApi";
 import { getItemTypes } from "../../../../../api/ItemType/ItemType";
 import { getItemCategories } from "../../../../../api/ItemCategories/ItemCategoriesApi";
 import { createItem, getItemById, updateItem } from "../../../../../api/Item/ItemApi";
+import { getInventoryLocations } from "../../../../../api/InventoryLocation/InventoryLocationApi";
+import { createLocStock } from "../../../../../api/LocStock/LocStockApi";
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 interface ItemGeneralSettingProps {
@@ -189,6 +191,19 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
 
     try {
       const res = await createItem(payload); // your API call
+      const newStockId = formData.itemCode;
+
+      // Fetch inventory locations and create loc_stock records
+      const locations = await getInventoryLocations();
+      const locStockPromises = locations.map(location =>
+        createLocStock({
+          loc_code: location.loc_code,
+          stock_id: newStockId,
+          reorder_level: 0,
+        })
+      );
+      await Promise.all(locStockPromises);
+
       alert("Item added successfully!");
       console.log("Created:", res);
       queryClient.invalidateQueries({ queryKey: ["items"], exact: false });

@@ -126,7 +126,7 @@ export default function UpdatePurchasingPricingForm() {
 
     try {
       await updatePurchData(Number(supplierId), stockId, {
-        supplier_id: formData.supplier_id as number,
+        supplier_id: Number(supplierId),
         stock_id: stockId,
         price: Number(formData.price),
         suppliers_uom: formData.suppliers_uom,
