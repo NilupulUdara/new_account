@@ -161,7 +161,7 @@ function ItemCategoriesTable() {
             Add Category
           </Button>
 
-          <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>
+          <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate("/itemsandinventory/maintenance")}>
             Back
           </Button>
         </Stack>

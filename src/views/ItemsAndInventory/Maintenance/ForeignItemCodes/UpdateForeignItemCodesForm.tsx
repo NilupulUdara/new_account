@@ -1,4 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { useLocation, useNavigate } from "react-router-dom";
+import { updateItemCode } from "../../../../api/ItemCodes/ItemCodesApi";
+import queryClient from "../../../../state/queryClient";
 import {
   Box,
   Stack,
@@ -35,6 +40,21 @@ export default function UpdateForeignItemCodesForm() {
 
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const location = useLocation();
+  const navigate = useNavigate();
+  const itemCodeFromState = (location.state as any)?.itemCode ?? null;
+  const stateStockId = (location.state as any)?.stock_id ?? null;
+
+  useEffect(() => {
+    if (itemCodeFromState) {
+      setFormData({
+        upcCode: itemCodeFromState.item_code ?? itemCodeFromState.code ?? "",
+        quantity: itemCodeFromState.quantity ?? "",
+        description: itemCodeFromState.description ?? "",
+        category: String(itemCodeFromState.category_id ?? itemCodeFromState.category ?? ""),
+      });
+    }
+  }, [itemCodeFromState]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -59,16 +79,36 @@ export default function UpdateForeignItemCodesForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (validate()) {
-      console.log("Foreign Item Submitted:", formData);
-      alert("Foreign Item Code updated successfully!");
-      setFormData({
-        upcCode: "",
-        quantity: "",
-        description: "",
-        category: "",
-      });
+      const payload = {
+        item_code: formData.upcCode,
+        stock_id: stateStockId,
+        description: formData.description,
+        category_id: formData.category,
+        quantity: formData.quantity,
+        is_foreign: 1,
+      };
+
+      const id = itemCodeFromState?.id ?? itemCodeFromState?.code_id ?? null;
+      if (!id) {
+        alert("Cannot update: missing item code id.");
+        return;
+      }
+
+      try {
+  const res = await updateItemCode(id, payload);
+  console.log("Updated item code:", res);
+  // Invalidate so the table refreshes.
+  // Use refetchType: 'all' to ensure inactive queries (the table) are refetched.
+  await queryClient.invalidateQueries({ queryKey: ["item-codes"], exact: false, refetchType: 'all' });
+  alert("Foreign Item Code updated successfully!");
+  setFormData({ upcCode: "", quantity: "", description: "", category: "" });
+  navigate(-1);
+      } catch (err: any) {
+        console.error("Failed to update item code:", err);
+        alert("Failed to update foreign item code");
+      }
     }
   };
 
@@ -130,10 +170,22 @@ export default function UpdateForeignItemCodesForm() {
               onChange={handleSelectChange}
               label="Category"
             >
-              <MenuItem value="Electronics">Electronics</MenuItem>
-              <MenuItem value="Clothing">Clothing</MenuItem>
-              <MenuItem value="Food">Food</MenuItem>
-              <MenuItem value="Other">Other</MenuItem>
+              {(() => {
+                const { data, isLoading } = useQuery({ queryKey: ["item-categories"], queryFn: () => getItemCategories() });
+                const categories = (data && (data.data ?? data)) ?? [];
+
+                if (isLoading) return <MenuItem disabled value="">Loading...</MenuItem>;
+
+                return categories.length > 0 ? (
+                  categories.map((cat: any) => (
+                    <MenuItem key={cat.category_id ?? cat.id} value={String(cat.category_id ?? cat.id)}>
+                      {cat.description ?? cat.name ?? cat.category_name ?? cat.title ?? String(cat.category_id ?? cat.id)}
+                    </MenuItem>
+                  ))
+                ) : (
+                  <MenuItem disabled value="">No categories</MenuItem>
+                );
+              })()}
             </Select>
             <FormHelperText>{errors.category || " "}</FormHelperText>
           </FormControl>
