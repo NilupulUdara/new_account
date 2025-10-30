@@ -19,7 +19,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import theme from "../../../../../theme";
 import { getCurrencies } from "../../../../../api/Currency/currencyApi";
 import { getSalesTypes } from "../../../../../api/SalesMaintenance/salesService";
-import { createSalesPricing } from "../../../../../api/SalesPricing/SalesPricingApi";
+import { createSalesPricing, getSalesPricingByStockId } from "../../../../../api/SalesPricing/SalesPricingApi";
 
 interface SalesPricingFormData {
   stock_id: number | "";
@@ -89,7 +89,8 @@ export default function AddSalesPricingForm() {
   const handleSelectChange = (e: SelectChangeEvent<number>) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: Number(value) });
-    setErrors({ ...errors, [name]: "" });
+    // Clear errors for the changed field and the combination error
+    setErrors({ ...errors, [name]: "", sales_type_id: name === "currency_id" || name === "sales_type_id" ? "" : errors.sales_type_id });
   };
 
   const validate = () => {
@@ -106,6 +107,18 @@ export default function AddSalesPricingForm() {
   const handleSubmit = async () => {
     if (!validate()) return;
     try {
+      // Check for existing sales pricing with same currency and sales type
+      const existingPricings = await getSalesPricingByStockId(formData.stock_id);
+      const duplicate = existingPricings.some(
+        (pricing: any) =>
+          pricing.currency_id === formData.currency_id &&
+          pricing.sales_type_id === formData.sales_type_id
+      );
+      if (duplicate) {
+        setErrors({ ...errors, sales_type_id: "A sales pricing with this currency and sales type already exists for this item." });
+        return;
+      }
+
       await createSalesPricing({
         stock_id: formData.stock_id,
         currency_id: formData.currency_id,

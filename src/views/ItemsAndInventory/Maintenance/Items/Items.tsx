@@ -17,8 +17,9 @@ import {
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router";
 import { useLocation } from "react-router-dom";
-import { getItems } from "../../../../api/Item/ItemApi";
+import { getItems, getItemById } from "../../../../api/Item/ItemApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getItemTypes } from "../../../../api/ItemType/ItemType";
 import { useQuery } from "@tanstack/react-query";
 
 // Import item-specific components
@@ -57,6 +58,23 @@ const Items = () => {
     queryKey: ["itemCategories"],
     queryFn: () => getItemCategories() as Promise<{ category_id: number; description: string }[]>,
   });
+
+  // Fetch selected item data
+  const { data: selectedItemData } = useQuery({
+    queryKey: ["item", selectedItem],
+    queryFn: () => getItemById(selectedItem),
+    enabled: selectedItem !== "new",
+  });
+
+  // Fetch item types
+  const { data: itemTypes = [] } = useQuery({
+    queryKey: ["itemTypes"],
+    queryFn: getItemTypes,
+  });
+
+  // Determine if selected item is service
+  const selectedItemType = itemTypes.find((t) => t.id === selectedItemData?.mb_flag);
+  const isService = selectedItemType?.name?.toLowerCase() === "service";
 
   // Tab change handler
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -161,8 +179,8 @@ const Items = () => {
         <Tab label="Sales Pricing" disabled={selectedItem === "new"} />
         <Tab label="Purchasing Pricing" disabled={selectedItem === "new"} />
         <Tab label="Standard Costs" disabled={selectedItem === "new"} />
-        <Tab label="Reorder Levels" disabled={selectedItem === "new"} />
-        <Tab label="Transactions" disabled={selectedItem === "new"} />
+        <Tab label="Reorder Levels" disabled={selectedItem === "new" || isService} />
+        <Tab label="Transactions" disabled={selectedItem === "new" || isService} />
         <Tab label="Status" disabled={selectedItem === "new"} />
         <Tab label="Attachments" disabled={selectedItem === "new"} />
       </Tabs>
@@ -189,7 +207,7 @@ const Items = () => {
       </TabPanel>
 
       <TabPanel value={tabValue} index={4}>
-        {selectedItem !== "new" && <ReOrderLevelsForm itemId={selectedItem} />}
+        {selectedItem !== "new" && !isService && <ReOrderLevelsForm itemId={selectedItem} />}
       </TabPanel>
 
       <TabPanel value={tabValue} index={5}>

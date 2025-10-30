@@ -24,6 +24,17 @@ export const getSalesPricing = async () => {
   }
 };
 
+// Read by stock_id
+export const getSalesPricingByStockId = async (stockId: string | number) => {
+  try {
+    const response = await axios.get(`${API_URL}?stock_id=${stockId}`);
+    return response.data;
+  } catch (error: any) {
+    console.error(error.response?.data || error);
+    throw error.response?.data || error;
+  }
+};
+
 // Read one
 export const getSalesPricingById = async (id: string | number) => {
   try {
