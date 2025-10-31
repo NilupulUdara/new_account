@@ -1,4 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getItems } from "../../../../api/Item/ItemApi";
+import { getItemCodes } from "../../../../api/ItemCodes/ItemCodesApi";
+import { createItemCode } from "../../../../api/ItemCodes/ItemCodesApi";
+import queryClient from "../../../../state/queryClient";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Box,
   Stack,
@@ -13,14 +20,32 @@ import {
   FormHelperText,
   useTheme,
   useMediaQuery,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TableFooter,
+  TablePagination,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
+import Breadcrumb from "../../../../components/BreadCrumb";
+import PageTitle from "../../../../components/PageTitle";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import theme from "../../../../theme";
 
 interface SalesKitFormData {
-  kitName: string; // selected sales kit
+  selectedKit: string; // existing kit or "new"
   kitCode: string;
-  componentName: string; // dropdown
-  componentCode: string; // shows code automatically
+  component: string; // selected item name
+  componentCode: string; // stock_id of selected item
   description: string;
   category: string;
   quantity: string;
@@ -44,9 +69,9 @@ const mockItems = [
 
 export default function AddSalesKitsForm() {
   const [formData, setFormData] = useState<SalesKitFormData>({
-    kitName: "",
+    selectedKit: "new",
     kitCode: "",
-    componentName: "",
+    component: "",
     componentCode: "",
     description: "",
     category: "",
@@ -54,31 +79,148 @@ export default function AddSalesKitsForm() {
   });
 
   const [errors, setErrors] = useState<Partial<SalesKitFormData>>({});
+  const [selectedKitCode, setSelectedKitCode] = useState<string>("");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [addComponentData, setAddComponentData] = useState<{ component: string | number; quantity: string }>({ component: "", quantity: "" });
+  const [editComponentId, setEditComponentId] = useState<string | null>(null);
+  const [addErrors, setAddErrors] = useState<Partial<typeof addComponentData>>({});
+  const [editQuantityDialog, setEditQuantityDialog] = useState(false);
+  const [editQuantityData, setEditQuantityData] = useState<{ id: string; quantity: string }>({ id: "", quantity: "" });
 
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // If navigated back from the Add/Edit component page, prefer the passed selectedKit and keep it selected
+  useEffect(() => {
+    const navState = (location.state as any) ?? {};
+    const passedSelectedKit = navState.selectedKit;
+    if (passedSelectedKit) {
+      // set selected kit and kit code
+      const kit = salesKits.find((k: any) => String(k.item_code) === String(passedSelectedKit));
+      setFormData((prev) => ({
+        ...prev,
+        selectedKit: String(passedSelectedKit),
+        kitCode: kit?.item_code ?? String(passedSelectedKit),
+        description: navState.kitDescription ?? kit?.description ?? prev.description,
+        category: String(navState.kitCategoryId ?? kit?.category_id ?? prev.category),
+      }));
+      setSelectedKitCode(String(passedSelectedKit));
+
+      // Clear navigation state so it doesn't reapply on future navigations
+      navigate(location.pathname + location.search, { replace: true, state: {} });
+    }
+  // We only want to run this when route location changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
+
+  // Allow stock_id to be passed via location.state or query param
+  const stateStockId = (location.state as any)?.stock_id;
+  const queryStockId = new URLSearchParams(location.search).get("stock_id");
+  const [assignedStockId, setAssignedStockId] = useState<string | null>(stateStockId ?? queryStockId ?? null);
+
+  useEffect(() => {
+    if (!assignedStockId && stateStockId) setAssignedStockId(String(stateStockId));
+  }, [stateStockId]);
+
+  // Fetch existing sales kits (item_codes where is_foreign=0)
+  const { data: existingKitsData = [], isLoading: kitsLoading } = useQuery({
+    queryKey: ["item-codes"],
+    queryFn: () => getItemCodes(),
+  });
+  const existingKits = (existingKitsData && (existingKitsData.data ?? existingKitsData)) ?? [];
+  // Group rows by item_code to present a single kit entry per kit code (avoid showing per-component rows)
+  const kitsMap = React.useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const row of existingKits) {
+      // only treat non-foreign item_codes as sales kits
+      if (row && row.item_code && (row.is_foreign === 0 || row.is_foreign === undefined || row.is_foreign === null)) {
+        const key = String(row.item_code);
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(row);
+      }
+    }
+    return map;
+  }, [existingKits]);
+
+  const salesKits = React.useMemo(() => {
+    const arr: any[] = [];
+    for (const [item_code, rows] of kitsMap.entries()) {
+      // try to find a header-like row (no stock_id) or fallback to the first row
+      const header = rows.find((r: any) => !r.stock_id) || rows[0];
+      arr.push({
+        item_code,
+        id: header.id,
+        description: header.description || rows[0].description || "",
+        category_id: header.category_id ?? rows[0].category_id ?? "",
+        quantity: header.quantity ?? "",
+        rows,
+      });
+    }
+    // sort alphabetically by item_code for stable order
+    return arr.sort((a, b) => String(a.item_code).localeCompare(String(b.item_code)));
+  }, [kitsMap]);
+
+  // Fetch items for components
+  const { data: itemsData = [], isLoading: itemsLoading } = useQuery({
+    queryKey: ["items"],
+    queryFn: () => getItems(),
+  });
+  const items = (itemsData && (itemsData.data ?? itemsData)) ?? [];
+
+  // Fetch categories
+  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
+    queryKey: ["item-categories"],
+    queryFn: () => getItemCategories(),
+  });
+  const categories = (categoriesData && (categoriesData.data ?? categoriesData)) ?? [];
 
   // Handle selecting existing sales kit
   const handleKitChange = (e: any) => {
-    const selectedName = e.target.value;
-    const selectedKit = mockSalesKits.find((kit) => kit.name === selectedName);
-    setFormData({
-      ...formData,
-      kitName: selectedName,
-      kitCode: selectedKit ? selectedKit.code : "",
-    });
-    setErrors({ ...errors, kitName: "" });
+    const selectedValue = e.target.value;
+    if (selectedValue === "new") {
+      setFormData({
+        ...formData,
+        selectedKit: "new",
+        kitCode: "",
+        description: "",
+        category: "",
+        quantity: "",
+      });
+      setSelectedKitCode("");
+    } else {
+      // selectedValue is the item_code (we render item_code as the menu value)
+      const selectedKit = salesKits.find((kit: any) => String(kit.item_code) === String(selectedValue));
+      if (selectedKit) {
+        setFormData({
+          ...formData,
+          selectedKit: selectedValue,
+          kitCode: selectedKit.item_code || selectedValue,
+          description: selectedKit.description || "",
+          category: String(selectedKit.category_id ?? ""),
+          quantity: selectedKit.quantity ?? "",
+        });
+        setSelectedKitCode(selectedKit.item_code || selectedValue);
+      }
+    }
+    setErrors({ ...errors, selectedKit: "" });
   };
 
+  // Handle component change
   const handleComponentChange = (e: any) => {
     const selectedName = e.target.value;
-    const selectedItem = mockItems.find((item) => item.name === selectedName);
-    setFormData({
-      ...formData,
-      componentName: selectedName,
-      componentCode: selectedItem ? selectedItem.code : "",
-    });
-    setErrors({ ...errors, componentName: "" });
+    const selectedItem = items.find((item: any) => item.description === selectedName);
+    console.log("Selected item:", selectedItem); // Debug
+    if (selectedItem) {
+      setFormData((prev) => ({
+        ...prev,
+        component: selectedName,
+        componentCode: selectedItem.stock_id || selectedItem.id,
+      }));
+    }
+    setErrors({ ...errors, component: "" });
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,10 +237,8 @@ export default function AddSalesKitsForm() {
 
   const validate = () => {
     const newErrors: Partial<SalesKitFormData> = {};
-    if (!formData.kitName) newErrors.kitName = "Sales Kit is required";
     if (!formData.kitCode) newErrors.kitCode = "Kit Code is required";
-    if (!formData.componentName) newErrors.componentName = "Component is required";
-    if (!formData.componentCode) newErrors.componentCode = "Component code is required";
+    if (!formData.component) newErrors.component = "Component is required";
     if (!formData.description) newErrors.description = "Description is required";
     if (!formData.category) newErrors.category = "Category is required";
     if (!formData.quantity) newErrors.quantity = "Quantity is required";
@@ -107,159 +247,533 @@ export default function AddSalesKitsForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
-    if (validate()) {
-      console.log("Sales Kit Submitted:", formData);
-      alert("Sales Kit added successfully!");
-      setFormData({
-        kitName: "",
-        kitCode: "",
-        componentName: "",
-        componentCode: "",
-        description: "",
-        category: "",
-        quantity: "",
+  // Components for currently selected kit (by item_code)
+  const kitComponents = selectedKitCode ? existingKits.filter((code: any) => code.item_code === selectedKitCode && code.stock_id) : [];
+
+  const paginatedComponents = React.useMemo(() => {
+    if (rowsPerPage === -1) return kitComponents;
+    return kitComponents.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [kitComponents, page, rowsPerPage]);
+
+  const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  // Update kit (update description/category for all rows with item_code)
+  const handleUpdateKit = async () => {
+    if (!selectedKitCode) return;
+    try {
+      const kitRows = existingKits.filter((code: any) => code.item_code === selectedKitCode);
+      for (const row of kitRows) {
+        await (await import("../../../../api/ItemCodes/ItemCodesApi")).updateItemCode(row.id, {
+          ...row,
+          description: formData.description,
+          category_id: formData.category,
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["item-codes"] });
+      alert("Kit updated successfully");
+    } catch (error) {
+      console.error("Error updating kit:", error);
+      alert("Error updating kit");
+    }
+  };
+
+  // Add component to kit
+  const handleAddComponent = async () => {
+    if (!formData.selectedKit || formData.selectedKit === "new" || !addComponentData.component || !addComponentData.quantity) return;
+    // addComponentData.component now holds stock_id (or item id)
+    const selectedItem = items.find((item: any) => String(item.stock_id ?? item.id) === String(addComponentData.component));
+    if (!selectedItem) return;
+    try {
+      // formData.selectedKit now stores the item_code
+      const selectedKitData = salesKits.find((kit: any) => String(kit.item_code) === String(formData.selectedKit));
+      const itemCodeToUse = selectedKitData?.item_code ?? formData.kitCode;
+      // Per backend requirement: store the sales kit's description on component rows
+      await (await import("../../../../api/ItemCodes/ItemCodesApi")).createItemCode({
+        item_code: itemCodeToUse,
+        description: selectedKitData?.description ?? formData.description ?? selectedItem.description ?? selectedItem.item_name ?? selectedItem.name,
+        category_id: selectedKitData?.category_id ?? selectedKitData?.rows?.[0]?.category_id,
+        quantity: addComponentData.quantity,
+        is_foreign: 0,
+        stock_id: selectedItem.stock_id ?? selectedItem.id,
       });
+      queryClient.invalidateQueries({ queryKey: ["item-codes"] });
+      setAddComponentData({ component: "", quantity: "" });
+      alert("Component added successfully");
+    } catch (error) {
+      console.error("Error adding component:", error);
+      alert("Error adding component");
+    }
+  };
+
+  // Load existing component row into Add Component form for editing
+  const handleLoadComponentForEdit = (componentRow: any) => {
+    // componentRow.stock_id holds the selected item's id
+    setAddComponentData({ component: componentRow.stock_id ?? componentRow.stock_id ?? componentRow.id, quantity: String(componentRow.quantity ?? "") });
+    setEditComponentId(String(componentRow.id));
+    // ensure the kit selection is set (it already should be when viewing components)
+    setSelectedKitCode(componentRow.item_code ?? selectedKitCode);
+    setFormData((prev) => ({ ...prev, selectedKit: componentRow.item_code ?? prev.selectedKit }));
+    // scroll into view - optional UX: focus the component select
+    const el = document.querySelector('select[name="component"]') as HTMLElement | null;
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  // Update existing component
+  const handleUpdateComponent = async () => {
+    if (!editComponentId) return;
+    if (!addComponentData.component || !addComponentData.quantity) return;
+    try {
+      const selectedItem = items.find((item: any) => String(item.stock_id ?? item.id) === String(addComponentData.component));
+      const selectedKitData = salesKits.find((kit: any) => String(kit.item_code) === String(formData.selectedKit));
+      const payload = {
+        item_code: selectedKitData?.item_code ?? formData.kitCode,
+        description: selectedKitData?.description ?? formData.description,
+        category_id: selectedKitData?.category_id ?? selectedKitData?.rows?.[0]?.category_id,
+        quantity: addComponentData.quantity,
+        is_foreign: 0,
+        stock_id: selectedItem ? (selectedItem.stock_id ?? selectedItem.id) : addComponentData.component,
+      };
+      await (await import("../../../../api/ItemCodes/ItemCodesApi")).updateItemCode(editComponentId, payload);
+      queryClient.invalidateQueries({ queryKey: ["item-codes"] });
+      setAddComponentData({ component: "", quantity: "" });
+      setEditComponentId(null);
+      alert("Component updated successfully");
+    } catch (error) {
+      console.error("Error updating component:", error);
+      alert("Error updating component");
+    }
+  };
+
+  const handleCancelEditComponent = () => {
+    setAddComponentData({ component: "", quantity: "" });
+    setEditComponentId(null);
+  };
+
+  // Edit quantity handling
+  const handleEditQuantity = (id: string, currentQuantity: string) => {
+    setEditQuantityData({ id, quantity: currentQuantity });
+    setEditQuantityDialog(true);
+  };
+
+  const handleSaveQuantity = async () => {
+    try {
+      const row = existingKits.find((code: any) => code.id === editQuantityData.id);
+      await (await import("../../../../api/ItemCodes/ItemCodesApi")).updateItemCode(editQuantityData.id, {
+        ...row,
+        quantity: editQuantityData.quantity,
+      });
+      queryClient.invalidateQueries({ queryKey: ["item-codes"] });
+      setEditQuantityDialog(false);
+      alert("Quantity updated successfully");
+    } catch (error) {
+      console.error("Error updating quantity:", error);
+      alert("Error updating quantity");
+    }
+  };
+
+  // Delete component
+  const handleDeleteComponent = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this component?")) return;
+    try {
+      await (await import("../../../../api/ItemCodes/ItemCodesApi")).deleteItemCode(id);
+      queryClient.invalidateQueries({ queryKey: ["item-codes"] });
+      alert("Component deleted successfully");
+    } catch (error) {
+      console.error("Error deleting component:", error);
+      alert("Error deleting component");
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (validate()) {
+      // Build payload matching item_codes table
+      const payload = {
+        item_code: formData.kitCode,
+        stock_id: formData.componentCode, // component's stock_id
+        description: formData.description,
+        category_id: formData.category,
+        quantity: formData.quantity,
+        // is_foreign defaults to 0
+      };
+
+      try {
+        const res = await createItemCode(payload);
+        console.log("Created sales kit:", res);
+        // Invalidate item-codes so the table refreshes
+        await queryClient.invalidateQueries({ queryKey: ["item-codes"], exact: false, refetchType: 'all' });
+        alert("Sales Kit added successfully!");
+        setFormData({
+          selectedKit: "new",
+          kitCode: "",
+          component: "",
+          componentCode: "",
+          description: "",
+          category: "",
+          quantity: "",
+        });
+        // go back to table
+        navigate(-1);
+      } catch (err: any) {
+        console.error("Failed to create sales kit:", err);
+        alert("Failed to add sales kit");
+      }
     }
   };
 
   return (
-    <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
-      <Paper
+    <Stack sx={{ width: "100%" }}>
+      {/* Header similar to ForeignItemCodesTable */}
+      <Box
         sx={{
-          p: theme.spacing(3),
-          maxWidth: "600px",
-          width: "100%",
+          padding: theme.spacing(2),
           boxShadow: 2,
-          borderRadius: 2,
+          marginY: 2,
+          borderRadius: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 2,
         }}
       >
-        <Typography variant="h6" sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}>
-          Add / Edit Sales Kit
-        </Typography>
+        <Box>
+          <PageTitle title="Sales Kits" />
+          <Breadcrumb breadcrumbs={[{ title: "Home", href: "/home" }, { title: "Sales Kits" }]} />
+        </Box>
 
-        <Stack spacing={2}>
-          {/* Sales Kit Dropdown */}
-          <FormControl size="small" fullWidth error={!!errors.kitName}>
-            <InputLabel>Select Sales Kit</InputLabel>
+        {/* center select */}
+        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+          <FormControl sx={{ minWidth: 320 }} size="small">
+            <InputLabel>Select Kit</InputLabel>
             <Select
-              name="kitName"
-              value={formData.kitName}
-              onChange={handleKitChange}
-              label="Select Sales Kit"
+              value={selectedKitCode || formData.selectedKit}
+              label="Select Kit"
+              onChange={(e) => handleKitChange(e)}
             >
-              {mockSalesKits.map((kit) => (
-                <MenuItem key={kit.code} value={kit.name}>
-                  {kit.name}
+              <MenuItem value="new">+ Add New Sales Kit</MenuItem>
+              {kitsLoading ? (
+                <MenuItem disabled value="">
+                  Loading...
                 </MenuItem>
-              ))}
-            </Select>
-            <FormHelperText>{errors.kitName || " "}</FormHelperText>
-          </FormControl>
-
-          <TextField
-            label="Kit Code"
-            name="kitCode"
-            size="small"
-            fullWidth
-            value={formData.kitCode}
-            InputProps={{ readOnly: true }}
-            error={!!errors.kitCode}
-            helperText={errors.kitCode || " "}
-          />
-
-          {/* Component dropdown + code in one row */}
-          <Stack direction={isMobile ? "column" : "row"} spacing={2}>
-            <FormControl size="small" fullWidth error={!!errors.componentName}>
-              <InputLabel>Component Name</InputLabel>
-              <Select
-                name="componentName"
-                value={formData.componentName}
-                onChange={handleComponentChange}
-                label="Component Name"
-              >
-                {mockItems.map((item) => (
-                  <MenuItem key={item.code} value={item.name}>
-                    {item.name}
+              ) : salesKits.length > 0 ? (
+                salesKits.map((kit: any) => (
+                  <MenuItem key={kit.item_code} value={kit.item_code}>
+                    {kit.item_code} - {kit.description}
                   </MenuItem>
-                ))}
-              </Select>
-              <FormHelperText>{errors.componentName || " "}</FormHelperText>
-            </FormControl>
-
-            <TextField
-              label="Component Code"
-              name="componentCode"
-              size="small"
-              fullWidth
-              value={formData.componentCode}
-              InputProps={{ readOnly: true }}
-              error={!!errors.componentCode}
-              helperText={errors.componentCode || " "}
-            />
-          </Stack>
-
-          <TextField
-            label="Description"
-            name="description"
-            size="small"
-            fullWidth
-            value={formData.description}
-            onChange={handleInputChange}
-            error={!!errors.description}
-            helperText={errors.description || " "}
-          />
-
-          <FormControl size="small" fullWidth error={!!errors.category}>
-            <InputLabel>Category</InputLabel>
-            <Select
-              name="category"
-              value={formData.category}
-              onChange={handleSelectChange}
-              label="Category"
-            >
-              <MenuItem value="Electronics">Electronics</MenuItem>
-              <MenuItem value="Clothing">Clothing</MenuItem>
-              <MenuItem value="Food">Food</MenuItem>
-              <MenuItem value="Other">Other</MenuItem>
+                ))
+              ) : (
+                <MenuItem disabled value="">
+                  No existing kits
+                </MenuItem>
+              )}
             </Select>
-            <FormHelperText>{errors.category || " "}</FormHelperText>
           </FormControl>
+        </Box>
 
-          <TextField
-            label="Quantity (Kits)"
-            name="quantity"
-            size="small"
-            fullWidth
-            type="number"
-            value={formData.quantity}
-            onChange={handleInputChange}
-            error={!!errors.quantity}
-            helperText={errors.quantity || " "}
-          />
-        </Stack>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+          <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/itemsandinventory/maintenance/')}>Back</Button>
+        </Box>
+      </Box>
 
-        <Box
+      {/* Main content */}
+      <Stack alignItems="center" sx={{ mt: 0, px: isMobile ? 2 : 0 }}>
+        <Paper
           sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            mt: 3,
-            flexDirection: isMobile ? "column" : "row",
-            gap: isMobile ? 2 : 0,
+            p: theme.spacing(3),
+            maxWidth: "900px",
+            width: "100%",
+            boxShadow: 2,
+            borderRadius: 2,
           }}
         >
-          <Button onClick={() => window.history.back()}>Back</Button>
+          <Typography variant="h6" sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}>
+            {formData.selectedKit === 'new' ? 'Add Sales Kit' : 'Edit Sales Kit'}
+          </Typography>
 
-          <Button
-            variant="contained"
-            fullWidth={isMobile}
-            sx={{ backgroundColor: "var(--pallet-blue)" }}
-            onClick={handleSubmit}
+          <Stack spacing={2}>
+            {/* Keep the existing form markup — selection is handled in the header, so remove the duplicate select here */}
+
+            {/* Show form fields */}
+            {formData.selectedKit === "new" ? (
+              <>
+                <TextField
+                  label="Kit Code"
+                  name="kitCode"
+                  size="small"
+                  fullWidth
+                  value={formData.kitCode}
+                  onChange={handleInputChange}
+                  error={!!errors.kitCode}
+                  helperText={errors.kitCode || " "}
+                />
+
+                {/* Component dropdown + code in one row */}
+                <Stack direction={isMobile ? "column" : "row"} spacing={2}>
+                  <FormControl size="small" fullWidth error={!!errors.component}>
+                    <InputLabel>Component Name</InputLabel>
+                    <Select
+                      name="component"
+                      value={formData.component}
+                      onChange={handleComponentChange}
+                      label="Component Name"
+                    >
+                      {itemsLoading ? (
+                        <MenuItem disabled value="">
+                          Loading...
+                        </MenuItem>
+                      ) : items.length > 0 ? (
+                        items.map((item: any) => (
+                          <MenuItem key={item.stock_id || item.id} value={item.description}>
+                            {item.description}
+                          </MenuItem>
+                        ))
+                      ) : (
+                        <MenuItem disabled value="">
+                          No items available
+                        </MenuItem>
+                      )}
+                    </Select>
+                    <FormHelperText>{errors.component || " "}</FormHelperText>
+                  </FormControl>
+
+                  <TextField
+                    label="Component Code (Stock ID)"
+                    name="componentCode"
+                    size="small"
+                    fullWidth
+                    value={formData.componentCode}
+                    InputProps={{ readOnly: true }}
+                    error={!!errors.componentCode}
+                    helperText={errors.componentCode || " "}
+                  />
+                </Stack>
+
+                <TextField
+                  label="Description"
+                  name="description"
+                  size="small"
+                  fullWidth
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  error={!!errors.description}
+                  helperText={errors.description || " "}
+                />
+
+                <FormControl size="small" fullWidth error={!!errors.category}>
+                  <InputLabel>Category</InputLabel>
+                  <Select
+                    name="category"
+                    value={formData.category}
+                    onChange={handleSelectChange}
+                    label="Category"
+                  >
+                    {/* Fetch categories from API */}
+                    {categoriesLoading ? (
+                      <MenuItem disabled value="">
+                        Loading...
+                      </MenuItem>
+                    ) : categories.length > 0 ? (
+                      categories.map((cat: any) => (
+                        <MenuItem key={cat.category_id ?? cat.id} value={String(cat.category_id ?? cat.id)}>
+                          {cat.description ?? cat.name ?? cat.category_name ?? cat.title ?? String(cat.category_id ?? cat.id)}
+                        </MenuItem>
+                      ))
+                    ) : (
+                      <MenuItem disabled value="">
+                        No categories
+                      </MenuItem>
+                    )}
+                  </Select>
+                  <FormHelperText>{errors.category || " "}</FormHelperText>
+                </FormControl>
+
+                <TextField
+                  label="Quantity (Kits)"
+                  name="quantity"
+                  size="small"
+                  fullWidth
+                  type="number"
+                  value={formData.quantity}
+                  onChange={handleInputChange}
+                  error={!!errors.quantity}
+                  helperText={errors.quantity || " "}
+                />
+              </>
+            ) : (
+              // Update form: only show description and category
+              <>
+                <TextField
+                  label="Description"
+                  name="description"
+                  size="small"
+                  fullWidth
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  error={!!errors.description}
+                  helperText={errors.description || " "}
+                />
+
+                <FormControl size="small" fullWidth error={!!errors.category}>
+                  <InputLabel>Category</InputLabel>
+                  <Select
+                    name="category"
+                    value={formData.category}
+                    onChange={handleSelectChange}
+                    label="Category"
+                  >
+                    {categoriesLoading ? (
+                      <MenuItem disabled value="">
+                        Loading...
+                      </MenuItem>
+                    ) : categories.length > 0 ? (
+                      categories.map((cat: any) => (
+                        <MenuItem key={cat.category_id ?? cat.id} value={String(cat.category_id ?? cat.id)}>
+                          {cat.description ?? cat.name ?? cat.category_name ?? cat.title ?? String(cat.category_id ?? cat.id)}
+                        </MenuItem>
+                      ))
+                    ) : (
+                      <MenuItem disabled value="">
+                        No categories
+                      </MenuItem>
+                    )}
+                  </Select>
+                  <FormHelperText>{errors.category || " "}</FormHelperText>
+                </FormControl>
+              </>
+            )}
+          </Stack>
+
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              mt: 3,
+              flexDirection: isMobile ? "column" : "row",
+              gap: isMobile ? 2 : 0,
+            }}
           >
-            Add
-          </Button>
-        </Box>
-      </Paper>
+            <Button onClick={() => navigate(-1)}>Back</Button>
+
+            {formData.selectedKit === "new" ? (
+              <Button
+                variant="contained"
+                fullWidth={isMobile}
+                sx={{ backgroundColor: "var(--pallet-blue)" }}
+                onClick={handleSubmit}
+              >
+                Add
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                fullWidth={isMobile}
+                sx={{ backgroundColor: "var(--pallet-blue)" }}
+                onClick={handleUpdateKit}
+              >
+                Update Kit
+              </Button>
+            )}
+          </Box>
+        </Paper>
+
+        {/* If an existing kit is selected, show components table and add-component form */}
+        {formData.selectedKit !== "new" && selectedKitCode && (
+          <Box sx={{ width: "100%", mt: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 1, mr: 2 }}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  size="small"
+                  onClick={() => navigate('/itemsandinventory/maintenance/add-saleskit-component', { state: { item_code: selectedKitCode, kitDescription: formData.description, kitCategoryId: formData.category } })}
+                  sx={{ height: 36 }}
+                >
+                  Add Component
+                </Button>
+              </Box>
+
+            <TableContainer component={Paper} elevation={2} sx={{ overflowX: "auto", width: "100%", maxWidth: "100%" }}>
+              <Table aria-label="kit components table">
+                <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
+                  <TableRow>
+                    <TableCell>No</TableCell>
+                    <TableCell>Stock Item</TableCell>
+                    <TableCell>Description</TableCell>
+                    <TableCell>Quantity</TableCell>
+                    <TableCell>Units</TableCell>
+                    <TableCell align="center">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+
+                <TableBody>
+                  {paginatedComponents.length > 0 ? (
+                    paginatedComponents.map((component: any, index: number) => {
+                      const correspondingItem = items.find((item: any) => item.stock_id === component.stock_id);
+                      return (
+                        <TableRow key={component.id} hover>
+                          <TableCell>{page * rowsPerPage + index + 1}</TableCell>
+                          <TableCell>{component.stock_id}</TableCell>
+                          <TableCell>{correspondingItem?.description || component.description}</TableCell>
+                          <TableCell>{component.quantity}</TableCell>
+                          <TableCell>each</TableCell>
+                          <TableCell align="center">
+                            <Stack direction="row" spacing={1} justifyContent="center">
+                              <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<EditIcon />}
+                                onClick={() => navigate('/itemsandinventory/maintenance/add-saleskit-component', { state: { item_code: component.item_code, componentRow: component, kitDescription: formData.description, kitCategoryId: formData.category } })}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                color="error"
+                                startIcon={<DeleteIcon />}
+                                onClick={() => handleDeleteComponent(component.id)}
+                              >
+                                Delete
+                              </Button>
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center">
+                        <Typography variant="body2">No Records Found</Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+
+                <TableFooter>
+                  <TableRow>
+                    <TablePagination
+                      rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
+                      colSpan={6}
+                      count={kitComponents.length}
+                      rowsPerPage={rowsPerPage}
+                      page={page}
+                      onPageChange={handleChangePage}
+                      onRowsPerPageChange={handleChangeRowsPerPage}
+                      showFirstButton
+                      showLastButton
+                    />
+                  </TableRow>
+                </TableFooter>
+              </Table>
+            </TableContainer>
+
+            {/* Add Component moved to a dedicated page; Add/Edit buttons above/beside table */}
+          </Box>
+        )}
+      </Stack>
     </Stack>
   );
 }
