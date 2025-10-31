@@ -153,6 +153,7 @@ import ForeignItemCodesTable from "./views/ItemsAndInventory/Maintenance/Foreign
 import AddForeignItemCodesForm from "./views/ItemsAndInventory/Maintenance/ForeignItemCodes/AddForeignItemCodesForm";
 import UpdateForeignItemCodesForm from "./views/ItemsAndInventory/Maintenance/ForeignItemCodes/UpdateForeignItemCodesForm";
 import AddSalesKitsForm from "./views/ItemsAndInventory/Maintenance/SalesKits/AddSalesKitsForm";
+import AddSalesKitComponentPage from "./views/ItemsAndInventory/Maintenance/SalesKits/AddSalesKitComponentPage";
 import UpdateCustomersContactsForm from "./views/Sales/Maintenance/AddManageCustomers/Contacts/UpdateCustomersContactsForm";
 import AddCustomersContactsForm from "./views/Sales/Maintenance/AddManageCustomers/Contacts/AddCustomersContactsForm";
 import ContactsTable from "./views/Sales/Maintenance/CustomerBranches/Contacts/ContactsTable";
@@ -1515,6 +1516,15 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/itemsandinventory/maintenance/add-saleskit-component"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales kits']}>
+              {withLayout(MainLayout, AddSalesKitComponentPage)}
+            </ProtectedRoute>
+          }
+        />
+        
 
         <Route
           path="/itemsandinventory/maintenance/inventory-locations"

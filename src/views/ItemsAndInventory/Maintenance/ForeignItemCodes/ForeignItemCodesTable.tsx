@@ -84,10 +84,10 @@ function ForeignItemCodesTable() {
     if (!selectedItem) return [];
 
     // The only shared column between items and item-codes is `stock_id`.
-    // Match item-codes where code.stock_id === selectedItem.
+    // Match item-codes where code.stock_id === selectedItem and is_foreign === 1.
     const result = foreignItemData.filter((code: any) => {
         const codeStockId = code.stock_id ?? code.stockMasterId ?? code.stock_master?.stock_id ?? code.stock_master_id ?? code.item_id ?? code.itemId;
-        return String(codeStockId) === String(selectedItem);
+        return String(codeStockId) === String(selectedItem) && code.is_foreign === 1;
     });
 
     if (searchQuery.trim()) {
