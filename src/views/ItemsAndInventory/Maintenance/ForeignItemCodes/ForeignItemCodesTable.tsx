@@ -28,9 +28,9 @@ import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getItems } from "../../../../api/Item/ItemApi";
-import { getItemCodes } from "../../../../api/ItemCodes/ItemCodesApi";
+import { getItemCodes, deleteItemCode } from "../../../../api/ItemCodes/ItemCodesApi";
 
 function ForeignItemCodesTable() {
     const [page, setPage] = useState(0);
@@ -40,6 +40,7 @@ function ForeignItemCodesTable() {
 
     const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
 
     const { data: rawForeignItemData } = useQuery({
         queryKey: ["item-codes"],
@@ -49,6 +50,19 @@ function ForeignItemCodesTable() {
     const { data: rawItems } = useQuery({
         queryKey: ["items"],
         queryFn: getItems,
+    });
+
+    // Mutation to delete item code
+    const deleteMutation = useMutation({
+        mutationFn: (id: number) => deleteItemCode(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["item-codes"] });
+            alert("Item code deleted successfully!");
+        },
+        onError: (err: any) => {
+            console.error("Failed to delete item code:", err);
+            alert("Failed to delete item code");
+        },
     });
 
     // Backend may return `{ data: [...] }` or the array directly. Normalize to array.
@@ -106,7 +120,9 @@ function ForeignItemCodesTable() {
     };
 
     const handleDelete = (id: number) => {
-        alert(`Delete Item with id: ${id}`);
+        if (window.confirm("Are you sure you want to delete this item code?")) {
+            deleteMutation.mutate(id);
+        }
     };
 
     const breadcrumbItems = [
