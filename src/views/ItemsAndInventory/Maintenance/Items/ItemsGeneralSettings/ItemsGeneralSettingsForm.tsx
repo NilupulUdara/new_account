@@ -111,7 +111,7 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
           // use category_id (API uses this key) for defaults
           category: filteredItemCategories.length > 0 ? String(filteredItemCategories[0].category_id ?? filteredItemCategories[0].id) : "",
           itemTaxType: filteredTaxTypes.length > 0 ? String(filteredTaxTypes[0].id) : "",
-          itemType: filteredItemTypes.length > 0 ? String(filteredItemTypes[0].id) : "",
+          itemType: filteredItemTypes.find(type => type.id === 2) ? String(2) : (filteredItemTypes.length > 0 ? String(filteredItemTypes[0].id) : ""),
           unitOfMeasure: filteredUnits.length > 0 ? String(filteredUnits[0].id) : "",
           salesAccount: chartMastersRes.find((acc) => acc.account_code === "4010")?.account_code || "",
           inventoryAccount: chartMastersRes.find((acc) => acc.account_code === "1510")?.account_code || "",
@@ -186,6 +186,7 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
       depreciation_start: "2020-10-10",
       depreciation_date: "2020-10-10",
       fa_class_id: null,
+      imageFile: formData.imageFile
     };
 
 

@@ -64,12 +64,6 @@ function ItemsMaintenance() {
   ];
 
   const handleItemClick = (path: string, text: string) => {
-    // Prevent navigating to Reorder Levels if no items
-    if (text === "REORDER LEVELS" && items.length === 0) {
-      alert("Please add an item first before accessing Reorder Levels!");
-      return;
-    }
-
     if (path) {
       navigate(path);
     } else {

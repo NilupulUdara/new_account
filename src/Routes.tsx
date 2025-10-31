@@ -202,6 +202,14 @@ import UpdatePosForm from "./views/Setup/Miscellaneous/PointsOfSales/UpdatePosFo
 import UpdateGlAccount from "./views/BankindAndGeneralLedger/Maintenance/GlAccounts/UpdateGlAccount";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { PERMISSION_ID_MAP } from "./permissions/map";
+import ReOrderLevelsTable from "./views/ItemsAndInventory/Maintenance/ReOrderLevels/ReOrderLevelsTable";
+import ViewSalesPricing from "./views/ItemsAndInventory/PricingAndCosts/SalesPricing/ViewSalesPricing";
+import ViewPurchasingPricing from "./views/ItemsAndInventory/PricingAndCosts/PurchasingPricing/ViewPurchasingPricing";
+import ViewAddStandardCostForm from "./views/ItemsAndInventory/PricingAndCosts/StandardCosts/ViewAddStandardCostForm";
+import AddPurchasingPricingForm2 from "./views/ItemsAndInventory/PricingAndCosts/PurchasingPricing/AddPurchasingPricingForm2";
+import UpdatePurchasingPricingForm2 from "./views/ItemsAndInventory/PricingAndCosts/PurchasingPricing/UpdatePurchasingPricingForm2";
+import AddSalesPricingForm2 from "./views/ItemsAndInventory/PricingAndCosts/SalesPricing/AddSalesPricingForm2";
+import UpdateSalesPricingForm2 from "./views/ItemsAndInventory/PricingAndCosts/SalesPricing/UpdateSalesPricingForm2";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1560,7 +1568,7 @@ const AppRoutes = () => {
           path="/itemsandinventory/maintenance/reorder-levels"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Reorder levels']}>
-              {withLayout(MainLayout, ReOrderLevelsForm)}
+              {withLayout(MainLayout, ReOrderLevelsTable)}
             </ProtectedRoute>
           }
         />
@@ -1568,7 +1576,23 @@ const AppRoutes = () => {
           path="/itemsandinventory/pricingandcosts/sales-pricing"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales prices edition']}>
-              {withLayout(MainLayout, SalesPricingTable)}
+              {withLayout(MainLayout, ViewSalesPricing)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/itemsandinventory/pricingandcosts/add-sales-pricing/:itemId"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales prices edition']}>
+              {withLayout(MainLayout, AddSalesPricingForm2)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/itemsandinventory/pricingandcosts/update-sales-pricing/:id"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales prices edition']}>
+              {withLayout(MainLayout, UpdateSalesPricingForm2)}
             </ProtectedRoute>
           }
         />
@@ -1576,7 +1600,23 @@ const AppRoutes = () => {
           path="/itemsandinventory/pricingandcosts/purchasing-pricing"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Purchase price changes']}>
-              {withLayout(MainLayout, PurchasingPricingTable)}
+              {withLayout(MainLayout, ViewPurchasingPricing)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/itemsandinventory/pricingandcosts/add-purchasing-pricing/:itemId"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase price changes']}>
+              {withLayout(MainLayout, AddPurchasingPricingForm2)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/itemsandinventory/pricingandcosts/update-purchasing-pricing/:supplierId/:stockId"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase price changes']}>
+              {withLayout(MainLayout, UpdatePurchasingPricingForm2)}
             </ProtectedRoute>
           }
         />
@@ -1584,7 +1624,7 @@ const AppRoutes = () => {
           path="/itemsandinventory/pricingandcosts/standard-costs"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Item standard costs']}>
-              {withLayout(MainLayout, AddStandardCostForm)}
+              {withLayout(MainLayout, ViewAddStandardCostForm)}
             </ProtectedRoute>
           }
         />

@@ -16,10 +16,10 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import { useNavigate, useParams } from "react-router-dom";
-import theme from "../../../../../theme";
-import { getCurrencies } from "../../../../../api/Currency/currencyApi";
-import { getSalesTypes } from "../../../../../api/SalesMaintenance/salesService";
-import { createSalesPricing, getSalesPricingByStockId } from "../../../../../api/SalesPricing/SalesPricingApi";
+import theme from "../../../../theme";
+import { getCurrencies } from "../../../../api/Currency/currencyApi";
+import { getSalesTypes } from "../../../../api/SalesMaintenance/salesService";
+import { createSalesPricing, getSalesPricingByStockId } from "../../../../api/SalesPricing/SalesPricingApi";
 
 interface SalesPricingFormData {
   stock_id: string;
@@ -47,7 +47,7 @@ interface SalesType {
   typeName?: string;
 }
 
-export default function AddSalesPricingForm() {
+export default function AddSalesPricingForm2() {
   const { itemId } = useParams<{ itemId: string }>();
   const [formData, setFormData] = useState<SalesPricingFormData>({
     stock_id: itemId || "",
@@ -126,7 +126,7 @@ export default function AddSalesPricingForm() {
         price: Number(formData.price),
       });
       alert("Sales Pricing added successfully!");
-      navigate("/itemsandinventory/maintenance/items", { state: { tab: 1, selectedItem: itemId } });
+      navigate("/itemsandinventory/pricingandcosts/sales-pricing/");
     } catch (error) {
       console.error("API Error:", error);
       alert("Failed to add Sales Pricing");
@@ -197,7 +197,7 @@ export default function AddSalesPricingForm() {
             gap: isMobile ? 2 : 0,
           }}
         >
-          <Button onClick={() => navigate("/itemsandinventory/maintenance/items", { state: { tab: 1, selectedItem: itemId } })}>
+          <Button onClick={() => navigate("/itemsandinventory/pricingandcosts/sales-pricing")}>
             Back
           </Button>
 
