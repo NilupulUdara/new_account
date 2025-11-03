@@ -69,6 +69,13 @@ function ForeignItemCodesTable() {
     const foreignItemData = rawForeignItemData?.data ?? rawForeignItemData ?? [];
     const items = rawItems?.data ?? rawItems ?? [];
 
+    // Fetch item units so we can display unit text
+    const { data: rawItemUnits } = useQuery({
+        queryKey: ["item-units"],
+        queryFn: () => import("../../../../api/ItemUnit/ItemUnitApi").then(m => m.getItemUnits()),
+    });
+    const itemUnits = rawItemUnits?.data ?? rawItemUnits ?? [];
+
     // Auto-select the first item when items load and nothing is selected yet
     useEffect(() => {
         if ((!selectedItem || String(selectedItem).trim() === "") && items && items.length > 0) {
@@ -236,7 +243,24 @@ function ForeignItemCodesTable() {
                                             <TableCell>{page * rowsPerPage + index + 1}</TableCell>
                                             <TableCell>{item.item_code ?? item.code}</TableCell>
                                             <TableCell>{item.quantity}</TableCell>
-                                            <TableCell>each</TableCell>
+                                            <TableCell>
+                                                {
+                                                    // resolve corresponding item and map its units id to unit text
+                                                    (() => {
+                                                        const codeStockId = item.stock_id ?? item.stockMasterId ?? item.stock_master?.stock_id ?? item.stock_master_id ?? item.item_id ?? item.itemId;
+                                                        const correspondingItem = items.find((it: any) => String(it.stock_id ?? it.id) === String(codeStockId));
+                                                        if (correspondingItem) {
+                                                            const unitId = correspondingItem.units ?? correspondingItem.unit ?? correspondingItem.unit_id;
+                                                            if (unitId && itemUnits && itemUnits.length > 0) {
+                                                                const u = itemUnits.find((uu: any) => String(uu.id) === String(unitId));
+                                                                if (u) return u.description ?? u.name ?? u.abbr ?? String(unitId);
+                                                            }
+                                                            return correspondingItem.unit_name ?? correspondingItem.unit ?? correspondingItem.units ?? "each";
+                                                        }
+                                                        return "each";
+                                                    })()
+                                                }
+                                            </TableCell>
                                             <TableCell>{item.description}</TableCell>
                                             <TableCell>{item.category_id ?? item.category}</TableCell>
                                             <TableCell align="center">
