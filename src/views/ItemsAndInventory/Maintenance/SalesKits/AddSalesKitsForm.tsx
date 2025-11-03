@@ -170,6 +170,12 @@ export default function AddSalesKitsForm() {
   });
   const items = (itemsData && (itemsData.data ?? itemsData)) ?? [];
 
+  // Fetch item units (units of measure) so we can display unit text instead of a hardcoded value
+  const { data: itemUnitsData = [], isLoading: itemUnitsLoading } = useQuery({
+    queryKey: ["item-units"],
+    queryFn: () => (import("../../../../api/ItemUnit/ItemUnitApi").then(mod => mod.getItemUnits())),
+  });
+  const itemUnits = (itemUnitsData && (itemUnitsData.data ?? itemUnitsData)) ?? [];
   // Fetch categories
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
     queryKey: ["item-categories"],
@@ -718,7 +724,25 @@ export default function AddSalesKitsForm() {
                           <TableCell>{component.stock_id}</TableCell>
                           <TableCell>{correspondingItem?.description || component.description}</TableCell>
                           <TableCell>{component.quantity}</TableCell>
-                          <TableCell>each</TableCell>
+                              <TableCell>
+                                {
+                                  // Prefer the unit defined on the item (item.units) mapped via itemUnits lookup
+                                  (() => {
+                                    const item = correspondingItem;
+                                    if (item) {
+                                      const unitId = item.units ?? item.unit ?? item.unit_id;
+                                      if (unitId && itemUnits && itemUnits.length > 0) {
+                                        const u = itemUnits.find((uu: any) => String(uu.id) === String(unitId));
+                                        if (u) return u.description ?? u.name ?? u.abbr ?? String(unitId);
+                                      }
+                                      // Fallbacks: check for unit-ish fields on item
+                                      return item.unit_name ?? item.unit ?? item.units ?? "each";
+                                    }
+                                    // lastly try component row's unit fields
+                                    return component.unit ?? component.units ?? "each";
+                                  })()
+                                }
+                              </TableCell>
                           <TableCell align="center">
                             <Stack direction="row" spacing={1} justifyContent="center">
                               <Button
