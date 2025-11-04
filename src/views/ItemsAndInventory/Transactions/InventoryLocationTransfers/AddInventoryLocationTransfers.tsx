@@ -15,6 +15,7 @@ import {
   Typography,
   MenuItem,
   Grid,
+  Alert,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
@@ -26,6 +27,7 @@ import { getInventoryLocations } from "../../../../api/InventoryLocation/Invento
 import { getItems, getItemById } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { createStockMove, getStockMoves } from "../../../../api/StockMoves/StockMovesApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -89,12 +91,39 @@ export default function AddInventoryLocationTransfers() {
       validateDate(date);
     }
   }, [currentFiscalYear]);
+
+  // Set reference when fiscal year loads
+  useEffect(() => {
+    if (currentFiscalYear) {
+      const year = new Date(currentFiscalYear.fiscal_year_from).getFullYear();
+      // Fetch existing references to generate next sequential number
+      getStockMoves().then((stockMoves) => {
+        const yearReferences = stockMoves
+          .map((move: any) => move.reference)
+          .filter((ref: string) => ref && ref.endsWith(`/${year}`))
+          .map((ref: string) => {
+            const match = ref.match(/^(\d{3})\/\d{4}$/);
+            return match ? parseInt(match[1], 10) : 0;
+          })
+          .filter((num: number) => !isNaN(num));
+
+        const nextNumber = yearReferences.length > 0 ? Math.max(...yearReferences) + 1 : 1;
+        const formattedNumber = nextNumber.toString().padStart(3, '0');
+        setReference(`${formattedNumber}/${year}`);
+      }).catch((error) => {
+        console.error("Error fetching stock moves for reference generation:", error);
+        // Fallback to 001 if there's an error
+        setReference(`001/${year}`);
+      });
+    }
+  }, [currentFiscalYear]);
   const [rows, setRows] = useState<{
     id: number;
     itemCode: string;
     description: string;
     quantity: string;
     unit: string;
+    qoh: number;
     selectedItemId: string | number | null;
   }[]>([
     {
@@ -103,6 +132,7 @@ export default function AddInventoryLocationTransfers() {
       description: "",
       quantity: "",
       unit: "",
+      qoh: 0,
       selectedItemId: null,
     },
   ]);
@@ -114,6 +144,34 @@ export default function AddInventoryLocationTransfers() {
   const [reference, setReference] = useState("");
   const [memo, setMemo] = useState("");
   const [dateError, setDateError] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processError, setProcessError] = useState("");
+  const [processSuccess, setProcessSuccess] = useState(false);
+
+  // Update QOH when from location changes
+  useEffect(() => {
+    if (fromLocation) {
+      const updateQOH = async () => {
+        try {
+          const allStockMoves = await getStockMoves();
+          setRows(prev => prev.map(row => {
+            if (row.selectedItemId) {
+              const itemStockMoves = allStockMoves.filter((move: any) => move.stock_id === row.selectedItemId && move.loc_code === fromLocation);
+              const qoh = itemStockMoves.reduce((sum: number, move: any) => sum + (move.qty || 0), 0);
+              return { ...row, qoh };
+            }
+            return row;
+          }));
+        } catch (error) {
+          console.error("Error updating QOH:", error);
+        }
+      };
+      updateQOH();
+    } else {
+      // Reset QOH if no from location
+      setRows(prev => prev.map(row => ({ ...row, qoh: 0 })));
+    }
+  }, [fromLocation]);
 
   //  Handle table field changes
   const handleChange = (id: number, field: string, value: any) => {
@@ -132,6 +190,7 @@ export default function AddInventoryLocationTransfers() {
         description: "", 
         quantity: "", 
         unit: "",
+        qoh: 0,
         selectedItemId: null as string | number | null,
       },
     ]);
@@ -140,6 +199,82 @@ export default function AddInventoryLocationTransfers() {
   //  Remove row (optional)
   const handleRemoveRow = (id: number) => {
     setRows((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  // Process transfer
+  const handleProcessTransfer = async () => {
+    // Validation
+    if (!fromLocation || !toLocation) {
+      setProcessError("Please select both from and to locations.");
+      return;
+    }
+    if (fromLocation === toLocation) {
+      setProcessError("From and to locations cannot be the same.");
+      return;
+    }
+    if (dateError) {
+      setProcessError("Please fix the date error before proceeding.");
+      return;
+    }
+
+    // Check if there are valid items with quantities
+    const validRows = rows.filter(row => row.selectedItemId && parseFloat(row.quantity) > 0);
+    if (validRows.length === 0) {
+      setProcessError("Please add at least one item with quantity greater than 0.");
+      return;
+    }
+
+    // Validate quantities do not exceed QOH
+    const invalidRows = validRows.filter(row => parseFloat(row.quantity) > row.qoh);
+    if (invalidRows.length > 0) {
+      setProcessError("Transfer quantity cannot exceed quantity on hand for the following items: " + invalidRows.map(row => row.description).join(", "));
+      return;
+    }
+
+    setIsProcessing(true);
+    setProcessError("");
+    setProcessSuccess(false);
+
+    try {
+      // Create stock moves for each valid row
+      for (const row of validRows) {
+        const quantity = parseFloat(row.quantity);
+
+        // Stock move for reducing from location (negative quantity)
+        await createStockMove({
+          stock_id: row.selectedItemId,
+          loc_code: fromLocation,
+          tran_date: date,
+          qty: -quantity,
+          standard_cost: 0,
+          reference: reference,
+          memo: memo,
+          type: 0
+        });
+
+        // Stock move for adding to location (positive quantity)
+        await createStockMove({
+          stock_id: row.selectedItemId,
+          loc_code: toLocation,
+          tran_date: date,
+          qty: quantity,
+          standard_cost: 0,
+          reference: reference,
+          memo: memo,
+          type: 1
+        });
+      }
+
+      setProcessSuccess(true);
+      setTimeout(() => {
+        navigate(-1); // Go back to previous page
+      }, 2000);
+    } catch (error: any) {
+      console.error("Error processing transfer:", error);
+      setProcessError(error.response?.data?.message || "Error processing transfer. Please try again.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const breadcrumbItems = [
@@ -188,7 +323,7 @@ export default function AddInventoryLocationTransfers() {
               onChange={(e) => setFromLocation(e.target.value)}
               size="small"
             >
-              {locations.filter(loc => loc.loc_code !== toLocation).map((loc) => (
+              {locations.map((loc) => (
                 <MenuItem key={loc.loc_code} value={loc.loc_code}>
                   {loc.location_name}
                 </MenuItem>
@@ -206,7 +341,7 @@ export default function AddInventoryLocationTransfers() {
               onChange={(e) => setToLocation(e.target.value)}
               size="small"
             >
-              {locations.filter(loc => loc.loc_code !== fromLocation).map((loc) => (
+              {locations.map((loc) => (
                 <MenuItem key={loc.loc_code} value={loc.loc_code}>
                   {loc.location_name}
                 </MenuItem>
@@ -241,6 +376,9 @@ export default function AddInventoryLocationTransfers() {
               value={reference}
               onChange={(e) => setReference(e.target.value)}
               placeholder="Enter reference"
+              InputProps={{
+                readOnly: true,
+              }}
             />
           </Grid>
         </Grid>
@@ -254,6 +392,7 @@ export default function AddInventoryLocationTransfers() {
               <TableCell>No</TableCell>
               <TableCell>Item Code</TableCell>
               <TableCell>Item Description</TableCell>
+              <TableCell>QOH</TableCell>
               <TableCell>Quantity</TableCell>
               <TableCell>Unit</TableCell>
               <TableCell align="center">Action</TableCell>
@@ -293,6 +432,13 @@ export default function AddInventoryLocationTransfers() {
                             const unitDescription = unit?.description || unit?.name || itemData.units;
                             handleChange(row.id, "unit", unitDescription || "");
                           }
+                          // Fetch QOH from stock_moves if from location is selected
+                          if (fromLocation) {
+                            const allStockMoves = await getStockMoves();
+                            const itemStockMoves = allStockMoves.filter((move: any) => move.stock_id === selectedItem.stock_id && move.loc_code === fromLocation);
+                            const qoh = itemStockMoves.reduce((sum: number, move: any) => sum + (move.qty || 0), 0);
+                            handleChange(row.id, "qoh", qoh);
+                          }
                         } catch (error) {
                           console.error("Error fetching item data:", error);
                         }
@@ -305,6 +451,15 @@ export default function AddInventoryLocationTransfers() {
                       </MenuItem>
                     ))}
                   </TextField>
+                </TableCell>
+                <TableCell>
+                  <TextField
+                    size="small"
+                    value={row.qoh}
+                    InputProps={{
+                      readOnly: true,
+                    }}
+                  />
                 </TableCell>
                 <TableCell>
                   <TextField
@@ -385,10 +540,27 @@ export default function AddInventoryLocationTransfers() {
         />
       </Box>
 
+      {/* Success/Error Messages */}
+      {processSuccess && (
+        <Alert severity="success" sx={{ mt: 2 }}>
+          Transfer processed successfully! Redirecting...
+        </Alert>
+      )}
+      {processError && (
+        <Alert severity="error" sx={{ mt: 2 }}>
+          {processError}
+        </Alert>
+      )}
+
       {/*  Process Transfer Button */}
       <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
-        <Button variant="contained" color="primary">
-          Process Transfer
+        <Button 
+          variant="contained" 
+          color="primary" 
+          onClick={handleProcessTransfer}
+          disabled={!!dateError || isProcessing}
+        >
+          {isProcessing ? "Processing..." : "Process Transfer"}
         </Button>
       </Box>
     </Stack>

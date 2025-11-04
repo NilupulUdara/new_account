@@ -27,7 +27,7 @@ import { getInventoryLocations } from "../../../../api/InventoryLocation/Invento
 import { getItems, getItemById } from "../../../../api/Item/ItemApi";
 import { getItemTypes } from "../../../../api/ItemType/ItemType";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
-import { createStockMove } from "../../../../api/StockMoves/StockMovesApi";
+import { createStockMove, getStockMoves } from "../../../../api/StockMoves/StockMovesApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
@@ -120,7 +120,25 @@ export default function AddInventoryAdjustments() {
   useEffect(() => {
     if (currentFiscalYear) {
       const year = new Date(currentFiscalYear.fiscal_year_from).getFullYear();
-      setReference(`001/${year}`);
+      // Fetch existing references to generate next sequential number
+      getStockMoves().then((stockMoves) => {
+        const yearReferences = stockMoves
+          .map((move: any) => move.reference)
+          .filter((ref: string) => ref && ref.endsWith(`/${year}`))
+          .map((ref: string) => {
+            const match = ref.match(/^(\d{3})\/\d{4}$/);
+            return match ? parseInt(match[1], 10) : 0;
+          })
+          .filter((num: number) => !isNaN(num));
+
+        const nextNumber = yearReferences.length > 0 ? Math.max(...yearReferences) + 1 : 1;
+        const formattedNumber = nextNumber.toString().padStart(3, '0');
+        setReference(`${formattedNumber}/${year}`);
+      }).catch((error) => {
+        console.error("Error fetching stock moves for reference generation:", error);
+        // Fallback to 001 if there's an error
+        setReference(`001/${year}`);
+      });
     }
   }, [currentFiscalYear]);
 
@@ -219,10 +237,11 @@ export default function AddInventoryAdjustments() {
         .map(row => ({
           stock_id: row.selectedItemId,
           loc_code: location,
-          date: date,
+          tran_date: date,
           qty: parseFloat(row.quantity.toString()),
           standard_cost: row.unitCost,
-          reference: reference,  // Add reference
+          reference: reference,
+          trans_no: parseInt(reference.split('/')[0], 10),  // Extract number from reference (e.g., "001" -> 1)
         }));
 
       // Save all stock moves
@@ -384,17 +403,26 @@ export default function AddInventoryAdjustments() {
                               handleChange(row.id, "unit", unitDescription || "");
                             }
                           }
+                          // Fetch QOH from stock_moves
+                          const allStockMoves = await getStockMoves();
+                          const itemStockMoves = allStockMoves.filter((move: any) => move.stock_id === selectedItem.stock_id);
+                          const qoh = itemStockMoves.reduce((sum: number, move: any) => sum + (move.qty || 0), 0);
+                          handleChange(row.id, "qoh", qoh);
                         } catch (error) {
                           console.error("Error fetching item data:", error);
                         }
                       }
                     }}
                   >
-                    {filteredItems.map((item) => (
-                      <MenuItem key={item.stock_id} value={item.description}>
-                        {item.description}
-                      </MenuItem>
-                    ))}
+                    {filteredItems
+                      .filter(item => 
+                        !rows.some(r => r.id !== row.id && r.selectedItemId === item.stock_id)
+                      )
+                      .map((item) => (
+                        <MenuItem key={item.stock_id} value={item.description}>
+                          {item.description}
+                        </MenuItem>
+                      ))}
                   </TextField>
                 </TableCell>
                 <TableCell>
@@ -402,9 +430,9 @@ export default function AddInventoryAdjustments() {
                     size="small"
                     type="number"
                     value={row.qoh}
-                    onChange={(e) =>
-                      handleChange(row.id, "qoh", Number(e.target.value))
-                    }
+                    InputProps={{
+                      readOnly: true,
+                    }}
                   />
                 </TableCell>
                 <TableCell>
