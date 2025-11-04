@@ -211,6 +211,10 @@ import AddPurchasingPricingForm2 from "./views/ItemsAndInventory/PricingAndCosts
 import UpdatePurchasingPricingForm2 from "./views/ItemsAndInventory/PricingAndCosts/PurchasingPricing/UpdatePurchasingPricingForm2";
 import AddSalesPricingForm2 from "./views/ItemsAndInventory/PricingAndCosts/SalesPricing/AddSalesPricingForm2";
 import UpdateSalesPricingForm2 from "./views/ItemsAndInventory/PricingAndCosts/SalesPricing/UpdateSalesPricingForm2";
+import AddInventoryAdjustments from "./views/ItemsAndInventory/Transactions/InventoryAdjustments/AddInventoryAdjustments";
+import AddInventoryLocationTransfers from "./views/ItemsAndInventory/Transactions/InventoryLocationTransfers/AddInventoryLocationTransfers";
+import InventoryItemMovements from "./views/ItemsAndInventory/InquiriesAndReports/InventoryItemMovements/InventoryItemMovements";
+import InventoryItemStatus from "./views/ItemsAndInventory/InquiriesAndReports/InventoryItemStatus/InventoryItemStatus";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1317,10 +1321,42 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/itemsandinventory/transactions/inventory-adjustments"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory Operations']}>
+              {withLayout(MainLayout, AddInventoryAdjustments)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/itemsandinventory/transactions/inventory-location-transfer"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory Operations']}>
+              {withLayout(MainLayout, AddInventoryLocationTransfers)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/itemsandinventory/inquiriesandreports"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Inventory Analytics']}>
               {withLayout(MainLayout, ItemsInquiriesAndReports)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/itemsandinventory/inquiriesandreports/inventory-item-status"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory Analytics']}>
+              {withLayout(MainLayout, InventoryItemStatus)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/itemsandinventory/inquiriesandreports/inventory-item-movements"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory Analytics']}>
+              {withLayout(MainLayout, InventoryItemMovements)}
             </ProtectedRoute>
           }
         />
