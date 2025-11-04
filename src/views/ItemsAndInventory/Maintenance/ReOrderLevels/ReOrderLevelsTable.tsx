@@ -36,6 +36,7 @@ import { getItemById, getItems } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import { getItemTypes } from "../../../../api/ItemType/ItemType";
+import { getStockMoves } from "../../../../api/StockMoves/StockMovesApi";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface ItemReOderlevelProps {
@@ -102,6 +103,14 @@ export default function ReOrderLevelsTable({ itemId }: ItemReOderlevelProps) {
     queryFn: () => getItemTypes() as Promise<{ id: number; name: string }[]>,
   });
 
+  // Fetch stock moves data
+  const { data: stockMoves = [] } = useQuery({
+    queryKey: ["stockMoves"],
+    queryFn: getStockMoves,
+    refetchOnWindowFocus: true,
+    refetchInterval: 1000,
+  });
+
   // Populate reorder levels from loc stock data
   useEffect(() => {
     if (locStocks.length > 0 && selectedItem) {
@@ -122,6 +131,20 @@ export default function ReOrderLevelsTable({ itemId }: ItemReOderlevelProps) {
     }
     return itemData?.units || "N/A";
   }, [itemData, itemUnits]);
+
+  // Compute quantity on hand per location
+  const quantityOnHandMap = useMemo(() => {
+    if (!selectedItem || stockMoves.length === 0) return {};
+    const filteredMoves = stockMoves.filter((move: any) => move.stock_id === selectedItem);
+    return filteredMoves.reduce((acc: { [key: string]: number }, move: any) => {
+      const locCode = move.loc_code;
+      if (!acc[locCode]) {
+        acc[locCode] = 0;
+      }
+      acc[locCode] += parseFloat(move.qty) || 0;
+      return acc;
+    }, {});
+  }, [stockMoves, selectedItem]);
 
   // Filter by search
   const filteredLocations = useMemo(() => {
@@ -317,7 +340,7 @@ export default function ReOrderLevelsTable({ itemId }: ItemReOderlevelProps) {
                     <TableRow key={location.loc_code} hover>
                       <TableCell>{page * rowsPerPage + index + 1}</TableCell>
                       <TableCell>{location.location_name}</TableCell>
-                      <TableCell>N/A</TableCell>
+                      <TableCell>{quantityOnHandMap[location.loc_code] || 0}</TableCell>
                       <TableCell>
                         <TextField
                           size="small"

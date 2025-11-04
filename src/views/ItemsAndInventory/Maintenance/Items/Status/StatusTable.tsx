@@ -24,6 +24,9 @@ import theme from "../../../../../theme";
 import Breadcrumb from "../../../../../components/BreadCrumb";
 import PageTitle from "../../../../../components/PageTitle";
 import SearchBar from "../../../../../components/SearchBar";
+import { getStockMoves } from "../../../../../api/StockMoves/StockMovesApi";
+import { getInventoryLocations } from "../../../../../api/InventoryLocation/InventoryLocationApi";
+import { getLocStocks } from "../../../../../api/LocStock/LocStockApi";
 
 interface ItemStatusProps {
   itemId?: string | number;
@@ -47,15 +50,65 @@ function StatusTable({ itemId }: ItemStatusProps) {
     const navigate = useNavigate();
     const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
 
-    // Dummy data
+    // Fetch data from stock_moves and inventory_locations for the selected item
     useEffect(() => {
-        const dummyData: Status[] = [
-            { id: 1, location: "Warehouse A", quantityOnHand: 100, reorderLevel: 50, demand: 30, available: 70, onOrder: 20 },
-            { id: 2, location: "Warehouse B", quantityOnHand: 200, reorderLevel: 80, demand: 60, available: 140, onOrder: 50 },
-            { id: 3, location: "Warehouse C", quantityOnHand: 50, reorderLevel: 30, demand: 25, available: 25, onOrder: 10 },
-        ];
-        setStatusData(dummyData);
-    }, []);
+        const fetchData = async () => {
+            try {
+                const [stockMovesData, locationsData, locStocksData] = await Promise.all([
+                    getStockMoves(),
+                    getInventoryLocations(),
+                    getLocStocks()
+                ]);
+
+                // Create map of loc_code to location_name
+                const locationMap = new Map<string, string>();
+                locationsData.forEach(loc => {
+                    locationMap.set(loc.loc_code, loc.location_name);
+                });
+
+                // Create map of loc_code-stock_id to reorder_level
+                const reorderMap = new Map<string, number>();
+                locStocksData.forEach(stock => {
+                    reorderMap.set(`${stock.loc_code}-${stock.stock_id}`, stock.reorder_level);
+                });
+
+                // Filter stock_moves by stock_id (itemId)
+                const filteredMoves = itemId ? stockMovesData.filter((move: any) => move.stock_id === itemId) : stockMovesData;
+
+                // Group by loc_code and sum qty
+                const groupedByLocation = filteredMoves.reduce((acc: { [key: string]: number }, move: any) => {
+                    const locCode = move.loc_code;
+                    if (!acc[locCode]) {
+                        acc[locCode] = 0;
+                    }
+                    acc[locCode] += parseFloat(move.qty) || 0;
+                    return acc;
+                }, {});
+
+                // Map to Status format
+                const mappedData: Status[] = Object.entries(groupedByLocation).map(([locCode, qty]: [string, number], index) => ({
+                    id: index + 1,
+                    location: locationMap.get(locCode) || locCode, // Use location_name if available, else loc_code
+                    quantityOnHand: qty,
+                    reorderLevel: reorderMap.get(`${locCode}-${itemId}`) || 0,
+                    demand: 0,
+                    available: 0,
+                    onOrder: 0,
+                }));
+
+                setStatusData(mappedData);
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                setStatusData([]);
+            }
+        };
+
+        if (itemId) {
+            fetchData();
+        } else {
+            setStatusData([]);
+        }
+    }, [itemId]);
 
     const filteredData = useMemo(() => {
         return statusData.filter(item =>
