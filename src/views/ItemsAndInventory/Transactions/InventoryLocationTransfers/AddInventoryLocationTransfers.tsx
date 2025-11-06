@@ -28,6 +28,9 @@ import { getItems, getItemById } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { createStockMove, getStockMoves } from "../../../../api/StockMoves/StockMovesApi";
+import { createAuditTrail } from "../../../../api/StockMoves/AuditTrailsApi";
+import { createComment } from "../../../../api/Comments/CommentsApi";
+import useCurrentUser from "../../../../hooks/useCurrentUser";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -69,6 +72,9 @@ export default function AddInventoryLocationTransfers() {
     );
   }, [fiscalYears]);
 
+  const { user } = useCurrentUser();
+  const userId = user?.id ?? (Number(localStorage.getItem("userId")) || 0);
+
   // Validate date
   const validateDate = (selectedDate: string) => {
     if (!currentFiscalYear) {
@@ -97,15 +103,16 @@ export default function AddInventoryLocationTransfers() {
     if (currentFiscalYear) {
       const year = new Date(currentFiscalYear.fiscal_year_from).getFullYear();
       // Fetch existing references to generate next sequential number
+      // Only consider stock moves of the same transaction type (16 = transfer)
       getStockMoves().then((stockMoves) => {
         const yearReferences = stockMoves
-          .map((move: any) => move.reference)
-          .filter((ref: string) => ref && ref.endsWith(`/${year}`))
+          .filter((move: any) => move && move.type === 16 && move.reference && String(move.reference).endsWith(`/${year}`))
+          .map((move: any) => String(move.reference))
           .map((ref: string) => {
-            const match = ref.match(/^(\d{3})\/\d{4}$/);
+            const match = String(ref).match(/^(\d{3})\/\d{4}$/);
             return match ? parseInt(match[1], 10) : 0;
           })
-          .filter((num: number) => !isNaN(num));
+          .filter((num: number) => !isNaN(num) && num > 0);
 
         const nextNumber = yearReferences.length > 0 ? Math.max(...yearReferences) + 1 : 1;
         const formattedNumber = nextNumber.toString().padStart(3, '0');
@@ -236,6 +243,9 @@ export default function AddInventoryLocationTransfers() {
     setProcessSuccess(false);
 
     try {
+      // Determine trans_no from reference (e.g., "001/2025" -> 1)
+      const transNo = reference ? parseInt(String(reference).split("/")[0], 10) || 0 : 0;
+
       // Create stock moves for each valid row
       for (const row of validRows) {
         const quantity = parseFloat(row.quantity);
@@ -249,7 +259,8 @@ export default function AddInventoryLocationTransfers() {
           standard_cost: 0,
           reference: reference,
           memo: memo,
-          type: 0
+          type: 16,
+          trans_no: transNo,
         });
 
         // Stock move for adding to location (positive quantity)
@@ -261,14 +272,64 @@ export default function AddInventoryLocationTransfers() {
           standard_cost: 0,
           reference: reference,
           memo: memo,
-          type: 1
+          type: 16,
+          trans_no: transNo,
         });
       }
 
       setProcessSuccess(true);
-      setTimeout(() => {
-        navigate(-1); // Go back to previous page
-      }, 2000);
+
+      // Create audit trail entry for this transfer
+      try {
+        await createAuditTrail({
+          type: 16,
+          trans_no: transNo,
+          user: userId,
+          description: null,
+          fiscal_year: currentFiscalYear?.id ?? null,
+          gl_date: date,
+          gl_seq: null,
+        });
+      } catch (err) {
+        console.error("Failed to create audit trail for transfer", err);
+      }
+
+      // If memo was provided, save it to comments table (non-blocking)
+      if (memo && String(memo).trim() !== "") {
+        try {
+          await createComment({
+            type: 16,
+            id: transNo,
+            date_: date || null,
+            memo_: memo,
+          });
+        } catch (err) {
+          console.error("Failed to create comment for transfer", err);
+        }
+      }
+
+      // Build payload to pass to success/view pages
+      const payload = {
+        reference,
+        date,
+        fromLocation,
+        toLocation,
+        items: rows
+          .filter(row => row.selectedItemId && parseFloat(row.quantity) > 0)
+          .map(r => ({
+            itemCode: r.itemCode,
+            description: r.description,
+            quantity: r.quantity,
+            unit: r.unit,
+            selectedItemId: r.selectedItemId,
+          })),
+      };
+
+      // Navigate to a transfer success page
+      navigate(
+        "/itemsandinventory/transactions/inventory-location-transfer/success",
+        { state: payload }
+      );
     } catch (error: any) {
       console.error("Error processing transfer:", error);
       setProcessError(error.response?.data?.message || "Error processing transfer. Please try again.");
@@ -528,7 +589,7 @@ export default function AddInventoryLocationTransfers() {
       </TableContainer>
 
       {/*  Memo Field */}
-      <Box sx={{ mt: 2 }}>
+      <Box sx={{ mt: 2, pl: 1, pr: 1 }}>
         <Typography sx={{ mb: 1, fontWeight: 600 }}>Memo:</Typography>
         <TextField
           fullWidth
@@ -553,7 +614,7 @@ export default function AddInventoryLocationTransfers() {
       )}
 
       {/*  Process Transfer Button */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, pr: 1 }}>
         <Button 
           variant="contained" 
           color="primary" 
