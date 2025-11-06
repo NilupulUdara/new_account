@@ -213,8 +213,12 @@ import AddSalesPricingForm2 from "./views/ItemsAndInventory/PricingAndCosts/Sale
 import UpdateSalesPricingForm2 from "./views/ItemsAndInventory/PricingAndCosts/SalesPricing/UpdateSalesPricingForm2";
 import AddInventoryAdjustments from "./views/ItemsAndInventory/Transactions/InventoryAdjustments/AddInventoryAdjustments";
 import AddInventoryLocationTransfers from "./views/ItemsAndInventory/Transactions/InventoryLocationTransfers/AddInventoryLocationTransfers";
+import AddInventoryAdjustmentsSuccess from "./views/ItemsAndInventory/Transactions/InventoryAdjustments/AddInventoryAdjustmentsSuccess";
+import ViewInventoryAdjustment from "./views/ItemsAndInventory/Transactions/InventoryAdjustments/ViewInventoryAdjustment";
 import InventoryItemMovements from "./views/ItemsAndInventory/InquiriesAndReports/InventoryItemMovements/InventoryItemMovements";
 import InventoryItemStatus from "./views/ItemsAndInventory/InquiriesAndReports/InventoryItemStatus/InventoryItemStatus";
+import AddInventoryLocationTransfersSuccess from "./views/ItemsAndInventory/Transactions/InventoryLocationTransfers/AddInventoryLocationTransfersSuccess";
+import ViewInventoryLocationTransfer from "./views/ItemsAndInventory/Transactions/InventoryLocationTransfers/ViewInventoryLocationTransfer";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1329,10 +1333,42 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/itemsandinventory/transactions/inventory-adjustments/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory Operations']}>
+              {withLayout(MainLayout, AddInventoryAdjustmentsSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/itemsandinventory/transactions/inventory-adjustments/view"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory Operations']}>
+              {withLayout(MainLayout, ViewInventoryAdjustment)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/itemsandinventory/transactions/inventory-location-transfer"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Inventory Operations']}>
               {withLayout(MainLayout, AddInventoryLocationTransfers)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/itemsandinventory/transactions/inventory-location-transfer/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory Operations']}>
+              {withLayout(MainLayout, AddInventoryLocationTransfersSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/itemsandinventory/transactions/inventory-location-transfer/view"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory Operations']}>
+              {withLayout(MainLayout, ViewInventoryLocationTransfer)}
             </ProtectedRoute>
           }
         />

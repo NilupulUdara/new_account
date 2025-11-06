@@ -1,0 +1,68 @@
+import React from "react";
+import { Box, Button, Stack, Typography, Paper } from "@mui/material";
+import { useLocation, useNavigate } from "react-router-dom";
+import PageTitle from "../../../../components/PageTitle";
+import Breadcrumb from "../../../../components/BreadCrumb";
+import CloseIcon from '@mui/icons-material/Close';
+
+export default function AddInventoryLocationTransfersSuccess() {
+  const navigate = useNavigate();
+  const { state } = useLocation();
+  const { reference, date, fromLocation, toLocation } = state || {};
+
+  const breadcrumbItems = [
+    { title: "Home", href: "/home" },
+    { title: "Inventory Location Transfers" },
+  ];
+
+  return (
+    <Stack spacing={2}>
+      <Box
+        sx={{
+          padding: 2,
+          boxShadow: 2,
+          borderRadius: 1,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <Box>
+          <PageTitle title="Inventory transfer has been processed." />
+          <Breadcrumb breadcrumbs={breadcrumbItems} />
+        </Box>
+
+        <Button
+          variant="outlined"
+          startIcon={<CloseIcon />}
+          onClick={() => navigate("/itemsandinventory/transactions")}
+        >
+          Close
+        </Button>
+      </Box>
+
+      <Paper sx={{ p: 2 }}>
+        <Typography sx={{ mb: 2 }}>
+          Your inventory transfer has been processed successfully.
+        </Typography>
+
+        <Stack spacing={1} direction="column">
+          <Button
+            variant="outlined"
+            onClick={() => navigate("/itemsandinventory/transactions/inventory-location-transfer/view", { state })}
+          >
+            1. View this transfer
+          </Button>
+
+          <Button
+            variant="outlined"
+            onClick={() => navigate("/itemsandinventory/transactions/inventory-location-transfer")}
+          >
+            2. Enter another inventory transfer
+          </Button>
+        </Stack>
+      </Paper>
+    </Stack>
+  );
+}

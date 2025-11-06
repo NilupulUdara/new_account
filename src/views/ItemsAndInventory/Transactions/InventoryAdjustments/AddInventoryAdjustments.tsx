@@ -28,6 +28,9 @@ import { getItems, getItemById } from "../../../../api/Item/ItemApi";
 import { getItemTypes } from "../../../../api/ItemType/ItemType";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { createStockMove, getStockMoves } from "../../../../api/StockMoves/StockMovesApi";
+import { createAuditTrail } from "../../../../api/StockMoves/AuditTrailsApi";
+import { createComment } from "../../../../api/Comments/CommentsApi";
+import useCurrentUser from "../../../../hooks/useCurrentUser";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
@@ -89,6 +92,9 @@ export default function AddInventoryAdjustments() {
     return currentFY || openFiscalYears[0];
   }, [fiscalYears]);
 
+  const { user } = useCurrentUser();
+  const userId = user?.id ?? (Number(localStorage.getItem("userId")) || 0);
+
   //  Table data
   const [rows, setRows] = useState([
     {
@@ -121,15 +127,16 @@ export default function AddInventoryAdjustments() {
     if (currentFiscalYear) {
       const year = new Date(currentFiscalYear.fiscal_year_from).getFullYear();
       // Fetch existing references to generate next sequential number
+      // Only consider stock moves of the same transaction type (17 = adjustment)
       getStockMoves().then((stockMoves) => {
         const yearReferences = stockMoves
-          .map((move: any) => move.reference)
-          .filter((ref: string) => ref && ref.endsWith(`/${year}`))
+          .filter((move: any) => move && move.type === 17 && move.reference && String(move.reference).endsWith(`/${year}`))
+          .map((move: any) => String(move.reference))
           .map((ref: string) => {
-            const match = ref.match(/^(\d{3})\/\d{4}$/);
+            const match = String(ref).match(/^(\d{3})\/\d{4}$/);
             return match ? parseInt(match[1], 10) : 0;
           })
-          .filter((num: number) => !isNaN(num));
+          .filter((num: number) => !isNaN(num) && num > 0);
 
         const nextNumber = yearReferences.length > 0 ? Math.max(...yearReferences) + 1 : 1;
         const formattedNumber = nextNumber.toString().padStart(3, '0');
@@ -141,6 +148,29 @@ export default function AddInventoryAdjustments() {
       });
     }
   }, [currentFiscalYear]);
+
+  // When selected location changes, refresh QOH values for all rows that have a selected item
+  useEffect(() => {
+    const refreshQoh = async () => {
+      if (!location) return; // if no specific location selected, leave existing QOH as-is
+      try {
+        const allStockMoves = await getStockMoves();
+        setRows((prev) => prev.map((r) => {
+          if (!r.selectedItemId) return r;
+          const itemStockMoves = allStockMoves.filter((move: any) => {
+            const moveLoc = move.loc_code ?? move.locCode ?? move.loc?.loc_code ?? move.location_code;
+            return String(move.stock_id) === String(r.selectedItemId) && String(moveLoc) === String(location);
+          });
+          const qoh = itemStockMoves.reduce((sum: number, move: any) => sum + (move.qty || 0), 0);
+          return { ...r, qoh };
+        }));
+      } catch (err) {
+        console.error('Failed to refresh QOH on location change', err);
+      }
+    };
+
+    refreshQoh();
+  }, [location]);
 
   // Validate date is within fiscal year
   const validateDate = (selectedDate: string) => {
@@ -235,25 +265,77 @@ export default function AddInventoryAdjustments() {
       const stockMoves = rows
         .filter(row => row.selectedItemId && row.quantity)
         .map(row => ({
-          stock_id: row.selectedItemId,
-          loc_code: location,
-          tran_date: date,
-          qty: parseFloat(row.quantity.toString()),
-          standard_cost: row.unitCost,
-          reference: reference,
-          trans_no: parseInt(reference.split('/')[0], 10),  // Extract number from reference (e.g., "001" -> 1)
-        }));
+            stock_id: row.selectedItemId,
+            loc_code: location,
+            tran_date: date,
+            qty: parseFloat(row.quantity.toString()),
+            standard_cost: row.unitCost,
+            reference: reference,
+            trans_no: parseInt(reference.split('/')[0], 10),  // Extract number from reference (e.g., "001" -> 1)
+            type: 17,
+          }));
 
       // Save all stock moves
       await Promise.all(
         stockMoves.map(move => createStockMove(move))
       );
 
+      // Create audit trail entry for this adjustment
+      try {
+        const transNo = parseInt(reference.split("/")[0], 10) || 0;
+        await createAuditTrail({
+          type: 17,
+          trans_no: transNo,
+          user: userId,
+          description: null,
+          fiscal_year: currentFiscalYear?.id ?? null,
+          gl_date: date,
+          gl_seq: null,
+        });
+      } catch (err) {
+        console.error("Failed to create audit trail for adjustment", err);
+        // Do not block the user flow; continue
+      }
+
+      // If memo was provided, save it to comments table (non-blocking)
+      if (memo && memo.trim() !== "") {
+        try {
+          const transNo = parseInt(reference.split("/")[0], 10) || 0;
+          await createComment({
+            type: 17,
+            id: transNo,
+            date_: date || null,
+            memo_: memo,
+          });
+        } catch (err) {
+          console.error("Failed to create comment for adjustment", err);
+        }
+      }
+
       setSaveSuccess(true);
-      // Optionally reset form or navigate
-      setTimeout(() => {
-        navigate(-1); // Go back to previous page
-      }, 2000);
+      // Navigate to a success landing page and pass adjustment data (so the user
+      // can view the adjustment, GL postings, add attachment, or enter another)
+      const payload = {
+        location,
+        reference,
+        date,
+        items: rows
+          .filter(row => row.selectedItemId && row.quantity)
+          .map(r => ({
+            itemCode: r.itemCode,
+            description: r.description,
+            quantity: r.quantity,
+            unit: r.unit,
+            unitCost: r.unitCost,
+            selectedItemId: r.selectedItemId,
+          })),
+      };
+
+      // Navigate to success page and let user choose next action
+      navigate(
+        "/itemsandinventory/transactions/inventory-adjustments/success",
+        { state: payload }
+      );
 
     } catch (error: any) {
       console.error("Error saving inventory adjustments:", error);
@@ -403,9 +485,14 @@ export default function AddInventoryAdjustments() {
                               handleChange(row.id, "unit", unitDescription || "");
                             }
                           }
-                          // Fetch QOH from stock_moves
+                          // Fetch QOH from stock_moves (only for the selected location if one is chosen)
                           const allStockMoves = await getStockMoves();
-                          const itemStockMoves = allStockMoves.filter((move: any) => move.stock_id === selectedItem.stock_id);
+                          const itemStockMoves = allStockMoves.filter((move: any) => {
+                            const moveLoc = move.loc_code ?? move.locCode ?? move.loc?.loc_code ?? move.location_code;
+                            const sameItem = String(move.stock_id) === String(selectedItem.stock_id);
+                            const sameLocation = !location || String(moveLoc) === String(location);
+                            return sameItem && sameLocation;
+                          });
                           const qoh = itemStockMoves.reduce((sum: number, move: any) => sum + (move.qty || 0), 0);
                           handleChange(row.id, "qoh", qoh);
                         } catch (error) {
@@ -533,7 +620,7 @@ export default function AddInventoryAdjustments() {
       </TableContainer>
 
       {/*  Memo Field */}
-      <Box sx={{ mt: 2 }}>
+      <Box sx={{ mt: 2, pl: 1, pr: 1 }}>
         <Typography sx={{ mb: 1, fontWeight: 600 }}>Memo:</Typography>
         <TextField
           fullWidth
@@ -558,7 +645,7 @@ export default function AddInventoryAdjustments() {
       )}
 
       {/*  Submit Button */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, pr: 1 }}>
         <Button
           variant="contained"
           color="primary"
