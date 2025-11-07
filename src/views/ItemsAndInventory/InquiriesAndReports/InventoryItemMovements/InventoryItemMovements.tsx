@@ -296,6 +296,15 @@ export default function InventoryItemMovements({ itemId }: ItemTransactionProps)
                     <PageTitle title="Inventory Item Movement" />
                     <Breadcrumb breadcrumbs={breadcrumbItems} />
                 </Box>
+                <Stack direction="row" spacing={1}>
+                    <Button
+                        variant="outlined"
+                        startIcon={<ArrowBackIcon />}
+                        onClick={() => navigate("/itemsandinventory/inquiriesandreports")}
+                    >
+                        Back
+                    </Button>
+                </Stack>
 
                 <Box sx={{ position: "absolute", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 1 }}>
                     <FormControl sx={{ minWidth: 250 }}>

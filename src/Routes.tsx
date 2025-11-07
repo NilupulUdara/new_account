@@ -219,6 +219,13 @@ import InventoryItemMovements from "./views/ItemsAndInventory/InquiriesAndReport
 import InventoryItemStatus from "./views/ItemsAndInventory/InquiriesAndReports/InventoryItemStatus/InventoryItemStatus";
 import AddInventoryLocationTransfersSuccess from "./views/ItemsAndInventory/Transactions/InventoryLocationTransfers/AddInventoryLocationTransfersSuccess";
 import ViewInventoryLocationTransfer from "./views/ItemsAndInventory/Transactions/InventoryLocationTransfers/ViewInventoryLocationTransfer";
+import TemplateDelivery from "./views/Sales/Transactions/TemplateDelivery/TemplateDelivery";
+import TemplateInvoice from "./views/Sales/Transactions/TemplateInvoice/TemplateInvoice";
+import CreateAndPrintRecurrentInvoices from "./views/Sales/Transactions/RecurrentInvoices/CreateAndPrintRecurrentInvoices";
+import DeliveryAgainstSalesOrders from "./views/Sales/Transactions/DeliveryAgainstSalesOrders/DeliveryAgainstSalesOrders";
+import InvoiceAgainstSalesDelivery from "./views/Sales/Transactions/InvoiceAgainstSalesDelivery/InvoiceAgainstSalesDelivery";
+import InvoicePrepaidOrders from "./views/Sales/Transactions/InvoicePrepaidOrders/InvoicePrepaidOrders";
+import CustomerAllocations from "./views/Sales/Transactions/CustomerAllocations/CustomerAllocations";
 import ItemTransactionsDetails from "./views/ItemsAndInventory/Maintenance/Items/Transactions/ItemLocationTransferDetails";
 import ItemAdjustmentDetails from "./views/ItemsAndInventory/Maintenance/Items/Transactions/ItemAdjustmentDetails";
 
@@ -913,6 +920,62 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales quotations']}>
               {withLayout(MainLayout, SalesQuotationEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/template-delivery"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales templates']}>
+              {withLayout(MainLayout, TemplateDelivery)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/template-invoice"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales invoices edition']}>
+              {withLayout(MainLayout, TemplateInvoice)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/create-print-recurrent-invoices"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
+              {withLayout(MainLayout, CreateAndPrintRecurrentInvoices)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/delivery-against-sales-orders"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales deliveries edition']}>
+              {withLayout(MainLayout, DeliveryAgainstSalesOrders)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/invoice-against-sales-delivery"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales invoices edition']}>
+              {withLayout(MainLayout, InvoiceAgainstSalesDelivery)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/invoice-prepaid-orders"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales invoices edition']}>
+              {withLayout(MainLayout, InvoicePrepaidOrders)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/allocate-customer-payments-credit-notes"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Customer payments allocation']}>
+              {withLayout(MainLayout, CustomerAllocations)}
             </ProtectedRoute>
           }
         />
