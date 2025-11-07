@@ -122,14 +122,19 @@ export default function AddInventoryAdjustments() {
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Set reference when fiscal year loads
+  // Set reference when fiscal year loads (or fallback when DB empty)
   useEffect(() => {
-    if (currentFiscalYear) {
-      const year = new Date(currentFiscalYear.fiscal_year_from).getFullYear();
-      // Fetch existing references to generate next sequential number
-      // Only consider stock moves of the same transaction type (17 = adjustment)
-      getStockMoves().then((stockMoves) => {
-        const yearReferences = stockMoves
+    // Determine year: prefer fiscal year start if available, otherwise use current calendar year
+    const year = currentFiscalYear
+      ? new Date(currentFiscalYear.fiscal_year_from).getFullYear()
+      : new Date().getFullYear();
+
+    // Fetch existing references to generate next sequential number
+    // Only consider stock moves of the same transaction type (17 = adjustment)
+    getStockMoves()
+      .then((stockMoves) => {
+        const moves = Array.isArray(stockMoves) ? stockMoves : [];
+        const yearReferences = moves
           .filter((move: any) => move && move.type === 17 && move.reference && String(move.reference).endsWith(`/${year}`))
           .map((move: any) => String(move.reference))
           .map((ref: string) => {
@@ -141,12 +146,12 @@ export default function AddInventoryAdjustments() {
         const nextNumber = yearReferences.length > 0 ? Math.max(...yearReferences) + 1 : 1;
         const formattedNumber = nextNumber.toString().padStart(3, '0');
         setReference(`${formattedNumber}/${year}`);
-      }).catch((error) => {
+      })
+      .catch((error) => {
         console.error("Error fetching stock moves for reference generation:", error);
-        // Fallback to 001 if there's an error
+        // Fallback to 001 if there's an error or DB is empty
         setReference(`001/${year}`);
       });
-    }
   }, [currentFiscalYear]);
 
   // When selected location changes, refresh QOH values for all rows that have a selected item

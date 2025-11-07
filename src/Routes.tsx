@@ -219,6 +219,8 @@ import InventoryItemMovements from "./views/ItemsAndInventory/InquiriesAndReport
 import InventoryItemStatus from "./views/ItemsAndInventory/InquiriesAndReports/InventoryItemStatus/InventoryItemStatus";
 import AddInventoryLocationTransfersSuccess from "./views/ItemsAndInventory/Transactions/InventoryLocationTransfers/AddInventoryLocationTransfersSuccess";
 import ViewInventoryLocationTransfer from "./views/ItemsAndInventory/Transactions/InventoryLocationTransfers/ViewInventoryLocationTransfer";
+import ItemTransactionsDetails from "./views/ItemsAndInventory/Maintenance/Items/Transactions/ItemLocationTransferDetails";
+import ItemAdjustmentDetails from "./views/ItemsAndInventory/Maintenance/Items/Transactions/ItemAdjustmentDetails";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1372,6 +1374,7 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/itemsandinventory/inquiriesandreports"
           element={
@@ -1513,6 +1516,22 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Stock transactions view']}>
               {withLayout(MainLayout, ItemTransactionsTable)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/transactions/view-transfer"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Stock transactions view']}>
+              {withLayout(MainLayout, ItemTransactionsDetails)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/itemsandinventory/maintenance/items/transactions/view-adjustment"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Inventory Operations']}>
+              {withLayout(MainLayout, ItemAdjustmentDetails)}
             </ProtectedRoute>
           }
         />

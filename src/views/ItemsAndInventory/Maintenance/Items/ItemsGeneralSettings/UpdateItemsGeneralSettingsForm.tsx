@@ -306,12 +306,12 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
               <TextField
                 label="Item Code"
                 value={formData.itemCode}
-                onChange={(e) => handleChange("itemCode", e.target.value)}
                 size="small"
                 fullWidth
                 error={!!errors.itemCode}
                 helperText={errors.itemCode}
-                disabled
+                // Make item code non-editable but selectable (readOnly).
+                InputProps={{ readOnly: true }}
               />
               <TextField
                 label="Name"
