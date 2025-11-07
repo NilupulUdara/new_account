@@ -13,8 +13,13 @@ import {
     TablePagination,
     Paper,
     Typography,
+    TextField,
+    MenuItem,
     useMediaQuery,
     Theme,
+    FormControl,
+    InputLabel,
+    Select,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -24,6 +29,10 @@ import theme from "../../../../theme";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
+import { getStockMoves } from "../../../../api/StockMoves/StockMovesApi";
+import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
+import { getLocStocks } from "../../../../api/LocStock/LocStockApi";
+import { getItems } from "../../../../api/Item/ItemApi";
 
 interface ItemStatusProps {
   itemId?: string | number;
@@ -44,18 +53,94 @@ function InventoryItemStatus({ itemId }: ItemStatusProps) {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [searchQuery, setSearchQuery] = useState("");
+    const [selectedItemId, setSelectedItemId] = useState<string | number | null>(itemId ?? null);
+    const [items, setItems] = useState<any[]>([]);
     const navigate = useNavigate();
     const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
 
-    // Dummy data
+    // Load items for the select
     useEffect(() => {
-        const dummyData: Status[] = [
-            { id: 1, location: "Warehouse A", quantityOnHand: 100, reorderLevel: 50, demand: 30, available: 70, onOrder: 20 },
-            { id: 2, location: "Warehouse B", quantityOnHand: 200, reorderLevel: 80, demand: 60, available: 140, onOrder: 50 },
-            { id: 3, location: "Warehouse C", quantityOnHand: 50, reorderLevel: 30, demand: 25, available: 25, onOrder: 10 },
-        ];
-        setStatusData(dummyData);
+        let mounted = true;
+        getItems().then(data => {
+            if (!mounted) return;
+            setItems(Array.isArray(data) ? data : []);
+        }).catch(err => {
+            console.error("Failed to load items:", err);
+            setItems([]);
+        });
+        return () => { mounted = false; };
     }, []);
+
+    // Auto-select the first item when items load and nothing is selected yet
+    useEffect(() => {
+        if ((!selectedItemId || String(selectedItemId).trim() === "") && items && items.length > 0) {
+            const first = items[0];
+            const firstStockId = first?.stock_id ?? first?.id ?? first?.stock_master_id ?? first?.item_id ?? 0;
+            setSelectedItemId(String(firstStockId));
+        }
+    }, [items]);
+
+    // Fetch real status data when selectedItemId (or prop) changes
+    useEffect(() => {
+        const fetchData = async () => {
+            if (!selectedItemId) {
+                setStatusData([]);
+                return;
+            }
+
+            try {
+                const [stockMovesData, locationsData, locStocksData] = await Promise.all([
+                    getStockMoves(),
+                    getInventoryLocations(),
+                    getLocStocks()
+                ]);
+
+                // Create map of loc_code to location_name
+                const locationMap = new Map<string, string>();
+                locationsData.forEach((loc: any) => {
+                    locationMap.set(loc.loc_code, loc.location_name);
+                });
+
+                // Create map of loc_code-stock_id to reorder_level
+                const reorderMap = new Map<string, number>();
+                locStocksData.forEach((stock: any) => {
+                    reorderMap.set(`${stock.loc_code}-${stock.stock_id}`, stock.reorder_level);
+                });
+
+                // Filter stock_moves by stock_id (selectedItemId)
+                const filteredMoves = stockMovesData.filter((move: any) => String(move.stock_id) === String(selectedItemId));
+
+                // Helper: sum qty for a given locCode
+                const sumQtyForLoc = (locCode: string) => {
+                    return filteredMoves
+                        .filter((m: any) => String(m.loc_code) === String(locCode))
+                        .reduce((s: number, m: any) => s + (parseFloat(m.qty) || 0), 0);
+                };
+
+                // Map ALL locations to Status format (show zero qty for locations with no moves)
+                const mappedData: Status[] = locationsData.map((loc: any, index: number) => {
+                    const locCode = loc.loc_code;
+                    const qty = sumQtyForLoc(locCode);
+                    return {
+                        id: index + 1,
+                        location: locationMap.get(locCode) || locCode,
+                        quantityOnHand: qty,
+                        reorderLevel: reorderMap.get(`${locCode}-${selectedItemId}`) || 0,
+                        demand: 0,
+                        available: 0,
+                        onOrder: 0,
+                    } as Status;
+                });
+
+                setStatusData(mappedData);
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                setStatusData([]);
+            }
+        };
+
+        fetchData();
+    }, [selectedItemId]);
 
     const filteredData = useMemo(() => {
         return statusData.filter(item =>
@@ -97,6 +182,8 @@ function InventoryItemStatus({ itemId }: ItemStatusProps) {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
+                    flexWrap: "wrap",
+                    gap: 2,
                 }}
             >
                 <Box>
@@ -104,32 +191,60 @@ function InventoryItemStatus({ itemId }: ItemStatusProps) {
                     <Breadcrumb breadcrumbs={breadcrumbItems} />
                 </Box>
 
+                <Box sx={{ px: 2, mb: 2 }}>
+                    <FormControl sx={{ minWidth: 250 }}>
+                        <InputLabel id="select-item-label">Select Item</InputLabel>
+                        <Select
+                            labelId="select-item-label"
+                            value={selectedItemId ?? ""}
+                            label="Select Item"
+                            onChange={(e) => {
+                                const val = e.target.value as string;
+                                setSelectedItemId(val || null);
+                                setPage(0);
+                            }}
+                        >
+                            {items && items.length > 0 ? (
+                                items.map((item: any, idx: number) => {
+                                    const stockId = item.stock_id ?? item.id ?? item.stock_master_id ?? item.item_id ?? idx;
+                                    const key = String(stockId);
+                                    const label = item.item_name ?? item.name ?? item.description ?? String(stockId);
+                                    const value = String(stockId);
+                                    return (
+                                        <MenuItem key={key} value={value}>
+                                            {label}
+                                        </MenuItem>
+                                    );
+                                })
+                            ) : (
+                                <MenuItem disabled value="">No items</MenuItem>
+                            )}
+                        </Select>
+                    </FormControl>
+                </Box>
+
                 <Stack direction="row" spacing={1}>
-
-
                     <Button
                         variant="outlined"
                         startIcon={<ArrowBackIcon />}
-                        onClick={() => navigate("/itemsandinventory/maintenance/items")}
+                        onClick={() => navigate("/itemsandinventory/inquiriesandreports")}
                     >
                         Back
                     </Button>
                 </Stack>
             </Box>
 
-            {/* Search */}
-            <Stack
-                direction="row"
-                sx={{ px: 2, mb: 2, width: "100%", justifyContent: "flex-end" }}
-            >
-                <Box sx={{ width: isMobile ? "100%" : "300px" }}>
-                    <SearchBar
-                        searchQuery={searchQuery}
-                        setSearchQuery={setSearchQuery}
+            {/* Search bar only visible if item is selected */}
+            {selectedItemId && (
+                <Box sx={{ display: "flex", justifyContent: "flex-end", px: 2, mb: 2 }}>
+                    <TextField
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Search by location..."
+                        size="small"
                     />
                 </Box>
-            </Stack>
+            )}
 
             {/* Table */}
             <Stack sx={{ alignItems: "center" }}>
@@ -160,7 +275,7 @@ function InventoryItemStatus({ itemId }: ItemStatusProps) {
                                         <TableCell>{item.quantityOnHand}</TableCell>
                                         <TableCell>{item.reorderLevel}</TableCell>
                                         <TableCell>{item.demand}</TableCell>
-                                        <TableCell>{item.available}</TableCell>
+                                        <TableCell>{item.quantityOnHand - item.demand}</TableCell>
                                         <TableCell>{item.onOrder}</TableCell>
                                     </TableRow>
                                 ))

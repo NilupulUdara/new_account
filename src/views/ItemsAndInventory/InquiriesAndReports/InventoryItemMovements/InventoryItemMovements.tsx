@@ -144,7 +144,7 @@ export default function InventoryItemMovements({ itemId }: ItemTransactionProps)
                     <Button
                         variant="outlined"
                         startIcon={<ArrowBackIcon />}
-                        onClick={() => navigate("/itemsandinventory/maintenance/items")}
+                        onClick={() => navigate("/itemsandinventory/inquiriesandreports")}
                     >
                         Back
                     </Button>

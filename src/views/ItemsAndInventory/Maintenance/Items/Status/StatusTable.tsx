@@ -75,26 +75,27 @@ function StatusTable({ itemId }: ItemStatusProps) {
                 // Filter stock_moves by stock_id (itemId)
                 const filteredMoves = itemId ? stockMovesData.filter((move: any) => move.stock_id === itemId) : stockMovesData;
 
-                // Group by loc_code and sum qty
-                const groupedByLocation = filteredMoves.reduce((acc: { [key: string]: number }, move: any) => {
-                    const locCode = move.loc_code;
-                    if (!acc[locCode]) {
-                        acc[locCode] = 0;
-                    }
-                    acc[locCode] += parseFloat(move.qty) || 0;
-                    return acc;
-                }, {});
+                // Helper: sum qty for a given locCode
+                const sumQtyForLoc = (locCode: string) => {
+                    return filteredMoves
+                        .filter((m: any) => String(m.loc_code) === String(locCode))
+                        .reduce((s: number, m: any) => s + (parseFloat(m.qty) || 0), 0);
+                };
 
-                // Map to Status format
-                const mappedData: Status[] = Object.entries(groupedByLocation).map(([locCode, qty]: [string, number], index) => ({
-                    id: index + 1,
-                    location: locationMap.get(locCode) || locCode, // Use location_name if available, else loc_code
-                    quantityOnHand: qty,
-                    reorderLevel: reorderMap.get(`${locCode}-${itemId}`) || 0,
-                    demand: 0,
-                    available: 0,
-                    onOrder: 0,
-                }));
+                // Map ALL locations to Status format (show zero qty for locations with no moves)
+                const mappedData: Status[] = locationsData.map((loc: any, index: number) => {
+                    const locCode = loc.loc_code;
+                    const qty = sumQtyForLoc(locCode);
+                    return {
+                        id: index + 1,
+                        location: locationMap.get(locCode) || locCode,
+                        quantityOnHand: qty,
+                        reorderLevel: reorderMap.get(`${locCode}-${itemId}`) || 0,
+                        demand: 0,
+                        available: 0,
+                        onOrder: 0,
+                    } as Status;
+                });
 
                 setStatusData(mappedData);
             } catch (error) {
@@ -213,7 +214,7 @@ function StatusTable({ itemId }: ItemStatusProps) {
                                         <TableCell>{item.quantityOnHand}</TableCell>
                                         <TableCell>{item.reorderLevel}</TableCell>
                                         <TableCell>{item.demand}</TableCell>
-                                        <TableCell>{item.available}</TableCell>
+                                        <TableCell>{item.quantityOnHand - item.demand}</TableCell>
                                         <TableCell>{item.onOrder}</TableCell>
                                     </TableRow>
                                 ))
