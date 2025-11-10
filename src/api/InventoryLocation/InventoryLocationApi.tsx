@@ -18,6 +18,7 @@ export interface InventoryLocation {
   fax: string;
   email: string;
   contact: string;
+  inactive?: boolean;
 }
 
 // --------------------

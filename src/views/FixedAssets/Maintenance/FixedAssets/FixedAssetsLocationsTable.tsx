@@ -27,7 +27,7 @@ import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
-import { getLocations, deleteLocation } from "../../../../api/FixedAssetsLocation/FixedAssetsLocationApi";
+import { getLocations, deleteLocation, updateLocation } from "../../../../api/FixedAssetsLocation/FixedAssetsLocationApi";
 import ErrorModal from "../../../../components/ErrorModal";
 
 export default function FixedAssetsLocationsTable() {
@@ -36,6 +36,7 @@ export default function FixedAssetsLocationsTable() {
   const [errorMessage, setErrorMessage] = useState("");
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [locations, setLocations] = useState<any[]>([]);
+  const [updatingIds, setUpdatingIds] = useState<number[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
@@ -47,6 +48,19 @@ export default function FixedAssetsLocationsTable() {
   useEffect(() => {
     loadLocations();
   }, []);
+
+  const isLocationInactive = (item: any) => {
+    if (!item) return false;
+    if (typeof item.inactive === "boolean") return Boolean(item.inactive);
+    if (item.inactive !== undefined && item.inactive !== null) {
+      const val = String(item.inactive).toLowerCase();
+      if (val === "1" || val === "true") return true;
+      if (val === "0" || val === "false") return false;
+    }
+    if (typeof item.isActive === "boolean") return !item.isActive;
+    if (typeof item.status === "string") return item.status.toLowerCase() !== "active";
+    return false;
+  };
 
   const loadLocations = async () => {
     try {
@@ -101,6 +115,23 @@ export default function FixedAssetsLocationsTable() {
         "Failed to delete location Please try again."
       );
       setErrorOpen(true);
+    }
+  };
+
+  const handleToggleInactive = async (loc: any, checked: boolean) => {
+    if (!loc?.id) return;
+    const id = loc.id;
+    try {
+      setUpdatingIds((prev) => [...prev, id]);
+      const payload = { ...loc, inactive: checked };
+      await updateLocation(id, payload);
+      await loadLocations();
+    } catch (error: any) {
+      console.error("Failed to update location inactive flag:", error);
+      setErrorMessage(error?.response?.data?.message || "Failed to update. Please try again.");
+      setErrorOpen(true);
+    } finally {
+      setUpdatingIds((prev) => prev.filter((i) => i !== id));
     }
   };
 
@@ -171,14 +202,15 @@ export default function FixedAssetsLocationsTable() {
           <Table aria-label="fixed assets locations table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
-                <TableCell>ID</TableCell>
-                <TableCell>Location Code</TableCell>
-                <TableCell>Location Name</TableCell>
-                <TableCell>Address</TableCell>
-                <TableCell>Phone</TableCell>
-                <TableCell>Secondary Phone</TableCell>
-                <TableCell align="center">Actions</TableCell>
-              </TableRow>
+                  <TableCell>ID</TableCell>
+                  <TableCell>Location Code</TableCell>
+                  <TableCell>Location Name</TableCell>
+                  <TableCell>Address</TableCell>
+                  <TableCell>Phone</TableCell>
+                  <TableCell>Secondary Phone</TableCell>
+                  {showInactive && <TableCell align="center">Inactive</TableCell>}
+                  <TableCell align="center">Actions</TableCell>
+                </TableRow>
             </TableHead>
             <TableBody>
               {paginatedData.length > 0 ? (
@@ -190,6 +222,15 @@ export default function FixedAssetsLocationsTable() {
                     <TableCell>{loc.address}</TableCell>
                     <TableCell>{loc.phone}</TableCell>
                     <TableCell>{loc.secondaryPhone}</TableCell>
+                    {showInactive && (
+                      <TableCell align="center">
+                        <Checkbox
+                          checked={isLocationInactive(loc)}
+                          disabled={updatingIds.includes(loc.id)}
+                          onChange={(e) => handleToggleInactive(loc, e.target.checked)}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -220,7 +261,7 @@ export default function FixedAssetsLocationsTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={showInactive ? 8 : 7} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -230,7 +271,7 @@ export default function FixedAssetsLocationsTable() {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={7}
+                  colSpan={showInactive ? 8 : 7}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}

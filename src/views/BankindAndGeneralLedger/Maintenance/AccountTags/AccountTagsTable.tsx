@@ -13,6 +13,8 @@ import {
   Paper,
   Button,
   Typography,
+  Checkbox,
+  FormControlLabel,
   useMediaQuery,
   Theme,
 } from "@mui/material";
@@ -25,13 +27,15 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
-import { getAccountTags, deleteAccountTag } from "../../../../api/AccountTag/AccountTagsApi";
+import { getAccountTags, deleteAccountTag, updateAccountTag } from "../../../../api/AccountTag/AccountTagsApi";
 import ErrorModal from "../../../../components/ErrorModal";
 
 export default function AccountTagsTable() {
   const [tags, setTags] = useState<any[]>([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [showInactive, setShowInactive] = useState(false);
+  const [updatingIds, setUpdatingIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -55,15 +59,29 @@ export default function AccountTagsTable() {
   }, []);
 
   // Search filter
+  const isTagInactive = (item: any) => {
+    if (!item) return false;
+    if (typeof item.inactive === "boolean") return Boolean(item.inactive);
+    if (item.inactive !== undefined && item.inactive !== null) {
+      const val = String(item.inactive).toLowerCase();
+      if (val === "1" || val === "true") return true;
+      if (val === "0" || val === "false") return false;
+    }
+    if (typeof item.isActive === "boolean") return !item.isActive;
+    if (typeof item.status === "string") return item.status.toLowerCase() !== "active";
+    return false;
+  };
+
   const filteredData = useMemo(() => {
-    if (!searchQuery.trim()) return tags;
+    let data = showInactive ? tags : tags.filter((t) => !isTagInactive(t));
+    if (!searchQuery.trim()) return data;
     const lower = searchQuery.toLowerCase();
-    return tags.filter(
+    return data.filter(
       (t) =>
-        t.tag_name.toLowerCase().includes(lower) ||
-        t.tag_description.toLowerCase().includes(lower)
+        (t.tag_name || t.name || "").toString().toLowerCase().includes(lower) ||
+        (t.tag_description || t.description || "").toString().toLowerCase().includes(lower)
     );
-  }, [tags, searchQuery]);
+  }, [tags, searchQuery, showInactive]);
 
   const paginatedData = useMemo(() => {
     if (rowsPerPage === -1) return filteredData;
@@ -91,6 +109,23 @@ export default function AccountTagsTable() {
         "Failed to delete account tag Please try again."
       );
       setErrorOpen(true);
+    }
+  };
+
+  const handleToggleInactive = async (item: any, checked: boolean) => {
+    if (!item || !item.id) return;
+    setUpdatingIds((p) => [...p, item.id]);
+    try {
+      await updateAccountTag(item.id, { ...item, inactive: checked });
+      await loadTags();
+    } catch (error) {
+      console.error("Error updating account tag:", error);
+      setErrorMessage(
+        error?.response?.data?.message || "Failed to update account tag. Please try again."
+      );
+      setErrorOpen(true);
+    } finally {
+      setUpdatingIds((p) => p.filter((id) => id !== item.id));
     }
   };
 
@@ -144,8 +179,20 @@ export default function AccountTagsTable() {
       <Stack
         direction={isMobile ? "column" : "row"}
         spacing={2}
-        sx={{ px: 2, mb: 2, alignItems: "center", justifyContent: "flex-end" }}
+        sx={{ px: 2, mb: 2, alignItems: "center", justifyContent: "space-between" }}
       >
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={showInactive}
+                onChange={(e) => setShowInactive(e.target.checked)}
+              />
+            }
+            label="Show also Inactive"
+          />
+        </Box>
+
         <Box sx={{ width: isMobile ? "100%" : "300px" }}>
           <SearchBar
             searchQuery={searchQuery}
@@ -167,6 +214,7 @@ export default function AccountTagsTable() {
               <TableRow>
                 <TableCell>Tag Name</TableCell>
                 <TableCell>Tag Description</TableCell>
+                {showInactive && <TableCell align="center">Inactive</TableCell>}
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -176,6 +224,15 @@ export default function AccountTagsTable() {
                   <TableRow key={tag.id} hover>
                     <TableCell>{tag.name}</TableCell>
                     <TableCell>{tag.description}</TableCell>
+                    {showInactive && (
+                      <TableCell align="center">
+                        <Checkbox
+                          checked={isTagInactive(tag)}
+                          disabled={updatingIds.includes(tag.id)}
+                          onChange={(e) => handleToggleInactive(tag, e.target.checked)}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -208,7 +265,7 @@ export default function AccountTagsTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={3} align="center">
+                  <TableCell colSpan={showInactive ? 4 : 3} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -218,7 +275,7 @@ export default function AccountTagsTable() {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={3}
+                  colSpan={showInactive ? 4 : 3}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}

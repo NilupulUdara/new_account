@@ -18,6 +18,7 @@ import {
   Checkbox,
 } from "@mui/material";
 import { useMemo, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -27,7 +28,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
-import { getSalesGroups, deleteSalesGroup, SalesGroup } from "../../../../api/SalesMaintenance/salesService";
+import { getSalesGroups, deleteSalesGroup, SalesGroup, patchSalesGroup } from "../../../../api/SalesMaintenance/salesService";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
 
@@ -58,9 +59,26 @@ function SalesGroupsTable() {
 
     let filtered = salesGroups;
 
-    // if (!showInactive) {
-    //   filtered = filtered.filter((item) => item.status === "Active" || !item.status);
-    // }
+    const isGroupInactive = (group: any) => {
+      // Support multiple possible shapes coming from API: `inactive` boolean, numeric 0/1, `isActive` boolean, or `status` string
+      if (group == null) return false;
+      // handle boolean
+      if (typeof group.inactive === "boolean") return Boolean(group.inactive);
+      // handle numeric or string values like 0/1, "0"/"1", "true"/"false"
+      if (group.inactive !== undefined && group.inactive !== null) {
+        const val = String(group.inactive).toLowerCase();
+        if (val === "1" || val === "true") return true;
+        if (val === "0" || val === "false") return false;
+      }
+      if (typeof group.isActive === "boolean") return !group.isActive;
+      if (typeof group.status === "string") return group.status.toLowerCase() !== "active";
+      return false;
+    };
+
+    // If user does not want to see inactive entries, filter them out
+    if (!showInactive) {
+      filtered = filtered.filter((item: any) => !isGroupInactive(item));
+    }
 
     if (searchQuery.trim()) {
       const lowerQuery = searchQuery.toLowerCase();
@@ -78,6 +96,19 @@ function SalesGroupsTable() {
       page * rowsPerPage + rowsPerPage
     );
   }, [filteredGroups, page, rowsPerPage]);
+
+  const isGroupInactive = (group: any) => {
+    if (group == null) return false;
+    if (typeof group.inactive === "boolean") return Boolean(group.inactive);
+    if (group.inactive !== undefined && group.inactive !== null) {
+      const val = String(group.inactive).toLowerCase();
+      if (val === "1" || val === "true") return true;
+      if (val === "0" || val === "false") return false;
+    }
+    if (typeof group.isActive === "boolean") return !group.isActive;
+    if (typeof group.status === "string") return group.status.toLowerCase() !== "active";
+    return false;
+  };
 
   const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
   const handleChangeRowsPerPage = (
@@ -104,6 +135,48 @@ function SalesGroupsTable() {
       setOpenDeleteModal(false);
       setSelectedGroupId(null);
     }
+  };
+
+  // mutation to toggle inactive flag on a sales group with optimistic update
+  const toggleInactiveMutation = useMutation<SalesGroup, unknown, { id: number; inactive: boolean }, { previous?: SalesGroup[] }>(
+    {
+      mutationFn: ({ id, inactive }) => patchSalesGroup(id, { inactive }),
+      onMutate: async ({ id, inactive }) => {
+        await queryClient.cancelQueries({ queryKey: ["salesGroups"] });
+        const previous = queryClient.getQueryData<SalesGroup[]>(["salesGroups"]);
+
+        // optimistic update
+        if (previous) {
+          queryClient.setQueryData<SalesGroup[] | undefined>(["salesGroups"], () =>
+            previous.map((g) => (g.id === id ? { ...g, inactive } : g))
+          );
+        }
+
+        return { previous };
+      },
+      onError: (err, _variables, context) => {
+        // rollback
+        if (context?.previous) {
+          queryClient.setQueryData(["salesGroups"], context.previous);
+        }
+        setErrorMessage(
+          (err as any)?.response?.data?.message || "Failed to update. Please try again."
+        );
+        setErrorOpen(true);
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries({ queryKey: ["salesGroups"] });
+      },
+    }
+  );
+
+  const handleToggleInactive = (group: any) => {
+    if (!group?.id) return;
+
+    const currentlyInactive = isGroupInactive(group);
+    const newInactive = !currentlyInactive;
+
+    toggleInactiveMutation.mutate({ id: group.id, inactive: newInactive });
   };
 
 
@@ -193,6 +266,7 @@ function SalesGroupsTable() {
               <TableRow>
                 <TableCell>ID</TableCell>
                 <TableCell>Group Name</TableCell>
+                {showInactive && <TableCell align="center">Inactive</TableCell>}
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -203,6 +277,15 @@ function SalesGroupsTable() {
                   <TableRow key={group.id || index} hover>
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
                     <TableCell>{group.name}</TableCell>
+                    {showInactive && (
+                      <TableCell align="center">
+                        <Checkbox
+                          checked={isGroupInactive(group)}
+                          onChange={() => handleToggleInactive(group)}
+                          inputProps={{ 'aria-label': 'inactive-checkbox' }}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -234,7 +317,7 @@ function SalesGroupsTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={3} align="center">
+                  <TableCell colSpan={showInactive ? 4 : 3} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -245,7 +328,7 @@ function SalesGroupsTable() {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={3}
+                  colSpan={showInactive ? 4 : 3}
                   count={filteredGroups.length}
                   rowsPerPage={rowsPerPage}
                   page={page}

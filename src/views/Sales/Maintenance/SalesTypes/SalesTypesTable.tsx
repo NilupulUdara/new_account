@@ -15,6 +15,7 @@ import {
     useMediaQuery,
     Theme,
     Checkbox,
+    Switch,
     FormControlLabel,
 } from "@mui/material";
 import { useMemo, useState } from "react";
@@ -27,7 +28,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
-import { getSalesTypes, deleteSalesType } from "../../../../api/SalesMaintenance/salesService";
+import { getSalesTypes, deleteSalesType, updateSalesType, SalesType } from "../../../../api/SalesMaintenance/salesService";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
 
@@ -43,6 +44,7 @@ function SalesTypesTable() {
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [searchQuery, setSearchQuery] = useState("");
     const [showInactive, setShowInactive] = useState(false);
+    const [updatingIds, setUpdatingIds] = useState<number[]>([]);
     const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
     const navigate = useNavigate();
 
@@ -103,6 +105,28 @@ function SalesTypesTable() {
         } finally {
             setOpenDeleteModal(false);
             setSelectedTypeId(null);
+        }
+    };
+
+    const handleToggleStatus = async (type: SalesType) => {
+        if (!type?.id) return;
+        const id = type.id;
+        const newStatus = type.status === "Active" ? "Inactive" : "Active";
+
+        // mark as updating
+        setUpdatingIds((prev) => [...prev, id]);
+        try {
+            await updateSalesType(id, { ...type, status: newStatus });
+            await queryClient.invalidateQueries({ queryKey: ["salesTypes"] });
+        } catch (error) {
+            console.error("Error updating sales type status:", error);
+            setErrorMessage(
+                error?.response?.data?.message ||
+                "Failed to update Sales Type status. Please try again."
+            );
+            setErrorOpen(true);
+        } finally {
+            setUpdatingIds((prev) => prev.filter((i) => i !== id));
         }
     };
 
@@ -209,7 +233,20 @@ function SalesTypesTable() {
                                         <TableCell>{type.typeName}</TableCell>
                                         <TableCell>{type.factor}</TableCell>
                                         <TableCell>{type.taxIncl ? "Yes" : "No"}</TableCell>
-                                        <TableCell>{type.status}</TableCell>
+                                        <TableCell>
+                                            <FormControlLabel
+                                                control={
+                                                    <Switch
+                                                        checked={type.status === "Active"}
+                                                        onChange={() => handleToggleStatus(type)}
+                                                        disabled={type.id ? updatingIds.includes(type.id) : false}
+                                                        color="primary"
+                                                        size="small"
+                                                    />
+                                                }
+                                                label={type.status}
+                                            />
+                                        </TableCell>
                                         <TableCell align="center">
                                             <Stack direction="row" spacing={1} justifyContent="center">
                                                 <Button

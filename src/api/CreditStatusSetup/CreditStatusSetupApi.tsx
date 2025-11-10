@@ -7,6 +7,8 @@ export interface CreditStatusSetup {
   id?: number; 
   reason_description: string;
   disallow_invoices: boolean;
+  // backend accepts numeric 1/0 for inactive; allow boolean or number in types
+  inactive?: boolean | number;
 }
 
 // Create CreditStatusSetup
