@@ -13,9 +13,16 @@ import {
     Paper,
     Typography,
     TextField,
+    MenuItem,
     useMediaQuery,
     Theme,
     Button,
+    Checkbox,
+    FormControlLabel,
+    ListSubheader,
+    InputLabel,
+    FormControl,
+    Select,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
@@ -23,38 +30,16 @@ import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import DatePickerComponent from "../../../../components/DatePickerComponent";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { getStockMoves } from "../../../../api/StockMoves/StockMovesApi";
+import { getInventoryLocations, InventoryLocation } from "../../../../api/InventoryLocation/InventoryLocationApi";
+import { getItems } from "../../../../api/Item/ItemApi";
+import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 
 interface ItemTransactionProps {
-  itemId?: string | number;
+    itemId?: string | number;
 }
 
-// Mock API
-const getItemTransactions = async () => [
-    {
-        id: 1,
-        type: "Receipt",
-        number: "TXN001",
-        reference: "REF001",
-        location: "Colombo",
-        date: "2025-09-01",
-        detail: "Received items from supplier",
-        quantityIn: 100,
-        quantityOut: 0,
-        quantityOnHand: 500,
-    },
-    {
-        id: 2,
-        type: "Issue",
-        number: "TXN002",
-        reference: "REF002",
-        location: "Kandy",
-        date: "2025-09-05",
-        detail: "Issued items to production",
-        quantityIn: 0,
-        quantityOut: 50,
-        quantityOnHand: 450,
-    },
-];
+// We'll fetch transactions from stock_moves API via getStockMoves
 
 export default function InventoryItemMovements({ itemId }: ItemTransactionProps) {
     const [page, setPage] = useState(0);
@@ -65,13 +50,117 @@ export default function InventoryItemMovements({ itemId }: ItemTransactionProps)
         fromDate: null as Date | null,
         toDate: null as Date | null,
     });
+    const [locations, setLocations] = useState<InventoryLocation[]>([]);
+    const [items, setItems] = useState<any[]>([]);
+    const [categories, setCategories] = useState<any[]>([]);
+    const [selectedItem, setSelectedItem] = useState<string | number>("");
+    const [showInactive, setShowInactive] = useState<boolean>(false);
 
     const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
     const navigate = useNavigate();
 
-    // Fetch data
+    // Fetch data from stock_moves
     useEffect(() => {
-        getItemTransactions().then((data) => setTransactions(data));
+        const fetchTransactions = async () => {
+            try {
+                const stockMoves: any[] = await getStockMoves();
+                // Fetch inventory locations map so we can display friendly names
+                const invLocs: InventoryLocation[] = await getInventoryLocations();
+                const invMap = new Map<string, string>();
+                invLocs.forEach((l) => {
+                    if (l.loc_code) invMap.set(String(l.loc_code), l.location_name);
+                });
+
+                // If itemId provided, filter by stock_id
+                const filteredMoves = itemId
+                    ? stockMoves.filter((m) => String(m.stock_id) === String(itemId))
+                    : stockMoves;
+
+                // Sort by tran_date ascending so running QOH makes sense
+                filteredMoves.sort((a: any, b: any) => {
+                    const da = new Date(a.tran_date || a.tranDate || a.date || 0).getTime();
+                    const db = new Date(b.tran_date || b.tranDate || b.date || 0).getTime();
+                    return da - db;
+                });
+
+                // Maintain running QOH per stock id so Quantity on Hand is correct when transactions include many items
+                const qohByStock = new Map<string, number>();
+                const mapped = filteredMoves.map((m: any, idx: number) => {
+                    const qty = Number(m.qty) || 0;
+                    const quantityIn = qty > 0 ? qty : 0;
+                    const quantityOut = qty < 0 ? Math.abs(qty) : 0;
+
+                    // determine stock identifier for per-stock running totals
+                    const stockIdRaw = m.stock_id ?? m.stock?.stock_id ?? m.stockmaster_id ?? m.stock_master_id ?? m.stockId ?? m.stock;
+                    const stockKey = stockIdRaw !== undefined && stockIdRaw !== null ? String(stockIdRaw) : `__idx_${idx}`;
+
+                    const prev = qohByStock.get(stockKey) || 0;
+                    const newQoh = prev + qty;
+                    qohByStock.set(stockKey, newQoh);
+
+                    const locCode = m.loc_code ?? m.locCode ?? m.location_code ?? m.loc?.loc_code ?? "";
+                    // Prefer inventory_locations lookup for friendly name
+                    const locName = invMap.get(String(locCode)) ?? m.location_name ?? m.location ?? m.loc?.location_name ?? "";
+                    const tranDate = m.tran_date ?? m.tranDate ?? m.date ?? "";
+
+                    return {
+                        id: m.id ?? m.stockmove_id ?? idx,
+                        type: m.type ?? String(m.type) ?? "",
+                        number: m.trans_no ?? m.id ?? "",
+                        reference: m.reference ?? "",
+                        loc_code: locCode,
+                        location_name: locName,
+                        date: tranDate,
+                        detail: m.detail ?? m.memo ?? m.description ?? "",
+                        quantityIn,
+                        quantityOut,
+                        quantityOnHand: newQoh,
+                        _raw: m,
+                    };
+                });
+
+                // Keep oldest-first ordering (mapped is sorted ascending by date)
+                setTransactions(mapped);
+            } catch (err) {
+                console.error("Failed to fetch stock moves:", err);
+                setTransactions([]);
+            }
+        };
+
+        fetchTransactions();
+    }, [itemId]);
+
+    // Fetch inventory locations (to display friendly names in dropdown)
+    useEffect(() => {
+        const fetchInventoryLocations = async () => {
+            try {
+                const invLocs = await getInventoryLocations();
+                // invLocs expected to be array of InventoryLocation
+                setLocations(invLocs || []);
+            } catch (err) {
+                console.error("Failed to fetch inventory locations:", err);
+                setLocations([]);
+            }
+        };
+
+        fetchInventoryLocations();
+    }, []);
+
+    // Fetch items (stock_master) and categories for the item dropdown
+    useEffect(() => {
+        const fetchItemsAndCategories = async () => {
+            try {
+                const [fetchedItems, fetchedCategories] = await Promise.all([getItems(), getItemCategories()]);
+                setItems(fetchedItems || []);
+                setCategories(fetchedCategories || []);
+            } catch (err) {
+                console.error("Failed to fetch items/categories:", err);
+                setItems([]);
+                setCategories([]);
+            }
+        };
+
+        fetchItemsAndCategories();
     }, []);
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -85,23 +174,30 @@ export default function InventoryItemMovements({ itemId }: ItemTransactionProps)
 
     // Filtered data
     const filteredData = useMemo(() => {
+        // Require an item selection (either via selectedItem dropdown or incoming itemId prop)
+        const idToMatch = selectedItem || itemId;
+        if (!idToMatch) return [] as any[];
+
         return transactions.filter((txn) => {
-            const matchesLocation =
-                !filters.location ||
-                txn.location.toLowerCase().includes(filters.location.toLowerCase());
+            // Location filter: exact match on loc_code (or show all when empty)
+            const matchesLocation = !filters.location || String(txn.loc_code ?? txn._raw?.loc_code ?? txn.location) === String(filters.location);
 
-            const normalize = (d: Date) =>
-                new Date(d.getFullYear(), d.getMonth(), d.getDate());
+            // Item filter: match transactions by stock id fields
+            const rawStockId = txn._raw?.stock_id ?? txn._raw?.stock?.stock_id ?? txn._raw?.stockmaster_id ?? txn._raw?.stock_master_id;
+            const matchesItem = String(rawStockId) === String(idToMatch);
 
-            const matchesFromDate =
-                !filters.fromDate || normalize(new Date(txn.date)) >= normalize(filters.fromDate);
+            const normalize = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
-            const matchesToDate =
-                !filters.toDate || normalize(new Date(txn.date)) <= normalize(filters.toDate);
+            const txnDateRaw = txn.date ?? txn._raw?.tran_date ?? txn._raw?.tranDate ?? txn._raw?.date;
+            const txnDate = txnDateRaw ? new Date(txnDateRaw) : null;
 
-            return matchesLocation && matchesFromDate && matchesToDate;
+            const matchesFromDate = !filters.fromDate || (txnDate && normalize(txnDate) >= normalize(filters.fromDate));
+
+            const matchesToDate = !filters.toDate || (txnDate && normalize(txnDate) <= normalize(filters.toDate));
+
+            return matchesLocation && matchesFromDate && matchesToDate && matchesItem;
         });
-    }, [transactions, filters]);
+    }, [transactions, filters, selectedItem, itemId]);
 
     const paginatedData = useMemo(() => {
         if (rowsPerPage === -1) return filteredData;
@@ -111,6 +207,65 @@ export default function InventoryItemMovements({ itemId }: ItemTransactionProps)
         );
     }, [filteredData, page, rowsPerPage]);
 
+    // Quantity on hand before From Date (based on all transactions, respects location filter)
+    const qohBeforeDate = useMemo(() => {
+        const idToMatch = selectedItem || itemId;
+        if (!filters.fromDate) return null;
+        const cutoff = new Date(filters.fromDate);
+        cutoff.setHours(0, 0, 0, 0);
+        return transactions
+            .filter((t) => {
+                // respect location filter when computing QOH
+                const matchesLocation = !filters.location || String(t.loc_code ?? t._raw?.loc_code ?? t.location) === String(filters.location);
+                // respect item selection
+                const rawStockId = t._raw?.stock_id ?? t._raw?.stock?.stock_id ?? t._raw?.stockmaster_id ?? t._raw?.stock_master_id;
+                const matchesItem = !idToMatch || String(rawStockId) === String(idToMatch);
+                const txnDateRaw = t.date ?? t._raw?.tran_date ?? t._raw?.tranDate ?? t._raw?.date;
+                const txnDate = txnDateRaw ? new Date(txnDateRaw) : null;
+                return matchesLocation && matchesItem && txnDate && txnDate < cutoff;
+            })
+            .reduce((acc, t) => acc + (Number(t._raw?.qty) || 0), 0);
+    }, [transactions, filters.fromDate, filters.location]);
+
+    // Quantity on hand after To Date (inclusive) -- useful for the "after" row
+    const qohAfterDate = useMemo(() => {
+        const idToMatch = selectedItem || itemId;
+        if (!filters.toDate) return null;
+        const cutoff = new Date(filters.toDate);
+        cutoff.setHours(23, 59, 59, 999);
+
+        return transactions
+            .filter((t) => {
+                const matchesLocation = !filters.location || String(t.loc_code ?? t._raw?.loc_code ?? t.location) === String(filters.location);
+                const rawStockId = t._raw?.stock_id ?? t._raw?.stock?.stock_id ?? t._raw?.stockmaster_id ?? t._raw?.stock_master_id;
+                const matchesItem = !idToMatch || String(rawStockId) === String(idToMatch);
+                const txnDateRaw = t.date ?? t._raw?.tran_date ?? t._raw?.tranDate ?? t._raw?.date;
+                const txnDate = txnDateRaw ? new Date(txnDateRaw) : null;
+                return matchesLocation && matchesItem && txnDate && txnDate <= cutoff;
+            })
+            .reduce((acc, t) => acc + (Number(t._raw?.qty) || 0), 0);
+    }, [transactions, filters.toDate, filters.location]);
+
+    // Totals for the currently filtered data (between from/to and location)
+    const totals = useMemo(() => {
+        const sumIn = filteredData.reduce((acc, t) => acc + (Number(t.quantityIn) || 0), 0);
+        const sumOut = filteredData.reduce((acc, t) => acc + (Number(t.quantityOut) || 0), 0);
+    // final QOH for filteredData: prefer the latest transaction's quantityOnHand if available
+    // since transactions are oldest->newest, the latest is the last element
+    const finalQoh = filteredData.length > 0 ? Number(filteredData[filteredData.length - 1].quantityOnHand) : (qohBeforeDate ?? 0);
+        return { sumIn, sumOut, finalQoh };
+    }, [filteredData, qohBeforeDate]);
+
+    // Require item selection and both dates before showing data
+    const selectionMade = Boolean(selectedItem || itemId);
+    const datesSelected = Boolean(filters.fromDate && filters.toDate);
+    const dataReady = selectionMade && datesSelected;
+
+    // Reset pagination when data becomes ready
+    useEffect(() => {
+        if (dataReady) setPage(0);
+    }, [dataReady]);
+
     const handleChangePage = (_event: any, newPage: number) => setPage(newPage);
     const handleChangeRowsPerPage = (e: React.ChangeEvent<HTMLInputElement>) => {
         setRowsPerPage(parseInt(e.target.value, 10));
@@ -119,7 +274,7 @@ export default function InventoryItemMovements({ itemId }: ItemTransactionProps)
 
     const breadcrumbItems = [
         { title: "Home", href: "/home" },
-        { title: "Item Transactions" },
+        { title: "Inventory Item Movement" },
     ];
 
     return (
@@ -134,10 +289,11 @@ export default function InventoryItemMovements({ itemId }: ItemTransactionProps)
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
+                    position: "relative",
                 }}
             >
                 <Box>
-                    <PageTitle title="Item Transactions" />
+                    <PageTitle title="Inventory Item Movement" />
                     <Breadcrumb breadcrumbs={breadcrumbItems} />
                 </Box>
                 <Stack direction="row" spacing={1}>
@@ -150,6 +306,59 @@ export default function InventoryItemMovements({ itemId }: ItemTransactionProps)
                     </Button>
                 </Stack>
 
+                <Box sx={{ position: "absolute", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 1 }}>
+                    <FormControl sx={{ minWidth: 250 }}>
+                        <InputLabel>Select Item</InputLabel>
+                        <Select
+                            value={selectedItem}
+                            label="Select Item"
+                            onChange={(e) => setSelectedItem(e.target.value)}
+                        >
+                            <MenuItem value="" key="none">
+                                <em>Select an Item</em>
+                            </MenuItem>
+
+                            {/* Group items by category_id */}
+                            {(() => {
+                                const filteredItems = items.filter(item => showInactive || item.inactive !== 1);
+                                return Object.entries(
+                                    filteredItems.reduce((groups, item) => {
+                                        const catId = item.category_id || "Uncategorized";
+                                        if (!groups[catId]) groups[catId] = [];
+                                        groups[catId].push(item);
+                                        return groups;
+                                    }, {} as Record<string, typeof filteredItems>)
+                                ).map(([categoryId, groupedItems]) => {
+                                    const category = categories.find(cat => cat.category_id === Number(categoryId));
+                                    const categoryLabel = category ? category.description : `Category ${categoryId}`;
+                                    return [
+                                        <ListSubheader key={`cat-${categoryId}`}>
+                                            {categoryLabel}
+                                        </ListSubheader>,
+                                        (groupedItems as any[]).map((item) => (
+                                            <MenuItem key={item.stock_id} value={item.stock_id}>
+                                                {item.description}
+                                            </MenuItem>
+                                        ))
+                                    ];
+                                });
+                            })()}
+                        </Select>
+                    </FormControl>
+
+                    <FormControlLabel
+                        control={
+                            <Checkbox
+                                checked={showInactive}
+                                onChange={(e) => setShowInactive(e.target.checked)}
+                            />
+                        }
+                        label="Show Inactive"
+                    />
+                </Box>
+                <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>
+                    Back
+                </Button>
             </Box>
 
             {/* Search & Filter */}
@@ -159,12 +368,31 @@ export default function InventoryItemMovements({ itemId }: ItemTransactionProps)
                 sx={{ px: 2, mb: 2, alignItems: "center", flexWrap: "wrap" }}
             >
                 <TextField
+                    select
                     label="Location"
                     name="location"
                     size="small"
                     value={filters.location}
                     onChange={handleFilterChange}
-                />
+                    SelectProps={{
+                        displayEmpty: true,
+                        renderValue: (selected: any) => {
+                            // Only treat explicit empty/null/undefined as "All"
+                            if (selected === "" || selected === null || selected === undefined) return "All";
+                            const found = locations.find((l) => String(l.loc_code) === String(selected));
+                            return found ? found.location_name : String(selected);
+                        },
+                    }}
+                    InputLabelProps={{ shrink: true }}
+                    sx={{ minWidth: 200 }}
+                >
+                    <MenuItem value="">All</MenuItem>
+                    {locations.map((loc) => (
+                        <MenuItem key={loc.loc_code} value={String(loc.loc_code)}>
+                            {loc.location_name}
+                        </MenuItem>
+                    ))}
+                </TextField>
                 <DatePickerComponent
                     label="From Date"
                     value={filters.fromDate}
@@ -198,29 +426,133 @@ export default function InventoryItemMovements({ itemId }: ItemTransactionProps)
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {paginatedData.length > 0 ? (
-                                paginatedData.map((txn) => (
-                                    <TableRow key={txn.id} hover>
-                                        <TableCell>{txn.type}</TableCell>
-                                        <TableCell>{txn.number}</TableCell>
-                                        <TableCell>{txn.reference}</TableCell>
-                                        <TableCell>{txn.location}</TableCell>
-                                        <TableCell>{txn.date}</TableCell>
-                                        <TableCell>{txn.detail}</TableCell>
-                                        <TableCell>{txn.quantityIn}</TableCell>
-                                        <TableCell>{txn.quantityOut}</TableCell>
-                                        <TableCell>{txn.quantityOnHand}</TableCell>
-                                    </TableRow>
-                                ))
-                            ) : (
+                            {!selectionMade ? (
                                 <TableRow>
                                     <TableCell colSpan={9} align="center">
-                                        <Typography variant="body2">No Records Found</Typography>
+                                        <Typography variant="body2">Please select an Item to view movements.</Typography>
                                     </TableCell>
                                 </TableRow>
+                            ) : !datesSelected ? (
+                                <TableRow>
+                                    <TableCell colSpan={9} align="center">
+                                        <Typography variant="body2">Please select both From Date and To Date to view transactions.</Typography>
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                <>
+                                    {/* Quantity on hand BEFORE From Date (if From Date selected) */}
+                                    {qohBeforeDate !== null && (
+                                        <TableRow>
+                                            <TableCell colSpan={6} align="right">
+                                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                    Quantity on hand before {filters.fromDate ? new Date(filters.fromDate).toLocaleDateString() : ""}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell />
+                                            <TableCell />
+                                            <TableCell>
+                                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                                    {qohBeforeDate}
+                                                </Typography>
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+
+                                    {paginatedData.length > 0 ? (
+                                        paginatedData.map((txn) => (
+                                            <TableRow key={txn.id} hover>
+                                                <TableCell>{txn.type}</TableCell>
+                                                <TableCell>
+                                                    {txn.reference && (String(Number(txn.type)) === "16" || String(Number(txn.type)) === "17") ? (
+                                                        <Button
+                                                            variant="text"
+                                                            color="primary"
+                                                            onClick={() => {
+                                                                const t = String(Number(txn.type));
+                                                                const ref = encodeURIComponent(String(txn.reference));
+                                                                const url =
+                                                                    t === "16"
+                                                                        ? `/itemsandinventory/maintenance/items/transactions/view-transfer?ref=${ref}`
+                                                                        : `/itemsandinventory/maintenance/items/transactions/view-adjustment?ref=${ref}`;
+                                                                navigate(url);
+                                                            }}
+                                                            sx={{ textTransform: "none", padding: 0, minWidth: 0 }}
+                                                        >
+                                                            {String(txn.reference).split("/")[0]}
+                                                        </Button>
+                                                    ) : (
+                                                        <Typography variant="body2">{txn.number}</Typography>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {txn.reference && (String(Number(txn.type)) === "16" || String(Number(txn.type)) === "17") ? (
+                                                        <Button
+                                                            variant="text"
+                                                            color="primary"
+                                                            onClick={() => {
+                                                                const t = String(Number(txn.type));
+                                                                const ref = encodeURIComponent(String(txn.reference));
+                                                                const url =
+                                                                    t === "16"
+                                                                        ? `/itemsandinventory/maintenance/items/transactions/view-transfer?ref=${ref}`
+                                                                        : `/itemsandinventory/maintenance/items/transactions/view-adjustment?ref=${ref}`;
+                                                                navigate(url);
+                                                            }}
+                                                            sx={{ textTransform: "none", padding: 0, minWidth: 0 }}
+                                                        >
+                                                            {String(txn.reference)}
+                                                        </Button>
+                                                    ) : (
+                                                        <Typography variant="body2">{txn.number}</Typography>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>{txn.location_name ?? txn.loc_code ?? txn.location}</TableCell>
+                                                <TableCell>{txn.date}</TableCell>
+                                                <TableCell>{txn.detail}</TableCell>
+                                                <TableCell>{txn.quantityIn}</TableCell>
+                                                <TableCell>{txn.quantityOut}</TableCell>
+                                                <TableCell>{txn.quantityOnHand}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={9} align="center">
+                                                <Typography variant="body2">No Records Found</Typography>
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </>
                             )}
                         </TableBody>
                         <TableFooter>
+
+                            {/* Quantity on hand AFTER To Date (if To Date selected). Shows sums in In/Out and final QOH */}
+                            {qohAfterDate !== null && (
+                                <TableRow>
+                                    <TableCell colSpan={6} align="right">
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                            Quantity on hand after {filters.toDate ? new Date(filters.toDate).toLocaleDateString() : ""}
+                                        </Typography>
+                                    </TableCell>
+                                    {/* For after row we show the sums (over filteredData) in Quantity In / Out */}
+                                    <TableCell>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                            {totals.sumIn}
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                            {totals.sumOut}
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                            {qohAfterDate}
+                                        </Typography>
+                                    </TableCell>
+                                </TableRow>
+                            )}
+
                             <TableRow>
                                 <TablePagination
                                     rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
