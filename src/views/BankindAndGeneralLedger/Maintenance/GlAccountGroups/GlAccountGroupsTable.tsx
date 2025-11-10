@@ -30,7 +30,7 @@ import DeleteConfirmationModal from "../../../../components/DeleteConfirmationMo
 import theme from "../../../../theme";
 
 import { getChartClasses } from "../../../../api/GLAccounts/ChartClassApi";
-import { getChartTypes, deleteChartType } from "../../../../api/GLAccounts/ChartTypeApi";
+import { getChartTypes, deleteChartType, updateChartType } from "../../../../api/GLAccounts/ChartTypeApi";
 
 function GlAccountGroupsTable() {
   const [page, setPage] = useState(0);
@@ -113,6 +113,18 @@ function GlAccountGroupsTable() {
     }
   };
 
+  const handleToggleInactive = async (item: any) => {
+    try {
+      const newInactive = item.inactive === 1 ? 0 : 1;
+      // send only the inactive flag; backend should accept partial updates
+      await updateChartType(item.id, { inactive: newInactive });
+      queryClient.invalidateQueries({ queryKey: ["chartTypes"] });
+    } catch (error) {
+      console.error("Failed to update inactive flag:", error);
+      alert("Failed to update inactive flag. Please try again.");
+    }
+  };
+
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
     { title: "GL Account Groups" },
@@ -184,6 +196,7 @@ function GlAccountGroupsTable() {
                 <TableCell>Group Name</TableCell>
                 <TableCell>Subgroup of</TableCell>
                 <TableCell>Class</TableCell>
+                {showInactive && <TableCell align="center">Inactive</TableCell>}
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -196,6 +209,15 @@ function GlAccountGroupsTable() {
                     <TableCell>{item.name}</TableCell>
                     <TableCell>{item.parentName}</TableCell>
                     <TableCell>{item.className}</TableCell>
+                    {showInactive && (
+                      <TableCell align="center">
+                        <Checkbox
+                          checked={Number(item.inactive) === 1}
+                          onChange={() => handleToggleInactive(item)}
+                          inputProps={{ 'aria-label': `inactive-${item.id}` }}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button

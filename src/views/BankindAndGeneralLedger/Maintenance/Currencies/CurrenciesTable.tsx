@@ -27,14 +27,15 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
-import { getCurrencies, deleteCurrency } from "../../../../api/Currency/currencyApi";
+import { getCurrencies, deleteCurrency, updateCurrency } from "../../../../api/Currency/currencyApi";
 import ErrorModal from "../../../../components/ErrorModal";
 
 export default function CurrenciesTable() {
   const [currencies, setCurrencies] = useState<any[]>([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-  const [showAll, setShowAll] = useState(true);
+  const [showInactive, setShowInactive] = useState(false);
+  const [updatingIds, setUpdatingIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -57,9 +58,22 @@ export default function CurrenciesTable() {
     loadCurrencies();
   }, []);
 
+  const isCurrencyInactive = (item: any) => {
+    if (!item) return false;
+    if (typeof item.inactive === "boolean") return Boolean(item.inactive);
+    if (item.inactive !== undefined && item.inactive !== null) {
+      const val = String(item.inactive).toLowerCase();
+      if (val === "1" || val === "true") return true;
+      if (val === "0" || val === "false") return false;
+    }
+    if (typeof item.isActive === "boolean") return !item.isActive;
+    if (typeof item.status === "string") return item.status.toLowerCase() !== "active";
+    return false;
+  };
+
   // Filter and search
   const filteredData = useMemo(() => {
-    let data = showAll ? currencies : currencies.filter((c) => c.auto_exchange_rate_update);
+    let data = showInactive ? currencies : currencies.filter((c) => !isCurrencyInactive(c));
 
     if (searchQuery.trim() !== "") {
       const lower = searchQuery.toLowerCase();
@@ -72,7 +86,7 @@ export default function CurrenciesTable() {
     }
 
     return data;
-  }, [currencies, showAll, searchQuery]);
+  }, [currencies, showInactive, searchQuery]);
 
   const paginatedData = useMemo(() => {
     if (rowsPerPage === -1) return filteredData;
@@ -100,6 +114,23 @@ export default function CurrenciesTable() {
         "Failed to delete currency Please try again."
       );
       setErrorOpen(true);
+    }
+  };
+
+  const handleToggleInactive = async (currency: any, checked: boolean) => {
+    if (!currency?.id) return;
+    const id = currency.id;
+    try {
+      setUpdatingIds((prev) => [...prev, id]);
+      const payload = { ...currency, inactive: checked };
+      await updateCurrency(id, payload);
+      await loadCurrencies();
+    } catch (error: any) {
+      console.error("Error updating currency inactive flag:", error);
+      setErrorMessage(error?.response?.data?.message || "Failed to update. Please try again.");
+      setErrorOpen(true);
+    } finally {
+      setUpdatingIds((prev) => prev.filter((i) => i !== id));
     }
   };
 
@@ -154,8 +185,8 @@ export default function CurrenciesTable() {
         sx={{ px: 2, mb: 2, alignItems: "center", justifyContent: isMobile ? "flex-start" : "space-between" }}
       >
         <FormControlLabel
-          control={<Checkbox checked={!showAll} onChange={(e) => setShowAll(!e.target.checked)} />}
-          label="Show Only Auto Exchange Rate Enabled"
+          control={<Checkbox checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />}
+          label="Show also Inactive"
         />
 
         <Box sx={{ ml: isMobile ? 0 : "auto", width: isMobile ? "100%" : "300px" }}>
@@ -175,6 +206,7 @@ export default function CurrenciesTable() {
                 <TableCell>Hundredths Name</TableCell>
                 <TableCell>Country</TableCell>
                 <TableCell align="center">Auto Exchange Update</TableCell>
+                {showInactive && <TableCell align="center">Inactive</TableCell>}
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -190,6 +222,15 @@ export default function CurrenciesTable() {
                     <TableCell align="center">
                       <Checkbox checked={currency.auto_exchange_rate_update} disabled />
                     </TableCell>
+                    {showInactive && (
+                      <TableCell align="center">
+                        <Checkbox
+                          checked={isCurrencyInactive(currency)}
+                          disabled={updatingIds.includes(currency.id)}
+                          onChange={(e) => handleToggleInactive(currency, e.target.checked)}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -218,7 +259,7 @@ export default function CurrenciesTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={showInactive ? 8 : 7} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -228,7 +269,7 @@ export default function CurrenciesTable() {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={7}
+                  colSpan={showInactive ? 8 : 7}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}

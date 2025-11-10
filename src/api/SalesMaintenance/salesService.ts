@@ -41,6 +41,8 @@ export const deleteSalesType = async (id: number): Promise<void> => {
 export interface SalesGroup {
   id?: number;
   name: string;
+  // optional inactive flag — API may return different shapes, keep it optional
+  inactive?: boolean;
 }
 
 export const getSalesGroups = async (): Promise<SalesGroup[]> => {
@@ -63,6 +65,12 @@ export const updateSalesGroup = async (id: number, salesGroup: SalesGroup): Prom
   return res.data;
 };
 
+// Partial update (PATCH) helper to update specific fields like `inactive` without sending the whole entity
+export const patchSalesGroup = async (id: number, payload: Partial<SalesGroup>): Promise<SalesGroup> => {
+  const res = await axios.patch(`${SALES_GROUP_API}/${id}`, payload);
+  return res.data;
+};
+
 export const deleteSalesGroup = async (id: number): Promise<void> => {
   await axios.delete(`${SALES_GROUP_API}/${id}`);
 };
@@ -71,6 +79,8 @@ export const deleteSalesGroup = async (id: number): Promise<void> => {
 export interface SalesArea {
   id?: number;
   name: string;
+  // optional inactive flag — backend may or may not include it, keep optional
+  inactive?: boolean;
 }
 
 export const getSalesAreas = async (): Promise<SalesArea[]> => {
@@ -90,6 +100,12 @@ export const createSalesArea = async (salesArea: SalesArea): Promise<SalesArea> 
 
 export const updateSalesArea = async (id: number, salesArea: SalesArea): Promise<SalesArea> => {
   const res = await axios.put(`${SALES_AREA_API}/${id}`, salesArea);
+  return res.data;
+};
+
+// Partial update (PATCH) helper to update specific fields like `inactive` without sending the whole entity
+export const patchSalesArea = async (id: number, payload: Partial<SalesArea>): Promise<SalesArea> => {
+  const res = await axios.patch(`${SALES_AREA_API}/${id}`, payload);
   return res.data;
 };
 

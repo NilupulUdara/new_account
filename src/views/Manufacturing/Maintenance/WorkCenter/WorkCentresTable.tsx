@@ -30,6 +30,7 @@ import DeleteConfirmationModal from "../../../../components/DeleteConfirmationMo
 import {
   getWorkCentres as fetchWorkCentres,
   deleteWorkCentre,
+  updateWorkCentre,
 } from "../../../../api/WorkCentre/WorkCentreApi";
 import ErrorModal from "../../../../components/ErrorModal";
 
@@ -39,6 +40,7 @@ export default function WorkCentresTable() {
   const [errorMessage, setErrorMessage] = useState("");
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [workCentres, setWorkCentres] = useState<any[]>([]);
+  const [updatingIds, setUpdatingIds] = useState<number[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
@@ -61,9 +63,23 @@ export default function WorkCentresTable() {
     loadData();
   }, []);
 
+  // helper to interpret inactive values robustly
+  const isCentreInactive = (item: any) => {
+    if (!item) return false;
+    if (typeof item.inactive === "boolean") return Boolean(item.inactive);
+    if (item.inactive !== undefined && item.inactive !== null) {
+      const val = String(item.inactive).toLowerCase();
+      if (val === "1" || val === "true") return true;
+      if (val === "0" || val === "false") return false;
+    }
+    if (typeof item.isActive === "boolean") return !item.isActive;
+    if (typeof item.status === "string") return item.status.toLowerCase() !== "active";
+    return false;
+  };
+
   // Filtered + search + inactive
   const filteredData = useMemo(() => {
-    let data = showInactive ? workCentres : workCentres.filter((g) => !g.inactive);
+    let data = showInactive ? workCentres : workCentres.filter((g) => !isCentreInactive(g));
     if (searchQuery.trim()) {
       const lower = searchQuery.toLowerCase();
       data = data.filter(
@@ -103,6 +119,23 @@ export default function WorkCentresTable() {
       );
       setErrorOpen(true);
 
+    }
+  };
+
+  const handleToggleInactive = async (item: any, checked: boolean) => {
+    if (!item?.id) return;
+    const id = item.id;
+    try {
+      setUpdatingIds((prev) => [...prev, id]);
+      const payload = { ...item, inactive: checked };
+      await updateWorkCentre(id, payload);
+      await loadData();
+    } catch (error: any) {
+      console.error("Failed to update Work Centre inactive flag:", error);
+      setErrorMessage(error?.response?.data?.message || "Failed to update. Please try again.");
+      setErrorOpen(true);
+    } finally {
+      setUpdatingIds((prev) => prev.filter((i) => i !== id));
     }
   };
 
@@ -184,11 +217,12 @@ export default function WorkCentresTable() {
           <Table aria-label="work centres table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
-                <TableCell>No</TableCell>
-                <TableCell>Name</TableCell>
-                <TableCell>Description</TableCell>
-                <TableCell align="center">Actions</TableCell>
-              </TableRow>
+                  <TableCell>No</TableCell>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Description</TableCell>
+                  {showInactive && <TableCell align="center">Inactive</TableCell>}
+                  <TableCell align="center">Actions</TableCell>
+                </TableRow>
             </TableHead>
             <TableBody>
               {paginatedData.length > 0 ? (
@@ -197,6 +231,15 @@ export default function WorkCentresTable() {
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
                     <TableCell>{item.name}</TableCell>
                     <TableCell>{item.description}</TableCell>
+                    {showInactive && (
+                      <TableCell align="center">
+                        <Checkbox
+                          checked={isCentreInactive(item)}
+                          disabled={updatingIds.includes(item.id)}
+                          onChange={(e) => handleToggleInactive(item, e.target.checked)}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -227,7 +270,7 @@ export default function WorkCentresTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} align="center">
+                  <TableCell colSpan={showInactive ? 4 : 3} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -237,7 +280,7 @@ export default function WorkCentresTable() {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={4}
+                  colSpan={showInactive ? 4 : 3}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}

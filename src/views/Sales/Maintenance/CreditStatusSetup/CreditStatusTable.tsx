@@ -28,6 +28,7 @@ import SearchBar from "../../../../components/SearchBar";
 import theme from "../../../../theme";
 import {
   getCreditStatusSetups,
+  updateCreditStatusSetup,
   deleteCreditStatusSetup,
 } from "../../../../api/CreditStatusSetup/CreditStatusSetupApi";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
@@ -104,6 +105,25 @@ export default function CreditStatusTable() {
     }
   };
 
+  const handleToggleInactive = async (item: any) => {
+    if (!item || item.id == null) return;
+
+    const updatedValue = !item.inactive;
+
+    // Optimistic update
+    setCreditStatuses((prev) => prev.map((c) => (c.id === item.id ? { ...c, inactive: updatedValue } : c)));
+
+    try {
+      // send inactive as 1 or 0 to backend
+      await updateCreditStatusSetup(item.id, { ...item, inactive: updatedValue ? 1 : 0 });
+    } catch (error: any) {
+      // Revert on error
+      setCreditStatuses((prev) => prev.map((c) => (c.id === item.id ? { ...c, inactive: !!item.inactive } : c)));
+      setErrorMessage(error?.response?.data?.message || "Failed to update inactive state. Please try again.");
+      setErrorOpen(true);
+    }
+  };
+
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
     { title: "Credit Status" },
@@ -168,6 +188,7 @@ export default function CreditStatusTable() {
                 <TableCell>No</TableCell>
                 <TableCell>Description</TableCell>
                 <TableCell>Disallow Invoices</TableCell>
+                {showInactive && <TableCell align="center">Inactive</TableCell>}
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -179,6 +200,15 @@ export default function CreditStatusTable() {
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
                     <TableCell>{item.reason_description}</TableCell>
                     <TableCell>{item.disallow_invoices ? "Yes" : "No"}</TableCell>
+                    {showInactive && (
+                      <TableCell align="center">
+                        <Checkbox
+                          checked={!!item.inactive}
+                          onChange={() => handleToggleInactive(item)}
+                          inputProps={{ 'aria-label': `inactive-checkbox-${item.id}` }}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -209,7 +239,7 @@ export default function CreditStatusTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} align="center">
+                  <TableCell colSpan={showInactive ? 5 : 4} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -220,7 +250,7 @@ export default function CreditStatusTable() {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={4}
+                  colSpan={showInactive ? 5 : 4}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}

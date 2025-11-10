@@ -28,6 +28,7 @@ import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
 import theme from "../../../../theme";
 import { getBankAccounts, deleteBankAccount } from "../../../../api/BankAccount/BankAccountApi";
+import { updateBankAccount } from "../../../../api/BankAccount/BankAccountApi";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 
 function BankAccountsTable() {
@@ -35,6 +36,7 @@ function BankAccountsTable() {
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [searchQuery, setSearchQuery] = useState("");
   const [showInactive, setShowInactive] = useState(false);
+  const colCount = showInactive ? 11 : 10;
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -216,7 +218,8 @@ function BankAccountsTable() {
                 <TableCell>Number</TableCell>
                 <TableCell>Bank Address</TableCell>
                 <TableCell>Default</TableCell>
-                <TableCell align="center">Actions</TableCell>
+                  {showInactive && <TableCell align="center">Inactive</TableCell>}
+                  <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
 
@@ -232,9 +235,42 @@ function BankAccountsTable() {
                     <TableCell>{item.bank_name}</TableCell>
                     <TableCell>{item.bank_account_number}</TableCell>
                     <TableCell>{item.bank_address}</TableCell>
-                    <TableCell>
-                      <Checkbox checked={item.default_curr_act} disabled />
-                    </TableCell>
+                        <TableCell>
+                          <Checkbox checked={item.default_curr_act} disabled />
+                        </TableCell>
+                        {showInactive && (
+                          <TableCell align="center">
+                            <Checkbox
+                              checked={Boolean(item.inactive)}
+                              onChange={async (e) => {
+                                const checked = e.target.checked;
+
+                                // Build payload in the same shape as the Update form expects
+                                const payload = {
+                                  bank_account_name: item.bank_account_name ?? "",
+                                  // account_type may be an object (with id) or an id already; normalize to id/string
+                                  account_type: item.account_type?.id ?? item.account_type ?? "",
+                                  bank_curr_code: item.bank_curr_code ?? "",
+                                  default_curr_act: Boolean(item.default_curr_act),
+                                  account_gl_code: item.account_gl_code ?? "",
+                                  bank_charges_act: item.bank_charges_act ?? "",
+                                  bank_name: item.bank_name ?? "",
+                                  bank_account_number: item.bank_account_number ?? "",
+                                  bank_address: item.bank_address ?? "",
+                                  inactive: checked,
+                                };
+
+                                try {
+                                  await updateBankAccount(item.id, payload);
+                                  queryClient.invalidateQueries({ queryKey: ["bankAccounts"] });
+                                } catch (error) {
+                                  console.error("Failed to update inactive flag:", error);
+                                  alert("Failed to update inactive flag. Please try again.");
+                                }
+                              }}
+                            />
+                          </TableCell>
+                        )}
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -265,7 +301,7 @@ function BankAccountsTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={10} align="center">
+                  <TableCell colSpan={colCount} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -276,7 +312,7 @@ function BankAccountsTable() {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={10}
+                  colSpan={colCount}
                   count={filteredAccounts.length}
                   rowsPerPage={rowsPerPage}
                   page={page}

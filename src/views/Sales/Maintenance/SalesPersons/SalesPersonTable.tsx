@@ -27,7 +27,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
-import { deleteSalesPerson, getSalesPerson, getSalesPersons } from "../../../../api/SalesPerson/SalesPersonApi";
+import { deleteSalesPerson, getSalesPerson, getSalesPersons, updateSalesPerson } from "../../../../api/SalesPerson/SalesPersonApi";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
 
@@ -39,6 +39,7 @@ function SalesPersonTable() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const [salesPersons, setSalesPersons] = useState<any[]>([]);
+  const [updatingIds, setUpdatingIds] = useState<number[]>([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [searchQuery, setSearchQuery] = useState("");
@@ -60,14 +61,28 @@ function SalesPersonTable() {
   }, [])
 
 
+  // helper extracted to component scope so it can be reused in render and filtering
+  const isPersonInactive = (item: any) => {
+    if (item == null) return false;
+    if (typeof item.inactive === "boolean") return Boolean(item.inactive);
+    if (item.inactive !== undefined && item.inactive !== null) {
+      const val = String(item.inactive).toLowerCase();
+      if (val === "1" || val === "true") return true;
+      if (val === "0" || val === "false") return false;
+    }
+    if (typeof item.isActive === "boolean") return !item.isActive;
+    if (typeof item.status === "string") return item.status.toLowerCase() !== "active";
+    return false;
+  };
+
   const filteredSalesPersons = useMemo(() => {
     if (!salesPersons) return [];
 
     let filtered = salesPersons;
 
-    // if (!showInactive) {
-    //   filtered = filtered.filter((item) => item.status === "Active");
-    // }
+    if (!showInactive) {
+      filtered = filtered.filter((item) => !isPersonInactive(item));
+    }
 
     if (searchQuery.trim()) {
       const lowerQuery = searchQuery.toLowerCase();
@@ -81,9 +96,7 @@ function SalesPersonTable() {
     }
 
     return filtered;
-  }, [salesPersons, searchQuery,
-    // showInactive
-  ]);
+  }, [salesPersons, searchQuery, showInactive]);
 
   const paginatedSalesPersons = useMemo(() => {
     if (rowsPerPage === -1) return filteredSalesPersons;
@@ -118,6 +131,24 @@ function SalesPersonTable() {
     } finally {
       setOpenDeleteModal(false);
       setSelectedSalesPersonId(null);
+    }
+  };
+
+  const handleToggleInactive = async (sp: any, checked: boolean) => {
+    if (!sp || !sp.id) return;
+    const id = sp.id;
+    try {
+      setUpdatingIds((prev) => [...prev, id]);
+      const payload = { ...sp, inactive: checked };
+      await updateSalesPerson(id, payload);
+      // refresh the list
+      await fetchSalesPersons();
+    } catch (error: any) {
+      console.error("Failed to update sales person inactive flag:", error);
+      setErrorMessage(error?.response?.data?.message || "Failed to update. Please try again.");
+      setErrorOpen(true);
+    } finally {
+      setUpdatingIds((prev) => prev.filter((i) => i !== id));
     }
   };
 
@@ -203,17 +234,18 @@ function SalesPersonTable() {
         >
           <Table aria-label="salesperson table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
-              <TableRow>
-                <TableCell>No</TableCell>
-                <TableCell>Sales Person Name</TableCell>
-                <TableCell>Telephone Number</TableCell>
-                <TableCell>Fax Number</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Provision (%)</TableCell>
-                <TableCell>Turnover Break Pt Level</TableCell>
-                <TableCell>Provision 2 (%)</TableCell>
-                <TableCell align="center">Actions</TableCell>
-              </TableRow>
+                <TableRow>
+                  <TableCell>No</TableCell>
+                  <TableCell>Sales Person Name</TableCell>
+                  <TableCell>Telephone Number</TableCell>
+                  <TableCell>Fax Number</TableCell>
+                  <TableCell>Email</TableCell>
+                  <TableCell>Provision (%)</TableCell>
+                  <TableCell>Turnover Break Pt Level</TableCell>
+                  <TableCell>Provision 2 (%)</TableCell>
+                  {showInactive && <TableCell align="center">Inactive</TableCell>}
+                  <TableCell align="center">Actions</TableCell>
+                </TableRow>
             </TableHead>
 
             <TableBody>
@@ -228,6 +260,17 @@ function SalesPersonTable() {
                     <TableCell>{sp.provision}</TableCell>
                     <TableCell>{sp.turnover_break_point}</TableCell>
                     <TableCell>{sp.provision2}</TableCell>
+                    {showInactive && (
+                      <TableCell align="center">
+                        <Checkbox
+                          checked={isPersonInactive(sp)}
+                          disabled={updatingIds.includes(sp.id)}
+                          onChange={(e) => handleToggleInactive(sp, e.target.checked)}
+                          inputProps={{ 'aria-label': 'inactive-checkbox' }}
+                        />
+                      </TableCell>
+                    )}
+
                     <TableCell align="center">
                       <Stack
                         direction="row"
@@ -263,7 +306,7 @@ function SalesPersonTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={9} align="center">
+                  <TableCell colSpan={showInactive ? 10 : 9} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>

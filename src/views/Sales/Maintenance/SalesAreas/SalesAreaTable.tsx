@@ -27,7 +27,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
-import { getSalesAreas, deleteSalesArea, SalesArea } from "../../../../api/SalesMaintenance/salesService";
+import { getSalesAreas, deleteSalesArea, SalesArea, patchSalesArea } from "../../../../api/SalesMaintenance/salesService";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
 
@@ -56,9 +56,10 @@ function SalesAreaTable() {
 
     let filtered = salesAreas;
 
-    // if (!showInactive) {
-    //   filtered = filtered.filter((item) => item.status === "Active");
-    // }
+    // when showInactive is false, hide items that are marked inactive
+    if (!showInactive) {
+      filtered = filtered.filter((item) => !item.inactive);
+    }
 
     if (searchQuery.trim()) {
       const lowerQuery = searchQuery.toLowerCase();
@@ -102,6 +103,33 @@ function SalesAreaTable() {
     } finally {
       setOpenDeleteModal(false);
       setSelectedAreaId(null);
+    }
+  };
+
+  const toggleInactive = async (areaId: number | undefined, newValue: boolean) => {
+    if (!areaId) return;
+
+    // optimistic update
+    const previous = queryClient.getQueryData<SalesArea[]>(["salesAreas"]);
+
+    queryClient.setQueryData<SalesArea[] | undefined>(["salesAreas"], (old) => {
+      if (!old) return old;
+      return old.map((a) => (a.id === areaId ? { ...a, inactive: newValue } : a));
+    });
+
+    try {
+      await patchSalesArea(areaId, { inactive: newValue });
+      // refresh to ensure server truth
+      queryClient.invalidateQueries({ queryKey: ["salesAreas"] });
+    } catch (error) {
+      // rollback
+      queryClient.setQueryData(["salesAreas"], previous);
+      console.error("Failed to update inactive flag:", error);
+      setErrorMessage(
+        // @ts-ignore
+        error?.response?.data?.message || "Failed to update Inactive flag. Please try again."
+      );
+      setErrorOpen(true);
     }
   };
 
@@ -189,6 +217,7 @@ function SalesAreaTable() {
               <TableRow>
                 <TableCell>No</TableCell>
                 <TableCell>Area Name</TableCell>
+                {showInactive && <TableCell align="center">Inactive</TableCell>}
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -199,6 +228,15 @@ function SalesAreaTable() {
                   <TableRow key={area.id} hover>
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
                     <TableCell>{area.name}</TableCell>
+                    {showInactive && (
+                      <TableCell align="center">
+                        <Checkbox
+                          checked={!!area.inactive}
+                          onChange={(e) => toggleInactive(area.id, e.target.checked)}
+                          inputProps={{ 'aria-label': `inactive-${area.id}` }}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell align="center">
                       <Stack
                         direction="row"
@@ -234,7 +272,7 @@ function SalesAreaTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={3} align="center">
+                  <TableCell colSpan={showInactive ? 4 : 3} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -245,7 +283,7 @@ function SalesAreaTable() {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={3}
+                  colSpan={showInactive ? 4 : 3}
                   count={filteredAreas.length}
                   rowsPerPage={rowsPerPage}
                   page={page}

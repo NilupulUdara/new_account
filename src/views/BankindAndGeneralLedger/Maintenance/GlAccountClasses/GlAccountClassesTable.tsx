@@ -29,7 +29,7 @@ import SearchBar from "../../../../components/SearchBar";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import theme from "../../../../theme";
 
-import { getChartClasses, deleteChartClass } from "../../../../api/GLAccounts/ChartClassApi";
+import { getChartClasses, deleteChartClass, updateChartClass } from "../../../../api/GLAccounts/ChartClassApi";
 import { getClassTypes } from "../../../../api/GLAccounts/ClassTypeApi";
 
 function GlAccountClassesTable() {
@@ -191,6 +191,7 @@ function GlAccountClassesTable() {
                 <TableCell>Class ID</TableCell>
                 <TableCell>Class Name</TableCell>
                 <TableCell>Class Type</TableCell>
+                {showInactive && <TableCell align="center">Inactive</TableCell>}
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -202,6 +203,24 @@ function GlAccountClassesTable() {
                     <TableCell>{item.cid}</TableCell>
                     <TableCell>{item.class_name}</TableCell>
                     <TableCell>{item.classTypeName}</TableCell>
+                    {showInactive && (
+                      <TableCell align="center">
+                        <Checkbox
+                          checked={Boolean(item.inactive)}
+                          onChange={async (e) => {
+                            const checked = e.target.checked;
+                            try {
+                              await updateChartClass(item.cid, { ...item, inactive: checked });
+                              queryClient.invalidateQueries({ queryKey: ["glAccountClasses"] });
+                            } catch (error) {
+                              console.error("Failed to update inactive flag:", error);
+                              alert("Failed to update inactive flag. Please try again.");
+                            }
+                          }}
+                        />
+                      </TableCell>
+                    )}
+
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
