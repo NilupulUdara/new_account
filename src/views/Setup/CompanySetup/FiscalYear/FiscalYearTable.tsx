@@ -199,7 +199,7 @@ export default function FiscalYearTable() {
                     <TableCell>
                       {new Date(fy.fiscal_year_to).toLocaleDateString()}
                     </TableCell>
-                    <TableCell>{fy.isClosed ? "Yes" : "No"}</TableCell>
+                    <TableCell>{fy.closed ? "Yes" : "No"}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button

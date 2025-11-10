@@ -7,6 +7,7 @@ import {
     Paper,
     Divider,
     TextField,
+    MenuItem,
     useMediaQuery,
     useTheme,
 } from "@mui/material";
@@ -20,6 +21,7 @@ import ErrorModal from "../../../../components/ErrorModal";
 interface FiscalYearFormData {
     fiscalYearFrom: string;
     fiscalYearTo: string;
+    isClosed: string;
 }
 
 export default function AddFiscalYear() {
@@ -40,6 +42,7 @@ export default function AddFiscalYear() {
         defaultValues: {
             fiscalYearFrom: "",
             fiscalYearTo: "",
+            isClosed: "0",
         },
     });
 
@@ -50,6 +53,7 @@ export default function AddFiscalYear() {
             const response = await createFiscalYear({
                 fiscal_year_from: data.fiscalYearFrom,
                 fiscal_year_to: data.fiscalYearTo,
+                closed: Number(data.isClosed),
             });
             // Refresh react-query cache if you have a list
             queryClient.invalidateQueries({ queryKey: ["fiscalYears"] });
@@ -92,6 +96,7 @@ export default function AddFiscalYear() {
                         render={({ field }) => (
                             <TextField
                                 {...field}
+                                id="fiscalYearFrom"
                                 label="Fiscal Year Begin"
                                 type="date"
                                 InputLabelProps={{ shrink: true }}
@@ -115,6 +120,7 @@ export default function AddFiscalYear() {
                         render={({ field }) => (
                             <TextField
                                 {...field}
+                                id="fiscalYearTo"
                                 label="Fiscal Year End"
                                 type="date"
                                 InputLabelProps={{ shrink: true }}
@@ -122,6 +128,26 @@ export default function AddFiscalYear() {
                                 error={!!errors.fiscalYearTo}
                                 helperText={errors.fiscalYearTo?.message}
                             />
+                        )}
+                    />
+
+                    {/* Is Closed dropdown */}
+                    <Controller
+                        name="isClosed"
+                        control={control}
+                        render={({ field }) => (
+                            <TextField
+                                {...field}
+                                id="isClosed"
+                                select
+                                label="Is Closed"
+                                SelectProps={{ native: false }}
+                                fullWidth
+                                size="small"
+                            >
+                                <MenuItem value={"0"}>No</MenuItem>
+                                <MenuItem value={"1"}>Yes</MenuItem>
+                            </TextField>
                         )}
                     />
                 </Stack>

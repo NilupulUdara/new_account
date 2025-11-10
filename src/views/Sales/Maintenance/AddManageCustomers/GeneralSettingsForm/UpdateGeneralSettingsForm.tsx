@@ -128,9 +128,30 @@ export default function UpdateGeneralSettingsForm({ customerId }: GeneralSetting
                 if (customerIdToUse) {
                     const customerRes = await getCustomer(customerIdToUse);
                     if (customerRes) {
-                        // Map sales_type ID to typeName using API response, with fallback
-                        const salesTypeObj = salesApiRes.find((st: any) => st.id === Number(customerRes.sales_type));
-                        const salesTypeName = salesTypeObj?.typeName || mappedSalesTypes[0]?.typeName || '';
+                        // Resolve sales_type to a display name. The backend can return several shapes
+                        // (an ID number/string, a nested object, or already the name). Try multiple strategies.
+                        let salesTypeName = "";
+                        const stVal = customerRes.sales_type;
+                        if (stVal != null) {
+                            if (typeof stVal === "object") {
+                                salesTypeName = stVal.typeName || stVal.type_name || stVal.name || "";
+                            } else {
+                                const key = String(stVal);
+                                // Try mapped sales types first (normalized)
+                                const foundMapped = mappedSalesTypes.find((s: any) => String(s.id) === key || String(s.typeName) === key || String((s as any).type_name) === key);
+                                if (foundMapped) salesTypeName = foundMapped.typeName || (foundMapped as any).type_name || "";
+                                else {
+                                    // Fallback to raw API response
+                                    const foundRaw = (salesApiRes || []).find((s: any) => String(s.id) === key || String(s.typeName) === key || String(s.type_name) === key || String(s.name) === key);
+                                    if (foundRaw) salesTypeName = foundRaw.typeName || (foundRaw as any).type_name || (foundRaw as any).name || "";
+                                }
+                            }
+                        }
+                        if (!salesTypeName) {
+                            // helpful debug when a customer has an unexpected sales_type value
+                            // eslint-disable-next-line no-console
+                            console.warn("Sales type not resolved for customer", customerIdToUse, "value:", customerRes.sales_type, "available:", mappedSalesTypes);
+                        }
 
                         // Map credit_status ID to reason_description using API response, with fallback
                         const creditStatusObj = creditApiRes.find((cs: any) => cs.id === Number(customerRes.credit_status));
