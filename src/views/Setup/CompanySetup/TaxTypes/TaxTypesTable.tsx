@@ -27,11 +27,11 @@ import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import theme from "../../../../theme";
-import { getTaxTypes, deleteTaxType } from "../../../../api/Tax/taxServices";
+import { getTaxTypes, deleteTaxType, updateTaxType } from "../../../../api/Tax/taxServices";
 import ErrorModal from "../../../../components/ErrorModal";
 import { getChartMasters } from "../../../../api/GLAccounts/ChartMasterApi";
 
-export default function TaxGroupTable() {
+export default function TaxTypesTable() {
   const [taxGroups, setTaxGroups] = useState<any[]>([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
@@ -77,12 +77,25 @@ export default function TaxGroupTable() {
 
     if (searchQuery.trim() !== "") {
       const lower = searchQuery.toLowerCase();
-      data = data.filter(
-        (g) =>
-          g.description.toLowerCase().includes(lower) ||
-          g.sales_gl_account.toLowerCase().includes(lower) ||
-          g.purchasing_gl_account.toLowerCase().includes(lower)
-      );
+      data = data.filter((g) => {
+        const desc = (g?.description ?? "").toString().toLowerCase();
+
+        // sales_gl_account and purchasing_gl_account appear to be objects
+        // with account_code and account_name. Guard against null/other types.
+        const salesAccountCode = (g?.sales_gl_account?.account_code ?? "").toString().toLowerCase();
+        const salesAccountName = (g?.sales_gl_account?.account_name ?? "").toString().toLowerCase();
+
+        const purchaseAccountCode = (g?.purchasing_gl_account?.account_code ?? "").toString().toLowerCase();
+        const purchaseAccountName = (g?.purchasing_gl_account?.account_name ?? "").toString().toLowerCase();
+
+        return (
+          desc.includes(lower) ||
+          salesAccountCode.includes(lower) ||
+          salesAccountName.includes(lower) ||
+          purchaseAccountCode.includes(lower) ||
+          purchaseAccountName.includes(lower)
+        );
+      });
     }
 
     return data;
@@ -93,6 +106,37 @@ export default function TaxGroupTable() {
     if (rowsPerPage === -1) return filteredData;
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [filteredData, page, rowsPerPage]);
+
+  // Toggle inactive flag for a tax type and persist to server
+  const handleToggleInactive = async (groupId: number, newValue: boolean) => {
+    // snapshot previous state to revert on error
+    const prev = taxGroups;
+    setTaxGroups((s) => s.map((g) => (g.id === groupId ? { ...g, inactive: newValue } : g)));
+    try {
+      const group = prev.find((g) => g.id === groupId);
+      if (!group) return;
+      // Build payload: backend expects sales_gl_account and purchasing_gl_account as strings
+      const payload: any = {
+        ...group,
+        inactive: newValue,
+        sales_gl_account:
+          group?.sales_gl_account?.account_code ?? group?.sales_gl_account ?? "",
+        purchasing_gl_account:
+          group?.purchasing_gl_account?.account_code ?? group?.purchasing_gl_account ?? "",
+      };
+
+      // send PUT with transformed payload
+      await updateTaxType(groupId, payload);
+      // refresh to ensure canonical data
+      loadTaxGroups();
+    } catch (error: any) {
+      console.error("Error updating inactive flag:", error);
+      setErrorMessage(error?.response?.data?.message || "Failed to update inactive flag. Please try again.");
+      setErrorOpen(true);
+      // revert optimistic change
+      setTaxGroups(prev);
+    }
+  };
 
   const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
 
@@ -119,8 +163,8 @@ export default function TaxGroupTable() {
   };
 
   const breadcrumbItems = [
-    { title: "Home", href: "/home" },
-    { title: "Tax Groups" },
+    { title: "Company Setup", href: "/setup/companysetup" },
+    { title: "Tax Types" },
   ];
 
   return (
@@ -191,13 +235,14 @@ export default function TaxGroupTable() {
           elevation={2}
           sx={{ overflowX: "auto", maxWidth: isMobile ? "88vw" : "100%" }}
         >
-          <Table aria-label="tax groups table">
+          <Table aria-label="tax types table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
                 <TableCell>Description</TableCell>
                 <TableCell>Default Rate (%)</TableCell>
                 <TableCell>Sales GL Account</TableCell>
                 <TableCell>Purchasing GL Account</TableCell>
+                {showInactive && <TableCell align="center">Inactive</TableCell>}
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -214,6 +259,15 @@ export default function TaxGroupTable() {
                     <TableCell>
                       {group.purchasing_gl_account.account_code} - {group.purchasing_gl_account.account_name}
                     </TableCell>
+                    {showInactive && (
+                      <TableCell align="center">
+                        <Checkbox
+                          checked={!!group.inactive}
+                          onChange={(e) => handleToggleInactive(group.id, e.target.checked)}
+                          inputProps={{ 'aria-label': 'inactive-checkbox' }}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -244,7 +298,7 @@ export default function TaxGroupTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} align="center">
+                  <TableCell colSpan={showInactive ? 6 : 5} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -254,7 +308,7 @@ export default function TaxGroupTable() {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={5}
+                  colSpan={showInactive ? 6 : 5}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}

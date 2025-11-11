@@ -9,6 +9,7 @@ export interface ShippingCompany {
   phone2: string;
   contact: string;
   address: string;
+  inactive?: boolean;
 }
 
 // Create

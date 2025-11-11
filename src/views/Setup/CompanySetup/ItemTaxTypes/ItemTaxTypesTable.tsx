@@ -30,6 +30,7 @@ import {
   getItemTaxTypes,
   deleteItemTaxType,
 } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
+import { updateItemTaxType } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
 
@@ -76,6 +77,36 @@ export default function ItemTaxTypesTable() {
     if (rowsPerPage === -1) return filteredData;
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [page, rowsPerPage, filteredData]);
+
+  const columnsCount = showInactive ? 4 : 3;
+
+  const handleToggleInactive = async (item: any) => {
+    const id = item.id;
+    if (!id) return;
+
+    const newValue = !item.inactive;
+
+    // optimistic update
+    setItemTaxTypes((prev) => prev.map((i) => (i.id === id ? { ...i, inactive: newValue } : i)));
+
+    const payload = {
+      name: item.name,
+      exempt: item.exempt,
+      inactive: newValue,
+    };
+
+    try {
+      await updateItemTaxType(id, payload);
+    } catch (error: any) {
+      // rollback
+      setItemTaxTypes((prev) => prev.map((i) => (i.id === id ? { ...i, inactive: item.inactive } : i)));
+      setErrorMessage(
+        error?.response?.data?.message || "Failed to update inactive flag. Please try again."
+      );
+      setErrorOpen(true);
+      console.error("Error updating inactive flag for item tax type:", error);
+    }
+  };
 
   const handleChangePage = (
     event: React.MouseEvent<HTMLButtonElement> | null,
@@ -184,10 +215,11 @@ export default function ItemTaxTypesTable() {
           <Table aria-label="item tax types table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
-                <TableCell>Description</TableCell>
-                <TableCell align="center">Tax Exempt</TableCell>
-                <TableCell align="center">Actions</TableCell>
-              </TableRow>
+                  <TableCell>Description</TableCell>
+                  <TableCell align="center">Tax Exempt</TableCell>
+                  {showInactive && <TableCell align="center">Inactive</TableCell>}
+                  <TableCell align="center">Actions</TableCell>
+                </TableRow>
             </TableHead>
             <TableBody>
               {paginatedData.length > 0 ? (
@@ -195,7 +227,16 @@ export default function ItemTaxTypesTable() {
                   <TableRow key={item.id} hover>
                     <TableCell>{item.name}</TableCell>
                     <TableCell align="center">{item.exempt ? "Yes" : "No"}</TableCell>
-                    <TableCell align="center">
+                      {showInactive && (
+                        <TableCell align="center">
+                          <Checkbox
+                            checked={Boolean(item.inactive)}
+                            onChange={() => handleToggleInactive(item)}
+                            inputProps={{ 'aria-label': `inactive-${item.id}` }}
+                          />
+                        </TableCell>
+                      )}
+                      <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
                           variant="contained"
@@ -225,7 +266,7 @@ export default function ItemTaxTypesTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={3} align="center">
+                  <TableCell colSpan={columnsCount} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -235,7 +276,7 @@ export default function ItemTaxTypesTable() {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={3}
+                  colSpan={columnsCount}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}

@@ -25,7 +25,7 @@ import Breadcrumb from "../../../../../components/BreadCrumb";
 import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import SearchBar from "../../../../../components/SearchBar";
-import { getBranches, deleteBranch } from "../../../../../api/CustomerBranch/CustomerBranchApi";
+import { getBranches, deleteBranch, getBranch, updateBranch, CustomerBranch as ApiCustomerBranch } from "../../../../../api/CustomerBranch/CustomerBranchApi";
 
 interface CustomerBranchesTableProps {
   customerId: string | number;
@@ -179,6 +179,8 @@ export default function CustomerBranchesTable({ customerId }: CustomerBranchesTa
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [page, rowsPerPage, filteredData]);
 
+  const columnCount = showInactive ? 11 : 10;
+
   const handleChangePage = (event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) =>
     setPage(newPage);
 
@@ -195,6 +197,83 @@ export default function CustomerBranchesTable({ customerId }: CustomerBranchesTa
       alert("Branch deleted successfully");
     } catch (error) {
       alert("Failed to delete branch");
+    }
+  };
+
+  const handleToggleInactive = async (id: number, value: boolean) => {
+    // Optimistic UI update
+    setBranches((prev) => prev.map((b) => (b.id === id ? { ...b, inactive: value } : b)));
+
+    try {
+      // Fetch full branch object from backend because update endpoint expects required fields
+      const fullBranch: any = await getBranch(id);
+
+      // Build sanitized payload matching the shape used by the Update form
+      const payload: any = {};
+
+      if (fullBranch.debtor_no !== undefined && fullBranch.debtor_no !== null) payload.debtor_no = Number(fullBranch.debtor_no);
+      if (fullBranch.br_name !== undefined) payload.br_name = String(fullBranch.br_name || "");
+      if (fullBranch.branch_ref !== undefined) payload.branch_ref = String(fullBranch.branch_ref || "");
+
+      if (fullBranch.sales_person !== undefined && fullBranch.sales_person !== null) {
+        payload.sales_person = typeof fullBranch.sales_person === "object"
+          ? Number(fullBranch.sales_person.id ?? fullBranch.sales_person)
+          : Number(fullBranch.sales_person);
+      }
+
+      if (fullBranch.sales_area !== undefined && fullBranch.sales_area !== null) {
+        payload.sales_area = typeof fullBranch.sales_area === "object"
+          ? Number(fullBranch.sales_area.id ?? fullBranch.sales_area)
+          : Number(fullBranch.sales_area);
+      }
+
+      if (fullBranch.sales_group !== undefined && fullBranch.sales_group !== null) {
+        payload.sales_group = typeof fullBranch.sales_group === "object"
+          ? Number(fullBranch.sales_group.id ?? fullBranch.sales_group)
+          : Number(fullBranch.sales_group);
+      }
+
+      if (fullBranch.inventory_location !== undefined && fullBranch.inventory_location !== null) {
+        payload.inventory_location = typeof fullBranch.inventory_location === "object"
+          ? String(fullBranch.inventory_location.loc_code ?? fullBranch.inventory_location)
+          : String(fullBranch.inventory_location);
+      }
+
+      if (fullBranch.shipping_company !== undefined && fullBranch.shipping_company !== null) {
+        payload.shipping_company = typeof fullBranch.shipping_company === "object"
+          ? Number(fullBranch.shipping_company.shipper_id ?? fullBranch.shipping_company)
+          : Number(fullBranch.shipping_company);
+      }
+
+      if (fullBranch.tax_group !== undefined && fullBranch.tax_group !== null) {
+        payload.tax_group = typeof fullBranch.tax_group === "object"
+          ? Number(fullBranch.tax_group.id ?? fullBranch.tax_group)
+          : Number(fullBranch.tax_group);
+      }
+
+      if (fullBranch.sales_account !== undefined) payload.sales_account = String(fullBranch.sales_account || "");
+      if (fullBranch.sales_discount_account !== undefined) payload.sales_discount_account = String(fullBranch.sales_discount_account || "");
+      if (fullBranch.receivables_account !== undefined) payload.receivables_account = String(fullBranch.receivables_account || "");
+      if (fullBranch.payment_discount_account !== undefined) payload.payment_discount_account = String(fullBranch.payment_discount_account || "");
+      if (fullBranch.bank_account !== undefined) payload.bank_account = String(fullBranch.bank_account || "");
+      if (fullBranch.br_post_address !== undefined) payload.br_post_address = String(fullBranch.br_post_address || "");
+      if (fullBranch.br_address !== undefined) payload.br_address = String(fullBranch.br_address || "");
+      if (fullBranch.notes !== undefined) payload.notes = String(fullBranch.notes || "");
+
+      // Always set inactive to the requested value
+      payload.inactive = value;
+
+      // Cast to ApiCustomerBranch when sending
+      const castPayload: ApiCustomerBranch = payload as ApiCustomerBranch;
+
+      await updateBranch(id, castPayload);
+
+      await updateBranch(id, payload);
+    } catch (error: any) {
+      // Revert on error
+      setBranches((prev) => prev.map((b) => (b.id === id ? { ...b, inactive: !value } : b)));
+      const message = error?.message || "Failed to update inactive status";
+      alert(message);
     }
   };
 
@@ -264,6 +343,7 @@ export default function CustomerBranchesTable({ customerId }: CustomerBranchesTa
                 <TableCell>Fax No</TableCell>
                 <TableCell>Email</TableCell>
                 <TableCell>Tax Group</TableCell>
+                {showInactive && <TableCell align="center">Inactive</TableCell>}
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -281,6 +361,14 @@ export default function CustomerBranchesTable({ customerId }: CustomerBranchesTa
                     <TableCell>{branch.fax}</TableCell>
                     <TableCell>{branch.email}</TableCell>
                     <TableCell>{branch.taxGroup}</TableCell>
+                    {showInactive && (
+                      <TableCell align="center">
+                        <Checkbox
+                          checked={!!branch.inactive}
+                          onChange={(e) => handleToggleInactive(branch.id, e.target.checked)}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -308,7 +396,7 @@ export default function CustomerBranchesTable({ customerId }: CustomerBranchesTa
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={10} align="center">
+                  <TableCell colSpan={columnCount} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -319,7 +407,7 @@ export default function CustomerBranchesTable({ customerId }: CustomerBranchesTa
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={10}
+                  colSpan={columnCount}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}
