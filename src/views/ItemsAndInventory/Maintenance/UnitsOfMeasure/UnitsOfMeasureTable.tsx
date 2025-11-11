@@ -177,21 +177,17 @@ export default function UnitsOfMeasureTable() {
           width: "100%",
           mb: 2,
           px: 2,
-          flexWrap: "wrap", // ✅ allows wrapping on small screens
-          gap: 2, // ✅ adds space between checkbox and search bar
+          flexWrap: "wrap", //  allows wrapping on small screens
+          gap: 2, //  adds space between checkbox and search bar
         }}
       >
-        {/* ✅ Show Inactive Checkbox (Left Side) */}
+        {/*  Show Inactive Checkbox (Left Side) */}
         <Box sx={{ display: "flex", alignItems: "center" }}>
           <FormControlLabel
             control={
               <Checkbox
                 checked={showInactive}
                 onChange={(e) => setShowInactive(e.target.checked)}
-                sx={{
-                  color: "var(--pallet-light-blue)",
-                  "&.Mui-checked": { color: "var(--pallet-dark-blue)" },
-                }}
               />
             }
             label={

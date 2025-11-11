@@ -30,6 +30,7 @@ import {
   getPaymentTerms,
   deletePaymentTerm,
 } from "../../../../api/PaymentTerm/PaymentTermApi";
+import { updatePaymentTerm } from "../../../../api/PaymentTerm/PaymentTermApi";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
 
@@ -82,6 +83,53 @@ export default function PaymentTermsTable() {
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [page, rowsPerPage, filteredData]);
 
+  // columns: Description, Type, DueAfter/DayInFollowingMonth, (optional Inactive), Actions
+  const columnsCount = showInactive ? 5 : 4;
+
+  const handleToggleInactive = async (term: any) => {
+    const id = term.terms_indicator;
+    if (!id) return;
+
+    const newValue = !term.inactive;
+
+    // Optimistic update
+    setPaymentTerms((prev) =>
+      prev.map((p) => (p.terms_indicator === id ? { ...p, inactive: newValue } : p))
+    );
+
+    // Build payload compatible with the update endpoint.
+    // The API expects `payment_type` as an ID (number), not a nested object.
+    const payment_type = (() => {
+      const pt = term.payment_type;
+      if (pt == null) return null;
+      if (typeof pt === "number") return pt;
+      // try common id fields
+      return pt.id ?? pt.payment_type ?? null;
+    })();
+
+    const payload: any = {
+      description: term.description ?? "",
+      payment_type,
+      days_before_due: term.days_before_due ?? 0,
+      day_in_following_month: term.day_in_following_month ?? 0,
+      inactive: newValue,
+    };
+
+    try {
+      await updatePaymentTerm(id, payload);
+    } catch (error: any) {
+      // rollback
+      setPaymentTerms((prev) =>
+        prev.map((p) => (p.terms_indicator === id ? { ...p, inactive: term.inactive } : p))
+      );
+      console.error("Error updating inactive flag for payment term:", error);
+      setErrorMessage(
+        error?.response?.data?.message || "Failed to update inactive flag. Please try again."
+      );
+      setErrorOpen(true);
+    }
+  };
+
   const handleChangePage = (
     event: React.MouseEvent<HTMLButtonElement> | null,
     newPage: number
@@ -116,7 +164,7 @@ export default function PaymentTermsTable() {
   };
 
   const breadcrumbItems = [
-    { title: "Home", href: "/home" },
+    { title: "Miscellaneous", href: "/setup/miscellaneous" },
     { title: "Payment Terms" },
   ];
 
@@ -197,6 +245,7 @@ export default function PaymentTermsTable() {
                 <TableCell>Description</TableCell>
                 <TableCell>Type</TableCell>
                 <TableCell>Due After / Day in Following Month</TableCell>
+                {showInactive && <TableCell align="center">Inactive</TableCell>}
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -212,6 +261,15 @@ export default function PaymentTermsTable() {
                         ? term.days_before_due || term.day_in_following_month
                         : "-"}
                     </TableCell>
+                    {showInactive && (
+                      <TableCell align="center">
+                        <Checkbox
+                          checked={Boolean(term.inactive)}
+                          onChange={() => handleToggleInactive(term)}
+                          inputProps={{ 'aria-label': `inactive-${term.terms_indicator}` }}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -244,7 +302,7 @@ export default function PaymentTermsTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} align="center">
+                  <TableCell colSpan={columnsCount} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -255,7 +313,7 @@ export default function PaymentTermsTable() {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={4}
+                  colSpan={columnsCount}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}

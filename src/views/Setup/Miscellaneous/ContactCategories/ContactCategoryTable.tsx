@@ -14,6 +14,8 @@ import {
   Typography,
   useMediaQuery,
   Theme,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import { useMemo, useState, useEffect } from "react";
 import EditIcon from "@mui/icons-material/Edit";
@@ -28,6 +30,7 @@ import {
   getContactCategories,
   deleteContactCategory,
 } from "../../../../api/ContactCategory/ContactCategoryApi";
+import { updateContactCategory } from "../../../../api/ContactCategory/ContactCategoryApi";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
 
@@ -35,6 +38,7 @@ export default function ContactCategoryTable() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [categories, setCategories] = useState<any[]>([]);
+  const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
@@ -62,23 +66,58 @@ export default function ContactCategoryTable() {
 
   // Filter data
   const filteredData = useMemo(() => {
-    if (searchQuery.trim() === "") return categories;
+    let data = showInactive ? categories : categories.filter((c) => !c.inactive);
+
+    if (searchQuery.trim() === "") return data;
 
     const lower = searchQuery.toLowerCase();
-    return categories.filter(
+    return data.filter(
       (c) =>
-        c.categoryType?.toLowerCase().includes(lower) ||
-        c.categorySubType?.toLowerCase().includes(lower) ||
-        c.shortName?.toLowerCase().includes(lower) ||
+        c.type?.toLowerCase().includes(lower) ||
+        c.subtype?.toLowerCase().includes(lower) ||
+        c.name?.toLowerCase().includes(lower) ||
         c.description?.toLowerCase().includes(lower) ||
         c.id?.toString().includes(lower)
     );
-  }, [categories, searchQuery]);
+  }, [categories, searchQuery, showInactive]);
 
   const paginatedData = useMemo(() => {
     if (rowsPerPage === -1) return filteredData;
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [page, rowsPerPage, filteredData]);
+
+  const columnsCount = showInactive ? 6 : 5;
+
+  const handleToggleInactive = async (cat: any) => {
+    const id = cat.id;
+    if (!id) return;
+
+    const newValue = !cat.inactive;
+
+    // optimistic update
+    setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, inactive: newValue } : c)));
+
+    const payload = {
+      type: cat.type,
+      subtype: cat.subtype,
+      name: cat.name,
+      description: cat.description,
+      systm: cat.systm,
+      inactive: newValue,
+    };
+
+    try {
+      await updateContactCategory(id, payload);
+    } catch (error: any) {
+      // rollback
+      setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, inactive: cat.inactive } : c)));
+      console.error("Error updating inactive flag for contact category:", error);
+      setErrorMessage(
+        error?.response?.data?.message || "Failed to update inactive flag. Please try again."
+      );
+      setErrorOpen(true);
+    }
+  };
 
   const handleChangePage = (
     _event: React.MouseEvent<HTMLButtonElement> | null,
@@ -110,7 +149,7 @@ export default function ContactCategoryTable() {
   };
 
   const breadcrumbItems = [
-    { title: "Home", href: "/home" },
+    { title: "Miscellaneous", href: "/setup/miscellaneous" },
     { title: "Contact Categories" },
   ];
 
@@ -157,8 +196,17 @@ export default function ContactCategoryTable() {
       <Stack
         direction={isMobile ? "column" : "row"}
         spacing={2}
-        sx={{ px: 2, mb: 2, alignItems: "center", justifyContent: "flex-end" }}
+        sx={{ px: 2, mb: 2, alignItems: "center", justifyContent: "space-between" }}
       >
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+            />
+          }
+          label="Show Also Inactive"
+        />
         <Box sx={{ width: isMobile ? "100%" : "300px" }}>
           <SearchBar
             searchQuery={searchQuery}
@@ -178,24 +226,34 @@ export default function ContactCategoryTable() {
           <Table aria-label="contact categories table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
-                {/* <TableCell>#</TableCell> */}
-                <TableCell>Category Type</TableCell>
-                <TableCell>Category Sub Type</TableCell>
-                <TableCell>Short Name</TableCell>
-                <TableCell>Description</TableCell>
-                <TableCell align="center">Actions</TableCell>
-              </TableRow>
+                  {/* <TableCell>#</TableCell> */}
+                  <TableCell>Category Type</TableCell>
+                  <TableCell>Category Sub Type</TableCell>
+                  <TableCell>Short Name</TableCell>
+                  <TableCell>Description</TableCell>
+                  {showInactive && <TableCell align="center">Inactive</TableCell>}
+                  <TableCell align="center">Actions</TableCell>
+                </TableRow>
             </TableHead>
             <TableBody>
               {paginatedData.length > 0 ? (
                 paginatedData.map((cat) => (
                   <TableRow key={cat.id} hover>
                     {/* <TableCell>{cat.id}</TableCell> */}
-                    <TableCell>{cat.type}</TableCell>
-                    <TableCell>{cat.subtype}</TableCell>
-                    <TableCell>{cat.name}</TableCell>
-                    <TableCell>{cat.description}</TableCell>
-                    <TableCell align="center">
+                      <TableCell>{cat.type}</TableCell>
+                      <TableCell>{cat.subtype}</TableCell>
+                      <TableCell>{cat.name}</TableCell>
+                      <TableCell>{cat.description}</TableCell>
+                      {showInactive && (
+                        <TableCell align="center">
+                          <Checkbox
+                            checked={Boolean(cat.inactive)}
+                            onChange={() => handleToggleInactive(cat)}
+                            inputProps={{ "aria-label": `inactive-${cat.id}` }}
+                          />
+                        </TableCell>
+                      )}
+                      <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
                           variant="contained"
@@ -237,7 +295,7 @@ export default function ContactCategoryTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} align="center">
+                  <TableCell colSpan={columnsCount} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -247,7 +305,7 @@ export default function ContactCategoryTable() {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={6}
+                  colSpan={columnsCount}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}

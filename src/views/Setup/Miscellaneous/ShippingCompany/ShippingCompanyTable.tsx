@@ -29,6 +29,7 @@ import SearchBar from "../../../../components/SearchBar";
 import {
   getShippingCompanies,
   deleteShippingCompany,
+  updateShippingCompany,
 } from "../../../../api/ShippingCompany/ShippingCompanyApi";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
@@ -75,6 +76,33 @@ export default function ShippingCompanyTable() {
     return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [page, rowsPerPage, filteredData]);
 
+  const columnsCount = showInactive ? 7 : 6;
+
+  const handleToggleInactive = async (company: any) => {
+    const id = company.shipper_id;
+    if (!id) return;
+
+    const newValue = !company.inactive;
+
+    // Optimistic update
+    setCompanies((prev) =>
+      prev.map((c) => (c.shipper_id === id ? { ...c, inactive: newValue } : c))
+    );
+
+    try {
+      // send update - re-use entire company object with updated inactive flag
+      await updateShippingCompany(id, { ...company, inactive: newValue });
+    } catch (error) {
+      // rollback
+      setCompanies((prev) => prev.map((c) => (c.shipper_id === id ? { ...c, inactive: company.inactive } : c)));
+      setErrorMessage(
+        error?.response?.data?.message || "Failed to update inactive flag. Please try again."
+      );
+      setErrorOpen(true);
+      console.error("Error updating inactive flag for shipping company:", error);
+    }
+  };
+
   const handleChangePage = (
     event: React.MouseEvent<HTMLButtonElement> | null,
     newPage: number
@@ -107,7 +135,7 @@ export default function ShippingCompanyTable() {
   };
 
   const breadcrumbItems = [
-    { title: "Home", href: "/home" },
+    { title: "Miscellaneous", href: "/setup/miscellaneous" },
     { title: "Shipping Companies" },
   ];
 
@@ -197,6 +225,7 @@ export default function ShippingCompanyTable() {
                 <TableCell>Phone Number</TableCell>
                 <TableCell>Secondary Phone</TableCell>
                 <TableCell>Address</TableCell>
+                {showInactive && <TableCell align="center">Inactive</TableCell>}
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -209,6 +238,15 @@ export default function ShippingCompanyTable() {
                     <TableCell>{company.phone}</TableCell>
                     <TableCell>{company.phone2}</TableCell>
                     <TableCell>{company.address}</TableCell>
+                    {showInactive && (
+                      <TableCell align="center">
+                        <Checkbox
+                          checked={Boolean(company.inactive)}
+                          onChange={() => handleToggleInactive(company)}
+                          inputProps={{ 'aria-label': `inactive-${company.shipper_id}` }}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -241,7 +279,7 @@ export default function ShippingCompanyTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} align="center">
+                  <TableCell colSpan={columnsCount} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -252,7 +290,7 @@ export default function ShippingCompanyTable() {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={6}
+                  colSpan={columnsCount}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}
