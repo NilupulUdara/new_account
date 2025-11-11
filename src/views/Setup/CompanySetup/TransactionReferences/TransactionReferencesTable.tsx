@@ -27,34 +27,10 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
 import theme from "../../../../theme";
+import { getReflines } from "../../../../api/Reflines/ReflinesApi";
 
-// Mock API function
-const getTransactionReferences = async () => [
-  {
-    id: 1,
-    transactionType: "Invoice",
-    prefix: "INV",
-    pattern: "INV-YYYY-MM-XXXX",
-    isDefault: true,
-    memo: "Used for customer invoices",
-  },
-  {
-    id: 2,
-    transactionType: "Receipt",
-    prefix: "REC",
-    pattern: "REC-YYYY-MM-XXXX",
-    isDefault: false,
-    memo: "Used for receipts",
-  },
-  {
-    id: 3,
-    transactionType: "Payment",
-    prefix: "PAY",
-    pattern: "PAY-YYYY-MM-XXXX",
-    isDefault: false,
-    memo: "Used for payments",
-  },
-];
+// Data is loaded from the Reflines API (see schema):
+// id, trans_type, prefix, pattern, description, default, inactive, timestamps
 
 function TransactionReferencesTable() {
   const [page, setPage] = useState(0);
@@ -65,27 +41,33 @@ function TransactionReferencesTable() {
   const navigate = useNavigate();
 
   const { data: transactionData = [] } = useQuery({
-    queryKey: ["transactionReferences"],
-    queryFn: getTransactionReferences,
+    queryKey: ["reflines"],
+    queryFn: getReflines,
   });
 
   const filteredData = useMemo(() => {
     if (!transactionData) return [];
-    let filtered = transactionData;
+    let filtered = transactionData as any[];
 
     if (showDefault) {
-      filtered = filtered.filter((item) => item.isDefault);
+      filtered = filtered.filter((item) => !!item.default);
     }
 
     if (searchQuery.trim()) {
       const lowerQuery = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (item) =>
-          item.transactionType.toLowerCase().includes(lowerQuery) ||
-          item.prefix.toLowerCase().includes(lowerQuery) ||
-          item.pattern.toLowerCase().includes(lowerQuery) ||
-          item.memo.toLowerCase().includes(lowerQuery)
-      );
+      filtered = filtered.filter((item) => {
+        const transType = String(item.trans_type ?? "");
+        const prefix = String(item.prefix ?? "").toLowerCase();
+        const pattern = String(item.pattern ?? "").toLowerCase();
+        const desc = String(item.description ?? "").toLowerCase();
+
+        return (
+          transType.includes(lowerQuery) ||
+          prefix.includes(lowerQuery) ||
+          pattern.includes(lowerQuery) ||
+          desc.includes(lowerQuery)
+        );
+      });
     }
 
     return filtered;
@@ -204,16 +186,14 @@ function TransactionReferencesTable() {
 
             <TableBody>
               {paginatedData.length > 0 ? (
-                paginatedData.map((item, index) => (
+                paginatedData.map((item: any, index: number) => (
                   <TableRow key={item.id} hover>
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                    <TableCell>{item.transactionType}</TableCell>
+                    <TableCell>{item.trans_type}</TableCell>
                     <TableCell>{item.prefix}</TableCell>
                     <TableCell>{item.pattern}</TableCell>
-                    <TableCell>
-                      <Checkbox checked={item.isDefault} disabled />
-                    </TableCell>
-                    <TableCell>{item.memo}</TableCell>
+                    <TableCell>{!!item.default ? "Yes" : "No"}</TableCell>
+                    <TableCell>{item.description}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
