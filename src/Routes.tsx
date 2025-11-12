@@ -669,16 +669,29 @@ const AppRoutes = () => {
         />
         <Route
           path="companysetup/transaction-references"
-          element={withLayout(MainLayout, TransactionReferencesTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Stock transactions view']}>
+              {withLayout(MainLayout, TransactionReferencesTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/add-transaction-references"
-          element={withLayout(MainLayout, AddTransactionReferencesForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Stock transactions view']}>
+              {withLayout(MainLayout, AddTransactionReferencesForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
-          path="companysetup/update-transaction-references"
-          element={withLayout(MainLayout, UpdateTransactionReferencesForm)}
+          path="companysetup/update-transaction-references/:id"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Stock transactions view']}>
+              {withLayout(MainLayout, UpdateTransactionReferencesForm)}
+            </ProtectedRoute>
+          }
         />
+
         <Route path="miscellaneous" element={withLayout(MainLayout, Miscellaneous)} />
 
         <Route path="maintenance" element={<ProtectedRoute required={PERMISSION_ID_MAP['Special Maintenance']} />}>

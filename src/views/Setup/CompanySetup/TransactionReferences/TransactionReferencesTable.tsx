@@ -21,16 +21,17 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
 import theme from "../../../../theme";
-import { getReflines } from "../../../../api/Reflines/ReflinesApi";
+import { getReflines, deleteRefline } from "../../../../api/Reflines/ReflinesApi";
+import { getTransTypes } from "../../../../api/Reflines/TransTypesApi";
 
 // Data is loaded from the Reflines API (see schema):
-// id, trans_type, prefix, pattern, description, default, inactive, timestamps
+// id, trans_type, prefix, pattern, memo, default, inactive, timestamps
 
 function TransactionReferencesTable() {
   const [page, setPage] = useState(0);
@@ -40,10 +41,41 @@ function TransactionReferencesTable() {
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
-  const { data: transactionData = [] } = useQuery({
+  const { data: transactionData = [], refetch } = useQuery({
     queryKey: ["reflines"],
     queryFn: getReflines,
+    refetchOnMount: true
   });
+
+  const queryClient = useQueryClient();
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteRefline(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["reflines"] });
+    },
+    onError: (err: any) => {
+      console.error(err);
+      alert("Failed to delete Transaction Reference");
+    },
+  });
+
+  const { data: transTypes = [] } = useQuery({
+    queryKey: ["transTypes"],
+    queryFn: getTransTypes,
+  });
+
+  const transTypeMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    (transTypes as any[]).forEach((t: any) => {
+      // trans_types table uses `trans_type` as the code that matches reflines.trans_type
+      const key = String(t.trans_type ?? t.id ?? t.code ?? "");
+      const label = String(t.description ?? t.name ?? t.label ?? key);
+      if (key) map[key] = label;
+    });
+    return map;
+  }, [transTypes]);
 
   const filteredData = useMemo(() => {
     if (!transactionData) return [];
@@ -56,18 +88,46 @@ function TransactionReferencesTable() {
     if (searchQuery.trim()) {
       const lowerQuery = searchQuery.toLowerCase();
       filtered = filtered.filter((item) => {
-        const transType = String(item.trans_type ?? "");
+        const transTypeName = String(transTypeMap[String(item.trans_type)] ?? item.trans_type ?? "").toLowerCase();
         const prefix = String(item.prefix ?? "").toLowerCase();
-        const pattern = String(item.pattern ?? "").toLowerCase();
-        const desc = String(item.description ?? "").toLowerCase();
+    const pattern = String(item.pattern ?? "").toLowerCase();
+    const desc = String(item.memo ?? "").toLowerCase();
 
         return (
-          transType.includes(lowerQuery) ||
+          transTypeName.includes(lowerQuery) ||
           prefix.includes(lowerQuery) ||
           pattern.includes(lowerQuery) ||
           desc.includes(lowerQuery)
         );
       });
+    }
+
+    // Sort/group so same transaction types stay together (by description if available)
+    try {
+      filtered = filtered.slice().sort((a, b) => {
+        // Sort by raw trans_type code first (preserve server ordering by trans_type)
+        const aRaw = a.trans_type ?? "";
+        const bRaw = b.trans_type ?? "";
+
+        // If both look like numbers, compare numerically
+        const aNum = Number(aRaw);
+        const bNum = Number(bRaw);
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          if (aNum !== bNum) return aNum - bNum;
+        } else {
+          const cmp = String(aRaw).localeCompare(String(bRaw), undefined, { numeric: true, sensitivity: "base" });
+          if (cmp !== 0) return cmp;
+        }
+
+        // then by prefix, then pattern
+        const cmpPrefix = String(a.prefix ?? "").localeCompare(String(b.prefix ?? ""), undefined, { sensitivity: "base" });
+        if (cmpPrefix !== 0) return cmpPrefix;
+
+        return String(a.pattern ?? "").localeCompare(String(b.pattern ?? ""), undefined, { sensitivity: "base" });
+      });
+    } catch (e) {
+      // fall back to unsorted if anything unexpected happens
+      console.warn("Failed to sort reflines by trans_type:", e);
     }
 
     return filtered;
@@ -85,7 +145,12 @@ function TransactionReferencesTable() {
   };
 
   const handleDelete = (id: number) => {
-    alert(`Delete Transaction Reference with id: ${id}`);
+    const confirmed = window.confirm("Are you sure you want to delete this Transaction Reference?");
+    if (!confirmed) return;
+    setDeletingId(id);
+    deleteMutation.mutate(id, {
+      onSettled: () => setDeletingId(null),
+    });
   };
 
   const breadcrumbItems = [
@@ -189,20 +254,18 @@ function TransactionReferencesTable() {
                 paginatedData.map((item: any, index: number) => (
                   <TableRow key={item.id} hover>
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
-                    <TableCell>{item.trans_type}</TableCell>
+                    <TableCell>{transTypeMap[String(item.trans_type)] ?? item.trans_type}</TableCell>
                     <TableCell>{item.prefix}</TableCell>
                     <TableCell>{item.pattern}</TableCell>
                     <TableCell>{!!item.default ? "Yes" : "No"}</TableCell>
-                    <TableCell>{item.description}</TableCell>
+                    <TableCell>{item.memo}</TableCell>
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
                           variant="contained"
                           size="small"
                           startIcon={<EditIcon />}
-                          onClick={() =>
-                            navigate("/setup/companysetup/update-transaction-references")
-                          }
+                          onClick={() => navigate(`/setup/companysetup/update-transaction-references/${item.id}`)}
                         >
                           Edit
                         </Button>
@@ -212,6 +275,7 @@ function TransactionReferencesTable() {
                           color="error"
                           startIcon={<DeleteIcon />}
                           onClick={() => handleDelete(item.id)}
+                          disabled={deletingId === item.id}
                         >
                           Delete
                         </Button>
