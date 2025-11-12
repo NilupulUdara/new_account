@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Stack,
@@ -17,10 +19,13 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import theme from "../../../../theme";
+import { getTransTypes } from "../../../../api/Reflines/TransTypesApi";
+import { createRefline } from "../../../../api/Reflines/ReflinesApi";
 
 interface TransactionReferenceFormData {
   transactionType: string;
-  referencePattern: string;
+  prefix: string;
+  pattern: string;
   setAsDefault: boolean;
   memo: string;
 }
@@ -28,7 +33,8 @@ interface TransactionReferenceFormData {
 export default function AddTransactionReferencesForm() {
   const [formData, setFormData] = useState<TransactionReferenceFormData>({
     transactionType: "",
-    referencePattern: "",
+    prefix: "",
+    pattern: "",
     setAsDefault: false,
     memo: "",
   });
@@ -36,6 +42,26 @@ export default function AddTransactionReferencesForm() {
   const [errors, setErrors] = useState<Partial<TransactionReferenceFormData>>({});
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const { data: transTypes = [] } = useQuery({
+    queryKey: ["transTypes"],
+    queryFn: getTransTypes,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => createRefline(data),
+    onSuccess: () => {
+      alert("Transaction Reference added successfully!");
+      queryClient.invalidateQueries({ queryKey: ["reflines"] });
+      navigate("/setup/companysetup/transaction-references");
+    },
+    onError: (err: any) => {
+      console.error(err);
+      alert("Failed to add Transaction Reference");
+    },
+  });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -57,7 +83,8 @@ export default function AddTransactionReferencesForm() {
   const validate = () => {
     const newErrors: Partial<TransactionReferenceFormData> = {};
     if (!formData.transactionType) newErrors.transactionType = "Transaction type is required";
-    if (!formData.referencePattern) newErrors.referencePattern = "Reference pattern is required";
+    if (!formData.prefix) newErrors.prefix = "Prefix is required";
+    if (!formData.pattern) newErrors.pattern = "Pattern is required";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -65,14 +92,14 @@ export default function AddTransactionReferencesForm() {
 
   const handleSubmit = () => {
     if (validate()) {
-      console.log("Transaction Reference Submitted:", formData);
-      alert("Transaction Reference added successfully!");
-      setFormData({
-        transactionType: "",
-        referencePattern: "",
-        setAsDefault: false,
-        memo: "",
-      });
+      const payload = {
+        trans_type: formData.transactionType,
+        prefix: formData.prefix,
+        pattern: formData.pattern,
+        memo: formData.memo,
+        default: !!formData.setAsDefault,
+      };
+      createMutation.mutate(payload);
     }
   };
 
@@ -100,23 +127,42 @@ export default function AddTransactionReferencesForm() {
               onChange={handleSelectChange}
               label="Transaction Type"
             >
-              <MenuItem value="Invoice">Invoice</MenuItem>
-              <MenuItem value="Receipt">Receipt</MenuItem>
-              <MenuItem value="Payment">Payment</MenuItem>
+              {(transTypes as any[]).length > 0 ? (
+                (transTypes as any[]).map((t: any) => (
+                  <MenuItem key={String(t.trans_type ?? t.id ?? t.code)} value={String(t.trans_type ?? t.id ?? t.code)}>
+                    {t.description ?? t.name ?? t.label ?? String(t.trans_type ?? t.id ?? t.code)}
+                  </MenuItem>
+                ))
+              ) : (
+                <MenuItem value="">No transaction types</MenuItem>
+              )}
             </Select>
             <FormHelperText>{errors.transactionType || " "}</FormHelperText>
           </FormControl>
 
-          <TextField
-            label="Reference Pattern"
-            name="referencePattern"
-            size="small"
-            fullWidth
-            value={formData.referencePattern}
-            onChange={handleInputChange}
-            error={!!errors.referencePattern}
-            helperText={errors.referencePattern || " "}
-          />
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+            <TextField
+              label="Prefix"
+              name="prefix"
+              size="small"
+              fullWidth
+              value={formData.prefix}
+              onChange={handleInputChange}
+              error={!!errors.prefix}
+              helperText={errors.prefix || " "}
+            />
+
+            <TextField
+              label="Pattern"
+              name="pattern"
+              size="small"
+              fullWidth
+              value={formData.pattern}
+              onChange={handleInputChange}
+              error={!!errors.pattern}
+              helperText={errors.pattern || " "}
+            />
+          </Stack>
 
           <FormControlLabel
             control={

@@ -228,6 +228,7 @@ import InvoicePrepaidOrders from "./views/Sales/Transactions/InvoicePrepaidOrder
 import CustomerAllocations from "./views/Sales/Transactions/CustomerAllocations/CustomerAllocations";
 import ItemTransactionsDetails from "./views/ItemsAndInventory/Maintenance/Items/Transactions/ItemLocationTransferDetails";
 import ItemAdjustmentDetails from "./views/ItemsAndInventory/Maintenance/Items/Transactions/ItemAdjustmentDetails";
+import Payments from "./views/BankindAndGeneralLedger/Transactions/Payments/Payments";
 import SalesOrderEntry from "./views/Sales/Transactions/SalesOrderEntry/SalesOrderEntry";
 import DirectDelivery from "./views/Sales/Transactions/DirectDelivery/DirectDelivery";
 import DirectInvoice from "./views/Sales/Transactions/DirectInvoice/DirectInvoice";
@@ -678,16 +679,29 @@ const AppRoutes = () => {
         />
         <Route
           path="companysetup/transaction-references"
-          element={withLayout(MainLayout, TransactionReferencesTable)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Stock transactions view']}>
+              {withLayout(MainLayout, TransactionReferencesTable)}
+            </ProtectedRoute>
+          }
         />
         <Route
           path="companysetup/add-transaction-references"
-          element={withLayout(MainLayout, AddTransactionReferencesForm)}
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Stock transactions view']}>
+              {withLayout(MainLayout, AddTransactionReferencesForm)}
+            </ProtectedRoute>
+          }
         />
         <Route
-          path="companysetup/update-transaction-references"
-          element={withLayout(MainLayout, UpdateTransactionReferencesForm)}
+          path="companysetup/update-transaction-references/:id"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Stock transactions view']}>
+              {withLayout(MainLayout, UpdateTransactionReferencesForm)}
+            </ProtectedRoute>
+          }
         />
+
         <Route path="miscellaneous" element={withLayout(MainLayout, Miscellaneous)} />
 
         <Route path="maintenance" element={<ProtectedRoute required={PERMISSION_ID_MAP['Special Maintenance']} />}>
@@ -2038,6 +2052,15 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/bankingandgeneralledger/transactions/bankingandgeneralledger-quotation-entry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Banking & GL Transactions']}>
+              {withLayout(MainLayout, Payments)}
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/bankingandgeneralledger/inquiriesandreports"
           element={
