@@ -228,6 +228,7 @@ import InvoicePrepaidOrders from "./views/Sales/Transactions/InvoicePrepaidOrder
 import CustomerAllocations from "./views/Sales/Transactions/CustomerAllocations/CustomerAllocations";
 import ItemTransactionsDetails from "./views/ItemsAndInventory/Maintenance/Items/Transactions/ItemLocationTransferDetails";
 import ItemAdjustmentDetails from "./views/ItemsAndInventory/Maintenance/Items/Transactions/ItemAdjustmentDetails";
+import Payments from "./views/BankindAndGeneralLedger/Transactions/Payments/Payments";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1970,6 +1971,15 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/bankingandgeneralledger/transactions/bankingandgeneralledger-quotation-entry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Banking & GL Transactions']}>
+              {withLayout(MainLayout, Payments)}
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/bankingandgeneralledger/inquiriesandreports"
           element={
