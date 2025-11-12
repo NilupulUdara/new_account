@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { User, validateUser } from "./api/userApi";
 import Maintenance from "./views/Sales/Maintenance/SalesMaintenance";
 import InquiriesAndReports from "./views/Sales/InquiriesAndReports/SalesInquiriesAndReports";
-import SalesQuotationEntry from "./views/Sales/Transactions/SalesQuotationEntry";
+import SalesQuotationEntry from "./views/Sales/Transactions/SalesQuotationEntry/SalesQuotationEntry";
 import SalesTransactions from "./views/Sales/Transactions/SalesTransactions";
 import PurchaseTransactions from "./views/Purchases/Transactions/PurchaseTransactions";
 import PurchaseInquiriesAndReports from "./views/Purchases/InquiriesAndReports/PurchaseInquiriesAndReports";
@@ -229,6 +229,15 @@ import CustomerAllocations from "./views/Sales/Transactions/CustomerAllocations/
 import ItemTransactionsDetails from "./views/ItemsAndInventory/Maintenance/Items/Transactions/ItemLocationTransferDetails";
 import ItemAdjustmentDetails from "./views/ItemsAndInventory/Maintenance/Items/Transactions/ItemAdjustmentDetails";
 import Payments from "./views/BankindAndGeneralLedger/Transactions/Payments/Payments";
+import SalesOrderEntry from "./views/Sales/Transactions/SalesOrderEntry/SalesOrderEntry";
+import DirectDelivery from "./views/Sales/Transactions/DirectDelivery/DirectDelivery";
+import DirectInvoice from "./views/Sales/Transactions/DirectInvoice/DirectInvoice";
+import CustomerPayments from "./views/Sales/Transactions/CustomerPayments/CustomerPayments";
+import CustomerCreditNotes from "./views/Sales/Transactions/CustomerCreditNotes/CustomerCreditNotes";
+import SalesQuotationInquiry from "./views/Sales/InquiriesAndReports/SalesQuotationInquiry/SalesQuotationInquiry";
+import SalesOrderInquiry from "./views/Sales/InquiriesAndReports/SalesOrderInquiry/SalesOrderInquiry";
+import CustomerAllocationInquiry from "./views/Sales/InquiriesAndReports/CustomerAllocationInquiry/CustomerAllocationInquiry";
+import CustomerTransactionInquiry from "./views/Sales/InquiriesAndReports/CustomerTransactionInquiry/CustomerTransactionInquiry";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -938,6 +947,30 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/sales/transactions/sales-order-entry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales orders']}>
+              {withLayout(MainLayout, SalesOrderEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/direct-delivery"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
+              {withLayout(MainLayout, DirectDelivery)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/direct-invoice"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
+              {withLayout(MainLayout, DirectInvoice)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/sales/transactions/template-delivery"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales templates']}>
@@ -958,6 +991,22 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
               {withLayout(MainLayout, CreateAndPrintRecurrentInvoices)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/customer-payments"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
+              {withLayout(MainLayout, CustomerPayments)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/customer-credit-notes"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
+              {withLayout(MainLayout, CustomerCreditNotes)}
             </ProtectedRoute>
           }
         />
@@ -998,6 +1047,38 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales Related Reports']}>
               {withLayout(MainLayout, InquiriesAndReports)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/inquiriesandreports/sales-quotation-inquiry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales Related Reports']}>
+              {withLayout(MainLayout, SalesQuotationInquiry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/inquiriesandreports/sales-order-inquiry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales Related Reports']}>
+              {withLayout(MainLayout, SalesOrderInquiry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/inquiriesandreports/customer-allocation-inquiry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales Related Reports']}>
+              {withLayout(MainLayout, CustomerAllocationInquiry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/inquiriesandreports/customer-and-sales-reports"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales Related Reports']}>
+              {withLayout(MainLayout, CustomerTransactionInquiry)}
             </ProtectedRoute>
           }
         />
