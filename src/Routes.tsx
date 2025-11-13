@@ -255,6 +255,16 @@ import ViewCustomerCreditNotes from "./views/Sales/Transactions/CustomerCreditNo
 import ViewDirectInvoice from "./views/Sales/Transactions/DirectInvoice/viewDirectInvoice";
 
 
+import Deposits from "./views/BankindAndGeneralLedger/Transactions/Deposit/Deposit";
+import BankAccountTransfers from "./views/BankindAndGeneralLedger/Transactions/BankAccountTransfers/BankAccountTransfers";
+import JournalEntry from "./views/BankindAndGeneralLedger/Transactions/JournalEntry/JournalEntry";
+import BudgetEntry from "./views/BankindAndGeneralLedger/Transactions/BudgetEntry/BudgetEntry";
+import ReconcileBankAccount from "./views/BankindAndGeneralLedger/Transactions/ReconcileBankAccount/ReconcileBankAccount";
+import JournalInquiry from "./views/BankindAndGeneralLedger/InquiriesAndReports/JournalInquiry/JournalInquiry";
+import GLInquiry from "./views/BankindAndGeneralLedger/InquiriesAndReports/GLInquiry/GLInquiry";
+import BankAccountInquiry from "./views/BankindAndGeneralLedger/InquiriesAndReports/BankAccountInquiry/BankAccountInquiry";
+import TaxInquiry from "./views/BankindAndGeneralLedger/InquiriesAndReports/TaxInquiry/TaxInquiry";
+import TrialBalance from "./views/BankindAndGeneralLedger/InquiriesAndReports/TrialBalance/TrialBalance";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -2189,6 +2199,46 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/bankingandgeneralledger/transactions/bankingandgeneralledger-order-entry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Banking & GL Transactions']}>
+              {withLayout(MainLayout, Deposits)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/transactions/bank-account-transfers"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Banking & GL Transactions']}>
+              {withLayout(MainLayout, BankAccountTransfers)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/transactions/journal-entry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Journal entries to bank related accounts']}>
+              {withLayout(MainLayout, JournalEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/transactions/budget-entry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Budget edition']}>
+              {withLayout(MainLayout, BudgetEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/transactions/reconcile-bank-account"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Bank reconciliation']}>
+              {withLayout(MainLayout, ReconcileBankAccount)}
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/bankingandgeneralledger/inquiriesandreports"
@@ -2198,6 +2248,47 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/bankingandgeneralledger/inquiriesandreports/journal-inquiry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL analytical reports and inquiries']}>
+              {withLayout(MainLayout, JournalInquiry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/inquiriesandreports/gl-inquiry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL analytical reports and inquiries']}>
+              {withLayout(MainLayout, GLInquiry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/inquiriesandreports/bank-account-inquiry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Bank reports and inquiries']}>
+              {withLayout(MainLayout, BankAccountInquiry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/inquiriesandreports/tax-inquiry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Tax reports and inquiries']}>
+              {withLayout(MainLayout, TaxInquiry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/inquiriesandreports/trial-balance"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL analytical reports and inquiries']}>
+              {withLayout(MainLayout, TrialBalance)}
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/bankingandgeneralledger/maintenance"
           element={
