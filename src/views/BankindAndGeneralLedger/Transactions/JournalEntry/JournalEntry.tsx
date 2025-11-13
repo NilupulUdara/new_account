@@ -17,6 +17,10 @@ import {
   Grid,
   Alert,
   ListSubheader,
+  FormControlLabel,
+  Checkbox,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
@@ -28,11 +32,18 @@ import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { createStockMove, getStockMoves } from "../../../../api/StockMoves/StockMovesApi";
 import useCurrentUser from "../../../../hooks/useCurrentUser";
 import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi";
+import { getCurrencies } from "../../../../api/Currency/currencyApi";
+import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 
-export default function Payments() {
+// TabPanel helper
+function TabPanel({ children, value, index }: { children: React.ReactNode; value: number; index: number }) {
+  return <div hidden={value !== index}>{value === index && <Box sx={{ mt: 2 }}>{children}</Box>}</div>;
+}
+
+export default function JournalEntry() {
   const navigate = useNavigate();
 
   // Fetch fiscal years
@@ -82,6 +93,18 @@ export default function Payments() {
     queryFn: getBankAccounts,
   });
 
+  // Fetch currencies for currency dropdown
+  const { data: currencies = [] } = useQuery({
+    queryKey: ["currencies"],
+    queryFn: getCurrencies,
+  });
+
+  // Fetch tax types for Tax Register table
+  const { data: taxTypes = [] } = useQuery({
+    queryKey: ["taxTypes"],
+    queryFn: getTaxTypes,
+  });
+
   // Find current fiscal year (not closed and contains today's date)
   const currentFiscalYear = useMemo(() => {
     const today = new Date();
@@ -101,14 +124,15 @@ export default function Payments() {
   const { user } = useCurrentUser();
   const userId = user?.id ?? (Number(localStorage.getItem("userId")) || 0);
 
-  //  Table data (payments rows)
+  //  Table data (journal entry rows)
   const [rows, setRows] = useState([
     {
       id: 1,
       accountCode: "",
       accountDescription: "",
       dimension: "",
-      amount: "",
+      debit: "",
+      credit: "",
       memo: "",
       selectedAccountCode: "",
     },
@@ -116,22 +140,29 @@ export default function Payments() {
 
   //  Form fields
   const [memo, setMemo] = useState("");
-  const [location, setLocation] = useState("");
-  const [payTo, setPayTo] = useState("");
-  const [fromField, setFromField] = useState("");
-  const [toTheOrderOf, setToTheOrderOf] = useState("");
-  const [bankBalance, setBankBalance] = useState("");
-  const [date, setDate] = useState<string>(
+  const [journalDate, setJournalDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
-  const [reference, setReference] = useState("");
+  const [documentDate, setDocumentDate] = useState<string>(
+    new Date().toISOString().split("T")[0]
+  );
+  const [referencePrefix, setReferencePrefix] = useState("");
+  const [referenceNumber, setReferenceNumber] = useState("");
+  const [currency, setCurrency] = useState("");
+  const [eventDate, setEventDate] = useState<string>(
+    new Date().toISOString().split("T")[0]
+  );
+  const [includeInTaxRegister, setIncludeInTaxRegister] = useState(false);
+  const [sourceRef, setSourceRef] = useState("");
+  const [vatDate, setVatDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [dateError, setDateError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [openSelectRowId, setOpenSelectRowId] = useState<number | null>(null);
+  const [tabValue, setTabValue] = useState(0);
 
-  // Set reference when fiscal year loads (or fallback when DB empty)
+  // Set reference number when fiscal year loads (or fallback when DB empty)
   useEffect(() => {
     // Determine year: prefer fiscal year start if available, otherwise use current calendar year
     const year = currentFiscalYear
@@ -154,12 +185,12 @@ export default function Payments() {
 
         const nextNumber = yearReferences.length > 0 ? Math.max(...yearReferences) + 1 : 1;
         const formattedNumber = nextNumber.toString().padStart(3, '0');
-        setReference(`${formattedNumber}/${year}`);
+        setReferenceNumber(`${formattedNumber}/${year}`);
       })
       .catch((error) => {
         console.error("Error fetching stock moves for reference generation:", error);
         // Fallback to 001 if there's an error or DB is empty
-        setReference(`001/${year}`);
+        setReferenceNumber(`001/${year}`);
       });
   }, [currentFiscalYear]);
 
@@ -183,10 +214,15 @@ export default function Payments() {
     return true;
   };
 
-  // Handle date change with validation
-  const handleDateChange = (value: string) => {
-    setDate(value);
+  // Handle journal date change with validation
+  const handleJournalDateChange = (value: string) => {
+    setJournalDate(value);
     validateDate(value);
+  };
+
+  // Tab change handler
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
   };
 
   //  Handle input change in table
@@ -204,7 +240,8 @@ export default function Payments() {
         accountCode: "",
         accountDescription: "",
         dimension: "",
-        amount: "",
+        debit: "",
+        credit: "",
         memo: "",
         selectedAccountCode: "",
       },
@@ -216,15 +253,15 @@ export default function Payments() {
     setRows((prev) => prev.filter((r) => r.id !== id));
   };
 
-  // Save inventory adjustments
-  const handleSaveAdjustment = async () => {
+  // Save journal entry
+  const handleSaveJournalEntry = async () => {
     // Validation
-    if (!date) {
-      setSaveError("Please select a date");
+    if (!journalDate) {
+      setSaveError("Please select a journal date");
       return;
     }
-    if (rows.length === 0 || rows.every((row: any) => !row.selectedAccountCode || !row.amount)) {
-      setSaveError("Please add at least one line with account and amount");
+    if (rows.length === 0 || rows.every((row: any) => !row.selectedAccountCode || (!row.debit && !row.credit))) {
+      setSaveError("Please add at least one line with account and debit or credit amount");
       return;
     }
 
@@ -235,27 +272,29 @@ export default function Payments() {
     try {
       // For now, do not call stock-move APIs. Prepare a simple payload and mark success.
       const payload = {
-        payTo,
-        from: fromField,
-        reference,
-        toTheOrderOf,
-        bankBalance,
-        date,
+        journalDate,
+        documentDate,
+        reference: referencePrefix ? `${referencePrefix}-${referenceNumber}` : referenceNumber,
+        currency,
+        eventDate,
+        includeInTaxRegister,
+        sourceRef,
         lines: rows.map((r: any) => ({
           accountCode: r.accountCode,
           accountDescription: r.accountDescription,
           dimension: r.dimension,
-          amount: r.amount,
+          debit: r.debit,
+          credit: r.credit,
           memo: r.memo,
         })),
       };
 
-      console.log("Prepared payment payload:", payload);
+      console.log("Prepared journal entry payload:", payload);
       setSaveSuccess(true);
       // keep user on page and show success message for now; navigation/saving to server can be implemented later
     } catch (error: any) {
-      console.error("Error preparing payment payload:", error);
-      setSaveError(error?.message || "Failed to prepare payment");
+      console.error("Error preparing journal entry payload:", error);
+      setSaveError(error?.message || "Failed to prepare journal entry");
     } finally {
       setIsSaving(false);
     }
@@ -263,7 +302,7 @@ export default function Payments() {
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
-    { title: "Payments" },
+    { title: "Journal Entry" },
   ];
 
   return (
@@ -281,7 +320,7 @@ export default function Payments() {
         }}
       >
         <Box>
-          <PageTitle title="Bank Account Payment Entry" />
+          <PageTitle title="Journal Entry" />
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
 
@@ -294,18 +333,18 @@ export default function Payments() {
         </Button>
       </Box>
 
-      {/* New header fields: Date, Pay To, From / Reference, To the order of, Bank balance */}
+      {/* Journal Entry Header Fields */}
       <Paper sx={{ p: 2, borderRadius: 2 }}>
         <Grid container spacing={2}>
-          {/* First row: Date, Pay To, From */}
+          {/* First row: Journal Date, Document Date, Reference */}
           <Grid item xs={12} sm={4}>
             <TextField
-              label="Date"
+              label="Journal Date"
               type="date"
               fullWidth
               size="small"
-              value={date}
-              onChange={(e) => handleDateChange(e.target.value)}
+              value={journalDate}
+              onChange={(e) => handleJournalDateChange(e.target.value)}
               InputLabelProps={{ shrink: true }}
               error={!!dateError}
               helperText={dateError}
@@ -314,74 +353,120 @@ export default function Payments() {
 
           <Grid item xs={12} sm={4}>
             <TextField
-              select
+              label="Document Date"
+              type="date"
               fullWidth
-              label="Pay To"
-              value={payTo}
-              onChange={(e) => setPayTo(e.target.value)}
               size="small"
-            >
-              <MenuItem value="">Select</MenuItem>
-              <MenuItem value="miscellaneous">Miscellaneous</MenuItem>
-              <MenuItem value="customer">Customer</MenuItem>
-              <MenuItem value="supplier">Supplier</MenuItem>
-              <MenuItem value="quick">Quick Entry</MenuItem>
-            </TextField>
+              value={documentDate}
+              onChange={(e) => setDocumentDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
           </Grid>
 
           <Grid item xs={12} sm={4}>
+            <Grid container spacing={1}>
+              <Grid item xs={4}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Prefix"
+                  value={referencePrefix}
+                  onChange={(e) => setReferencePrefix(e.target.value)}
+                  size="small"
+                >
+                  <MenuItem value="">None</MenuItem>
+                  <MenuItem value="JE">JE</MenuItem>
+                  <MenuItem value="JV">JV</MenuItem>
+                  <MenuItem value="ADJ">ADJ</MenuItem>
+                  <MenuItem value="REV">REV</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid item xs={8}>
+                <TextField
+                  label="Reference"
+                  fullWidth
+                  size="small"
+                  value={referenceNumber}
+                  onChange={(e) => setReferenceNumber(e.target.value)}
+                  placeholder="Enter reference"
+                />
+              </Grid>
+            </Grid>
+          </Grid>
+
+          {/* Second row: Currency, Event Date, Include in tax register */}
+          <Grid item xs={12} sm={4}>
             <TextField
               select
-              label="From"
               fullWidth
+              label="Currency"
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
               size="small"
-              value={fromField}
-              onChange={(e) => setFromField(e.target.value)}
             >
-              <MenuItem value="">Select account</MenuItem>
-              {(bankAccounts as any[]).map((acc: any) => (
-                <MenuItem key={acc.id} value={String(acc.id)}>
-                  {acc.bank_account_name ?? (`${acc.bank_name || ""} - ${acc.bank_account_number || ""}`)}
+              <MenuItem value="">Select currency</MenuItem>
+              {(currencies as any[]).map((curr: any) => (
+                <MenuItem key={curr.id} value={curr.currency_abbreviation}>
+                  {curr.currency_abbreviation} - {curr.currency_name}
                 </MenuItem>
               ))}
             </TextField>
           </Grid>
 
-          {/* Second row: Reference, To the order of, Bank balance */}
           <Grid item xs={12} sm={4}>
             <TextField
-              label="Reference"
+              label="Event Date"
+              type="date"
               fullWidth
               size="small"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              placeholder="Enter reference"
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
             />
           </Grid>
 
           <Grid item xs={12} sm={4}>
-            <TextField
-              label="To the order of"
-              fullWidth
-              size="small"
-              value={toTheOrderOf}
-              onChange={(e) => setToTheOrderOf(e.target.value)}
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={includeInTaxRegister}
+                  onChange={(e) => setIncludeInTaxRegister(e.target.checked)}
+                />
+              }
+              label="Include in tax register"
             />
           </Grid>
 
-          <Grid item xs={12} sm={4}>
+          {/* Source ref under Event Date */}
+          <Grid item xs={12} sm={4} sx={{ ml: { sm: '33.33%' } }}>
             <TextField
-              label="Bank balance"
+              label="Source ref"
               fullWidth
               size="small"
-              value={bankBalance}
-              onChange={(e) => setBankBalance(e.target.value)}
+              value={sourceRef}
+              onChange={(e) => setSourceRef(e.target.value)}
             />
           </Grid>
         </Grid>
       </Paper>
 
-      {/*  Table */}
+      {/* Tabs */}
+      <Tabs
+        value={tabValue}
+        onChange={handleTabChange}
+        variant="scrollable"
+        scrollButtons="auto"
+        textColor="primary"
+        indicatorColor="primary"
+        sx={{ backgroundColor: "#fff", borderRadius: 1 }}
+      >
+        <Tab label="GL Posting" />
+        <Tab label="Tax Register" disabled={!includeInTaxRegister} />
+      </Tabs>
+
+      {/* Tab Panels */}
+      <TabPanel value={tabValue} index={0}>
+        {/*  Table */}
       <TableContainer component={Paper} sx={{ p: 1 }}>
         <Table>
           <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
@@ -390,7 +475,8 @@ export default function Payments() {
               <TableCell>Account Code</TableCell>
               <TableCell>Account Description</TableCell>
               <TableCell>Dimension</TableCell>
-              <TableCell>Amount</TableCell>
+              <TableCell>Debit</TableCell>
+              <TableCell>Credit</TableCell>
               <TableCell>Memo</TableCell>
               <TableCell align="center">Action</TableCell>
             </TableRow>
@@ -461,7 +547,10 @@ export default function Payments() {
                   <TextField size="small" value={row.dimension} onChange={(e) => handleChange(row.id, "dimension", e.target.value)} />
                 </TableCell>
                 <TableCell>
-                  <TextField size="small" type="number" value={row.amount} onChange={(e) => handleChange(row.id, "amount", e.target.value)} />
+                  <TextField size="small" type="number" value={row.debit} onChange={(e) => handleChange(row.id, "debit", e.target.value)} />
+                </TableCell>
+                <TableCell>
+                  <TextField size="small" type="number" value={row.credit} onChange={(e) => handleChange(row.id, "credit", e.target.value)} />
                 </TableCell>
                 <TableCell>
                   <TextField size="small" value={row.memo} onChange={(e) => handleChange(row.id, "memo", e.target.value)} />
@@ -490,17 +579,70 @@ export default function Payments() {
 
           <TableFooter>
             <TableRow>
-              <TableCell colSpan={7}>
+              <TableCell colSpan={4}>
                 <Typography align="right" sx={{ pr: 2, fontWeight: 600 }}>
-                  Total: {rows.reduce((sum, r) => sum + Number(r.amount || 0), 0).toFixed(2)}
+                  Total Debit: {rows.reduce((sum, r) => sum + Number(r.debit || 0), 0).toFixed(2)}
                 </Typography>
               </TableCell>
+              <TableCell colSpan={4}>
+                <Typography sx={{ fontWeight: 600 }}>
+                  Total Credit: {rows.reduce((sum, r) => sum + Number(r.credit || 0), 0).toFixed(2)}
+                </Typography>
+              </TableCell>
+              <TableCell colSpan={3}></TableCell>
             </TableRow>
           </TableFooter>
         </Table>
       </TableContainer>
+      </TabPanel>
 
-      {/*  Memo Field */}
+      <TabPanel value={tabValue} index={1}>
+        {/* VAT Date */}
+        <Box sx={{ mb: 2, display: "flex", justifyContent: "center" }}>
+          <TextField
+            label="VAT Date"
+            type="date"
+            size="small"
+            value={vatDate}
+            onChange={(e) => setVatDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ maxWidth: 200 }}
+          />
+        </Box>
+
+        {/* Tax Register Table */}
+        <TableContainer component={Paper} sx={{ p: 1 }}>
+          <Table>
+            <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
+              <TableRow>
+                <TableCell>Name</TableCell>
+                <TableCell>Input Tax</TableCell>
+                <TableCell>Output Tax</TableCell>
+                <TableCell>Net Amount</TableCell>
+              </TableRow>
+            </TableHead>
+
+            <TableBody>
+              {(taxTypes as any[]).map((tax, index) => (
+                <TableRow key={tax.id} hover>
+                  <TableCell>
+                    {tax.description} ({tax.default_rate}%)
+                  </TableCell>
+                  <TableCell>
+                    <TextField size="small" type="number" value="0" InputProps={{ readOnly: true }} />
+                  </TableCell>
+                  <TableCell>
+                    <TextField size="small" type="number" value="0" InputProps={{ readOnly: true }} />
+                  </TableCell>
+                  <TableCell>
+                    <TextField size="small" type="number" placeholder="0.00" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </TabPanel>
       <Box sx={{ mt: 2, pl: 1, pr: 1 }}>
         <Typography sx={{ mb: 1, fontWeight: 600 }}>Memo:</Typography>
         <TextField
@@ -516,7 +658,7 @@ export default function Payments() {
       {/* Success/Error Messages */}
       {saveSuccess && (
         <Alert severity="success" sx={{ mt: 2 }}>
-          Payment processed successfully!
+          Journal entry saved successfully!
         </Alert>
       )}
       {saveError && (
@@ -531,9 +673,9 @@ export default function Payments() {
           variant="contained"
           color="primary"
           disabled={!!dateError || isSaving}
-          onClick={handleSaveAdjustment}
+          onClick={handleSaveJournalEntry}
         >
-          {isSaving ? "Saving..." : "Process Payment"}
+          {isSaving ? "Processing..." : "Process Journal Entry"}
         </Button>
       </Box>
     </Stack>
