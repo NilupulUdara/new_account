@@ -238,6 +238,23 @@ import SalesQuotationInquiry from "./views/Sales/InquiriesAndReports/SalesQuotat
 import SalesOrderInquiry from "./views/Sales/InquiriesAndReports/SalesOrderInquiry/SalesOrderInquiry";
 import CustomerAllocationInquiry from "./views/Sales/InquiriesAndReports/CustomerAllocationInquiry/CustomerAllocationInquiry";
 import CustomerTransactionInquiry from "./views/Sales/InquiriesAndReports/CustomerTransactionInquiry/CustomerTransactionInquiry";
+import SalesQuotationEntrySuccess from "./views/Sales/Transactions/SalesQuotationEntry/SalesQuotationEntrySuccess";
+import ViewSalesQuotationEntry from "./views/Sales/Transactions/SalesQuotationEntry/ViewSalesQuotationEntry";
+import SalesOrderEntrySuccess from "./views/Sales/Transactions/SalesOrderEntry/SalesOrderEntrySuccess";
+import ViewSalesOrderEntry from "./views/Sales/Transactions/SalesOrderEntry/ViewSalesOrderEntry";
+import CustomerDelivery from "./views/Sales/Transactions/CustomerDelivery/CustomerDelivery";
+import DirectDeliverySuccess from "./views/Sales/Transactions/DirectDelivery/DirectDeliverySuccess";
+import ViewDirectDelivery from "./views/Sales/Transactions/DirectDelivery/ViewDirectDelivery";
+import CustomerInvoice from "./views/Sales/Transactions/CustomerInvoice/CustomerInvoice";
+import DirectInvoiceSuccess from "./views/Sales/Transactions/DirectInvoice/DirectInvoiceSuccess";
+
+import CustomerPaymentsSuccess from "./views/Sales/Transactions/CustomerPayments/CustomerPaymentsSuccess";
+import ViewCustomerPayments from "./views/Sales/Transactions/CustomerPayments/ViewCustomerPayments";
+import CustomerCreditNotesSuccess from "./views/Sales/Transactions/CustomerCreditNotes/CustomerCreditNotesSuccess";
+import ViewCustomerCreditNotes from "./views/Sales/Transactions/CustomerCreditNotes/ViewCustomerCreditNotes";
+import ViewDirectInvoice from "./views/Sales/Transactions/DirectInvoice/viewDirectInvoice";
+
+
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -947,10 +964,50 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/sales/transactions/sales-quotation-entry/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales quotations']}>
+              {withLayout(MainLayout, SalesQuotationEntrySuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/sales-quotation-entry/view-sales-quotation"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales quotations']}>
+              {withLayout(MainLayout, ViewSalesQuotationEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/sales/transactions/sales-order-entry"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales orders']}>
               {withLayout(MainLayout, SalesOrderEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/sales-order-entry/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales orders']}>
+              {withLayout(MainLayout, SalesOrderEntrySuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/sales-order-entry/view-sales-order"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales orders']}>
+              {withLayout(MainLayout, ViewSalesOrderEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/customer-delivery"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales orders']}>
+              {withLayout(MainLayout, CustomerDelivery)}
             </ProtectedRoute>
           }
         />
@@ -963,10 +1020,50 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/sales/transactions/direct-delivery/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
+              {withLayout(MainLayout, DirectDeliverySuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/direct-delivery/view-direct-delivery"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
+              {withLayout(MainLayout, ViewDirectDelivery)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/direct-delivery/customer-invoice"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
+              {withLayout(MainLayout, CustomerInvoice)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/sales/transactions/direct-invoice"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
               {withLayout(MainLayout, DirectInvoice)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/direct-invoice/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
+              {withLayout(MainLayout, DirectInvoiceSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/direct-invoice/view-direct-invoice"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
+              {withLayout(MainLayout, ViewDirectInvoice)}
             </ProtectedRoute>
           }
         />
@@ -1003,10 +1100,42 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/sales/transactions/customer-payments/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
+              {withLayout(MainLayout, CustomerPaymentsSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/customer-payments/view-customer-payment"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
+              {withLayout(MainLayout, ViewCustomerPayments)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/sales/transactions/customer-credit-notes"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
               {withLayout(MainLayout, CustomerCreditNotes)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/customer-credit-notes/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
+              {withLayout(MainLayout, CustomerCreditNotesSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/customer-credit-notes/view-customer-credit-note"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
+              {withLayout(MainLayout, ViewCustomerCreditNotes)}
             </ProtectedRoute>
           }
         />
