@@ -32,7 +32,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 
-export default function Payments() {
+export default function Deposits() {
   const navigate = useNavigate();
 
   // Fetch fiscal years
@@ -189,7 +189,6 @@ export default function Payments() {
     validateDate(value);
   };
 
-  //  Handle input change in table
   //  Handle input change in table (generic)
   const handleChange = (id: number, field: string, value: any) => {
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
@@ -216,7 +215,6 @@ export default function Payments() {
     setRows((prev) => prev.filter((r) => r.id !== id));
   };
 
-  // Save inventory adjustments
   const handleSaveAdjustment = async () => {
     // Validation
     if (!date) {
@@ -233,7 +231,6 @@ export default function Payments() {
     setSaveSuccess(false);
 
     try {
-      // For now, do not call stock-move APIs. Prepare a simple payload and mark success.
       const payload = {
         payTo,
         from: fromField,
@@ -250,12 +247,11 @@ export default function Payments() {
         })),
       };
 
-      console.log("Prepared payment payload:", payload);
       setSaveSuccess(true);
       // keep user on page and show success message for now; navigation/saving to server can be implemented later
     } catch (error: any) {
-      console.error("Error preparing payment payload:", error);
-      setSaveError(error?.message || "Failed to prepare payment");
+      console.error("Error preparing deposit payload:", error);
+      setSaveError(error?.message || "Failed to prepare deposit");
     } finally {
       setIsSaving(false);
     }
@@ -263,7 +259,7 @@ export default function Payments() {
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
-    { title: "Payments" },
+    { title: "Deposits" },
   ];
 
   return (
@@ -281,7 +277,7 @@ export default function Payments() {
         }}
       >
         <Box>
-          <PageTitle title="Bank Account Payment Entry" />
+          <PageTitle title="Bank Account Deposit Entry" />
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
 
@@ -316,7 +312,7 @@ export default function Payments() {
             <TextField
               select
               fullWidth
-              label="Pay To"
+              label="From"
               value={payTo}
               onChange={(e) => setPayTo(e.target.value)}
               size="small"
@@ -332,7 +328,7 @@ export default function Payments() {
           <Grid item xs={12} sm={4}>
             <TextField
               select
-              label="From"
+              label="Into"
               fullWidth
               size="small"
               value={fromField}
@@ -347,7 +343,7 @@ export default function Payments() {
             </TextField>
           </Grid>
 
-          {/* Second row: Reference, To the order of, Bank balance */}
+          {/* Second row: Reference, Name */}
           <Grid item xs={12} sm={4}>
             <TextField
               label="Reference"
@@ -361,21 +357,11 @@ export default function Payments() {
 
           <Grid item xs={12} sm={4}>
             <TextField
-              label="To the order of"
+              label="Name"
               fullWidth
               size="small"
               value={toTheOrderOf}
               onChange={(e) => setToTheOrderOf(e.target.value)}
-            />
-          </Grid>
-
-          <Grid item xs={12} sm={4}>
-            <TextField
-              label="Bank balance"
-              fullWidth
-              size="small"
-              value={bankBalance}
-              onChange={(e) => setBankBalance(e.target.value)}
             />
           </Grid>
         </Grid>
@@ -533,7 +519,7 @@ export default function Payments() {
           disabled={!!dateError || isSaving}
           onClick={handleSaveAdjustment}
         >
-          {isSaving ? "Saving..." : "Process Payment"}
+          {isSaving ? "Saving..." : "Process Deposit"}
         </Button>
       </Box>
     </Stack>
