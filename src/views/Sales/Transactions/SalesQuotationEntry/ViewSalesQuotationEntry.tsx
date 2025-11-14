@@ -122,22 +122,31 @@ export default function ViewSalesQuotationEntry() {
           <Grid item xs={12} sm={6}>
             <Typography>
               <b>Customer Order Ref:</b> {customerOrderRef || "-"}
-              &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
+            </Typography>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Typography>
               <b>Deliver To Branch:</b> {deliverToBranch || "-"}
             </Typography>
           </Grid>
-          <Grid item xs={12}>
+          <Grid item xs={12} sm={6}>
             <Typography>
               <b>Ordered On:</b> {orderedOn || "-"}
-              &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
+            </Typography>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Typography>
               <b>Valid Until:</b> {validUntil || "-"}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography>
               <b>Order Currency:</b> {orderCurrency || "-"}
-              &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
-              <b>Deliver From:</b> {deliverFromName || "-"}
+            </Typography>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Typography>
+              <b>Deliver From Location:</b> {deliverFromName || "-"}
             </Typography>
           </Grid>
           <Grid item xs={12}>

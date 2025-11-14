@@ -266,6 +266,8 @@ import BankAccountInquiry from "./views/BankindAndGeneralLedger/InquiriesAndRepo
 import TaxInquiry from "./views/BankindAndGeneralLedger/InquiriesAndReports/TaxInquiry/TaxInquiry";
 import TrialBalance from "./views/BankindAndGeneralLedger/InquiriesAndReports/TrialBalance/TrialBalance";
 
+import Reports from "./views/Reports/Reports";
+
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
   () => import("./views/RegistrationPage/RegistrationPage")
@@ -1214,10 +1216,18 @@ const AppRoutes = () => {
           }
         />
         <Route
-          path="/sales/inquiriesandreports/customer-and-sales-reports"
+          path="/sales/inquiriesandreports/customer-transaction-inquiry"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales Related Reports']}>
               {withLayout(MainLayout, CustomerTransactionInquiry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/inquiriesandreports/customer-and-sales-reports"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales Related Reports']}>
+              {withLayout(MainLayout, Reports)}
             </ProtectedRoute>
           }
         />
