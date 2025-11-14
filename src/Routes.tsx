@@ -265,6 +265,14 @@ import GLInquiry from "./views/BankindAndGeneralLedger/InquiriesAndReports/GLInq
 import BankAccountInquiry from "./views/BankindAndGeneralLedger/InquiriesAndReports/BankAccountInquiry/BankAccountInquiry";
 import TaxInquiry from "./views/BankindAndGeneralLedger/InquiriesAndReports/TaxInquiry/TaxInquiry";
 import TrialBalance from "./views/BankindAndGeneralLedger/InquiriesAndReports/TrialBalance/TrialBalance";
+import BalanceSheetDrilldown from "./views/BankindAndGeneralLedger/InquiriesAndReports/BalanceSheetDrilldown/BalanceSheetDrilldown";
+import ProfitAndLossDrilldown from "./views/BankindAndGeneralLedger/InquiriesAndReports/ProfitAndLossDrilldown/ProfitAndLossDrilldown";
+import PaymentsSuccess from "./views/BankindAndGeneralLedger/Transactions/Payments/PaymentsSuccess";
+import GLPostings from "./views/BankindAndGeneralLedger/Transactions/Payments/GLPostings";
+import DepositSuccess from "./views/BankindAndGeneralLedger/Transactions/Deposit/DepositSuccess";
+import BankAccountTransferSuccess from "./views/BankindAndGeneralLedger/Transactions/BankAccountTransfers/BankAccountTransferSuccess";
+import JournalEntrySuccess from "./views/BankindAndGeneralLedger/Transactions/JournalEntry/JournalEntrySuccess";
+import ViewJournalEntry from "./views/BankindAndGeneralLedger/Transactions/JournalEntry/ViewJournalEntry";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -2200,10 +2208,34 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/bankingandgeneralledger/transactions/bankingandgeneralledger-quotation-entry/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Banking & GL Transactions']}>
+              {withLayout(MainLayout, PaymentsSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/transactions/gl-postings"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Banking & GL Transactions']}>
+              {withLayout(MainLayout, GLPostings)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/bankingandgeneralledger/transactions/bankingandgeneralledger-order-entry"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Banking & GL Transactions']}>
               {withLayout(MainLayout, Deposits)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/transactions/bankingandgeneralledger-order-entry/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Banking & GL Transactions']}>
+              {withLayout(MainLayout, DepositSuccess)}
             </ProtectedRoute>
           }
         />
@@ -2216,10 +2248,34 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/bankingandgeneralledger/transactions/bank-account-transfers/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Banking & GL Transactions']}>
+              {withLayout(MainLayout, BankAccountTransferSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/bankingandgeneralledger/transactions/journal-entry"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Journal entries to bank related accounts']}>
               {withLayout(MainLayout, JournalEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/transactions/journal-entry/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Journal entries to bank related accounts']}>
+              {withLayout(MainLayout, JournalEntrySuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/transactions/journal-entry/view"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Journal entries to bank related accounts']}>
+              {withLayout(MainLayout, ViewJournalEntry)}
             </ProtectedRoute>
           }
         />
@@ -2285,6 +2341,22 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['GL analytical reports and inquiries']}>
               {withLayout(MainLayout, TrialBalance)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/inquiriesandreports/balance-sheet-drilldown"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL analytical reports and inquiries']}>
+              {withLayout(MainLayout, BalanceSheetDrilldown)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/inquiriesandreports/profit-and-loss-drilldown"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL analytical reports and inquiries']}>
+              {withLayout(MainLayout, ProfitAndLossDrilldown)}
             </ProtectedRoute>
           }
         />

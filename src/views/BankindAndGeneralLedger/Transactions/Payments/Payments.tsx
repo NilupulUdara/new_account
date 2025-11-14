@@ -251,8 +251,18 @@ export default function Payments() {
       };
 
       console.log("Prepared payment payload:", payload);
-      setSaveSuccess(true);
-      // keep user on page and show success message for now; navigation/saving to server can be implemented later
+      // Navigate to success page
+      navigate("/bankingandgeneralledger/transactions/bankingandgeneralledger-quotation-entry/success", {
+        state: {
+          reference,
+          date,
+          payTo,
+          from: fromField,
+          toTheOrderOf,
+          bankBalance,
+          lines: payload.lines,
+        },
+      });
     } catch (error: any) {
       console.error("Error preparing payment payload:", error);
       setSaveError(error?.message || "Failed to prepare payment");
@@ -526,7 +536,7 @@ export default function Payments() {
       )}
 
       {/*  Submit Button */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, pr: 1 }}>
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, p: 1 }}>
         <Button
           variant="contained"
           color="primary"

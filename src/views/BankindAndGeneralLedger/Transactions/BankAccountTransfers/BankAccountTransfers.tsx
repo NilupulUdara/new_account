@@ -196,8 +196,21 @@ export default function BankAccountTransfers() {
         memo,
       };
 
-      setSaveSuccess(true);
-      // keep user on page and show success message for now; navigation/saving to server can be implemented later
+      console.log("Prepared transfer payload:", payload);
+      // Navigate to success page
+      navigate("/bankingandgeneralledger/transactions/bank-account-transfers/success", {
+        state: {
+          reference,
+          date: transferDate,
+          fromAccount,
+          toAccount,
+          amount,
+          bankCharge,
+          incomingAmount: (fromCurrency && toCurrency && fromCurrency !== toCurrency) ? incomingAmount : amount,
+          dimension,
+          memo,
+        },
+      });
     } catch (error: any) {
       console.error("Error preparing transfer payload:", error);
       setSaveError(error?.message || "Failed to prepare transfer");
@@ -406,7 +419,7 @@ export default function BankAccountTransfers() {
       )}
 
       {/* Submit Button */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, pr: 1 }}>
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, p: 1 }}>
         <Button
           variant="contained"
           color="primary"

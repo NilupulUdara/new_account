@@ -335,7 +335,7 @@ export default function BudgetEntry() {
       )}
 
       {/* Save and Delete Buttons */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mt: 2, pr: 1 }}>
+      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mt: 2, p: 1 }}>
         <Button
           variant="contained"
           color="primary"
