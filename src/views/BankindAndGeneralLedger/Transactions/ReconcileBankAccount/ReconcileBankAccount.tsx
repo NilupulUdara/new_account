@@ -389,7 +389,7 @@ export default function ReconcileBankAccount() {
       </TableContainer>
 
       {/* Reconcile All Button */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, p: 1 }}>
         <Button
           variant="contained"
           color="primary"

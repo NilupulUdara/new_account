@@ -271,10 +271,11 @@ export default function JournalEntry() {
 
     try {
       // For now, do not call stock-move APIs. Prepare a simple payload and mark success.
+      const reference = referencePrefix ? `${referencePrefix}-${referenceNumber}` : referenceNumber;
       const payload = {
         journalDate,
         documentDate,
-        reference: referencePrefix ? `${referencePrefix}-${referenceNumber}` : referenceNumber,
+        reference,
         currency,
         eventDate,
         includeInTaxRegister,
@@ -290,8 +291,18 @@ export default function JournalEntry() {
       };
 
       console.log("Prepared journal entry payload:", payload);
-      setSaveSuccess(true);
-      // keep user on page and show success message for now; navigation/saving to server can be implemented later
+
+      // Navigate to success page with relevant data
+      navigate("/bankingandgeneralledger/transactions/journal-entry/success", {
+        state: {
+          reference,
+          date: journalDate,
+          documentDate,
+          eventDate,
+          currency,
+          lines: payload.lines,
+        }
+      });
     } catch (error: any) {
       console.error("Error preparing journal entry payload:", error);
       setSaveError(error?.message || "Failed to prepare journal entry");
@@ -668,7 +679,7 @@ export default function JournalEntry() {
       )}
 
       {/*  Submit Button */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, pr: 1 }}>
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, p: 1 }}>
         <Button
           variant="contained"
           color="primary"

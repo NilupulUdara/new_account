@@ -247,8 +247,18 @@ export default function Deposits() {
         })),
       };
 
-      setSaveSuccess(true);
-      // keep user on page and show success message for now; navigation/saving to server can be implemented later
+      console.log("Prepared deposit payload:", payload);
+      // Navigate to success page
+      navigate("/bankingandgeneralledger/transactions/bankingandgeneralledger-order-entry/success", {
+        state: {
+          reference,
+          date,
+          payTo,
+          from: fromField,
+          toTheOrderOf,
+          lines: payload.lines,
+        },
+      });
     } catch (error: any) {
       console.error("Error preparing deposit payload:", error);
       setSaveError(error?.message || "Failed to prepare deposit");
@@ -512,7 +522,7 @@ export default function Deposits() {
       )}
 
       {/*  Submit Button */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, pr: 1 }}>
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, p: 1 }}>
         <Button
           variant="contained"
           color="primary"
