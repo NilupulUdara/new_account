@@ -51,6 +51,7 @@ export default function SalesQuotationEntry() {
     const [cashAccount, setCashAccount] = useState("");
     const [comments, setComments] = useState("");
     const [shippingCharge, setShippingCharge] = useState(0);
+    const [priceColumnLabel, setPriceColumnLabel] = useState("Price After Tax");
 
     // ===== Fetch master data =====
     const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
@@ -150,6 +151,24 @@ export default function SalesQuotationEntry() {
             setRows((prev) => prev.map((r) => ({ ...r, discount: 0 })));
         }
     }, [customer, customers]);
+
+    // Update price column label when price list changes
+    useEffect(() => {
+        if (priceList) {
+            const selected = priceLists.find((pl: any) => pl.id === priceList);
+            if (selected) {
+                if (selected.typeName === "Retail") {
+                    setPriceColumnLabel("Price after Tax");
+                } else if (selected.typeName === "Wholesale") {
+                    setPriceColumnLabel("Price before Tax");
+                } else {
+                    setPriceColumnLabel("Price");
+                }
+            }
+        } else {
+            setPriceColumnLabel("Price after Tax");
+        }
+    }, [priceList, priceLists]);
 
     const handlePlaceQuotation = () => {
         if (!customer || rows.length === 0) return;
@@ -315,7 +334,7 @@ export default function SalesQuotationEntry() {
                             <TableCell>Description</TableCell>
                             <TableCell>Quantity</TableCell>
                             <TableCell>Unit</TableCell>
-                            <TableCell>Price After Tax</TableCell>
+                            <TableCell>{priceColumnLabel}</TableCell>
                             <TableCell>Discount (%)</TableCell>
                             <TableCell>Total</TableCell>
                             <TableCell>Action</TableCell>
