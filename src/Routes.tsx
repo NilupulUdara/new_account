@@ -275,6 +275,27 @@ import JournalEntrySuccess from "./views/BankindAndGeneralLedger/Transactions/Jo
 import ViewJournalEntry from "./views/BankindAndGeneralLedger/Transactions/JournalEntry/ViewJournalEntry";
 
 import Reports from "./views/Reports/Reports";
+import CustomerDeliverySuccess from "./views/Sales/Transactions/CustomerDelivery/CustomerDeliverySuccess";
+import CustomerInvoiceSuccess from "./views/Sales/Transactions/CustomerInvoice/CustomerInvoiceSuccess";
+import PurchaseOrderEntry from "./views/Purchases/Transactions/PurchaseOrderEntry/PurchaseOrderEntry";
+import PurchaseOrderEntrySuccess from "./views/Purchases/Transactions/PurchaseOrderEntry/PurchaseOrderEntrySuccess";
+import ViewPurchaseOrderEntry from "./views/Purchases/Transactions/PurchaseOrderEntry/ViewPurchaseOrderEntry";
+import OutstandingPurchaseOrdersMaintenance from "./views/Purchases/Transactions/OutstandingPurchaseOrdersMaintenance/OutstandingPurchaseOrdersMaintenance";
+import DirectGRN from "./views/Purchases/Transactions/DirectGRN/DirectGRN";
+import DirectGRNSuccess from "./views/Purchases/Transactions/DirectGRN/DirectGRNSuccess";
+import ViewDirectGRN from "./views/Purchases/Transactions/DirectGRN/ViewDirectGRN";
+import DirectSupplierInvoice from "./views/Purchases/Transactions/DirectSupplierInvoice/DirectSupplierInvoice";
+import DirectSupplierInvoiceSuccess from "./views/Purchases/Transactions/DirectSupplierInvoice/DirectSupplierInvoiceSuccess";
+import ViewDirectSupplierInvoice from "./views/Purchases/Transactions/DirectSupplierInvoice/ViewDirectSupplierInvoice";
+import SupplierPaymentEntry from "./views/Purchases/Transactions/SupplierPaymentEntry/SupplierPaymentEntry";
+import SupplierPaymentEntrySuccess from "./views/Purchases/Transactions/SupplierPaymentEntry/SupplierPaymentEntrySuccess";
+import ViewSupplierPaymentEntry from "./views/Purchases/Transactions/SupplierPaymentEntry/ViewSupplierPaymentEntry";
+import SupplierAllocations from "./views/Purchases/Transactions/SupplierAllocations/SupplierAllocations";
+import PurchaseOrdersInquiry from "./views/Purchases/InquiriesAndReports/PurchaseOrdersInquiry/PurchaseOrdersInquiry";
+import SupplierTransactionInquiry from "./views/Purchases/InquiriesAndReports/SupplierTransactionInquiry/SupplierTransactionInquiry";
+import SupplierAllocationInquiry from "./views/Purchases/InquiriesAndReports/SupplierAllocationInquiry/SupplierAllocationInquiry";
+import ReceivePurchaseOrderItems from "./views/Purchases/Transactions/ReceivePurchaseOrderItems/ReceivePurchaseOrderItems";
+import ReceivePurchaseOrderItemsSuccess from "./views/Purchases/Transactions/ReceivePurchaseOrderItems/ReceivePurchaseOrderItemsSuccess";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1032,6 +1053,14 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/sales/transactions/customer-delivery/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales orders']}>
+              {withLayout(MainLayout, CustomerDeliverySuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/sales/transactions/direct-delivery"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
@@ -1060,6 +1089,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
               {withLayout(MainLayout, CustomerInvoice)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/direct-delivery/customer-invoice/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
+              {withLayout(MainLayout, CustomerInvoiceSuccess)}
             </ProtectedRoute>
           }
         />
@@ -1529,10 +1566,162 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/purchase/transactions/purchase-order-entry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, PurchaseOrderEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/purchase-order-entry/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, PurchaseOrderEntrySuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/purchase-order-entry/view-purchase-order"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, ViewPurchaseOrderEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/receive-purchase-order-items"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, ReceivePurchaseOrderItems)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/receive-purchase-order-items/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, ReceivePurchaseOrderItemsSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/outstanding-purchase-orders-maintenance"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, OutstandingPurchaseOrdersMaintenance)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/direct-grn"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, DirectGRN)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/direct-grn/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, DirectGRNSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/direct-grn/view-direct-grn"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, ViewDirectGRN)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/direct-supplier-invoice"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, DirectSupplierInvoice)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/direct-supplier-invoice/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, DirectSupplierInvoiceSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/direct-supplier-invoice/view-direct-supplier-invoice"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, ViewDirectSupplierInvoice)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/payment-to-suppliers"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, SupplierPaymentEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/payment-to-suppliers/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, SupplierPaymentEntrySuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/payment-to-suppliers/view-supplier-payment"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, ViewSupplierPaymentEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/allocate-supplier-payments-credit-notes"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, SupplierAllocations)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/purchase/inquiriesandreports"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Analytics']}>
               {withLayout(MainLayout, PurchaseInquiriesAndReports)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/inquiriesandreports/purchase-orders-inquiry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Analytics']}>
+              {withLayout(MainLayout, PurchaseOrdersInquiry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/inquiriesandreports/supplier-transaction-inquiry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Analytics']}>
+              {withLayout(MainLayout, SupplierTransactionInquiry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/inquiriesandreports/supplier-allocation-inquiry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Analytics']}>
+              {withLayout(MainLayout, SupplierAllocationInquiry)}
             </ProtectedRoute>
           }
         />
