@@ -353,8 +353,8 @@ export default function TrialBalance() {
               <TableCell align="center" sx={{ fontWeight: "bold", borderRight: "2px solid #e0e0e0" }}>Credit</TableCell>
               <TableCell align="center" sx={{ fontWeight: "bold", borderRight: "1px solid #e0e0e0" }}>Debit</TableCell>
               <TableCell align="center" sx={{ fontWeight: "bold", borderRight: "2px solid #e0e0e0" }}>Credit</TableCell>
-              <TableCell align="center" sx={{ fontWeight: "bold", borderRight: "1px solid #e0e0e0" }}>Credit</TableCell>
-              <TableCell align="center" sx={{ fontWeight: "bold" }}>Debit</TableCell>
+              <TableCell align="center" sx={{ fontWeight: "bold", borderRight: "1px solid #e0e0e0" }}>Debit</TableCell>
+              <TableCell align="center" sx={{ fontWeight: "bold" }}>Credit</TableCell>
             </TableRow>
           </TableHead>
 

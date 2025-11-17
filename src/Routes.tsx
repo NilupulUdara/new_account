@@ -275,6 +275,7 @@ import JournalEntrySuccess from "./views/BankindAndGeneralLedger/Transactions/Jo
 import ViewJournalEntry from "./views/BankindAndGeneralLedger/Transactions/JournalEntry/ViewJournalEntry";
 
 import Reports from "./views/Reports/Reports";
+import BillsOfMaterialTable from "./views/Manufacturing/Maintenance/BillsOfMaterial/BillsOfMaterialTable";
 import CustomerDeliverySuccess from "./views/Sales/Transactions/CustomerDelivery/CustomerDeliverySuccess";
 import CustomerInvoiceSuccess from "./views/Sales/Transactions/CustomerInvoice/CustomerInvoiceSuccess";
 import PurchaseOrderEntry from "./views/Purchases/Transactions/PurchaseOrderEntry/PurchaseOrderEntry";
@@ -2288,6 +2289,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Manufacture work centres']}>
               {withLayout(MainLayout, UpdateWorkCentresForm)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manufacturing/maintenance/bills-of-material"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Manufacture work centres']}>
+              {withLayout(MainLayout, BillsOfMaterialTable)}
             </ProtectedRoute>
           }
         />

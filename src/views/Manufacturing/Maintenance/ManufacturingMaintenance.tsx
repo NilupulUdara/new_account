@@ -27,7 +27,7 @@ function ManufacturingMaintenance() {
       text: "BILLS of MATERIALS",
       icon: <PersonAddIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
       change: +24,
-      path: "/manufacturing/maintenance/bils-of-materials"
+      path: "/manufacturing/maintenance/bills-of-material"
     },
     {
       text: "WORK CENTERS",
