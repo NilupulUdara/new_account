@@ -57,7 +57,7 @@ export const reportClasses = {
 
   Banking: [
     "Bank Statement",
-    "Bank Statement w/ Reconcile",
+    "Bank Statement W Reconcile",
   ],
 
   GeneralLedger: [
