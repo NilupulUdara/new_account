@@ -47,9 +47,10 @@ export default function AddInventoryLocationTransfersSuccess() {
           Your inventory transfer has been processed successfully.
         </Typography>
 
-        <Stack spacing={1} direction="column">
+        <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => navigate("/itemsandinventory/transactions/inventory-location-transfer/view", { state })}
           >
             1. View this transfer
@@ -57,6 +58,7 @@ export default function AddInventoryLocationTransfersSuccess() {
 
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => navigate("/itemsandinventory/transactions/inventory-location-transfer")}
           >
             2. Enter another inventory transfer

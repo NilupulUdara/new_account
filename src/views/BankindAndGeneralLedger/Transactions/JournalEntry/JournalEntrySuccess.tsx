@@ -47,9 +47,10 @@ export default function JournalEntrySuccess() {
           Your journal entry has been processed successfully.
         </Typography>
 
-        <Stack spacing={1} direction="column">
+        <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => navigate("/bankingandgeneralledger/transactions/journal-entry/view", { state })}
           >
             1. View this journal entry
@@ -57,6 +58,7 @@ export default function JournalEntrySuccess() {
 
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => navigate("/bankingandgeneralledger/transactions/journal-entry")}
           >
             2. Enter new journal entry
@@ -64,6 +66,7 @@ export default function JournalEntrySuccess() {
 
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => navigate("/bankingandgeneralledger/transactions/journal-entry/add-attachment", { state })}
           >
             3. Add an attachment

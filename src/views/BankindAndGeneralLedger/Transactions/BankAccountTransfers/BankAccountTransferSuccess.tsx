@@ -47,9 +47,10 @@ export default function BankAccountTransferSuccess() {
           Your transfer has been processed successfully.
         </Typography>
 
-        <Stack spacing={1} direction="column">
+        <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => {
               navigate("/bankingandgeneralledger/transactions/gl-postings", { state: { reference } });
             }}
@@ -59,6 +60,7 @@ export default function BankAccountTransferSuccess() {
 
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => navigate("/bankingandgeneralledger/transactions/bank-account-transfers")}
           >
             2. Enter another transfer

@@ -47,9 +47,10 @@ export default function DepositSuccess() {
           Your deposit has been processed successfully.
         </Typography>
 
-        <Stack spacing={1} direction="column">
+        <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => {
               // Navigate to GL postings view - pass reference so GL view can filter
               navigate("/bankingandgeneralledger/transactions/gl-postings", { state: { reference } });
@@ -60,6 +61,7 @@ export default function DepositSuccess() {
 
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => navigate("/bankingandgeneralledger/transactions/bankingandgeneralledger-order-entry")}
           >
             2. Enter another deposit
@@ -67,6 +69,7 @@ export default function DepositSuccess() {
 
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => navigate("/bankingandgeneralledger/transactions/deposit/add-attachment", { state })}
           >
             3. Add an attachment

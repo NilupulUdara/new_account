@@ -30,13 +30,13 @@ function ManufacturingTransactions() {
       text: "WORK ORDER ENTRY",
       change: +36,
       icon: <RequestQuoteIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      path: "/manufactoring/transactions/work-order-entry",
+      path: "/manufacturing/transactions/work-order-entry",
     },
     {
       text: "OUTSANDING WORK ORDERS",
       change: -14,
       icon: <ShoppingCartIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      path: "/manufactoring/transactions/outstanding-work-orders",
+      path: "/manufacturing/transactions/outstanding-work-orders",
     },
   ];
 

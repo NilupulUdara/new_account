@@ -9,8 +9,6 @@ import {
     TableContainer,
     TableHead,
     TableRow,
-    TableFooter,
-    TablePagination,
     Paper,
     Typography,
     useMediaQuery,
@@ -35,12 +33,10 @@ import { getItemCodes, deleteItemCode } from "../../../../api/ItemCodes/ItemCode
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 
 function BillsOfMaterialTable() {
-    const [page, setPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(5);
-    const [selectedItem, setSelectedItem] = useState(""); // dropdown state
-    const [itemCode, setItemCode] = useState(""); // item code display
-    const [copyItemCode, setCopyItemCode] = useState(""); // copy item code display
-    const [selectedCopyItem, setSelectedCopyItem] = useState(""); // copy dropdown state
+    const [selectedItem, setSelectedItem] = useState("");
+    const [itemCode, setItemCode] = useState("");
+    const [copyItemCode, setCopyItemCode] = useState("");
+    const [selectedCopyItem, setSelectedCopyItem] = useState("");
 
     const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
     const navigate = useNavigate();
@@ -132,18 +128,6 @@ function BillsOfMaterialTable() {
 
     return result;
 }, [foreignItemData, selectedItem]);
-
-
-    const paginatedData = useMemo(() => {
-        if (rowsPerPage === -1) return filteredData;
-        return filteredData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-    }, [filteredData, page, rowsPerPage]);
-
-    const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
-    const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        setRowsPerPage(parseInt(event.target.value, 10));
-        setPage(0);
-    };
 
     const handleDelete = (id: number) => {
         if (window.confirm("Are you sure you want to delete this item code?")) {
@@ -237,12 +221,12 @@ function BillsOfMaterialTable() {
                     <Button
                         variant="contained"
                         color="primary"
-                        onClick={() => navigate("/itemsandinventory/maintenance/add-foreign-item-codes", { state: { stock_id: selectedItem } })}
+                        onClick={() => navigate("/manufacturing/maintenance/add-bills-of-material", { state: { stock_id: selectedItem } })}
                     >
                         Add New
                     </Button>
                     <Button variant="outlined" startIcon={<ArrowBackIcon />}
-                        onClick={() => navigate("/itemsandinventory/maintenance/")}>
+                        onClick={() => navigate("/manufacturing/maintenance/")}>
                         Back
                     </Button>
                 </Stack>
@@ -283,7 +267,7 @@ function BillsOfMaterialTable() {
                                                 variant="contained"
                                                 size="small"
                                                 startIcon={<EditIcon />}
-                                                onClick={() => {}}
+                                                onClick={() => {navigate("/manufacturing/maintenance/update-bills-of-material")}}
                                             >
                                                 Edit
                                             </Button>
@@ -299,8 +283,8 @@ function BillsOfMaterialTable() {
                                         </Stack>
                                     </TableCell>
                                 </TableRow>
-                                {paginatedData.length > 0 ? (
-                                    paginatedData.map((item, index) => (
+                                {filteredData.length > 0 ? (
+                                    filteredData.map((item, index) => (
                                         <TableRow key={item.id ?? index} hover>
                                             <TableCell>{item.item_code ?? item.code}</TableCell>
                                             <TableCell>{item.description}</TableCell>
@@ -331,7 +315,7 @@ function BillsOfMaterialTable() {
                                                         variant="contained"
                                                         size="small"
                                                         startIcon={<EditIcon />}
-                                                        onClick={() => navigate("/itemsandinventory/maintenance/update-bill-of-material", { state: { stock_id: selectedItem, itemCode: item } })}
+                                                        onClick={() => navigate("/manufacturing/maintenance/update-bills-of-material")}
                                                     >
                                                         Edit
                                                     </Button>
@@ -361,11 +345,11 @@ function BillsOfMaterialTable() {
                                             InputProps={{
                                                 readOnly: true,
                                             }}
-                                            sx={{ maxWidth: 90 }}
+                                            sx={{ maxWidth: 110 }}
                                         />
                                     </TableCell>
                                     <TableCell sx={{ borderRight: "1px solid #ddd" }}>
-                                        <FormControl size="small" sx={{ minWidth: 180 }}>
+                                        <FormControl size="small" sx={{ minWidth: 150 }}>
                                             <InputLabel>Select Item</InputLabel>
                                             <Select
                                                 value={selectedCopyItem}
@@ -419,21 +403,7 @@ function BillsOfMaterialTable() {
                                         </Button>
                                     </TableCell>
                                 </TableRow>
-                            </TableBody>                            <TableFooter>
-                                <TableRow>
-                                    <TablePagination
-                                        rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                                        colSpan={7}
-                                        count={filteredData.length + 1}
-                                        rowsPerPage={rowsPerPage}
-                                        page={page}
-                                        onPageChange={handleChangePage}
-                                        onRowsPerPageChange={handleChangeRowsPerPage}
-                                        showFirstButton
-                                        showLastButton
-                                    />
-                                </TableRow>
-                            </TableFooter>
+                            </TableBody>
                         </Table>
                     </TableContainer>
                 </Stack>
