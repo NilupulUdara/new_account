@@ -5,14 +5,14 @@ import { useLocation, useNavigate } from "react-router-dom";
 import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
 
-export default function DirectSupplierInvoiceSuccess() {
+export default function SupplierInvoiceSuccess() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const { location: loc, reference, date } = state || {};
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
-    { title: "Direct Purchase Invoice Entry" },
+    { title: "Enter Supplier Invoice" },
   ];
 
   return (
@@ -29,14 +29,14 @@ export default function DirectSupplierInvoiceSuccess() {
         }}
       >
         <Box>
-          <PageTitle title="Direct Purchase Invoice Entry" />
+          <PageTitle title="Enter Supplier Invoice" />
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
 
         <Button
           variant="outlined"
           startIcon={<CloseIcon />}
-          onClick={() => navigate("/purchase/transactions")}
+          onClick={() => navigate("/sales/transactions")}
         >
           Close
         </Button>
@@ -44,14 +44,14 @@ export default function DirectSupplierInvoiceSuccess() {
 
       <Paper sx={{ p: 2 }}>
         <Typography sx={{ mb: 2 }}>
-          Purchase Order has been entered
+          Supplier invoice has been processed.
         </Typography>
 
         <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
             sx={{ width: '300px' }}
-            onClick={() => navigate("/purchase/transactions/direct-supplier-invoice/view-direct-supplier-invoice", { state })}
+            onClick={() => navigate("/purchase/transactions/supplier-invoice/view-supplier-invoice", { state })}
           >
             View this Invoice
           </Button>
@@ -59,24 +59,28 @@ export default function DirectSupplierInvoiceSuccess() {
           <Button
             variant="outlined"
             sx={{ width: '300px' }}
-            onClick={() => navigate("/")}
+            onClick={() => {
+              // Navigate to GL postings view - pass reference so GL view can filter
+              navigate("", { state: { reference } });
+            }}
           >
-            View the GL Journal Entries for this Invoice
+           View the GL Journal Entries for this Invoice
           </Button>
 
           <Button
             variant="outlined"
             sx={{ width: '300px' }}
-            onClick={() => navigate("/purchase/transactions/payment-to-suppliers", { state })}
+            onClick={() => navigate("/purchase/transactions/payment-to-suppliers")}
           >
            Entry supplier payment for this invoice
           </Button>
+
           <Button
             variant="outlined"
             sx={{ width: '300px' }}
-            onClick={() => navigate("/purchase/transactions/direct-supplier-invoice", { state })}
+            onClick={() => navigate("/purchase/transactions/supplier-invoice", { state })}
           >
-           Enter Another Direct Invoice
+           Enter Another Invoice
           </Button>
           <Button
             variant="outlined"
