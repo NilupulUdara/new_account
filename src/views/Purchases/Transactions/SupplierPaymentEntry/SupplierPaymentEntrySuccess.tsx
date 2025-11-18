@@ -51,13 +51,6 @@ export default function SupplierPaymentEntrySuccess() {
           <Button
             variant="outlined"
             sx={{ width: '300px' }}
-            onClick={() => navigate("/purchase/transactions/payment-to-suppliers/view-supplier-payment", { state })}
-          >
-            View this Payment
-          </Button>
-          <Button
-            variant="outlined"
-            sx={{ width: '300px' }}
             onClick={() => navigate("", { state })}
           >
             Print This Remittance
@@ -72,6 +65,13 @@ export default function SupplierPaymentEntrySuccess() {
             }}
           >
             Email This Remittance
+          </Button>
+           <Button
+            variant="outlined"
+            sx={{ width: '300px' }}
+            onClick={() => navigate("/purchase/transactions/payment-to-suppliers/view-supplier-payment", { state })}
+          >
+            View this Payment
           </Button>
           <Button
             variant="outlined"
@@ -90,7 +90,7 @@ export default function SupplierPaymentEntrySuccess() {
           <Button
             variant="outlined"
             sx={{ width: '300px' }}
-            onClick={() => navigate("/purchase/transactions/supplier-payment-entry", { state })}
+            onClick={() => navigate("/purchase/transactions/supplier-invoice", { state })}
           >
             Enter Supplier Invoice
           </Button>
@@ -118,14 +118,14 @@ export default function SupplierPaymentEntrySuccess() {
           <Button
             variant="outlined"
             sx={{ width: '300px' }}
-            onClick={() => navigate("/", { state })}
+            onClick={() => navigate("/bankingandgeneralledger/transactions/bankingandgeneralledger-order-entry", { state })}
           >
             Enter Other Deposit
           </Button>
           <Button
             variant="outlined"
             sx={{ width: '300px' }}
-            onClick={() => navigate("/", { state })}
+            onClick={() => navigate("/bankingandgeneralledger/transactions/bank-account-transfers", { state })}
           >
             Bank Account Transfer
           </Button>

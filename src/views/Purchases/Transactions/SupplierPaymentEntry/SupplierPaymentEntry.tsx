@@ -197,8 +197,8 @@ export default function SupplierPaymentEntry() {
                 onChange={(e) => setSupplier(Number(e.target.value))}
               >
                 {suppliers.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>
-                    {s.supp_name}
+                  <MenuItem key={s.supplier_id} value={s.supplier_id}>
+                    {s.supp_short_name}
                   </MenuItem>
                 ))}
               </TextField>

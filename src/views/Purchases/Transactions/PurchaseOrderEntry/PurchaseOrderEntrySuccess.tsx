@@ -36,7 +36,7 @@ export default function PurchaseOrderEntrySuccess() {
         <Button
           variant="outlined"
           startIcon={<CloseIcon />}
-          onClick={() => navigate("/sales/transactions")}
+          onClick={() => navigate("/purchase/transactions")}
         >
           Close
         </Button>

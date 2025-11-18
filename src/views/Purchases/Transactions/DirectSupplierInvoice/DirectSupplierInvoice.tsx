@@ -15,6 +15,7 @@ import {
   Typography,
   MenuItem,
   Grid,
+  ListSubheader,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -30,6 +31,7 @@ import { getTags } from "../../../../api/DimensionTag/DimensionTagApi";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getPaymentTypes } from "../../../../api/PaymentType/PaymentTypeApi";
+import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 
 export default function DirectSupplierInvoice() {
   const navigate = useNavigate();
@@ -59,6 +61,7 @@ export default function DirectSupplierInvoice() {
   const [items, setItems] = useState([]);
   const [itemUnits, setItemUnits] = useState([]);
   const [paymentTypes, setPaymentTypes] = useState([]);
+  const [categories, setCategories] = useState<{ category_id: number; description: string }[]>([]);
 
   // ========= Generate Reference =========
   useEffect(() => {
@@ -79,13 +82,14 @@ export default function DirectSupplierInvoice() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [suppliersData, locationsData, dimensionsData, itemsData, itemUnitsData, paymentTypesData] = await Promise.all([
+        const [suppliersData, locationsData, dimensionsData, itemsData, itemUnitsData, paymentTypesData, categoriesData] = await Promise.all([
           getSuppliers(),
           getInventoryLocations(),
           getTags(),
           getItems(),
           getItemUnits(),
           getPaymentTypes(),
+          getItemCategories(),
         ]);
         setSuppliers(suppliersData);
         setLocations(locationsData);
@@ -93,6 +97,7 @@ export default function DirectSupplierInvoice() {
         setItems(itemsData);
         setItemUnits(itemUnitsData);
         setPaymentTypes(paymentTypesData);
+        setCategories(categoriesData);
       } catch (error) {
         console.error("Error fetching data:", error);
       }
@@ -104,7 +109,7 @@ export default function DirectSupplierInvoice() {
   const [rows, setRows] = useState([
     {
       id: 1,
-      itemId: 0,
+      stockId: "",
       itemCode: "",
       description: "",
       quantity: 0,
@@ -119,7 +124,7 @@ export default function DirectSupplierInvoice() {
       ...prev,
       {
         id: prev.length + 1,
-        itemId: 0,
+        stockId: "",
         itemCode: "",
         description: "",
         quantity: 0,
@@ -196,7 +201,7 @@ export default function DirectSupplierInvoice() {
             <Stack spacing={2}>
               <TextField select fullWidth label="Supplier" size="small" value={supplier} onChange={(e) => setSupplier(Number(e.target.value))}>
                 {suppliers.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>{s.supp_name || s.name}</MenuItem>
+                  <MenuItem key={s.supplier_id} value={s.supplier_id}>{s.supp_short_name}</MenuItem>
                 ))}
               </TextField>
 
@@ -269,22 +274,44 @@ export default function DirectSupplierInvoice() {
                   <TextField
                     select
                     size="small"
-                    value={row.description}
+                    value={row.stockId}
                     onChange={(e) => {
-                      const selected = items.find((it) => it.description === e.target.value);
-                      handleChange(row.id, "description", e.target.value);
+                      const selectedStockId = e.target.value;
+                      const selected = items.find((it) => it.stock_id === selectedStockId);
+                      handleChange(row.id, "stockId", selectedStockId);
                       if (selected) {
                         const unitObj = itemUnits.find((u) => u.id === selected.units);
-                        handleChange(row.id, "itemId", selected.id);
+                        handleChange(row.id, "description", selected.description);
                         handleChange(row.id, "itemCode", selected.stock_id);
                         handleChange(row.id, "unit", unitObj ? unitObj.abbr : selected.units);
                         handleChange(row.id, "price", selected.material_cost);
                       }
                     }}
                   >
-                    {items.map((it) => (
-                      <MenuItem key={it.id} value={it.description}>{it.description}</MenuItem>
-                    ))}
+                    {(() => {
+                      const filteredItems = items;
+                      return (Object.entries(
+                        filteredItems.reduce((groups: Record<string, any[]>, item) => {
+                          const catId = item.category_id || "Uncategorized";
+                          if (!groups[catId]) groups[catId] = [];
+                          groups[catId].push(item);
+                          return groups;
+                        }, {})
+                      ) as [string, any][]).map(([categoryId, groupedItems]) => {
+                        const category = categories.find(cat => cat.category_id === Number(categoryId));
+                        const categoryLabel = category ? category.description : `Category ${categoryId}`;
+                        return [
+                          <ListSubheader key={`cat-${categoryId}`}>
+                            {categoryLabel}
+                          </ListSubheader>,
+                          groupedItems.map((item) => (
+                            <MenuItem key={item.stock_id} value={item.stock_id}>
+                              {item.description}
+                            </MenuItem>
+                          ))
+                        ];
+                      });
+                    })()}
                   </TextField>
                 </TableCell>
 
@@ -341,7 +368,11 @@ export default function DirectSupplierInvoice() {
                 Amount Total
               </TableCell>
               <TableCell sx={{ fontWeight: 600 }}>{subTotal.toFixed(2)}</TableCell>
-              <TableCell></TableCell>
+              <TableCell align="center">
+                <Button variant="contained" size="small" color="primary">
+                  Update
+                </Button>
+              </TableCell>
             </TableRow>
           </TableFooter>
         </Table>
