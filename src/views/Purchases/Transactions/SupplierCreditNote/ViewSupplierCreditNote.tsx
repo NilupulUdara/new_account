@@ -8,7 +8,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  TableFooter,
   Typography,
   Stack,
   Button,
@@ -21,23 +20,22 @@ import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import { getSuppliers } from "../../../../api/Supplier/SupplierApi";
 
-export default function ViewPurchaseOrderEntry() {
+export default function ViewSupplierCreditNote() {
   const { state } = useLocation();
   const navigate = useNavigate();
 
   const {
     supplier,
     reference,
-    orderDate,
-    deliveryAddress,
-    deliverIntoLocation,
     supplierRef,
+    invoiceDate,
+    dueDate,
     items = [],
-    subTotal,
-    amountTotal,
+    subtotal,
+    totalCreditNote,
   } = state || {};
 
-  // Fetch suppliers
+  // Fetch suppliers for display
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers"],
     queryFn: getSuppliers,
@@ -46,15 +44,15 @@ export default function ViewPurchaseOrderEntry() {
   // Supplier name resolve
   const supplierName = useMemo(() => {
     if (!supplier) return "-";
-    const found = suppliers?.find(
-      (s) => String(s.supplier_id) === String(supplier)
+    const found = (suppliers || []).find(
+      (s: any) => String(s.supplier_id) === String(supplier)
     );
     return found ? found.supp_name : supplier;
-  }, [supplier, suppliers]);
+  }, [suppliers, supplier]);
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
-    { title: "Purchase Order" },
+    { title: "SUPPLIER CREDIT NOTE" },
   ];
 
   return (
@@ -72,7 +70,7 @@ export default function ViewPurchaseOrderEntry() {
         }}
       >
         <Box>
-          <PageTitle title={`Purchase Order - ${reference || "-"}`} />
+          <PageTitle title={`SUPPLIER CREDIT NOTE - ${reference || "-"}`} />
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
         <Button
@@ -84,122 +82,105 @@ export default function ViewPurchaseOrderEntry() {
         </Button>
       </Box>
 
-      {/* Order Information */}
+      {/* Invoice Information */}
       <Paper sx={{ p: 3 }}>
         <Typography
           variant="h6"
           sx={{ mb: 2, fontWeight: 600, color: "var(--pallet-dark-blue)" }}
         >
-          Purchase Order
+          SUPPLIER CREDIT NOTE {reference || "-"}
         </Typography>
 
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6}>
             <Typography>
-              <b>Reference:</b> {reference || "-"}
-            </Typography>
-          </Grid>
-
-          <Grid item xs={12} sm={6}>
-            <Typography>
               <b>Supplier:</b> {supplierName}
             </Typography>
           </Grid>
-
           <Grid item xs={12} sm={6}>
             <Typography>
-              <b>Date:</b> {orderDate || "-"}
+              <b>Reference:</b> {reference || "-"}
             </Typography>
           </Grid>
-
-          <Grid item xs={12} sm={6}>
-            <Typography>
-              <b>Deliver Into Location:</b> {deliverIntoLocation || "-"}
-            </Typography>
-          </Grid>
-
-          <Grid item xs={12} sm={6}>
-            <Typography>
-              <b>Delivery Address:</b> {deliveryAddress || "-"}
-            </Typography>
-          </Grid>
-
           <Grid item xs={12} sm={6}>
             <Typography>
               <b>Supplier's Reference:</b> {supplierRef || "-"}
             </Typography>
           </Grid>
-
+          <Grid item xs={12} sm={6}>
+            <Typography>
+              <b>Invoice Date:</b> {invoiceDate || "-"}
+            </Typography>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Typography>
+              <b>Due Date:</b> {dueDate || "-"}
+            </Typography>
+          </Grid>
         </Grid>
       </Paper>
 
-      {/* Line Detail Table */}
+      {/* Items Table */}
       <Paper sx={{ p: 2 }}>
-        <Typography sx={{ mb: 1, fontWeight: 600 }}>Line Detail</Typography>
+        <Typography sx={{ mb: 1, fontWeight: 600 }}>
+          GL Items for this Invoice
+        </Typography>
 
         <TableContainer component={Paper}>
           <Table size="small">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
-                <TableCell>Item Code</TableCell>
-                <TableCell>Item Description</TableCell>
-                <TableCell>Quantity</TableCell>
-                <TableCell>Unit</TableCell>
-                <TableCell>Price</TableCell>
-                <TableCell>Requested By</TableCell>
-                <TableCell>Line Total</TableCell>
-                <TableCell>Quantity Received</TableCell>
-                <TableCell>Quantity Invoiced</TableCell>
+                <TableCell>Account</TableCell>
+                <TableCell>Name</TableCell>
+                <TableCell>Dimension</TableCell>
+                <TableCell>Amount</TableCell>
+                <TableCell>Memo</TableCell>
               </TableRow>
             </TableHead>
 
             <TableBody>
               {items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9}>No items available</TableCell>
+                  <TableCell colSpan={6}>No items available</TableCell>
                 </TableRow>
               ) : (
-                items.map((row, idx) => (
+                items.map((row: any, idx: number) => (
                   <TableRow key={idx}>
-                    <TableCell>{row.itemCode ?? "-"}</TableCell>
+                    <TableCell>{row.delivery ?? "-"}</TableCell>
+                    <TableCell>{row.item ?? "-"}</TableCell>
                     <TableCell>{row.description ?? "-"}</TableCell>
                     <TableCell>{row.quantity ?? "-"}</TableCell>
-                    <TableCell>{row.unit ?? "-"}</TableCell>
                     <TableCell>{row.price ?? "-"}</TableCell>
-                    <TableCell>{row.requestedBy ?? "-"}</TableCell>
-                    <TableCell>{row.lineTotal ?? "-"}</TableCell>
-                    <TableCell>{row.qtyReceived ?? "-"}</TableCell>
-                    <TableCell>{row.qtyInvoiced ?? "-"}</TableCell>
+                    <TableCell>{row.lineValue ?? "-"}</TableCell>
                   </TableRow>
                 ))
               )}
             </TableBody>
-
-            {/* Table Footer with Totals */}
-            <TableFooter>
-              <TableRow>
-                <TableCell colSpan={6} sx={{ fontWeight: 600, textAlign: 'right' }}>
-                  Sub Total:
-                </TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>
-                  {subTotal ?? "-"}
-                </TableCell>
-                <TableCell colSpan={2}></TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell colSpan={6} sx={{ fontWeight: 600, textAlign: 'right' }}>
-                  Amount Total:
-                </TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>
-                  {amountTotal ?? "-"}
-                </TableCell>
-                <TableCell colSpan={2}></TableCell>
-              </TableRow>
-            </TableFooter>
           </Table>
         </TableContainer>
 
-        {/* Buttons */}
+        {/* Totals Section */}
+        <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
+          <Box sx={{ width: 260 }}>
+            <Stack direction="row" justifyContent="space-between" mb={1}>
+              <Typography>Subtotal:</Typography>
+              <Typography>{subtotal ?? "-"}</Typography>
+            </Stack>
+
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              sx={{ fontWeight: 600 }}
+            >
+              <Typography sx={{ fontWeight: 600 }}>Total Credit Note:</Typography>
+              <Typography sx={{ fontWeight: 600 }}>
+                {totalCreditNote ?? "-"}
+              </Typography>
+            </Stack>
+          </Box>
+        </Box>
+
+        {/* Action Buttons */}
         <Stack direction="row" spacing={2} justifyContent="flex-end" mt={3}>
           <Button variant="contained" color="primary">
             Print

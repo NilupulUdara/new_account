@@ -36,7 +36,7 @@ export default function DirectGRNSuccess() {
         <Button
           variant="outlined"
           startIcon={<CloseIcon />}
-          onClick={() => navigate("/sales/transactions")}
+          onClick={() => navigate("/purchase/transactions")}
         >
           Close
         </Button>
@@ -70,7 +70,7 @@ export default function DirectGRNSuccess() {
           <Button
             variant="outlined"
             sx={{ width: '300px' }}
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/purchase/transactions/supplier-invoice", { state })}
           >
             Entry purchase invoice for this receival
           </Button>

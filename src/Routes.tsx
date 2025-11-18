@@ -297,6 +297,12 @@ import SupplierTransactionInquiry from "./views/Purchases/InquiriesAndReports/Su
 import SupplierAllocationInquiry from "./views/Purchases/InquiriesAndReports/SupplierAllocationInquiry/SupplierAllocationInquiry";
 import ReceivePurchaseOrderItems from "./views/Purchases/Transactions/ReceivePurchaseOrderItems/ReceivePurchaseOrderItems";
 import ReceivePurchaseOrderItemsSuccess from "./views/Purchases/Transactions/ReceivePurchaseOrderItems/ReceivePurchaseOrderItemsSuccess";
+import SupplierInvoice from "./views/Purchases/Transactions/SupplierInvoice/SupplierInvoice";
+import SupplierInvoiceSuccess from "./views/Purchases/Transactions/SupplierInvoice/SupplierInvoiceSuccess";
+import ViewSupplierInvoice from "./views/Purchases/Transactions/SupplierInvoice/ViewSupplierInvoice";
+import SupplierCreditNote from "./views/Purchases/Transactions/SupplierCreditNote/SupplierCreditNote";
+import ViewSupplierCreditNote from "./views/Purchases/Transactions/SupplierCreditNote/ViewSupplierCreditNote";
+import SupplierCreditNoteSuccess from "./views/Purchases/Transactions/SupplierCreditNote/SupplierCreditNoteSuccess";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1691,6 +1697,54 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
               {withLayout(MainLayout, SupplierAllocations)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/supplier-invoice"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, SupplierInvoice)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/supplier-invoice/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, SupplierInvoiceSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/supplier-invoice/view-supplier-invoice"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, ViewSupplierInvoice)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/supplier-credit-notes"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, SupplierCreditNote)}
+            </ProtectedRoute>
+          }
+        />
+         <Route
+          path="/purchase/transactions/supplier-credit-notes/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, SupplierCreditNoteSuccess)}
+            </ProtectedRoute>
+          }
+        />
+         <Route
+          path="/purchase/transactions/supplier-credit-notes/view-supplier-credit-note"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, ViewSupplierCreditNote)}
             </ProtectedRoute>
           }
         />

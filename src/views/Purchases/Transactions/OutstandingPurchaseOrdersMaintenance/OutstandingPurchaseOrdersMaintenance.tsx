@@ -20,6 +20,7 @@ import {
   Select,
   TableFooter,
   TablePagination,
+  ListSubheader,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SearchIcon from "@mui/icons-material/Search";
@@ -28,6 +29,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getSuppliers } from "../../../../api/Supplier/SupplierApi";
+import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -56,6 +58,7 @@ export default function OutstandingPurchaseOrdersMaintenance() {
   // lookups
   const { data: locations = [] } = useQuery({ queryKey: ["inventoryLocations"], queryFn: getInventoryLocations });
   const { data: items = [] } = useQuery({ queryKey: ["items"], queryFn: getItems });
+  const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
 
   // header/state
   const [numberText, setNumberText] = useState("");
@@ -141,9 +144,30 @@ export default function OutstandingPurchaseOrdersMaintenance() {
               <InputLabel id="iasd-item-label">Select Item</InputLabel>
               <Select labelId="iasd-item-label" value={selectedItem ?? ""} label="Select Item" onChange={(e) => setSelectedItem(String(e.target.value))}>
                 <MenuItem value="ALL_ITEMS">All Items</MenuItem>
-                {(items || []).map((it: any) => (
-                  <MenuItem key={it.stock_id ?? it.id} value={String(it.stock_id ?? it.id)}>{it.description ?? it.item_name ?? it.name}</MenuItem>
-                ))}
+                {(() => {
+                  const filteredItems = items || [];
+                  return (Object.entries(
+                    filteredItems.reduce((groups: Record<string, any[]>, item) => {
+                      const catId = item.category_id || "Uncategorized";
+                      if (!groups[catId]) groups[catId] = [];
+                      groups[catId].push(item);
+                      return groups;
+                    }, {})
+                  ) as [string, any][]).map(([categoryId, groupedItems]) => {
+                    const category = categories.find((cat: any) => cat.category_id === Number(categoryId));
+                    const categoryLabel = category ? category.description : `Category ${categoryId}`;
+                    return [
+                      <ListSubheader key={`cat-${categoryId}`}>
+                        {categoryLabel}
+                      </ListSubheader>,
+                      groupedItems.map((item: any) => (
+                        <MenuItem key={item.stock_id ?? item.id} value={String(item.stock_id ?? item.id)}>
+                          {item.description ?? item.item_name ?? item.name}
+                        </MenuItem>
+                      ))
+                    ];
+                  });
+                })()}
               </Select>
             </FormControl>
           </Grid>
