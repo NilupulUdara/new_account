@@ -47,9 +47,10 @@ export default function AddInventoryAdjustmentsSuccess() {
           Your inventory adjustment has been processed successfully.
         </Typography>
 
-        <Stack spacing={1} direction="column">
+        <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => navigate("/itemsandinventory/transactions/inventory-adjustments/view", { state })}
           >
             1. View this adjustment
@@ -57,6 +58,7 @@ export default function AddInventoryAdjustmentsSuccess() {
 
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => {
               // Navigate to GL postings view - pass reference so GL view can filter
               navigate("/bankingandgeneralledger/inquiriesandreports/gl-postings", { state: { reference } });
@@ -67,6 +69,7 @@ export default function AddInventoryAdjustmentsSuccess() {
 
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => navigate("/itemsandinventory/transactions/inventory-adjustments")}
           >
             3. Enter another adjustment
@@ -74,6 +77,7 @@ export default function AddInventoryAdjustmentsSuccess() {
 
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => navigate("/itemsandinventory/transactions/inventory-adjustments/add-attachment", { state })}
           >
             4. Add an attachment

@@ -27,26 +27,26 @@ function ManufacturingInquiriesAndReports() {
       text: "COSTED BILL OF MATERILA INQUIRY",
       change: +10,
       icon: <RequestQuoteIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      path: "/manufactoring/inquiriesandreports/costed-bill-of-material-inquiry"
+      path: "/manufacturing/inquiriesandreports/costed-bill-of-material-inquiry"
     },
     {
       text: "INVENTORY ITEM WHERE USED INQUIRY",
       change: -5,
       icon: <ShoppingCartIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      path: "/manufactoring/inquiriesandreports/inventory-item-where-used-inquiry"
+      path: "/manufacturing/inquiriesandreports/inventory-item-where-used-inquiry"
     },
     {
       text: "WORK ORDER INQUIRY",
       change: +8,
       icon: <ReceiptLongIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      path: "/manufactoring/inquiriesandreports/work-order-inquiry"
+      path: "/manufacturing/inquiriesandreports/work-order-inquiry"
     },
     {
 
       text: "MANUFACTURING REPORTS",
       change: 0,
       icon: <AssignmentIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      path: "/manufactoring/inquiriesandreports/manufacturing-reports"
+      path: "/manufacturing/inquiriesandreports/manufacturing-reports"
     },
   ];
 

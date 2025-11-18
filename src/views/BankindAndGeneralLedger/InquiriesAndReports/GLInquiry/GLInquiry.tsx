@@ -170,7 +170,7 @@ export default function GLInquiry() {
               size="small"
               onChange={(e) => {
                 setSelectedAccount(e.target.value);
-                setOpenAccountSelect(false);  // Explicitly close after selection
+                setOpenAccountSelect(false);
             }}
               SelectProps={{
                 open: openAccountSelect,

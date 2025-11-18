@@ -297,6 +297,16 @@ import SupplierTransactionInquiry from "./views/Purchases/InquiriesAndReports/Su
 import SupplierAllocationInquiry from "./views/Purchases/InquiriesAndReports/SupplierAllocationInquiry/SupplierAllocationInquiry";
 import ReceivePurchaseOrderItems from "./views/Purchases/Transactions/ReceivePurchaseOrderItems/ReceivePurchaseOrderItems";
 import ReceivePurchaseOrderItemsSuccess from "./views/Purchases/Transactions/ReceivePurchaseOrderItems/ReceivePurchaseOrderItemsSuccess";
+import AddBillsOfMaterialForm from "./views/Manufacturing/Maintenance/BillsOfMaterial/AddBillsOfMaterialForm";
+import UpdateBillsOfMaterialForm from "./views/Manufacturing/Maintenance/BillsOfMaterial/UpdateBillsOfMaterialForm";
+import CostedBillOfMaterialInquiry from "./views/Manufacturing/InquiriesAndReports/CostedBillOfMaterialInquiry/CostedBillOfMaterialInquiry";
+import InventoryItemWhereUsedInquiry from "./views/Manufacturing/InquiriesAndReports/InventoryItemWhereUsedInquiry/InventoryItemWhereUsedInquiry";
+import WorkOrderInquiry from "./views/Manufacturing/InquiriesAndReports/WorkOrderInquiry/WorkOrderInquiry";
+import WorkOrderEntry from "./views/Manufacturing/Transactions/WorkOrderEntry/WorkOrderEntry";
+import OutstandingWorkOrders from "./views/Manufacturing/Transactions/OutstandingWorkOrders/OutstandingWorkOrders";
+import WorkOrderEntrySuccess from "./views/Manufacturing/Transactions/WorkOrderEntry/WorkOrderEntrySuccess";
+import ViewWorkOrderEntry from "./views/Manufacturing/Transactions/WorkOrderEntry/ViewWorkOrderEntry";
+import ViewGLJournalEntry from "./views/Manufacturing/Transactions/WorkOrderEntry/ViewGLJournalEntry";
 import SupplierInvoice from "./views/Purchases/Transactions/SupplierInvoice/SupplierInvoice";
 import SupplierInvoiceSuccess from "./views/Purchases/Transactions/SupplierInvoice/SupplierInvoiceSuccess";
 import ViewSupplierInvoice from "./views/Purchases/Transactions/SupplierInvoice/ViewSupplierInvoice";
@@ -2307,6 +2317,47 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/manufacturing/transactions/work-order-entry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Work order entry']}>
+              {withLayout(MainLayout, WorkOrderEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manufacturing/transactions/work-order-entry/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Work order entry']}>
+              {withLayout(MainLayout, WorkOrderEntrySuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manufacturing/transactions/work-order-entry/view"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Work order entry']}>
+              {withLayout(MainLayout, ViewWorkOrderEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manufacturing/transactions/work-order-entry/view-gl-journal-entries"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Work order entry']}>
+              {withLayout(MainLayout, ViewGLJournalEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manufacturing/transactions/outstanding-work-orders"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Work order releases']}>
+              {withLayout(MainLayout, OutstandingWorkOrders)}
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/manufacturing/inquiriesandreports"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Manufacturing Analytics']}>
@@ -2314,6 +2365,31 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/manufacturing/inquiriesandreports/costed-bill-of-material-inquiry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Manufacturing cost inquiry']}>
+              {withLayout(MainLayout, CostedBillOfMaterialInquiry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manufacturing/inquiriesandreports/inventory-item-where-used-inquiry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Manufacturing cost inquiry']}>
+              {withLayout(MainLayout, InventoryItemWhereUsedInquiry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manufacturing/inquiriesandreports/work-order-inquiry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Manufacturing cost inquiry']}>
+              {withLayout(MainLayout, WorkOrderInquiry)}
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/manufacturing/maintenance"
           element={
@@ -2349,8 +2425,24 @@ const AppRoutes = () => {
         <Route
           path="/manufacturing/maintenance/bills-of-material"
           element={
-            <ProtectedRoute required={PERMISSION_ID_MAP['Manufacture work centres']}>
+            <ProtectedRoute required={PERMISSION_ID_MAP['Bill of Materials']}>
               {withLayout(MainLayout, BillsOfMaterialTable)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manufacturing/maintenance/add-bills-of-material"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Bill of Materials']}>
+              {withLayout(MainLayout, AddBillsOfMaterialForm)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manufacturing/maintenance/update-bills-of-material"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Bill of Materials']}>
+              {withLayout(MainLayout, UpdateBillsOfMaterialForm)}
             </ProtectedRoute>
           }
         />

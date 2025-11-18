@@ -47,9 +47,10 @@ export default function PaymentsSuccess() {
           Your payment has been processed successfully.
         </Typography>
 
-        <Stack spacing={1} direction="column">
+        <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => {
               // Navigate to GL postings view - pass reference so GL view can filter
               navigate("/bankingandgeneralledger/transactions/gl-postings", { state: { reference } });
@@ -60,6 +61,7 @@ export default function PaymentsSuccess() {
 
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => navigate("/bankingandgeneralledger/transactions/bankingandgeneralledger-quotation-entry")}
           >
             2. Enter another payment
@@ -67,6 +69,7 @@ export default function PaymentsSuccess() {
 
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => navigate("/bankingandgeneralledger/transactions/bankingandgeneralledger-order-entry")}
           >
             3. Enter a deposit
@@ -74,6 +77,7 @@ export default function PaymentsSuccess() {
 
           <Button
             variant="outlined"
+            sx={{ width: '500px' }}
             onClick={() => navigate("/bankingandgeneralledger/transactions/payments/add-attachment", { state })}
           >
             4. Add an attachment
