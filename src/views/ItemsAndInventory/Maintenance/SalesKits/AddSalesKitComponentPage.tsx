@@ -18,6 +18,7 @@ import {
   FormHelperText,
   useTheme,
   useMediaQuery,
+  ListSubheader,
 } from "@mui/material";
 import theme from "../../../../theme";
 
@@ -37,6 +38,11 @@ export default function AddSalesKitComponentPage() {
     queryFn: getItems,
   });
   const items = (itemsData && (itemsData.data ?? itemsData)) ?? [];
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ["itemCategories"],
+    queryFn: () => import("../../../../api/ItemCategories/ItemCategoriesApi").then(m => m.getItemCategories()) as Promise<{ category_id: number; description: string }[]>,
+  });
 
   const [form, setForm] = useState({ stock_id: "", quantity: "" });
   const [errors, setErrors] = useState<{ stock_id?: string; quantity?: string }>({});
@@ -103,14 +109,39 @@ export default function AddSalesKitComponentPage() {
           <FormControl size="small" fullWidth error={!!errors.stock_id}>
             <InputLabel>Component</InputLabel>
             <Select name="stock_id" value={form.stock_id} label="Component" onChange={(e) => setForm({ ...form, stock_id: e.target.value as string })}>
+              <MenuItem value="">Select component</MenuItem>
               {itemsLoading ? (
                 <MenuItem disabled value="">Loading...</MenuItem>
               ) : items.length > 0 ? (
-                items.map((item: any) => (
-                  <MenuItem key={item.stock_id || item.id} value={String(item.stock_id ?? item.id)}>
-                    {item.description ?? item.item_name ?? item.name}
-                  </MenuItem>
-                ))
+                (() => {
+                  return Object.entries(
+                    items.reduce((groups: Record<string, any[]>, item) => {
+                      const catId = item.category_id || "Uncategorized";
+                      if (!groups[catId]) groups[catId] = [];
+                      groups[catId].push(item);
+                      return groups;
+                    }, {} as Record<string, any[]>)
+                  ).map(([categoryId, groupedItems]: [string, any[]]) => {
+                    const category = categories.find(cat => cat.category_id === Number(categoryId));
+                    const categoryLabel = category ? category.description : `Category ${categoryId}`;
+                    return [
+                      <ListSubheader key={`cat-${categoryId}`}>
+                        {categoryLabel}
+                      </ListSubheader>,
+                      groupedItems.map((item) => {
+                        const stockId = item.stock_id ?? item.id ?? item.stock_master_id ?? item.item_id ?? 0;
+                        const key = String(stockId);
+                        const label = item.item_name ?? item.name ?? item.description ?? String(stockId);
+                        const value = String(stockId);
+                        return (
+                          <MenuItem key={key} value={value}>
+                            {label}
+                          </MenuItem>
+                        );
+                      })
+                    ];
+                  });
+                })()
               ) : (
                 <MenuItem disabled value="">No items available</MenuItem>
               )}

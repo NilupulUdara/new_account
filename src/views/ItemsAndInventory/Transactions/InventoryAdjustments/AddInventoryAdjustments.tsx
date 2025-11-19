@@ -16,6 +16,7 @@ import {
   MenuItem,
   Grid,
   Alert,
+  ListSubheader,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
@@ -48,7 +49,13 @@ export default function AddInventoryAdjustments() {
   // Fetch items
   const { data: items = [] } = useQuery({
     queryKey: ["items"],
-    queryFn: () => getItems() as Promise<{ stock_id: string | number; description: string; material_cost?: number }[]>,
+    queryFn: getItems,
+  });
+
+  // Fetch item categories
+  const { data: categories = [] } = useQuery({
+    queryKey: ["itemCategories"],
+    queryFn: () => import("../../../../api/ItemCategories/ItemCategoriesApi").then(m => m.getItemCategories()) as Promise<{ category_id: number; description: string }[]>,
   });
 
   // Fetch fiscal years
@@ -506,15 +513,46 @@ export default function AddInventoryAdjustments() {
                       }
                     }}
                   >
-                    {filteredItems
-                      .filter(item => 
-                        !rows.some(r => r.id !== row.id && r.selectedItemId === item.stock_id)
-                      )
-                      .map((item) => (
-                        <MenuItem key={item.stock_id} value={item.description}>
-                          {item.description}
-                        </MenuItem>
-                      ))}
+                    <MenuItem value="">Select item</MenuItem>
+                    {filteredItems && filteredItems.length > 0 ? (
+                      (() => {
+                        return Object.entries(
+                          filteredItems
+                            .filter(item => 
+                              !rows.some(r => r.id !== row.id && r.selectedItemId === item.stock_id)
+                            )
+                            .reduce((groups: Record<string, any[]>, item) => {
+                              const catId = item.category_id || "Uncategorized";
+                              if (!groups[catId]) groups[catId] = [];
+                              groups[catId].push(item);
+                              return groups;
+                            }, {} as Record<string, any[]>)
+                        ).map(([categoryId, groupedItems]: [string, any[]]) => {
+                          const category = categories.find(cat => cat.category_id === Number(categoryId));
+                          const categoryLabel = category ? category.description : `Category ${categoryId}`;
+                          return [
+                            <ListSubheader key={`cat-${categoryId}`}>
+                              {categoryLabel}
+                            </ListSubheader>,
+                            groupedItems.map((item) => {
+                              const stockId = item.stock_id ?? item.id ?? item.stock_master_id ?? item.item_id ?? 0;
+                              const key = stockId;
+                              const label = item.item_name ?? item.name ?? item.description ?? String(stockId);
+                              const value = item.description;
+                              return (
+                                <MenuItem key={String(key)} value={value}>
+                                  {label}
+                                </MenuItem>
+                              );
+                            })
+                          ];
+                        });
+                      })()
+                    ) : (
+                      <MenuItem disabled value="">
+                        No items
+                      </MenuItem>
+                    )}
                   </TextField>
                 </TableCell>
                 <TableCell>

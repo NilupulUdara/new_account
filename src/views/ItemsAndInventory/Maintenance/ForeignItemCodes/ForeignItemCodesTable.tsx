@@ -20,6 +20,7 @@ import {
     InputLabel,
     Select,
     MenuItem,
+    ListSubheader,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -50,6 +51,11 @@ function ForeignItemCodesTable() {
     const { data: rawItems } = useQuery({
         queryKey: ["items"],
         queryFn: getItems,
+    });
+
+    const { data: categories = [] } = useQuery({
+        queryKey: ["itemCategories"],
+        queryFn: () => import("../../../../api/ItemCategories/ItemCategoriesApi").then(m => m.getItemCategories()) as Promise<{ category_id: number; description: string }[]>,
     });
 
     // Mutation to delete item code
@@ -166,19 +172,37 @@ function ForeignItemCodesTable() {
                             label="Select Item"
                             onChange={(e) => setSelectedItem(e.target.value)}
                         >
-                                {items && items.length > 0 ? (
-                                items.map((item, idx) => {
-                                    // Prefer stock_id as the join key between items and item-codes
-                                    const stockId = item.stock_id ?? item.id ?? item.stock_master_id ?? item.item_id ?? idx;
-                                    const key = stockId;
-                                    const label = item.item_name ?? item.name ?? item.description ?? String(stockId);
-                                    const value = String(stockId);
-                                    return (
-                                        <MenuItem key={String(key)} value={value}>
-                                            {label}
-                                        </MenuItem>
-                                    );
-                                })
+                            <MenuItem value="">Select item</MenuItem>
+                            {items && items.length > 0 ? (
+                                (() => {
+                                    return Object.entries(
+                                        items.reduce((groups: Record<string, any[]>, item) => {
+                                            const catId = item.category_id || "Uncategorized";
+                                            if (!groups[catId]) groups[catId] = [];
+                                            groups[catId].push(item);
+                                            return groups;
+                                        }, {} as Record<string, any[]>)
+                                    ).map(([categoryId, groupedItems]: [string, any[]]) => {
+                                        const category = categories.find(cat => cat.category_id === Number(categoryId));
+                                        const categoryLabel = category ? category.description : `Category ${categoryId}`;
+                                        return [
+                                            <ListSubheader key={`cat-${categoryId}`}>
+                                                {categoryLabel}
+                                            </ListSubheader>,
+                                            groupedItems.map((item) => {
+                                                const stockId = item.stock_id ?? item.id ?? item.stock_master_id ?? item.item_id ?? 0;
+                                                const key = String(stockId);
+                                                const label = item.item_name ?? item.name ?? item.description ?? String(stockId);
+                                                const value = String(stockId);
+                                                return (
+                                                    <MenuItem key={key} value={value}>
+                                                        {label}
+                                                    </MenuItem>
+                                                );
+                                            })
+                                        ];
+                                    });
+                                })()
                             ) : (
                                 <MenuItem disabled value="">
                                     No items

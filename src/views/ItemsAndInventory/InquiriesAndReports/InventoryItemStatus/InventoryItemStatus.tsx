@@ -20,6 +20,7 @@ import {
     FormControl,
     InputLabel,
     Select,
+    ListSubheader,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -55,6 +56,7 @@ function InventoryItemStatus({ itemId }: ItemStatusProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedItemId, setSelectedItemId] = useState<string | number | null>(itemId ?? null);
     const [items, setItems] = useState<any[]>([]);
+    const [categories, setCategories] = useState<any[]>([]);
     const navigate = useNavigate();
     const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
 
@@ -67,6 +69,19 @@ function InventoryItemStatus({ itemId }: ItemStatusProps) {
         }).catch(err => {
             console.error("Failed to load items:", err);
             setItems([]);
+        });
+        return () => { mounted = false; };
+    }, []);
+
+    // Load item categories
+    useEffect(() => {
+        let mounted = true;
+        import("../../../../api/ItemCategories/ItemCategoriesApi").then(m => m.getItemCategories()).then(data => {
+            if (!mounted) return;
+            setCategories(Array.isArray(data) ? data : []);
+        }).catch(err => {
+            console.error("Failed to load categories:", err);
+            setCategories([]);
         });
         return () => { mounted = false; };
     }, []);
@@ -204,18 +219,37 @@ function InventoryItemStatus({ itemId }: ItemStatusProps) {
                                 setPage(0);
                             }}
                         >
+                            <MenuItem value="">Select item</MenuItem>
                             {items && items.length > 0 ? (
-                                items.map((item: any, idx: number) => {
-                                    const stockId = item.stock_id ?? item.id ?? item.stock_master_id ?? item.item_id ?? idx;
-                                    const key = String(stockId);
-                                    const label = item.item_name ?? item.name ?? item.description ?? String(stockId);
-                                    const value = String(stockId);
-                                    return (
-                                        <MenuItem key={key} value={value}>
-                                            {label}
-                                        </MenuItem>
-                                    );
-                                })
+                                (() => {
+                                    return Object.entries(
+                                        items.reduce((groups: Record<string, any[]>, item) => {
+                                            const catId = item.category_id || "Uncategorized";
+                                            if (!groups[catId]) groups[catId] = [];
+                                            groups[catId].push(item);
+                                            return groups;
+                                        }, {} as Record<string, any[]>)
+                                    ).map(([categoryId, groupedItems]: [string, any[]]) => {
+                                        const category = categories.find(cat => cat.category_id === Number(categoryId));
+                                        const categoryLabel = category ? category.description : `Category ${categoryId}`;
+                                        return [
+                                            <ListSubheader key={`cat-${categoryId}`}>
+                                                {categoryLabel}
+                                            </ListSubheader>,
+                                            groupedItems.map((item) => {
+                                                const stockId = item.stock_id ?? item.id ?? item.stock_master_id ?? item.item_id ?? 0;
+                                                const key = String(stockId);
+                                                const label = item.item_name ?? item.name ?? item.description ?? String(stockId);
+                                                const value = String(stockId);
+                                                return (
+                                                    <MenuItem key={key} value={value}>
+                                                        {label}
+                                                    </MenuItem>
+                                                );
+                                            })
+                                        ];
+                                    });
+                                })()
                             ) : (
                                 <MenuItem disabled value="">No items</MenuItem>
                             )}

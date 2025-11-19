@@ -33,6 +33,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  ListSubheader,
 } from "@mui/material";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
@@ -527,16 +528,41 @@ export default function AddSalesKitsForm() {
                       onChange={handleComponentChange}
                       label="Component Name"
                     >
+                      <MenuItem value="">Select component</MenuItem>
                       {itemsLoading ? (
                         <MenuItem disabled value="">
                           Loading...
                         </MenuItem>
                       ) : items.length > 0 ? (
-                        items.map((item: any) => (
-                          <MenuItem key={item.stock_id || item.id} value={item.description}>
-                            {item.description}
-                          </MenuItem>
-                        ))
+                        (() => {
+                          return Object.entries(
+                            items.reduce((groups: Record<string, any[]>, item) => {
+                              const catId = item.category_id || "Uncategorized";
+                              if (!groups[catId]) groups[catId] = [];
+                              groups[catId].push(item);
+                              return groups;
+                            }, {} as Record<string, any[]>)
+                          ).map(([categoryId, groupedItems]: [string, any[]]) => {
+                            const category = categories.find(cat => cat.category_id === Number(categoryId));
+                            const categoryLabel = category ? category.description : `Category ${categoryId}`;
+                            return [
+                              <ListSubheader key={`cat-${categoryId}`}>
+                                {categoryLabel}
+                              </ListSubheader>,
+                              groupedItems.map((item) => {
+                                const stockId = item.stock_id ?? item.id ?? item.stock_master_id ?? item.item_id ?? 0;
+                                const key = String(stockId);
+                                const label = item.item_name ?? item.name ?? item.description ?? String(stockId);
+                                const value = item.description;
+                                return (
+                                  <MenuItem key={key} value={value}>
+                                    {label}
+                                  </MenuItem>
+                                );
+                              })
+                            ];
+                          });
+                        })()
                       ) : (
                         <MenuItem disabled value="">
                           No items available
