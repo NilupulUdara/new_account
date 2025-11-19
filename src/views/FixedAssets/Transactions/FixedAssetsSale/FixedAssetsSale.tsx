@@ -37,7 +37,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 
-export default function DirectInvoice() {
+export default function FixedAssetsSale() {
     const navigate = useNavigate();
 
     // ===== Form fields =====
@@ -173,8 +173,8 @@ export default function DirectInvoice() {
     };
 
     const breadcrumbItems = [
-        { title: "Transactions", href: "/sales/transactions/" },
-        { title: "Direct Sales Invoice" },
+        { title: "Transactions", href: "/fixedassets/transactions/" },
+        { title: "Fixed Assets Sale" },
     ];
 
     const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
@@ -193,7 +193,7 @@ export default function DirectInvoice() {
                 }}
             >
                 <Box>
-                    <PageTitle title="Direct Sales Invoice" />
+                    <PageTitle title="Fixed Assets Sale" />
                     <Breadcrumb breadcrumbs={breadcrumbItems} />
                 </Box>
 

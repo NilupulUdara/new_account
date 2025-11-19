@@ -204,6 +204,7 @@ export default function OutstandingPurchaseOrdersMaintenance() {
               <TableCell>Order Date</TableCell>
               <TableCell>Currency</TableCell>
               <TableCell>Order Total</TableCell>
+              <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
 
@@ -218,6 +219,13 @@ export default function OutstandingPurchaseOrdersMaintenance() {
                 <TableCell>{r.deliveryDate}</TableCell>
                 <TableCell>{r.currency}</TableCell>
                 <TableCell>{r.deliveryTotal}</TableCell>
+                <TableCell align="center">
+                  <Stack direction="row" spacing={1} justifyContent="center">
+                    <Button variant="outlined" size="small">Edit</Button>
+                    <Button variant="outlined" size="small">Receive</Button>
+                    <Button variant="outlined" size="small">Print</Button>
+                  </Stack>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -226,7 +234,7 @@ export default function OutstandingPurchaseOrdersMaintenance() {
             <TableRow>
               <TablePagination
                 rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                colSpan={8}
+                colSpan={9}
                 count={rows.length}
                 rowsPerPage={rowsPerPage}
                 page={page}

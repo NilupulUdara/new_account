@@ -183,6 +183,7 @@ export default function InvoiceAgainstSalesDelivery() {
               <TableCell>Delivery Total</TableCell>
               <TableCell>Currency</TableCell>
               <TableCell align="center">Batch</TableCell>
+              <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
 
@@ -202,6 +203,13 @@ export default function InvoiceAgainstSalesDelivery() {
                 <TableCell align="center">
                   <Button variant="outlined" size="small" onClick={() => console.log("Batch for", r.deliveryNo)}>Batch</Button>
                 </TableCell>
+                <TableCell align="center">
+                  <Stack direction="row" spacing={1} justifyContent="center">
+                    <Button variant="outlined" size="small" onClick={() => console.log("Edit for", r.deliveryNo)}>Edit</Button>
+                    <Button variant="outlined" size="small" onClick={() => console.log("Invoice for", r.deliveryNo)}>Invoice</Button>
+                    <Button variant="outlined" size="small" onClick={() => console.log("Print for", r.deliveryNo)}>Print</Button>
+                  </Stack>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -210,7 +218,7 @@ export default function InvoiceAgainstSalesDelivery() {
             <TableRow>
               <TablePagination
                 rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                colSpan={11}
+                colSpan={12}
                 count={rows.length}
                 rowsPerPage={rowsPerPage}
                 page={page}

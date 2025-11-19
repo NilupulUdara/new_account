@@ -16,6 +16,7 @@ import {
     MenuItem,
     Grid,
     Alert,
+    ListSubheader,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
@@ -31,6 +32,7 @@ import { getInventoryLocations } from "../../../../api/InventoryLocation/Invento
 // import { getCashAccounts } from "../../../../api/Accounts/CashAccountsApi";
 import { getItems, getItemById } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
+import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -62,6 +64,7 @@ export default function SalesQuotationEntry() {
     //   const { data: cashAccounts = [] } = useQuery({ queryKey: ["cashAccounts"], queryFn: getCashAccounts });
     const { data: items = [] } = useQuery({ queryKey: ["items"], queryFn: getItems });
     const { data: itemUnits = [] } = useQuery({ queryKey: ["itemUnits"], queryFn: getItemUnits });
+    const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
 
     // ===== Table rows =====
     const [rows, setRows] = useState([
@@ -120,19 +123,21 @@ export default function SalesQuotationEntry() {
         );
     };
 
-    // ===== Auto-generate reference =====
+    // Auto-select first customer on load
     useEffect(() => {
-        const year = new Date().getFullYear();
-        const random = Math.floor(Math.random() * 1000)
-            .toString()
-            .padStart(3, "0");
-        setReference(`${random}/${year}`);
-    }, []);
+        if (customers.length > 0 && !customer) {
+            setCustomer(customers[0].debtor_no);
+        }
+    }, [customers, customer]);
 
-    // Reset branch when customer changes
+    // Reset branch when customer changes and auto-select first branch
     useEffect(() => {
         setBranch("");
-    }, [customer]);
+        const customerBranches = branches.filter((b: any) => b.debtor_no === customer);
+        if (customerBranches.length > 0) {
+            setBranch(customerBranches[0].branch_code);
+        }
+    }, [customer, branches]);
 
     // Update credit and discount when customer changes
     useEffect(() => {
@@ -372,11 +377,21 @@ export default function SalesQuotationEntry() {
                                             }
                                         }}
                                     >
-                                        {items.map((it: any) => (
-                                            <MenuItem key={it.stock_id} value={it.description}>
-                                                {it.description}
-                                            </MenuItem>
-                                        ))}
+                                        {Object.entries(
+                                            items.reduce((acc: any, item: any) => {
+                                                const category = categories.find((c: any) => c.category_id === item.category_id)?.description || "Uncategorized";
+                                                if (!acc[category]) acc[category] = [];
+                                                acc[category].push(item);
+                                                return acc;
+                                            }, {} as Record<string, any[]>)
+                                        ).map(([category, catItems]: [string, any[]]) => [
+                                            <ListSubheader key={category}>{category}</ListSubheader>,
+                                            ...catItems.map((item: any) => (
+                                                <MenuItem key={item.stock_id} value={item.description}>
+                                                    {item.description}
+                                                </MenuItem>
+                                            )),
+                                        ])}
                                     </TextField>
                                 </TableCell>
                                 <TableCell>

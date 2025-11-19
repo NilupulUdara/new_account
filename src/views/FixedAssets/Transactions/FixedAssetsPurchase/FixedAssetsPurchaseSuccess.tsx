@@ -5,14 +5,14 @@ import { useLocation, useNavigate } from "react-router-dom";
 import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
 
-export default function SalesOrderEntrySuccess() {
+export default function FixedAssetsPurchaseSuccess() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const { location: loc, reference, date } = state || {};
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
-    { title: "New Sales Order Entry" },
+    { title: "Direct Purchase Invoice Entry" },
   ];
 
   return (
@@ -29,14 +29,14 @@ export default function SalesOrderEntrySuccess() {
         }}
       >
         <Box>
-          <PageTitle title="New Sales Order Entry" />
+          <PageTitle title="Direct Purchase Invoice Entry" />
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
 
         <Button
           variant="outlined"
           startIcon={<CloseIcon />}
-          onClick={() => navigate("/sales/transactions")}
+          onClick={() => navigate("/purchase/transactions")}
         >
           Close
         </Button>
@@ -44,28 +44,16 @@ export default function SalesOrderEntrySuccess() {
 
       <Paper sx={{ p: 2 }}>
         <Typography sx={{ mb: 2 }}>
-        Order # has been entered.
+          Purchase Order has been entered
         </Typography>
 
         <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
             sx={{ width: '300px' }}
-            onClick={() => navigate("/sales/transactions/sales-order-entry/view-sales-order", { state })}
+            onClick={() => navigate("/fixedassets/transactions/fixed-assets-purchase/view-fixed-assets-purchase", { state })}
           >
-            View This Order
-          </Button>
-
-          <Button
-            variant="outlined"
-            sx={{ width: '300px' }}
-            onClick={() => {
-              // Navigate to GL postings view - pass reference so GL view can filter
-              navigate("", { state: { reference } });
-            }}
-          >
-            Print This Order
-
+            View this Invoice
           </Button>
 
           <Button
@@ -73,29 +61,22 @@ export default function SalesOrderEntrySuccess() {
             sx={{ width: '300px' }}
             onClick={() => navigate("/")}
           >
-            Email This Order
+            View the GL Journal Entries for this Invoice
           </Button>
 
           <Button
             variant="outlined"
             sx={{ width: '300px' }}
-            onClick={() => navigate("/sales/transactions/customer-delivery", { state })}
+            onClick={() => navigate("/purchase/transactions/payment-to-suppliers", { state })}
           >
-           Make Delivery Against This Order
+           Entry supplier payment for this invoice
           </Button>
           <Button
             variant="outlined"
             sx={{ width: '300px' }}
-            onClick={() => navigate("/manufacturing/transactions/work-order-entry", { state })}
+            onClick={() => navigate("/purchase/transactions/direct-supplier-invoice", { state })}
           >
-           Work Order Entry
-          </Button>
-          <Button
-            variant="outlined"
-            sx={{ width: '300px' }}
-            onClick={() => navigate("/sales/transactions/sales-order-entry", { state })}
-          >
-           Enter a New Order
+           Enter Another Direct Invoice
           </Button>
           <Button
             variant="outlined"

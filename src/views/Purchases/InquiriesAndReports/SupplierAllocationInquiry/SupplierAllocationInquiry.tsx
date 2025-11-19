@@ -219,6 +219,7 @@ export default function SupplierAllocationInquiry() {
               <TableCell align="right">Credit</TableCell>
               <TableCell align="right">Allocated</TableCell>
               <TableCell align="right">Balance</TableCell>
+              <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
 
@@ -235,6 +236,9 @@ export default function SupplierAllocationInquiry() {
                 <TableCell align="right">{r.credit.toFixed(2)}</TableCell>
                 <TableCell align="right">{r.allocated.toFixed(2)}</TableCell>
                 <TableCell align="right">{r.balance.toFixed(2)}</TableCell>
+                <TableCell align="center">
+                  <Button variant="outlined" size="small">Allocation</Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -243,7 +247,7 @@ export default function SupplierAllocationInquiry() {
             <TableRow>
               <TablePagination
                 rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                colSpan={10}
+                colSpan={11}
                 count={rows.length}
                 rowsPerPage={rowsPerPage}
                 page={page}
