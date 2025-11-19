@@ -76,7 +76,13 @@ const allItems = [
 ];
 
   const handleItemClick = (path, text) => {
-    if (path) {
+    if (text === "BANKING REPORTS") {
+      // Navigate to Reports page with Banking class pre-selected
+      navigate("/reports", { state: { selectedClass: "Banking" } });
+    } else if (text === "GENERAL LEDGER REPORTS") {
+      // Navigate to Reports page with General Ledger class pre-selected
+      navigate("/reports", { state: { selectedClass: "GeneralLedger" } });
+    } else if (path) {
       navigate(path);
     } else {
       console.log(`Clicked: ${text} (No route defined)`);

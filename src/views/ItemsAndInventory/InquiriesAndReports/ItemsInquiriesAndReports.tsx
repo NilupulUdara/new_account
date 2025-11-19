@@ -45,7 +45,10 @@ function ItemsInquiriesAndReports() {
   ];
 
   const handleItemClick = (path, text) => {
-    if (path) {
+    if (text === "INVENTORY REPORTS") {
+      // Navigate to Reports page with Items and Inventory class pre-selected
+      navigate("/reports", { state: { selectedClass: "Inventory" } });
+    } else if (path) {
       navigate(path);
     } else {
       console.log(`Clicked: ${text} (No route defined)`);

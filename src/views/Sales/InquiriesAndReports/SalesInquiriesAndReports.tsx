@@ -31,7 +31,9 @@ const allItems = [
 ];
 
   const handleItemClick = (path, text) => {
-    if (path) {
+    if (text === "CUSTOMER AND SALES REPORTS") {
+      navigate("/reports", { state: { selectedClass: "Customer" } });
+    } else if (path) {
       navigate(path);
     } else {
       console.log(`Clicked: ${text} (No route defined)`);

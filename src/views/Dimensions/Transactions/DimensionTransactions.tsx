@@ -30,13 +30,13 @@ function DimensionTransactions() {
       text: "DIMENSION ENTRY",
       change: +36,
       icon: <RequestQuoteIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      path: "/dimensions/transactions/dimension-entry",
+      path: "/dimension/transactions/dimension-entry",
     },
     {
       text: "OUTSTANDING DIMENSIONS",
       change: -14,
       icon: <ShoppingCartIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      path: "/dimensions/transactions/outstanding-dimensions",
+      path: "/dimension/transactions/outstanding-dimensions",
     },
   ];
 

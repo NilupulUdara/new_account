@@ -132,7 +132,7 @@ export default function AddForeignItemCodesForm() {
           />
 
           <TextField
-            label="Quantity (Each)"
+            label="Quantity"
             name="quantity"
             size="small"
             fullWidth

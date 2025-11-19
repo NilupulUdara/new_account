@@ -313,6 +313,10 @@ import ViewSupplierInvoice from "./views/Purchases/Transactions/SupplierInvoice/
 import SupplierCreditNote from "./views/Purchases/Transactions/SupplierCreditNote/SupplierCreditNote";
 import ViewSupplierCreditNote from "./views/Purchases/Transactions/SupplierCreditNote/ViewSupplierCreditNote";
 import SupplierCreditNoteSuccess from "./views/Purchases/Transactions/SupplierCreditNote/SupplierCreditNoteSuccess";
+import DimensionEntry from "./views/Dimensions/Transactions/DimensionEntry/DimensionEntry";
+import DimensionEntrySuccess from "./views/Dimensions/Transactions/DimensionEntry/DimensionEntrySuccess";
+import OutstandingDimensions from "./views/Dimensions/Transactions/OutstandingDimensions/OutstandingDimensions";
+import DimensionInquiry from "./views/Dimensions/InquiriesAndReports/DimensionInquiry/DimensionInquiry";
 import FixedAssetsLocationTransfers from "./views/FixedAssets/Transactions/FixedAssetsLocationTransfers/FixedAssetsLocationTransfers";
 import FixedAssetsInquiry from "./views/FixedAssets/InquiriesAndReports/FixedAssetsInquiry/FixedAssetsInquiry";
 import FixedAssetsCategoriesTable from "./views/FixedAssets/Maintenance/FixedAssetsCategories/FixedAssetsCategoriesTable";
@@ -1025,6 +1029,13 @@ const AppRoutes = () => {
       </Route>
 
       <Route element={<ProtectedRoute />}>
+        <Route
+          path="/reports"
+          element={withLayout(MainLayout, Reports)}
+        />
+      </Route>
+
+      <Route element={<ProtectedRoute />}>
         <Route path="/maintenance" element={<ProtectedRoute required={PERMISSION_ID_MAP['Special Maintenance']} />} />
         <Route
           path="/sales/transactions"
@@ -1306,14 +1317,7 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/sales/inquiriesandreports/customer-and-sales-reports"
-          element={
-            <ProtectedRoute required={PERMISSION_ID_MAP['Sales Related Reports']}>
-              {withLayout(MainLayout, Reports)}
-            </ProtectedRoute>
-          }
-        />
+        
         <Route
           path="/sales/maintenance"
           element={
@@ -2693,13 +2697,47 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/dimension/transactions/dimension-entry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Dimension entry']}>
+              {withLayout(MainLayout, DimensionEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dimension/transactions/dimension-entry/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Dimension entry']}>
+              {withLayout(MainLayout, DimensionEntrySuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dimension/transactions/outstanding-dimensions"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Dimension view']}>
+              {withLayout(MainLayout, OutstandingDimensions)}
+            </ProtectedRoute>
+          }
+        />
+        
+        <Route
           path="/dimension/inquiriesandreports"
           element={
-            <ProtectedRoute required={PERMISSION_ID_MAP['Dimension reports']}>
+            <ProtectedRoute required={PERMISSION_ID_MAP['Dimensions']}>
               {withLayout(MainLayout, DimensionInquiriesAndReports)}
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/dimension/inquiriesandreports/dimension-inquiry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Dimension view']}>
+              {withLayout(MainLayout, DimensionInquiry)}
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/dimension/maintenance"
           element={

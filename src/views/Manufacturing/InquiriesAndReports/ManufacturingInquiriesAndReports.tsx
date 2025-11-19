@@ -51,7 +51,10 @@ function ManufacturingInquiriesAndReports() {
   ];
 
   const handleItemClick = (path, text) => {
-    if (path) {
+    if (text === "MANUFACTURING REPORTS") {
+      // Navigate to Reports page with Manufacturing class pre-selected
+      navigate("/reports", { state: { selectedClass: "Manufacturing" } });
+    } else if (path) {
       navigate(path);
     } else {
       console.log(`Clicked: ${text} (No route defined)`);

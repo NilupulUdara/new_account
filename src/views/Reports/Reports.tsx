@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Grid,
@@ -14,8 +14,22 @@ import {
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import PageTitle from "../../components/PageTitle";
 import Breadcrumb from "../../components/BreadCrumb";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import { PERMISSION_ID_MAP } from "../../permissions/map";
 import { reportClasses } from "./reportClasses"; // <-- your external list
+
+// Permission mapping for report classes
+const REPORT_CLASS_PERMISSIONS: Record<string, number> = {
+  Customer: PERMISSION_ID_MAP["Sales analytical reports"],
+  Supplier: PERMISSION_ID_MAP["Supplier analytical reports"],
+  Inventory: PERMISSION_ID_MAP["Inventory Analytics"],
+  Manufacturing: PERMISSION_ID_MAP["Manufacturing Analytics"],
+  FixedAssets: PERMISSION_ID_MAP["Fixed Asset analytical reports and inquiries"],
+  Dimensions: PERMISSION_ID_MAP["Dimension reports"],
+  Banking: PERMISSION_ID_MAP["Banking & GL Analytics"],
+  GeneralLedger: PERMISSION_ID_MAP["GL reports and inquiries"],
+};
 
 // Dynamic form loader
 const formLoader = async (className: string, reportName: string) => {
@@ -26,12 +40,30 @@ const formLoader = async (className: string, reportName: string) => {
 
 export default function Reports() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { hasPermission } = useAuth();
 
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedReport, setSelectedReport] = useState("");
   const [LoadedForm, setLoadedForm] = useState<React.ComponentType | null>(
     null
   );
+
+  // Check if user has permission for a report class
+  const hasClassPermission = (className: string) => {
+    const requiredPermission = REPORT_CLASS_PERMISSIONS[className];
+    return requiredPermission ? hasPermission(requiredPermission) : true;
+  };
+
+  // Handle pre-selected class from navigation state
+  useEffect(() => {
+    const state = location.state as any;
+    if (state?.selectedClass && Object.keys(reportClasses).includes(state.selectedClass) && hasClassPermission(state.selectedClass)) {
+      setSelectedClass(state.selectedClass);
+      // Clear the state to prevent re-setting on future navigations
+      navigate(location.pathname + location.search, { replace: true, state: {} });
+    }
+  }, [location.state, navigate, location.pathname, location.search]);
 
   // Load form after clicking report
   const handleReportClick = async (report: string) => {
@@ -101,25 +133,35 @@ export default function Reports() {
             <Divider sx={{ mb: 1 }} />
 
             <List>
-              {Object.keys(reportClasses).map((cls) => (
-                <ListItemButton
-                  key={cls}
-                  selected={selectedClass === cls}
-                  onClick={() => {
-                    setSelectedClass(cls);
-                    setSelectedReport("");
-                    setLoadedForm(null);
-                  }}
-                  sx={{
-                    borderRadius: 1,
-                    "&.Mui-selected": {
-                      backgroundColor: "var(--pallet-light-blue)",
-                    },
-                  }}
-                >
-                  <ListItemText primary={cls} />
-                </ListItemButton>
-              ))}
+              {Object.keys(reportClasses).map((cls) => {
+                const hasPermission = hasClassPermission(cls);
+                return (
+                  <ListItemButton
+                    key={cls}
+                    selected={selectedClass === cls}
+                    disabled={!hasPermission}
+                    onClick={() => {
+                      if (hasPermission) {
+                        setSelectedClass(cls);
+                        setSelectedReport("");
+                        setLoadedForm(null);
+                      }
+                    }}
+                    sx={{
+                      borderRadius: 1,
+                      "&.Mui-selected": {
+                        backgroundColor: "var(--pallet-light-blue)",
+                      },
+                      "&.Mui-disabled": {
+                        opacity: 0.6,
+                        color: "text.disabled",
+                      },
+                    }}
+                  >
+                    <ListItemText primary={cls} />
+                  </ListItemButton>
+                );
+              })}
             </List>
           </Paper>
         </Grid>

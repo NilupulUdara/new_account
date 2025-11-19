@@ -5,14 +5,14 @@ import { useLocation, useNavigate } from "react-router-dom";
 import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
 
-export default function AddInventoryAdjustmentsSuccess() {
+export default function DimensionEntrySuccess() {
   const navigate = useNavigate();
   const { state } = useLocation();
-  const { location: loc, reference, date } = state || {};
+  const { reference } = state || {};
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
-    { title: "Inventory Adjustments" },
+    { title: "Dimension Entry" },
   ];
 
   return (
@@ -29,14 +29,14 @@ export default function AddInventoryAdjustmentsSuccess() {
         }}
       >
         <Box>
-          <PageTitle title="Items adjustment has been processed." />
+          <PageTitle title="Dimension Entry" />
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
 
         <Button
           variant="outlined"
           startIcon={<CloseIcon />}
-          onClick={() => navigate("/itemsandinventory/transactions")}
+          onClick={() => navigate("/dimension/transactions")}
         >
           Close
         </Button>
@@ -44,43 +44,32 @@ export default function AddInventoryAdjustmentsSuccess() {
 
       <Paper sx={{ p: 2 }}>
         <Typography sx={{ mb: 2 }}>
-          Your inventory adjustment has been processed successfully.
+          The Dimension has been added.
         </Typography>
 
         <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
             sx={{ width: '500px' }}
-            onClick={() => navigate("/itemsandinventory/transactions/inventory-adjustments/view", { state })}
+            onClick={() => navigate("/dimension/transactions/dimension-entry", { state })}
           >
-            1. View this adjustment
+            Enter a New Dimension
           </Button>
 
           <Button
             variant="outlined"
             sx={{ width: '500px' }}
-            onClick={() => {
-              // Navigate to GL postings view - pass reference so GL view can filter
-              navigate("/bankingandgeneralledger/transactions/gl-postings", { state: { reference } });
-            }}
+            onClick={() => navigate("/dimension/inquiriesandreports/dimension-inquiry")}
           >
-            2. View the GL Postings for this adjustment
+            Select an Existing Dimension
           </Button>
 
           <Button
             variant="outlined"
             sx={{ width: '500px' }}
-            onClick={() => navigate("/itemsandinventory/transactions/inventory-adjustments")}
+            onClick={() => navigate("/", { state })}
           >
-            3. Enter another adjustment
-          </Button>
-
-          <Button
-            variant="outlined"
-            sx={{ width: '500px' }}
-            onClick={() => navigate("/itemsandinventory/transactions/inventory-adjustments/add-attachment", { state })}
-          >
-            4. Add an attachment
+            Add an Attachment
           </Button>
         </Stack>
       </Paper>

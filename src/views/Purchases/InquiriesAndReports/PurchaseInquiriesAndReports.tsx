@@ -30,7 +30,9 @@ function PurchaseInquiriesAndReports() {
   ];
 
   const handleItemClick = (path, text) => {
-    if (path) {
+    if (text === "SUPPLIER & PURCHASING REPORTS") {
+      navigate("/reports", { state: { selectedClass: "Supplier" } });
+    } else if (path) {
       navigate(path);
     } else {
       console.log(`Clicked: ${text} (No route defined)`);

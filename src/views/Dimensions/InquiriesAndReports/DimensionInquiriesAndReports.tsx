@@ -24,12 +24,6 @@ function DimensionInquiriesAndReports() {
 
   const allItems = [
     {
-      text: "FIXED ASSET MOVEMENTS",
-      change: +10,
-      icon: <RequestQuoteIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
-      path: "/fixedassets/inquiriesandreports/fixed-asset-movements"
-    },
-    {
       text: "DIMENSION INQUIRY",
       change: -5,
       icon: <ShoppingCartIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
@@ -44,7 +38,10 @@ function DimensionInquiriesAndReports() {
   ];
 
   const handleItemClick = (path, text) => {
-    if (path) {
+    if (text === "DIMENSION REPORTS") {
+      // Navigate to Reports page with Dimensions class pre-selected
+      navigate("/reports", { state: { selectedClass: "Dimensions" } });
+    } else if (path) {
       navigate(path);
     } else {
       console.log(`Clicked: ${text} (No route defined)`);

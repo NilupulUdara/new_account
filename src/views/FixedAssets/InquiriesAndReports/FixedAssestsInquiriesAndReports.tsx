@@ -44,7 +44,9 @@ function FixedAssestsInquiriesAndReports() {
   ];
 
   const handleItemClick = (path, text) => {
-    if (path) {
+    if (text === "FIXED ASSSET REPORTS") {
+      navigate("/reports", { state: { selectedClass: "FixedAssets" } });
+    } else if (path) {
       navigate(path);
     } else {
       console.log(`Clicked: ${text} (No route defined)`);
