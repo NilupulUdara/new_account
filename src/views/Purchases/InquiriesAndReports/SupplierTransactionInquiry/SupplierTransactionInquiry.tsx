@@ -261,6 +261,7 @@ export default function SupplierTransactionInquiry() {
               <TableCell>Date</TableCell>
               <TableCell>Due Date</TableCell>
               <TableCell align="right">Amount</TableCell>
+              <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
 
@@ -282,6 +283,12 @@ export default function SupplierTransactionInquiry() {
                 <TableCell>{r.date}</TableCell>
                 <TableCell>{r.due_date}</TableCell>
                 <TableCell align="right">{r.amount.toFixed(2)}</TableCell>
+                <TableCell align="center">
+                  <Stack direction="row" spacing={1} justifyContent="center">
+                    <Button variant="outlined" size="small">GL</Button>
+                    <Button variant="outlined" size="small">Print Remittance</Button>
+                  </Stack>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

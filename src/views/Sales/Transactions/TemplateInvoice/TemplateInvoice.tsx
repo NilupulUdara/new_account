@@ -21,6 +21,7 @@ import {
   FormControl,
   InputLabel,
   Select,
+  ListSubheader,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SearchIcon from "@mui/icons-material/Search";
@@ -29,6 +30,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
+import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -58,6 +60,7 @@ export default function TemplateInvoice() {
   const { data: locations = [] } = useQuery({ queryKey: ["inventoryLocations"], queryFn: getInventoryLocations });
   const { data: items = [] } = useQuery({ queryKey: ["items"], queryFn: getItems });
   const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
+  const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
 
   // Header fields
   const [numberText, setNumberText] = useState(""); // '#'
@@ -165,9 +168,19 @@ export default function TemplateInvoice() {
               <InputLabel id="td-item-label">Select Item</InputLabel>
               <Select labelId="td-item-label" value={selectedItem ?? ""} label="Select Item" onChange={(e) => setSelectedItem(String(e.target.value))}>
                 <MenuItem value="ALL_ITEMS">All Items</MenuItem>
-                {(items || []).map((it: any) => (
-                  <MenuItem key={it.stock_id ?? it.id} value={String(it.stock_id ?? it.id)}>{it.description ?? it.item_name ?? it.name}</MenuItem>
-                ))}
+                {Object.entries(
+                  items.reduce((acc: any, item: any) => {
+                    const category = categories.find((c: any) => c.category_id === item.category_id)?.description || "Uncategorized";
+                    if (!acc[category]) acc[category] = [];
+                    acc[category].push(item);
+                    return acc;
+                  }, {} as Record<string, any[]>)
+                ).map(([category, catItems]: [string, any[]]) => [
+                  <ListSubheader key={category}>{category}</ListSubheader>,
+                  ...catItems.map((item: any) => (
+                    <MenuItem key={item.stock_id ?? item.id} value={String(item.stock_id ?? item.id)}>{item.description ?? item.item_name ?? item.name}</MenuItem>
+                  )),
+                ])}
               </Select>
             </FormControl>
           </Grid>

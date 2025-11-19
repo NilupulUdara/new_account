@@ -5,14 +5,14 @@ import { useLocation, useNavigate } from "react-router-dom";
 import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
 
-export default function SalesOrderEntrySuccess() {
+export default function FixedAssetsDisposalSuccess() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const { location: loc, reference, date } = state || {};
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
-    { title: "New Sales Order Entry" },
+    { title: "Fixed Assets Disposal" },
   ];
 
   return (
@@ -29,14 +29,14 @@ export default function SalesOrderEntrySuccess() {
         }}
       >
         <Box>
-          <PageTitle title="New Sales Order Entry" />
+          <PageTitle title="Fixed Assets Disposal" />
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
 
         <Button
           variant="outlined"
           startIcon={<CloseIcon />}
-          onClick={() => navigate("/sales/transactions")}
+          onClick={() => navigate("/itemsandinventory/transactions")}
         >
           Close
         </Button>
@@ -44,65 +44,43 @@ export default function SalesOrderEntrySuccess() {
 
       <Paper sx={{ p: 2 }}>
         <Typography sx={{ mb: 2 }}>
-        Order # has been entered.
+          Fixed Assets disposal has been processed
         </Typography>
 
         <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
-            onClick={() => navigate("/sales/transactions/sales-order-entry/view-sales-order", { state })}
+            sx={{ width: '500px' }}
+            onClick={() => navigate("/fixedassets/transactions/fixed-assets-disposal/view-fixed-assets-disposal", { state })}
           >
-            View This Order
+            View this disposal
           </Button>
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => {
               // Navigate to GL postings view - pass reference so GL view can filter
-              navigate("", { state: { reference } });
+              navigate("/bankingandgeneralledger/inquiriesandreports/gl-postings", { state: { reference } });
             }}
           >
-            Print This Order
-
+            View the GL Postings for this Disposal
           </Button>
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
-            onClick={() => navigate("/")}
+            sx={{ width: '500px' }}
+            onClick={() => navigate("/fixedassets/transactions/fixed-assets-disposal")}
           >
-            Email This Order
+           Enter Another Disposal
           </Button>
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
-            onClick={() => navigate("/sales/transactions/customer-delivery", { state })}
+            sx={{ width: '500px' }}
+            onClick={() => navigate("/itemsandinventory/transactions/inventory-adjustments/add-attachment", { state })}
           >
-           Make Delivery Against This Order
-          </Button>
-          <Button
-            variant="outlined"
-            sx={{ width: '300px' }}
-            onClick={() => navigate("/manufacturing/transactions/work-order-entry", { state })}
-          >
-           Work Order Entry
-          </Button>
-          <Button
-            variant="outlined"
-            sx={{ width: '300px' }}
-            onClick={() => navigate("/sales/transactions/sales-order-entry", { state })}
-          >
-           Enter a New Order
-          </Button>
-          <Button
-            variant="outlined"
-            sx={{ width: '300px' }}
-            onClick={() => navigate("/", { state })}
-          >
-           Add an Attachment
+            Add an attachment
           </Button>
         </Stack>
       </Paper>
