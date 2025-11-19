@@ -167,9 +167,9 @@ import BackupRestore from "./views/Setup/Maintenance/BackupAndRestore/BackupRest
 import CompanyTable from "./views/Setup/Maintenance/CreateUpdateCompany/CompanyTable";
 import AddCompanyForm from "./views/Setup/Maintenance/CreateUpdateCompany/AddCompanyForm";
 import UpdateCompanyForm from "./views/Setup/Maintenance/CreateUpdateCompany/UpdateCompanyForm";
-import FixedAssetsLocationsTable from "./views/FixedAssets/Maintenance/FixedAssets/FixedAssetsLocationsTable";
-import AddFixedAssetsLocations from "./views/FixedAssets/Maintenance/FixedAssets/AddFixedAssetsLocationsForm";
-import UpdateFixedAssetsLocations from "./views/FixedAssets/Maintenance/FixedAssets/UpdateFixedAssetsLocationsForm";
+import FixedAssetsLocationsTable from "./views/FixedAssets/Maintenance/FixedAssetsLocations/FixedAssetsLocationsTable";
+import AddFixedAssetsLocations from "./views/FixedAssets/Maintenance/FixedAssetsLocations/AddFixedAssetsLocationsForm";
+import UpdateFixedAssetsLocations from "./views/FixedAssets/Maintenance/FixedAssetsLocations/UpdateFixedAssetsLocationsForm";
 import DimensionTagsTable from "./views/Dimensions/Maintenance/DimensionTags/DimensionTagsTable";
 import AddDimensionTagsForm from "./views/Dimensions/Maintenance/DimensionTags/AddDimensionTagsForm";
 import UpdateDimensionTagsForm from "./views/Dimensions/Maintenance/DimensionTags/UpdateDimensionTagsForm";
@@ -317,6 +317,27 @@ import DimensionEntry from "./views/Dimensions/Transactions/DimensionEntry/Dimen
 import DimensionEntrySuccess from "./views/Dimensions/Transactions/DimensionEntry/DimensionEntrySuccess";
 import OutstandingDimensions from "./views/Dimensions/Transactions/OutstandingDimensions/OutstandingDimensions";
 import DimensionInquiry from "./views/Dimensions/InquiriesAndReports/DimensionInquiry/DimensionInquiry";
+import FixedAssetsLocationTransfers from "./views/FixedAssets/Transactions/FixedAssetsLocationTransfers/FixedAssetsLocationTransfers";
+import FixedAssetsInquiry from "./views/FixedAssets/InquiriesAndReports/FixedAssetsInquiry/FixedAssetsInquiry";
+import FixedAssetsCategoriesTable from "./views/FixedAssets/Maintenance/FixedAssetsCategories/FixedAssetsCategoriesTable";
+import AddFixedAssetsCategories from "./views/FixedAssets/Maintenance/FixedAssetsCategories/AddFixedAssetsCategories";
+import FixedAssetClassesTable from "./views/FixedAssets/Maintenance/FixedAssetClasses/FixedAssetClassesTable";
+import AddFixedAssetClasses from "./views/FixedAssets/Maintenance/FixedAssetClasses/AddFixedAssetClasses";
+import FixedAssets from "./views/FixedAssets/Maintenance/FixedAssets/FixedAssets";
+import UpdateFixedAssetsGeneralSettingsForm from "./views/FixedAssets/Maintenance/FixedAssets/FixedAssetsGeneralSettings/UpdateFixedAssetsGeneralSettingsForm";
+import FixedAssetsTransactionsTable from "./views/FixedAssets/Maintenance/FixedAssets/Transactions/FixedAssetsTransactionsTable";
+import FixedAssetsLocationTransfersSuccess from "./views/FixedAssets/Transactions/FixedAssetsLocationTransfers/FixedAssetsLocationTransfersSuccess";
+import ViewFixedAssetsLocationTransfers from "./views/FixedAssets/Transactions/FixedAssetsLocationTransfers/ViewFixedAssetsLocationTransfers";
+import FixedAssetsDisposal from "./views/FixedAssets/Transactions/FixedAssetsDisposal/FixedAssetsDisposal";
+import FixedAssetsPurchase from "./views/FixedAssets/Transactions/FixedAssetsPurchase/FixedAssetsPurchase";
+import FixedAssetsPurchaseSuccess from "./views/FixedAssets/Transactions/FixedAssetsPurchase/FixedAssetsPurchaseSuccess";
+import ViewFixedAssetsPurchase from "./views/FixedAssets/Transactions/FixedAssetsPurchase/ViewFixedAssetsPurchase";
+import FixedAssetsSale from "./views/FixedAssets/Transactions/FixedAssetsSale/FixedAssetsSale";
+import FixedAssetsSaleSuccess from "./views/FixedAssets/Transactions/FixedAssetsSale/FixedAssetsSaleSuccess";
+import ViewFixedAssetsSale from "./views/FixedAssets/Transactions/FixedAssetsSale/ViewFixedAssetsSale";
+import FixedAssetsMovements from "./views/FixedAssets/InquiriesAndReports/FixedAssetsMovements/FixedAssetsMovements";
+import FixedAssetsDisposalSuccess from "./views/FixedAssets/Transactions/FixedAssetsDisposal/FixedAssetsDisposalSuccess";
+import ViewFixedAssetsDisposal from "./views/FixedAssets/Transactions/FixedAssetsDisposal/ViewFixedAssetsDisposal";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -428,7 +449,7 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/" element={withoutLayout(LoginPage)} />
       <Route path="/register" element={withoutLayout(RegistrationPage)} />
-  <Route path="/not-authorized" element={withLayout(MainLayout, PermissionDenied)} />
+      <Route path="/not-authorized" element={withLayout(MainLayout, PermissionDenied)} />
       <Route element={<ProtectedRoute />}>
         <Route
           path="/dashboard"
@@ -597,7 +618,7 @@ const AppRoutes = () => {
         )}
       />
 
-        <Route path="/setup" element={<ProtectedRoute required={PERMISSION_ID_MAP['Company Setup']} />}>
+      <Route path="/setup" element={<ProtectedRoute required={PERMISSION_ID_MAP['Company Setup']} />}>
         <Route
           path="companysetup"
           element={withLayout(MainLayout, CompanySetup)}
@@ -1746,7 +1767,7 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-         <Route
+        <Route
           path="/purchase/transactions/supplier-credit-notes/success"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
@@ -1754,7 +1775,7 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-         <Route
+        <Route
           path="/purchase/transactions/supplier-credit-notes/view-supplier-credit-note"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
@@ -2188,7 +2209,7 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-        
+
 
         <Route
           path="/itemsandinventory/maintenance/inventory-locations"
@@ -2460,6 +2481,102 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/fixedassets/transactions/fixed-assets-purchase"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Operations']}>
+              {withLayout(MainLayout, FixedAssetsPurchase)}
+            </ProtectedRoute>
+          }
+        />
+         <Route
+          path="/fixedassets/transactions/fixed-assets-purchase/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Operations']}>
+              {withLayout(MainLayout, FixedAssetsPurchaseSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/transactions/fixed-assets-purchase/view-fixed-assets-purchase"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Operations']}>
+              {withLayout(MainLayout, ViewFixedAssetsPurchase)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/transactions/fixed-assets-location-transfer"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Operations']}>
+              {withLayout(MainLayout, FixedAssetsLocationTransfers)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/transactions/fixed-assets-location-transfer/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Operations']}>
+              {withLayout(MainLayout, FixedAssetsLocationTransfersSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/transactions/fixed-assets-location-transfer/view"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Operations']}>
+              {withLayout(MainLayout, ViewFixedAssetsLocationTransfers)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/transactions/fixed-assets-disposal"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Operations']}>
+              {withLayout(MainLayout, FixedAssetsDisposal)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/transactions/fixed-assets-disposal/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Operations']}>
+              {withLayout(MainLayout, FixedAssetsDisposalSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/transactions/fixed-assets-disposal/view-fixed-assets-disposal"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Operations']}>
+              {withLayout(MainLayout, ViewFixedAssetsDisposal)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/transactions/fixed-assets-sale"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Operations']}>
+              {withLayout(MainLayout, FixedAssetsSale)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/transactions/fixed-assets-sale/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Operations']}>
+              {withLayout(MainLayout, FixedAssetsSaleSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/transactions/fixed-assets-sale/view-fixed-assets-sale"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Operations']}>
+              {withLayout(MainLayout, ViewFixedAssetsSale)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/fixedassets/inquiriesandreports"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Analytics']}>
@@ -2468,10 +2585,50 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/fixedassets/inquiriesandreports/fixed-assets-inquiry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Analytics']}>
+              {withLayout(MainLayout, FixedAssetsInquiry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/inquiriesandreports/fixed-asset-movements"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Analytics']}>
+              {withLayout(MainLayout, FixedAssetsMovements)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/fixedassets/maintenance"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Assets Configuration']}>
               {withLayout(MainLayout, FixedAssestsMaintenance)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/maintenance/fixed-assets"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Asset items add/edit']}>
+              {withLayout(MainLayout, FixedAssets)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/maintenance/update-fixed-assets"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Asset items add/edit']}>
+              {withLayout(MainLayout, UpdateFixedAssetsGeneralSettingsForm)}
+            </ProtectedRoute>
+          }
+        />
+       <Route
+          path="/fixedassets/maintenance/transaction"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Asset items add/edit']}>
+              {withLayout(MainLayout,  FixedAssetsTransactionsTable)}
             </ProtectedRoute>
           }
         />
@@ -2499,7 +2656,38 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-
+        <Route
+          path="/fixedassets/maintenance/fixed-asset-categories"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Asset items add/edit']}>
+              {withLayout(MainLayout, FixedAssetsCategoriesTable)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/maintenance/add-fixed-asset-categories"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Asset items add/edit']}>
+              {withLayout(MainLayout, AddFixedAssetsCategories)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/maintenance/fixed-asset-classes"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Asset items add/edit']}>
+              {withLayout(MainLayout, FixedAssetClassesTable)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/maintenance/add-fixed-asset-classes"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Asset items add/edit']}>
+              {withLayout(MainLayout, AddFixedAssetClasses)}
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/dimension/transactions"
           element={

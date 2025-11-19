@@ -15,6 +15,7 @@ import {
     Typography,
     MenuItem,
     Grid,
+    ListSubheader,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -30,6 +31,7 @@ import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCo
 // import { getDimensions } from "../../../../api/Dimension/DimensionApi";
 import { getItems, getItemById } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
+import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 
 import Breadcrumb from "../../../../components/BreadCrumb";
@@ -62,6 +64,7 @@ export default function CustomerCreditNotes() {
     //   const { data: dimensions = [] } = useQuery({ queryKey: ["dimensions"], queryFn: getDimensions });
     const { data: items = [] } = useQuery({ queryKey: ["items"], queryFn: getItems });
     const { data: itemUnits = [] } = useQuery({ queryKey: ["itemUnits"], queryFn: getItemUnits });
+    const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
     const { data: locations = [] } = useQuery({ queryKey: ["locations"], queryFn: getInventoryLocations });
 
     // ===== Table rows =====
@@ -362,11 +365,21 @@ export default function CustomerCreditNotes() {
                                             }
                                         }}
                                     >
-                                        {items.map((it: any) => (
-                                            <MenuItem key={it.stock_id} value={it.description}>
-                                                {it.description}
-                                            </MenuItem>
-                                        ))}
+                                        {Object.entries(
+                                            items.reduce((acc: any, item: any) => {
+                                                const category = categories.find((c: any) => c.category_id === item.category_id)?.description || "Uncategorized";
+                                                if (!acc[category]) acc[category] = [];
+                                                acc[category].push(item);
+                                                return acc;
+                                            }, {} as Record<string, any[]>)
+                                        ).map(([category, catItems]: [string, any[]]) => [
+                                            <ListSubheader key={category}>{category}</ListSubheader>,
+                                            ...catItems.map((item: any) => (
+                                                <MenuItem key={item.stock_id} value={item.description}>
+                                                    {item.description}
+                                                </MenuItem>
+                                            )),
+                                        ])}
                                     </TextField>
                                 </TableCell>
                                 <TableCell>

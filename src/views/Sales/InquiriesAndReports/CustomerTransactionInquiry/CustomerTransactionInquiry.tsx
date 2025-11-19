@@ -278,6 +278,7 @@ export default function CustomerTransactionInquiry() {
               <TableCell>Due Date</TableCell>
               <TableCell>Branch</TableCell>
               <TableCell align="right">Amount</TableCell>
+              <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
 
@@ -299,6 +300,14 @@ export default function CustomerTransactionInquiry() {
                 <TableCell>{r.due_date}</TableCell>
                 <TableCell>{r.branch}</TableCell>
                 <TableCell align="right">{r.amount.toFixed(2)}</TableCell>
+                <TableCell align="center">
+                  <Stack direction="row" spacing={1} justifyContent="center">
+                    <Button variant="outlined" size="small">GL</Button>
+                    <Button variant="outlined" size="small">Edit</Button>
+                    <Button variant="outlined" size="small">Credit this</Button>
+                    <Button variant="outlined" size="small">Print</Button>
+                  </Stack>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -307,7 +316,7 @@ export default function CustomerTransactionInquiry() {
             <TableRow>
               <TablePagination
                 rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                colSpan={15}
+                colSpan={16}
                 count={rows.length}
                 rowsPerPage={rowsPerPage}
                 page={page}
