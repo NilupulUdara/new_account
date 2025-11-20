@@ -228,7 +228,7 @@ export default function DimensionInquiry() {
                       size="small"
                       variant="outlined"
                       startIcon={<EditIcon />}
-                      onClick={() => handleEdit(r)}
+                      onClick={() => navigate("/dimension/transactions/edit-dimension-entry")}
                     >
                       Edit
                     </Button>

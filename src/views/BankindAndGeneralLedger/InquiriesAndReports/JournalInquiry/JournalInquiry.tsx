@@ -277,12 +277,16 @@ export default function JournalInquiry() {
                 <TableCell>{r.memo}</TableCell>
                 <TableCell>{r.user}</TableCell>
                 <TableCell align="center">
-                  <Button variant="contained" size="small" onClick={() => console.log("GL view for", r.transNumber)}>
+                  <Button variant="contained" size="small" onClick={() => navigate("/bankingandgeneralledger/transactions/gl-postings")}>
                     GL
                   </Button>
                 </TableCell>
                 <TableCell align="center">
-                  <Button variant="outlined" size="small" onClick={() => console.log("Edit", r.transNumber)}>
+                  <Button variant="outlined" size="small" onClick={() => navigate(
+                    "/bankingandgeneralledger/inquiriesandreports/journal-inquiry/modify-sales-invoice"
+                    // "/bankingandgeneralledger/inquiriesandreports/journal-inquiry/Customer-payment-entry"
+                    // "/bankingandgeneralledger/inquiriesandreports/journal-inquiry/modify-purchase-invoice"
+                    )}>
                     Edit
                   </Button>
                 </TableCell>
