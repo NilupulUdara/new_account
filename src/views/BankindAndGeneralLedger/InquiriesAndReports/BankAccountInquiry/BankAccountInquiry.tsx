@@ -223,7 +223,7 @@ export default function BankAccountInquiry() {
                 <TableCell>{r.personItem}</TableCell>
                 <TableCell>{r.memo}</TableCell>
                 <TableCell align="center">
-                  <Button variant="contained" size="small" onClick={() => console.log("GL view for", r.number)}>
+                  <Button variant="contained" size="small" onClick={() => navigate("/bankingandgeneralledger/transactions/gl-postings")}>
                     GL
                   </Button>
                 </TableCell>

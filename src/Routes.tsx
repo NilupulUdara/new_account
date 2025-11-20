@@ -338,6 +338,10 @@ import ViewFixedAssetsSale from "./views/FixedAssets/Transactions/FixedAssetsSal
 import FixedAssetsMovements from "./views/FixedAssets/InquiriesAndReports/FixedAssetsMovements/FixedAssetsMovements";
 import FixedAssetsDisposalSuccess from "./views/FixedAssets/Transactions/FixedAssetsDisposal/FixedAssetsDisposalSuccess";
 import ViewFixedAssetsDisposal from "./views/FixedAssets/Transactions/FixedAssetsDisposal/ViewFixedAssetsDisposal";
+import ModifySalesInvoice from "./views/BankindAndGeneralLedger/InquiriesAndReports/JournalInquiry/ModifySalesInvoice";
+import EditDimensionEntry from "./views/Dimensions/Transactions/DimensionEntry/EditDimensionEntry";
+import CustomerPaymentEntry from "./views/BankindAndGeneralLedger/InquiriesAndReports/JournalInquiry/CustomerPaymentEntry";
+import ModifyPurchaseInvoice from "./views/BankindAndGeneralLedger/InquiriesAndReports/JournalInquiry/ModifyPurchaseInvoice";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -2705,6 +2709,14 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/dimension/transactions/edit-dimension-entry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Dimension entry']}>
+              {withLayout(MainLayout, EditDimensionEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/dimension/transactions/dimension-entry/success"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Dimension entry']}>
@@ -2889,6 +2901,30 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['GL analytical reports and inquiries']}>
               {withLayout(MainLayout, JournalInquiry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/inquiriesandreports/journal-inquiry/modify-sales-invoice"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL analytical reports and inquiries']}>
+              {withLayout(MainLayout, ModifySalesInvoice)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/inquiriesandreports/journal-inquiry/Customer-payment-entry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL analytical reports and inquiries']}>
+              {withLayout(MainLayout, CustomerPaymentEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bankingandgeneralledger/inquiriesandreports/journal-inquiry/modify-purchase-invoice"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['GL analytical reports and inquiries']}>
+              {withLayout(MainLayout, ModifyPurchaseInvoice)}
             </ProtectedRoute>
           }
         />
