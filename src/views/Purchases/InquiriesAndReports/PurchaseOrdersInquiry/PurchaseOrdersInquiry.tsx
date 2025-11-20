@@ -221,7 +221,7 @@ export default function PurchaseOrdersInquiry() {
                 <TableCell>{r.deliveryTotal}</TableCell>
                 <TableCell align="center">
                   <Stack direction="row" spacing={1} justifyContent="center">
-                    <Button variant="outlined" size="small">Edit</Button>
+                    <Button variant="outlined" size="small" onClick={() => navigate("/purchase/transactions/update-purchase-order-entry", { state: { id: r.id } })}>Edit</Button>
                     <Button variant="outlined" size="small">Print</Button>
                   </Stack>
                 </TableCell>
