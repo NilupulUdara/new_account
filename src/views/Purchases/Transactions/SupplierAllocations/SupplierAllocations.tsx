@@ -37,11 +37,6 @@ export default function SupplierAllocations() {
   // no data initially - show placeholder row
   const rows: any[] = [];
 
-  const handleAllocate = (row: any) => {
-    // TODO: Implement allocation logic
-    alert(`Allocate for transaction ${row.number}`);
-  };
-
   return (
     <Stack spacing={2}>
       <Box sx={{ padding: theme.spacing(2), boxShadow: 2, borderRadius: 1, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
@@ -115,7 +110,7 @@ export default function SupplierAllocations() {
                       variant="contained"
                       size="small"
                       color="primary"
-                      onClick={() => handleAllocate(r)}
+                      onClick={() => navigate("/purchase/transactions/allocate-supplier-payments-credit-notes/view-supplier-allocations", { state: { id: r.id } })}
                     >
                       Allocate
                     </Button>

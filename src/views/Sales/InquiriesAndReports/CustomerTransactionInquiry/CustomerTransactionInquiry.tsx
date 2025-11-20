@@ -302,7 +302,7 @@ export default function CustomerTransactionInquiry() {
                 <TableCell align="right">{r.amount.toFixed(2)}</TableCell>
                 <TableCell align="center">
                   <Stack direction="row" spacing={1} justifyContent="center">
-                    <Button variant="outlined" size="small">GL</Button>
+                    <Button variant="outlined" size="small" onClick={() => navigate("/bankingandgeneralledger/transactions/gl-postings", { state: { id: r.id } })}>GL</Button>
                     <Button variant="outlined" size="small">Edit</Button>
                     <Button variant="outlined" size="small">Credit this</Button>
                     <Button variant="outlined" size="small">Print</Button>

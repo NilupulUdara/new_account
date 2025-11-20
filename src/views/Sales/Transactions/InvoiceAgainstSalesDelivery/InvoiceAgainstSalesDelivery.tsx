@@ -205,8 +205,8 @@ export default function InvoiceAgainstSalesDelivery() {
                 </TableCell>
                 <TableCell align="center">
                   <Stack direction="row" spacing={1} justifyContent="center">
-                    <Button variant="outlined" size="small" onClick={() => console.log("Edit for", r.deliveryNo)}>Edit</Button>
-                    <Button variant="outlined" size="small" onClick={() => console.log("Invoice for", r.deliveryNo)}>Invoice</Button>
+                    <Button variant="outlined" size="small" onClick={() => navigate("/sales/transactions/update-customer-delivery/" + r.deliveryNo)}>Edit</Button>
+                    <Button variant="outlined" size="small" onClick={() => navigate("/sales/transactions/direct-delivery/customer-invoice", { state: { id: r.id } })}>Invoice</Button>
                     <Button variant="outlined" size="small" onClick={() => console.log("Print for", r.deliveryNo)}>Print</Button>
                   </Stack>
                 </TableCell>

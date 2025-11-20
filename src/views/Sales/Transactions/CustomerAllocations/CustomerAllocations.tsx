@@ -83,13 +83,14 @@ export default function CustomerAllocations() {
               <TableCell>Currency</TableCell>
               <TableCell>Total</TableCell>
               <TableCell>Left to Allocate</TableCell>
+              <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
 
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} align="center">
+                <TableCell colSpan={9} align="center">
                   <Typography variant="body2">No Records Found</Typography>
                 </TableCell>
               </TableRow>
@@ -104,6 +105,11 @@ export default function CustomerAllocations() {
                   <TableCell>{r.currency}</TableCell>
                   <TableCell>{r.total}</TableCell>
                   <TableCell>{r.left}</TableCell>
+                  <TableCell align="center">
+                    <Button variant="outlined" size="small" onClick={() => console.log("Allocate for", r.number)}>
+                      Allocate
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))
             )}

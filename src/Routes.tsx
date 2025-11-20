@@ -338,6 +338,14 @@ import ViewFixedAssetsSale from "./views/FixedAssets/Transactions/FixedAssetsSal
 import FixedAssetsMovements from "./views/FixedAssets/InquiriesAndReports/FixedAssetsMovements/FixedAssetsMovements";
 import FixedAssetsDisposalSuccess from "./views/FixedAssets/Transactions/FixedAssetsDisposal/FixedAssetsDisposalSuccess";
 import ViewFixedAssetsDisposal from "./views/FixedAssets/Transactions/FixedAssetsDisposal/ViewFixedAssetsDisposal";
+import UpdateSalesOrderEntry from "./views/Sales/Transactions/SalesOrderEntry/UpdateSalesOrderEntry";
+import UpdateCustomerInvoice from "./views/Sales/Transactions/CustomerInvoice/UpdateCustomerInvoice";
+import UpdateCustomerInvoiceSuccess from "./views/Sales/Transactions/CustomerInvoice/UpdateCustomerInvoiceSuccess";
+import UpdateCustomerDelivery from "./views/Sales/Transactions/InvoiceAgainstSalesDelivery/UpdateCustomerDelivery";
+import UpdateCustomerDeliverySuccess from "./views/Sales/Transactions/InvoiceAgainstSalesDelivery/UpdateCustomerDeliverySuccess";
+import ViewCustomerAllocations from "./views/Sales/Transactions/CustomerAllocations/ViewCustomerAllocations";
+import UpdatePurchaseOrderEntry from "./views/Purchases/Transactions/PurchaseOrderEntry/UpdatePurchaseOrderEntry";
+import ViewSupplierAllocations from "./views/Purchases/Transactions/SupplierAllocations/ViewSupplierAllocations";
 import ModifySalesInvoice from "./views/BankindAndGeneralLedger/InquiriesAndReports/JournalInquiry/ModifySalesInvoice";
 import EditDimensionEntry from "./views/Dimensions/Transactions/DimensionEntry/EditDimensionEntry";
 import CustomerPaymentEntry from "./views/BankindAndGeneralLedger/InquiriesAndReports/JournalInquiry/CustomerPaymentEntry";
@@ -1098,6 +1106,14 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/sales/transactions/update-sales-order-entry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales orders']}>
+              {withLayout(MainLayout, UpdateSalesOrderEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/sales/transactions/customer-delivery"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales orders']}>
@@ -1266,6 +1282,22 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/sales/transactions/update-customer-delivery/"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales invoices edition']}>
+              {withLayout(MainLayout, UpdateCustomerDelivery)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/update-customer-delivery/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales invoices edition']}>
+              {withLayout(MainLayout, UpdateCustomerDeliverySuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/sales/transactions/invoice-prepaid-orders"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales invoices edition']}>
@@ -1278,6 +1310,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Customer payments allocation']}>
               {withLayout(MainLayout, CustomerAllocations)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/allocate-customer-payments-credit-notes/view-allocations"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Customer payments allocation']}>
+              {withLayout(MainLayout, ViewCustomerAllocations)}
             </ProtectedRoute>
           }
         />
@@ -1321,7 +1361,22 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-        
+        <Route
+          path="/sales/inquiriesandreports/customer-transaction-inquiry/update-customer-invoice/"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales Related Reports']}>
+              {withLayout(MainLayout, UpdateCustomerInvoice)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/inquiriesandreports/customer-transaction-inquiry/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales Related Reports']}>
+              {withLayout(MainLayout, UpdateCustomerInvoiceSuccess)}
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/sales/maintenance"
           element={
@@ -1620,6 +1675,14 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/purchase/transactions/update-purchase-order-entry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, UpdatePurchaseOrderEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/purchase/transactions/purchase-order-entry/success"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
@@ -1736,6 +1799,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
               {withLayout(MainLayout, SupplierAllocations)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/allocate-supplier-payments-credit-notes/view-supplier-allocations"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, ViewSupplierAllocations)}
             </ProtectedRoute>
           }
         />

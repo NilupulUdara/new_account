@@ -237,7 +237,7 @@ export default function SupplierAllocationInquiry() {
                 <TableCell align="right">{r.allocated.toFixed(2)}</TableCell>
                 <TableCell align="right">{r.balance.toFixed(2)}</TableCell>
                 <TableCell align="center">
-                  <Button variant="outlined" size="small">Allocation</Button>
+                  <Button variant="outlined" size="small" onClick={() => navigate("/purchase/transactions/allocate-supplier-payments-credit-notes/view-supplier-allocations", { state: { id: r.id } })}>Allocation</Button>
                 </TableCell>
               </TableRow>
             ))}
