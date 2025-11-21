@@ -205,110 +205,101 @@ export default function CustomerCreditNotes() {
             <Paper sx={{ p: 2, borderRadius: 2 }}>
                 <Grid container spacing={2}>
                     <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Customer"
-                            value={customer}
-                            onChange={(e) => setCustomer(e.target.value)}
-                            size="small"
-                        >
-                            {customers.map((c: any) => (
-                                <MenuItem key={c.debtor_no} value={c.debtor_no}>
-                                    {c.name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Branch"
-                            value={branch}
-                            onChange={(e) => setBranch(e.target.value)}
-                            size="small"
-                        >
-                            {branches
-                                .filter((b: any) => b.debtor_no === customer)
-                                .map((b: any) => (
-                                    <MenuItem key={b.branch_code} value={b.branch_code}>
-                                        {b.br_name}
+                        <Stack spacing={2}>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Customer"
+                                value={customer}
+                                onChange={(e) => setCustomer(e.target.value)}
+                                size="small"
+                            >
+                                {customers.map((c: any) => (
+                                    <MenuItem key={c.debtor_no} value={c.debtor_no}>
+                                        {c.name}
                                     </MenuItem>
                                 ))}
-                        </TextField>
+                            </TextField>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Branch"
+                                value={branch}
+                                onChange={(e) => setBranch(e.target.value)}
+                                size="small"
+                            >
+                                {branches
+                                    .filter((b: any) => b.debtor_no === customer)
+                                    .map((b: any) => (
+                                        <MenuItem key={b.branch_code} value={b.branch_code}>
+                                            {b.br_name}
+                                        </MenuItem>
+                                    ))}
+                            </TextField>
+                            <TextField label="Reference" fullWidth size="small" value={reference} InputProps={{ readOnly: true }} />
+                        </Stack>
                     </Grid>
 
                     <Grid item xs={12} sm={4}>
-                        <TextField label="Reference" fullWidth size="small" value={reference} InputProps={{ readOnly: true }} />
+                        <Stack spacing={2}>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Sales Type"
+                                value={salesType}
+                                onChange={(e) => setSalesType(e.target.value)}
+                                size="small"
+                            >
+                                {salesTypes.map((st: any) => (
+                                    <MenuItem key={st.id} value={st.id}>
+                                        {st.typeName}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Shipping Company"
+                                value={shippingCompany}
+                                onChange={(e) => setShippingCompany(e.target.value)}
+                                size="small"
+                            >
+                                {shippingCompanies.map((sc: any) => (
+                                    <MenuItem key={sc.shipper_id} value={sc.shipper_id}>
+                                        {sc.shipper_name}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                            <TextField label="Customer Discount (%)" fullWidth size="small" value={discount} InputProps={{ readOnly: true }} />
+                        </Stack>
                     </Grid>
 
                     <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Sales Type"
-                            value={salesType}
-                            onChange={(e) => setSalesType(e.target.value)}
-                            size="small"
-                        >
-                            {salesTypes.map((st: any) => (
-                                <MenuItem key={st.id} value={st.id}>
-                                    {st.typeName}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Shipping Company"
-                            value={shippingCompany}
-                            onChange={(e) => setShippingCompany(e.target.value)}
-                            size="small"
-                        >
-                            {shippingCompanies.map((sc: any) => (
-                                <MenuItem key={sc.shipper_id} value={sc.shipper_id}>
-                                    {sc.shipper_name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField label="Customer Discount (%)" fullWidth size="small" value={discount} InputProps={{ readOnly: true }} />
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            label="Credit Note Date"
-                            type="date"
-                            fullWidth
-                            size="small"
-                            value={creditNoteDate}
-                            onChange={(e) => setCreditNoteDate(e.target.value)}
-                            InputLabelProps={{ shrink: true }}
-                        />
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Dimension"
-                            value={dimension}
-                            onChange={(e) => setDimension(e.target.value)}
-                            size="small"
-                        >
-                            {/* {dimensions.map((d: any) => (
-                <MenuItem key={d.id} value={d.id}>
-                  {d.name}
-                </MenuItem>
-              ))} */}
-                        </TextField>
+                        <Stack spacing={2}>
+                            <TextField
+                                label="Credit Note Date"
+                                type="date"
+                                fullWidth
+                                size="small"
+                                value={creditNoteDate}
+                                onChange={(e) => setCreditNoteDate(e.target.value)}
+                                InputLabelProps={{ shrink: true }}
+                            />
+                            <TextField
+                                select
+                                fullWidth
+                                label="Dimension"
+                                value={dimension}
+                                onChange={(e) => setDimension(e.target.value)}
+                                size="small"
+                            >
+                                {/* {dimensions.map((d: any) => (
+                    <MenuItem key={d.id} value={d.id}>
+                      {d.name}
+                    </MenuItem>
+                  ))} */}
+                            </TextField>
+                        </Stack>
                     </Grid>
                 </Grid>
             </Paper>

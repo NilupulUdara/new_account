@@ -143,12 +143,16 @@ export default function UpdateSalesOrderEntry() {
             if (selectedCustomer) {
                 setCredit(selectedCustomer.credit_limit || 0);
                 setDiscount(selectedCustomer.discount || 0);
+                setPayment(selectedCustomer.payment_terms ? String(selectedCustomer.payment_terms) : "");
+                setPriceList(selectedCustomer.sales_type ? String(selectedCustomer.sales_type) : "");
                 // Update table rows discount
                 setRows((prev) => prev.map((r) => ({ ...r, discount: selectedCustomer.discount || 0 })));
             }
         } else {
             setCredit(0);
             setDiscount(0);
+            setPayment("");
+            setPriceList("");
             // Reset table rows discount
             setRows((prev) => prev.map((r) => ({ ...r, discount: 0 })));
         }
