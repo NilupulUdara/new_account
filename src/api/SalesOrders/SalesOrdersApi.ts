@@ -1,53 +1,54 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/trans-types";
+const SALES_ORDERS_URL = "http://localhost:8000/api/sales-orders"; // Adjust if backend base differs
 
-export const getTransTypes = async () => {
-  try {
-    const response = await axios.get(API_URL);
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching trans types:", error);
-    return [];
-  }
+// Backend validation lists order_no as required|integer. Until backend changes, send a provisional value.
+export interface SalesOrderPayload {
+  order_no: number;            // provisional; backend may override
+  trans_type: number;          // 30 for quotation
+  version: number;             // 0
+  type: number;                // 0
+  debtor_no: number;           // customer id
+  branch_code: number;         // branch code/id
+  reference: string;           // reference code 001/{fiscalYear}
+  ord_date: string;            // quotation date YYYY-MM-DD
+  order_type: number;          // price list id
+  ship_via: number;
+  customer_ref: string | null;            // integer id (fallback 0 if unknown)
+  delivery_address: string | null; // customer address
+  contact_phone: string | null;    // customer phone
+  contact_email: string | null;    // customer email
+  deliver_to: string | null;       // customer name
+  freight_cost: number;        // 0
+  from_stk_loc: string;        // deliver from loc_code
+  delivery_date: string | null;    // chosen date
+  payment_terms: number | null;    // nullable
+  total: number;               // 0 (not calculated yet)
+  prep_amount: number;         // 0
+  alloc: number;               // 0
+}
+
+export const createSalesOrder = async (payload: SalesOrderPayload) => {
+  const response = await axios.post(SALES_ORDERS_URL, payload);
+  return response.data; // Expect response to include generated/accepted order_no
 };
 
-export const getTransTypeById = async (id: string | number) => {
+export const generateProvisionalOrderNo = (): number => {
+  // Simple timestamp-based fallback; replace with backend sequence endpoint if available.
+  return Date.now();
+};
+
+export const getSalesOrders = async () => {
+  const response = await axios.get(SALES_ORDERS_URL);
+  return response.data;
+};
+
+export const getSalesOrderByOrderNo = async (orderNo: string | number) => {
   try {
-    const response = await axios.get(`${API_URL}/${id}`);
+    const response = await axios.get(`${SALES_ORDERS_URL}/${orderNo}`);
     return response.data;
   } catch (error) {
-    console.error(`Error fetching trans type ${id}:`, error);
+    console.error(`Error fetching sales order ${orderNo}:`, error);
     return null;
-  }
-};
-
-export const createTransType = async (data: any) => {
-  try {
-    const response = await axios.post(API_URL, data);
-    return response.data;
-  } catch (error: any) {
-    console.error("Error creating trans type:", error.response?.data || error);
-    throw error.response?.data || error;
-  }
-};
-
-export const updateTransType = async (id: string | number, data: any) => {
-  try {
-    const response = await axios.put(`${API_URL}/${id}`, data);
-    return response.data;
-  } catch (error: any) {
-    console.error(`Error updating trans type ${id}:`, error.response?.data || error);
-    throw error.response?.data || error;
-  }
-};
-
-export const deleteTransType = async (id: string | number) => {
-  try {
-    const response = await axios.delete(`${API_URL}/${id}`);
-    return response.data;
-  } catch (error: any) {
-    console.error(`Error deleting trans type ${id}:`, error.response?.data || error);
-    throw error.response?.data || error;
   }
 };

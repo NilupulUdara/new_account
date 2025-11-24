@@ -23,7 +23,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
@@ -38,9 +38,13 @@ import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCo
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { createSalesOrder, generateProvisionalOrderNo, getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { createSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 
 export default function SalesQuotationEntry() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
 
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
@@ -104,7 +108,7 @@ export default function SalesQuotationEntry() {
                 unit: "",
                 priceAfterTax: 0,
                 priceBeforeTax: 0,
-                discount: 0,
+                discount: discount,
                 total: 0,
                 selectedItemId: null,
             },
@@ -141,6 +145,7 @@ export default function SalesQuotationEntry() {
         handleChange(rowId, "description", selectedItem.description);
         handleChange(rowId, "itemCode", selectedItem.stock_id);
         handleChange(rowId, "selectedItemId", selectedItem.stock_id);
+        handleChange(rowId, "quantity", 1);
         const itemData = await getItemById(selectedItem.stock_id);
         if (itemData) {
             const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
@@ -197,6 +202,20 @@ export default function SalesQuotationEntry() {
         }
     }, [customer, customers]);
 
+    // Update deliver to and address when branch changes
+    useEffect(() => {
+        if (branch) {
+            const selectedBranch = branches.find((b: any) => b.branch_code === branch);
+            if (selectedBranch) {
+                setDeliverTo(selectedBranch.br_name || "");
+                setAddress(selectedBranch.br_address || "");
+            }
+        } else {
+            setDeliverTo("");
+            setAddress("");
+        }
+    }, [branch, branches]);
+
     // Update price column label when price list changes
     useEffect(() => {
         if (priceList) {
@@ -241,30 +260,83 @@ export default function SalesQuotationEntry() {
         }
     }, [priceList]);
 
-    const handlePlaceQuotation = () => {
-        if (!customer || rows.length === 0) return;
-        console.log({
-            customer,
-            branch,
-            reference,
-            quotationDate,
-            payment,
-            priceList,
-            rows,
-            deliverFrom,
-            cashAccount,
-            comments,
-            ...(showQuotationDeliveryDetails && {
-                validUntil,
-                deliverTo,
-                address,
-                contactPhoneNumber,
-                customerReference,
-                shippingCompany,
-            }),
-        });
-        alert("Quotation placed successfully!");
-        navigate(-1);
+    // === Additional derived fields for backend mapping ===
+    const [submitting, setSubmitting] = useState(false);
+    const [orderNo, setOrderNo] = useState<number>(1);
+
+    // Helper to get selected customer object
+    const selectedCustomer = useMemo(() => customers.find((c: any) => String(c.debtor_no) === String(customer)), [customers, customer]);
+    const customerName = selectedCustomer?.name || null;
+    const customerPhone = selectedCustomer?.phone || selectedCustomer?.contact_phone || null;
+    const customerEmail = selectedCustomer?.email || selectedCustomer?.contact_email || null;
+    const customerAddr = selectedCustomer?.address || selectedCustomer?.delivery_address || address || null;
+
+    const handlePlaceQuotation = async () => {
+        if (!customer) { alert("Select customer first"); return; }
+        if (!branch) { alert("Select branch first"); return; }
+        if (!deliverFrom) { alert("Select deliver-from location"); return; }
+        if (rows.filter(r => r.itemCode && r.quantity > 0).length === 0) {
+            alert("At least one item must be added to the quotation.");
+            return;
+        }
+        setSubmitting(true);
+        try {
+            const payload = {
+                order_no: orderNo,
+                trans_type: 32,
+                version: 0,
+                type: 0,
+                debtor_no: Number(customer),
+                branch_code: Number(branch),
+                reference,
+                ord_date: quotationDate,
+                order_type: Number(priceList) || 0,
+                ship_via: 1, // Provide integer; replace with real location id if available
+                delivery_address: customerAddr,
+                contact_phone: customerPhone,
+                contact_email: customerEmail,
+                deliver_to: customerName,
+                freight_cost: 0,
+                from_stk_loc: deliverFrom,
+                delivery_date: validUntil || quotationDate,
+                payment_terms: payment ? Number(payment) : null,
+                customer_ref: "customer ref",
+                total: subTotal + shippingCharge,
+                prep_amount: 0,
+                alloc: 0,
+            };
+            console.log("Posting sales order payload", payload);
+            await createSalesOrder(payload as any);
+            // Post details
+            const detailsToPost = rows.filter(r => r.selectedItemId);
+            for (const row of detailsToPost) {
+                const unitPrice = priceColumnLabel === "Price after Tax" ? row.priceAfterTax : row.priceBeforeTax;
+                const detailPayload = {
+                    order_no: orderNo,
+                    trans_type: 32,
+                    stk_code: row.itemCode,
+                    description: row.description,
+                    qty_sent: row.quantity,
+                    unit_price: unitPrice,
+                    quantity: row.quantity,
+                    invoiced: 0,
+                    discount_percent: discount,
+                };
+                console.log("Posting sales order detail", detailPayload);
+                await createSalesOrderDetail(detailPayload);
+            }
+            alert("Saved to sales_orders (order_no: " + orderNo + ")");
+            await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
+            navigate("/sales/transactions/sales-quotation-entry/success", {
+                state: { orderNo, reference, quotationDate }
+            });
+        } catch (e: any) {
+            console.error("Save error", e);
+            const detail = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'Unknown error');
+            alert("Failed to save: " + detail);
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const breadcrumbItems = [
@@ -272,7 +344,8 @@ export default function SalesQuotationEntry() {
         { title: "New Sales Quotation Entry" },
     ];
 
-    const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
+    // Only calculate subtotal for completed rows (all rows except the last one which is being edited)
+    const subTotal = rows.slice(0, -1).reduce((sum, r) => sum + r.total, 0);
 
     // Find currently selected payment term object so we can inspect its payment_type
     const selectedPaymentTerm = useMemo(() => {
@@ -288,6 +361,59 @@ export default function SalesQuotationEntry() {
     }, [selectedPaymentTerm]);
 
     const showQuotationDeliveryDetails = selectedPaymentType === 3 || selectedPaymentType === 4;
+
+    // Fetch fiscal years
+    const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+
+    // Fetch sales orders to determine next order number
+    const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
+
+    // Set order number based on existing sales orders
+    useEffect(() => {
+        if (salesOrders.length > 0) {
+            const maxOrderNo = Math.max(...salesOrders.map((o: any) => o.order_no));
+            setOrderNo(maxOrderNo + 1);
+        }
+    }, [salesOrders]);
+
+    // Determine fiscal year (using fiscal_year_from / fiscal_year_to) that contains quotationDate and build next reference number for the fiscal year
+    useEffect(() => {
+        if (!quotationDate || fiscalYears.length === 0 || salesOrders.length === 0) return;
+        const dateObj = new Date(quotationDate);
+        if (isNaN(dateObj.getTime())) return;
+
+        const matching = fiscalYears.find((fy: any) => {
+            if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+            const from = new Date(fy.fiscal_year_from);
+            const to = new Date(fy.fiscal_year_to);
+            if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+            return dateObj >= from && dateObj <= to; // inclusive
+        });
+
+        // If not found, choose the one whose from date is closest but not after the quotationDate.
+        const chosen = matching || [...fiscalYears]
+            .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
+            .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
+            .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
+
+        if (chosen) {
+            // Preferred label: explicit fiscal_year field if exists, else derive from from/to years.
+            const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
+            const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
+            const yearLabel = chosen.fiscal_year || (fromYear === toYear ? fromYear : `${fromYear}-${toYear}`);
+
+            // Find existing references for this fiscal year
+            const relevantRefs = salesOrders.filter((o: any) => o.reference && o.reference.endsWith(`/${yearLabel}`));
+            const numbers = relevantRefs.map((o: any) => {
+                const match = o.reference.match(/^(\d{3})\/.+$/);
+                return match ? parseInt(match[1], 10) : 0;
+            });
+            const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
+            const nextNum = maxNum + 1;
+            const nextRef = `${nextNum.toString().padStart(3, '0')}/${yearLabel}`;
+            setReference(nextRef);
+        }
+    }, [quotationDate, fiscalYears, salesOrders]);
 
     return (
         <Stack spacing={2}>
@@ -577,7 +703,14 @@ export default function SalesQuotationEntry() {
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>Amount Total</TableCell>
                             <TableCell sx={{ fontWeight: 600 }}>{(subTotal + shippingCharge).toFixed(2)}</TableCell>
                             <TableCell>
-                                <Button variant="contained" size="small">
+                                <Button 
+                                    variant="contained" 
+                                    size="small"
+                                    onClick={() => {
+                                        // Force re-render to update totals
+                                        setRows([...rows]);
+                                    }}
+                                >
                                     Update
                                 </Button>
                             </TableCell>
@@ -726,8 +859,13 @@ export default function SalesQuotationEntry() {
                     <Button variant="outlined" onClick={() => navigate(-1)}>
                         Cancel Quotation
                     </Button>
-                    <Button variant="contained" color="primary" onClick={handlePlaceQuotation}>
-                        Place Quotation
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={handlePlaceQuotation}
+                        disabled={submitting}
+                    >
+                        {submitting ? "Saving..." : "Place Quotation"}
                     </Button>
                 </Box>
             </Paper>
