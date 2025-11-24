@@ -8,20 +8,39 @@ import {
   Stack,
   TextField,
   Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import AddIcon from "@mui/icons-material/Add";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
-import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi"; 
+import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi";
 // import { getDimensions } from "../../../../api/Dimension/DimensionApi"; // hypothetical API
 
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
+
+interface AllocationRow {
+  transactionType: string;
+  number: number;
+  ref: string;
+  date: string;
+  dueDate: string;
+  amount: number;
+  otherAllocations: number;
+  leftToAllocate: number;
+  thisAllocation: number;
+  all: string;
+  none: string;
+}
 
 export default function CustomerPayments() {
   const navigate = useNavigate();
@@ -41,6 +60,23 @@ export default function CustomerPayments() {
   const [amount, setAmount] = useState(0);
   const [memo, setMemo] = useState("");
 
+  // ====== Allocation Table State ======
+  const [allocationRows, setAllocationRows] = useState<AllocationRow[]>([
+    {
+      transactionType: "Sales Invoice",
+      number: 5,
+      ref: "002/2025",
+      date: "01/01/2025",
+      dueDate: "01/01/2025",
+      amount: 1300.00,
+      otherAllocations: 0.00,
+      leftToAllocate: 1300.00,
+      thisAllocation: 0.00,
+      all: "All",
+      none: "None",
+    },
+  ]);
+
   // ====== Fetch Data ======
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
@@ -53,12 +89,7 @@ export default function CustomerPayments() {
     queryFn: getBankAccounts,
     refetchOnWindowFocus: true,
   });
-//   const { data: dimensions = [] } = useQuery({
-//     queryKey: ["dimensions"],
-//     queryFn: getDimensions,
-//   });
 
-  // ====== Auto-generate Reference ======
   useEffect(() => {
     const year = new Date().getFullYear();
     const random = Math.floor(Math.random() * 1000)
@@ -84,6 +115,13 @@ export default function CustomerPayments() {
     }
   }, [customer, customers]);
 
+  // ====== Handle Table Changes ======
+  const handleAllocationChange = (index: number, value: number) => {
+    const updatedRows = [...allocationRows];
+    updatedRows[index].thisAllocation = value;
+    setAllocationRows(updatedRows);
+  };
+
   // ====== Handle Add Payment ======
   const handleAddPayment = () => {
     if (!customer || !amount) return alert("Please fill required fields!");
@@ -100,6 +138,7 @@ export default function CustomerPayments() {
       amountOfDiscount,
       amount,
       memo,
+      allocations: allocationRows,
     });
 
     alert("Customer payment added successfully!");
@@ -108,8 +147,8 @@ export default function CustomerPayments() {
 
   // ====== Breadcrumb ======
   const breadcrumbItems = [
-    { title: "Transactions", href: "/sales/transactions" },
-    { title: "Customer Payments" },
+    { title: "Transactions", href: "/banking/transactions" },
+    { title: "Customer Payment Entry" },
   ];
 
   return (
@@ -247,6 +286,61 @@ export default function CustomerPayments() {
         </Grid>
       </Paper>
 
+      {/* Allocation Table */}
+      <Paper sx={{ p: 2, borderRadius: 2 }}>
+        <Typography
+          variant="subtitle1"
+          sx={{ mb: 2, textAlign: "center", fontWeight: 600 }}
+        >
+          Allocated amounts in USD
+        </Typography>
+
+        <TableContainer>
+          <Table size="small">
+            <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
+              <TableRow>
+                <TableCell>Transaction Type</TableCell>
+                <TableCell>#</TableCell>
+                <TableCell>Ref</TableCell>
+                <TableCell>Date</TableCell>
+                <TableCell>Due date</TableCell>
+                <TableCell>Amount</TableCell>
+                <TableCell>Other Allocations</TableCell>
+                <TableCell>Left to allocate</TableCell>
+                <TableCell>This allocation</TableCell>
+                <TableCell></TableCell>
+                <TableCell></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {allocationRows.map((row, index) => (
+                <TableRow key={index}>
+                  <TableCell>{row.transactionType}</TableCell>
+                  <TableCell>{row.number}</TableCell>
+                  <TableCell>{row.ref}</TableCell>
+                  <TableCell>{row.date}</TableCell>
+                  <TableCell>{row.dueDate}</TableCell>
+                  <TableCell>{row.amount.toFixed(2)}</TableCell>
+                  <TableCell>{row.otherAllocations.toFixed(2)}</TableCell>
+                  <TableCell>{row.leftToAllocate.toFixed(2)}</TableCell>
+                  <TableCell>
+                    <TextField
+                      size="small"
+                      type="number"
+                      value={row.thisAllocation}
+                      onChange={(e) => handleAllocationChange(index, Number(e.target.value))}
+                      sx={{ width: "100px" }}
+                    />
+                  </TableCell>
+                  <TableCell>{row.all}</TableCell>
+                  <TableCell>{row.none}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+
       {/* Payment Section */}
       <Paper sx={{ p: 2, borderRadius: 2 }}>
         <Typography
@@ -310,10 +404,9 @@ export default function CustomerPayments() {
           </Button>
           <Button
             variant="contained"
-            startIcon={<AddIcon />}
             onClick={handleAddPayment}
           >
-            Add Payment
+            Update Payment
           </Button>
         </Box>
       </Paper>

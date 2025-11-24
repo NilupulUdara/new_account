@@ -33,6 +33,8 @@ import { getInventoryLocations } from "../../../../api/InventoryLocation/Invento
 import { getItems, getItemById } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getSalesPricingByStockId } from "../../../../api/SalesPricing/SalesPricingApi";
+import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCompanyApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -53,6 +55,15 @@ export default function DirectDelivery() {
     const [cashAccount, setCashAccount] = useState("");
     const [comments, setComments] = useState("");
     const [shippingCharge, setShippingCharge] = useState(0);
+    const [priceColumnLabel, setPriceColumnLabel] = useState("Price After Tax");
+
+    // Additional fields for Quotation Delivery Details
+    const [validUntil, setValidUntil] = useState("");
+    const [deliverTo, setDeliverTo] = useState("");
+    const [address, setAddress] = useState("");
+    const [contactPhoneNumber, setContactPhoneNumber] = useState("");
+    const [customerReference, setCustomerReference] = useState("");
+    const [shippingCompany, setShippingCompany] = useState("");
 
     // ===== Fetch master data =====
     const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
@@ -64,6 +75,7 @@ export default function DirectDelivery() {
     const { data: items = [] } = useQuery({ queryKey: ["items"], queryFn: getItems });
     const { data: itemUnits = [] } = useQuery({ queryKey: ["itemUnits"], queryFn: getItemUnits });
     const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
+    const { data: shippingCompanies = [] } = useQuery({ queryKey: ["shippingCompanies"], queryFn: getShippingCompanies });
 
     // ===== Table rows =====
     const [rows, setRows] = useState([
@@ -74,6 +86,7 @@ export default function DirectDelivery() {
             quantity: 0,
             unit: "",
             priceAfterTax: 0,
+            priceBeforeTax: 0,
             discount: 0,
             total: 0,
             selectedItemId: null as string | number | null,
@@ -90,6 +103,7 @@ export default function DirectDelivery() {
                 quantity: 0,
                 unit: "",
                 priceAfterTax: 0,
+                priceBeforeTax: 0,
                 discount: 0,
                 total: 0,
                 selectedItemId: null,
@@ -111,15 +125,38 @@ export default function DirectDelivery() {
                         total:
                             field === "quantity" ||
                                 field === "priceAfterTax" ||
+                                field === "priceBeforeTax" ||
                                 field === "discount"
                                 ? (field === "quantity" ? value : r.quantity) *
-                                (field === "priceAfterTax" ? value : r.priceAfterTax) *
+                                (field === "priceAfterTax" ? value : field === "priceBeforeTax" ? value : r.priceAfterTax || r.priceBeforeTax) *
                                 (1 - (field === "discount" ? value : r.discount) / 100)
                                 : r.total,
                     }
                     : r
             )
         );
+    };
+
+    const handleItemChange = async (rowId: number, selectedItem: any) => {
+        handleChange(rowId, "description", selectedItem.description);
+        handleChange(rowId, "itemCode", selectedItem.stock_id);
+        handleChange(rowId, "selectedItemId", selectedItem.stock_id);
+        const itemData = await getItemById(selectedItem.stock_id);
+        if (itemData) {
+            const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
+            handleChange(rowId, "unit", unitName);
+            // Fetch pricing
+            const pricingList = await getSalesPricingByStockId(selectedItem.stock_id);
+            const pricing = pricingList.find((p: any) => p.sales_type_id === priceList);
+            if (pricing) {
+                handleChange(rowId, "priceAfterTax", pricing.price);
+                handleChange(rowId, "priceBeforeTax", pricing.price);
+            } else {
+                // Fallback to material_cost
+                handleChange(rowId, "priceAfterTax", itemData.material_cost || 0);
+                handleChange(rowId, "priceBeforeTax", itemData.material_cost || 0);
+            }
+        }
     };
 
     // ===== Auto-generate reference =====
@@ -135,6 +172,24 @@ export default function DirectDelivery() {
     useEffect(() => {
         setBranch("");
     }, [customer]);
+
+    // Update price column label when price list changes
+    useEffect(() => {
+        if (priceList) {
+            const selected = priceLists.find((pl: any) => pl.id === priceList);
+            if (selected) {
+                if (selected.typeName === "Retail") {
+                    setPriceColumnLabel("Price after Tax");
+                } else if (selected.typeName === "Wholesale") {
+                    setPriceColumnLabel("Price before Tax");
+                } else {
+                    setPriceColumnLabel("Price");
+                }
+            }
+        } else {
+            setPriceColumnLabel("Price after Tax");
+        }
+    }, [priceList, priceLists]);
 
     // Update credit and discount when customer changes
     useEffect(() => {
@@ -154,6 +209,32 @@ export default function DirectDelivery() {
         }
     }, [customer, customers]);
 
+    // Update prices when price list changes
+    useEffect(() => {
+        if (priceList) {
+            const updatePrices = async () => {
+                const newRows = await Promise.all(
+                    rows.map(async (row) => {
+                        if (row.selectedItemId) {
+                            const pricingList = await getSalesPricingByStockId(row.selectedItemId);
+                            const pricing = pricingList.find((p: any) => p.sales_type_id === priceList);
+                            if (pricing) {
+                                return {
+                                    ...row,
+                                    priceAfterTax: pricing.price,
+                                    priceBeforeTax: pricing.price,
+                                };
+                            }
+                        }
+                        return row;
+                    })
+                );
+                setRows(newRows);
+            };
+            updatePrices();
+        }
+    }, [priceList]);
+
     const handlePlaceQuotation = () => {
         if (!customer || rows.length === 0) return;
         console.log({
@@ -167,6 +248,14 @@ export default function DirectDelivery() {
             deliverFrom,
             cashAccount,
             comments,
+            ...(showQuotationDeliveryDetails && {
+                validUntil,
+                deliverTo,
+                address,
+                contactPhoneNumber,
+                customerReference,
+                shippingCompany,
+            }),
         });
         alert("Quotation placed successfully!");
         navigate(-1);
@@ -178,6 +267,21 @@ export default function DirectDelivery() {
     ];
 
     const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
+
+    // Find currently selected payment term object so we can inspect its payment_type
+    const selectedPaymentTerm = useMemo(() => {
+        return paymentTerms.find((pt: any) => String(pt.terms_indicator) === String(payment));
+    }, [payment, paymentTerms]);
+
+    const selectedPaymentType = useMemo(() => {
+        const pt = selectedPaymentTerm?.payment_type;
+        if (pt == null) return null;
+        if (typeof pt === "number") return pt;
+        // try common id fields when payment_type is an object
+        return pt.id ?? pt.payment_type ?? null;
+    }, [selectedPaymentTerm]);
+
+    const showQuotationDeliveryDetails = selectedPaymentType === 3 || selectedPaymentType === 4;
 
     return (
         <Stack spacing={2}>
@@ -205,95 +309,96 @@ export default function DirectDelivery() {
             {/* Form fields */}
             <Paper sx={{ p: 2, borderRadius: 2 }}>
                 <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Customer"
-                            value={customer}
-                            onChange={(e) => setCustomer(e.target.value)}
-                            size="small"
-                        >
-                            {customers.map((c: any) => (
-                                <MenuItem key={c.debtor_no} value={c.debtor_no}>
-                                    {c.name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Branch"
-                            value={branch}
-                            onChange={(e) => setBranch(e.target.value)}
-                            size="small"
-                        >
-                            {branches
-                                .filter((b: any) => b.debtor_no === customer)
-                                .map((b: any) => (
-                                    <MenuItem key={b.branch_code} value={b.branch_code}>
-                                        {b.br_name}
+                    <Grid item xs={12} sm={3}>
+                        <Stack spacing={2}>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Customer"
+                                value={customer}
+                                onChange={(e) => setCustomer(e.target.value)}
+                                size="small"
+                            >
+                                {customers.map((c: any) => (
+                                    <MenuItem key={c.debtor_no} value={c.debtor_no}>
+                                        {c.name}
                                     </MenuItem>
                                 ))}
-                        </TextField>
+                            </TextField>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Branch"
+                                value={branch}
+                                onChange={(e) => setBranch(e.target.value)}
+                                size="small"
+                            >
+                                {branches
+                                    .filter((b: any) => b.debtor_no === customer)
+                                    .map((b: any) => (
+                                        <MenuItem key={b.branch_code} value={b.branch_code}>
+                                            {b.br_name}
+                                        </MenuItem>
+                                    ))}
+                            </TextField>
+                            <TextField
+                                label="Reference"
+                                fullWidth
+                                size="small"
+                                value={reference}
+                                InputProps={{ readOnly: true }}
+                            />
+                        </Stack>
                     </Grid>
 
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            label="Reference"
-                            fullWidth
-                            size="small"
-                            value={reference}
-                            InputProps={{ readOnly: true }}
-                        />
+                    <Grid item xs={12} sm={3}>
+                        <Stack spacing={2}>
+                            <TextField label="Current Credit" fullWidth size="small" value={credit} InputProps={{ readOnly: true }} />
+                            <TextField label="Customer Discount (%)" fullWidth size="small" value={discount} InputProps={{ readOnly: true }} />
+                        </Stack>
                     </Grid>
 
-                    <Grid item xs={12} sm={4}>
-                        <TextField label="Current Credit" fullWidth size="small" value={credit} InputProps={{ readOnly: true }} />
+                    <Grid item xs={12} sm={3}>
+                        <Stack spacing={2}>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Payment Type"
+                                value={payment}
+                                onChange={(e) => setPayment(e.target.value)}
+                                size="small"
+                                // Ensure the selected value shows the human-friendly `description`
+                                SelectProps={{
+                                    renderValue: (selected) => {
+                                        const sel = paymentTerms.find((pt: any) => String(pt.terms_indicator) === String(selected));
+                                        return sel ? sel.description : (selected as string);
+                                    },
+                                }}
+                            >
+                                {paymentTerms.map((p: any) => (
+                                    <MenuItem key={p.terms_indicator} value={p.terms_indicator}>
+                                        {p.description}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Price List"
+                                value={priceList}
+                                onChange={(e) => setPriceList(e.target.value)}
+                                size="small"
+                            >
+                                {priceLists.map((pl: any) => (
+                                    <MenuItem key={pl.id} value={pl.id}>
+                                        {pl.typeName}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                        </Stack>
                     </Grid>
 
-                    <Grid item xs={12} sm={4}>
-                        <TextField label="Customer Discount (%)" fullWidth size="small" value={discount} InputProps={{ readOnly: true }} />
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Payment Type"
-                            value={payment}
-                            onChange={(e) => setPayment(e.target.value)}
-                            size="small"
-                        >
-                            {paymentTerms.map((p: any) => (
-                                <MenuItem key={p.terms_indicator} value={p.terms_indicator}>
-                                    {p.description}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Price List"
-                            value={priceList}
-                            onChange={(e) => setPriceList(e.target.value)}
-                            size="small"
-                        >
-                            {priceLists.map((pl: any) => (
-                                <MenuItem key={pl.id} value={pl.id}>
-                                    {pl.typeName}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={3}>
                         <TextField
                             label="Delivery Date"
                             type="date"
@@ -318,7 +423,7 @@ export default function DirectDelivery() {
                             <TableCell>Description</TableCell>
                             <TableCell>Quantity</TableCell>
                             <TableCell>Unit</TableCell>
-                            <TableCell>Price After Tax</TableCell>
+                            <TableCell>{priceColumnLabel}</TableCell>
                             <TableCell>Discount (%)</TableCell>
                             <TableCell>Total</TableCell>
                             <TableCell>Action</TableCell>
@@ -341,18 +446,10 @@ export default function DirectDelivery() {
                                         select
                                         size="small"
                                         value={row.description}
-                                        onChange={async (e) => {
+                                        onChange={(e) => {
                                             const selected = items.find((item: any) => item.description === e.target.value);
-                                            handleChange(row.id, "description", e.target.value);
                                             if (selected) {
-                                                handleChange(row.id, "itemCode", selected.stock_id);
-                                                handleChange(row.id, "selectedItemId", selected.stock_id);
-                                                const itemData = await getItemById(selected.stock_id);
-                                                if (itemData) {
-                                                    const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
-                                                    handleChange(row.id, "unit", unitName);
-                                                    handleChange(row.id, "priceAfterTax", itemData.material_cost || 0);
-                                                }
+                                                handleItemChange(row.id, selected);
                                             }
                                         }}
                                     >
@@ -384,12 +481,18 @@ export default function DirectDelivery() {
                                 <TableCell>
                                     <TextField size="small" value={row.unit} InputProps={{ readOnly: true }} />
                                 </TableCell>
-                                <TableCell>
+                                <TableCell align="right">
                                     <TextField
                                         size="small"
                                         type="number"
-                                        value={row.priceAfterTax}
-                                        onChange={(e) => handleChange(row.id, "priceAfterTax", Number(e.target.value))}
+                                        value={priceColumnLabel === "Price before Tax" ? row.priceBeforeTax : row.priceAfterTax}
+                                        onChange={(e) => {
+                                            if (priceColumnLabel === "Price before Tax") {
+                                                handleChange(row.id, "priceBeforeTax", Number(e.target.value));
+                                            } else {
+                                                handleChange(row.id, "priceAfterTax", Number(e.target.value));
+                                            }
+                                        }}
                                     />
                                 </TableCell>
                                 <TableCell>
@@ -480,53 +583,143 @@ export default function DirectDelivery() {
             {/* Cash Payment Section */}
             <Paper sx={{ p: 2, borderRadius: 2 }}>
                 <Typography variant="subtitle1" sx={{ mb: 2, textAlign: 'center' }}>
-                    Cash Payment
+                    {showQuotationDeliveryDetails ? "Quotation Delivery Details" : "Cash Payment"}
                 </Typography>
                 <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Deliver From Location"
-                            value={deliverFrom}
-                            onChange={(e) => setDeliverFrom(e.target.value)}
-                            size="small"
-                        >
-                            {locations.map((loc: any) => (
-                                <MenuItem key={loc.loc_code} value={loc.loc_code}>
-                                    {loc.location_name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
+                    {showQuotationDeliveryDetails ? (
+                        <>
+                            <Grid item xs={12} sm={6}>
+                                <Stack spacing={2}>
+                                    <TextField
+                                        select
+                                        fullWidth
+                                        label="Deliver From Location"
+                                        value={deliverFrom}
+                                        onChange={(e) => setDeliverFrom(e.target.value)}
+                                        size="small"
+                                    >
+                                        {locations.map((loc: any) => (
+                                            <MenuItem key={loc.loc_code} value={loc.loc_code}>
+                                                {loc.location_name}
+                                            </MenuItem>
+                                        ))}
+                                    </TextField>
+                                    <TextField
+                                        label="Valid Until"
+                                        type="date"
+                                        fullWidth
+                                        size="small"
+                                        value={validUntil}
+                                        onChange={(e) => setValidUntil(e.target.value)}
+                                        InputLabelProps={{ shrink: true }}
+                                    />
+                                    <TextField
+                                        label="Deliver To"
+                                        fullWidth
+                                        size="small"
+                                        value={deliverTo}
+                                        onChange={(e) => setDeliverTo(e.target.value)}
+                                    />
+                                    <TextField
+                                        label="Address"
+                                        fullWidth
+                                        multiline
+                                        rows={2}
+                                        size="small"
+                                        value={address}
+                                        onChange={(e) => setAddress(e.target.value)}
+                                    />
+                                </Stack>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <Stack spacing={2}>
+                                    <TextField
+                                        label="Contact Phone Number"
+                                        fullWidth
+                                        size="small"
+                                        value={contactPhoneNumber}
+                                        onChange={(e) => setContactPhoneNumber(e.target.value)}
+                                    />
+                                    <TextField
+                                        label="Customer Reference"
+                                        fullWidth
+                                        size="small"
+                                        value={customerReference}
+                                        onChange={(e) => setCustomerReference(e.target.value)}
+                                    />
+                                    <TextField
+                                        select
+                                        fullWidth
+                                        label="Shipping Company"
+                                        value={shippingCompany}
+                                        onChange={(e) => setShippingCompany(e.target.value)}
+                                        size="small"
+                                    >
+                                        {shippingCompanies.map((sc: any) => (
+                                            <MenuItem key={sc.shipper_id} value={sc.shipper_id}>
+                                                {sc.shipper_name}
+                                            </MenuItem>
+                                        ))}
+                                    </TextField>
+                                    <TextField
+                                        fullWidth
+                                        multiline
+                                        rows={2}
+                                        label="Comments"
+                                        value={comments}
+                                        onChange={(e) => setComments(e.target.value)}
+                                    />
+                                </Stack>
+                            </Grid>
+                        </>
+                    ) : (
+                        <>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    select
+                                    fullWidth
+                                    label="Deliver From Location"
+                                    value={deliverFrom}
+                                    onChange={(e) => setDeliverFrom(e.target.value)}
+                                    size="small"
+                                >
+                                    {locations.map((loc: any) => (
+                                        <MenuItem key={loc.loc_code} value={loc.loc_code}>
+                                            {loc.location_name}
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
+                            </Grid>
 
-                    <Grid item xs={12} sm={6}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Cash Account"
-                            value={cashAccount}
-                            onChange={(e) => setCashAccount(e.target.value)}
-                            size="small"
-                        >
-                            {/* {cashAccounts.map((acc: any) => (
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    select
+                                    fullWidth
+                                    label="Cash Account"
+                                    value={cashAccount}
+                                    onChange={(e) => setCashAccount(e.target.value)}
+                                    size="small"
+                                >
+                                    {/* {cashAccounts.map((acc: any) => (
                 <MenuItem key={acc.id} value={acc.id}>
                   {acc.name}
                 </MenuItem>
               ))} */}
-                        </TextField>
-                    </Grid>
+                                </TextField>
+                            </Grid>
 
-                    <Grid item xs={12}>
-                        <TextField
-                            fullWidth
-                            multiline
-                            rows={2}
-                            label="Comments"
-                            value={comments}
-                            onChange={(e) => setComments(e.target.value)}
-                        />
-                    </Grid>
+                            <Grid item xs={12}>
+                                <TextField
+                                    fullWidth
+                                    multiline
+                                    rows={2}
+                                    label="Comments"
+                                    value={comments}
+                                    onChange={(e) => setComments(e.target.value)}
+                                />
+                            </Grid>
+                        </>
+                    )}
                 </Grid>
 
                 <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, gap: 2 }}>

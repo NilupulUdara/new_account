@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import {
   Box,
   Paper,
@@ -12,6 +12,7 @@ import {
   Stack,
   Button,
   Grid,
+  CircularProgress,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -20,30 +21,18 @@ import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
+import { getSalesOrderByOrderNo } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { getSalesOrderDetailsByOrderNo } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
+import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
 
 export default function ViewSalesQuotationEntry() {
   const { state } = useLocation();
   const navigate = useNavigate();
+  const { orderNo } = state || {};
 
-  const {
-    customerId,
-    customerOrderRef,
-    orderedOn,
-    validUntil,
-    orderCurrency,
-    paymentTerms,
-    deliveryAddress,
-    deliverToBranch,
-    deliverFromLocation,
-    reference,
-    telephone,
-    email,
-    comments,
-    items = [],
-    subtotal,
-    includedTax,
-    totalAmount,
-  } = state || {};
+  const [salesOrder, setSalesOrder] = useState<any>(null);
+  const [orderDetails, setOrderDetails] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Fetch customers for display
   const { data: customers = [] } = useQuery({
@@ -57,27 +46,112 @@ export default function ViewSalesQuotationEntry() {
     queryFn: getInventoryLocations,
   });
 
+  // Fetch payment terms for display
+  const { data: paymentTerms = [] } = useQuery({
+    queryKey: ["paymentTerms"],
+    queryFn: getPaymentTerms,
+  });
+
+  // Fetch sales order and details from backend
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!orderNo) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const [orderData, detailsData] = await Promise.all([
+          getSalesOrderByOrderNo(orderNo),
+          getSalesOrderDetailsByOrderNo(orderNo),
+        ]);
+        setSalesOrder(orderData);
+        setOrderDetails(detailsData || []);
+      } catch (error) {
+        console.error("Error fetching sales order data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [orderNo]);
+
   // Resolve customer and location names
   const customerName = useMemo(() => {
-    if (!customerId) return undefined;
+    const customerId = salesOrder?.debtor_no;
+    if (!customerId) return "-";
     const found = (customers || []).find(
-      (c: any) => String(c.id) === String(customerId)
+      (c: any) => String(c.debtor_no) === String(customerId)
     );
     return found ? found.name : "-";
-  }, [customers, customerId]);
+  }, [customers, salesOrder]);
 
   const deliverFromName = useMemo(() => {
-    if (!deliverFromLocation) return undefined;
+    const deliverFromLocation = salesOrder?.from_stk_loc;
+    if (!deliverFromLocation) return "-";
     const found = (locations || []).find(
       (l: any) => String(l.loc_code) === String(deliverFromLocation)
     );
     return found ? found.location_name : deliverFromLocation;
-  }, [locations, deliverFromLocation]);
+  }, [locations, salesOrder]);
+
+  const paymentTermName = useMemo(() => {
+    const paymentTermId = salesOrder?.payment_terms;
+    if (!paymentTermId) return "-";
+    const found = (paymentTerms || []).find(
+      (pt: any) => String(pt.terms_indicator) === String(paymentTermId)
+    );
+    return found ? found.description : "-";
+  }, [paymentTerms, salesOrder]);
+
+  // Calculate totals from order details
+  const { subtotal, includedTax, totalAmount } = useMemo(() => {
+    const subtotal = orderDetails.reduce((sum, item) => sum + (parseFloat(item.unit_price || 0) * parseFloat(item.quantity || 0) * (1 - parseFloat(item.discount_percent || 0) / 100)), 0);
+    const includedTax = orderDetails.reduce((sum, item) => sum + (parseFloat(item.unit_tax || 0) * parseFloat(item.quantity || 0)), 0);
+    const totalAmount = subtotal + includedTax;
+    return { subtotal: subtotal.toFixed(2), includedTax: includedTax.toFixed(2), totalAmount: totalAmount.toFixed(2) };
+  }, [orderDetails]);
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
     { title: "Sales Quotations" },
   ];
+
+  if (loading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!salesOrder) {
+    return (
+      <Stack spacing={2}>
+        <Box
+          sx={{
+            padding: 2,
+            boxShadow: 2,
+            borderRadius: 1,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Typography>Sales quotation not found</Typography>
+          <Button
+            variant="outlined"
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate(-1)}
+          >
+            Back
+          </Button>
+        </Box>
+      </Stack>
+    );
+  }
 
   return (
     <Stack spacing={2}>
@@ -94,7 +168,7 @@ export default function ViewSalesQuotationEntry() {
         }}
       >
         <Box>
-          <PageTitle title={`Sales Quotation - ${reference || "-"}`} />
+          <PageTitle title={"Sales Quotation"} />
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
         <Button
@@ -117,52 +191,55 @@ export default function ViewSalesQuotationEntry() {
 
         <Grid container spacing={2}>
           <Grid item xs={12}>
-            <Typography><b>Customer Name:</b> {customerName || "-"}</Typography>
+            <Typography><b>Customer Name:</b> {customerName}</Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography>
-              <b>Customer Order Ref:</b> {customerOrderRef || "-"}
+              <b>Customer Order Ref:</b> {salesOrder?.customer_ref || "-"}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography>
-              <b>Deliver To Branch:</b> {deliverToBranch || "-"}
+              <b>Deliver To Branch:</b> {salesOrder?.deliver_to || "-"}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography>
-              <b>Ordered On:</b> {orderedOn || "-"}
+              <b>Ordered On:</b> {salesOrder?.ord_date || "-"}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography>
-              <b>Valid Until:</b> {validUntil || "-"}
+              <b>Valid Until:</b> {salesOrder?.delivery_date || "-"}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography>
-              <b>Order Currency:</b> {orderCurrency || "-"}
+              <b>Order Currency:</b> {salesOrder?.order_type || "-"}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography>
-              <b>Deliver From Location:</b> {deliverFromName || "-"}
+              <b>Deliver From Location:</b> {deliverFromName}
             </Typography>
           </Grid>
           <Grid item xs={12}>
-            <Typography><b>Payment Terms:</b> {paymentTerms || "-"}</Typography>
+            <Typography><b>Payment Terms:</b> {paymentTermName}</Typography>
           </Grid>
           <Grid item xs={12}>
-            <Typography><b>Telephone:</b> {telephone || "-"}</Typography>
+            <Typography><b>Telephone:</b> {salesOrder?.contact_phone || "-"}</Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
-            <Typography><b>Email:</b> {email || "-"}</Typography>
+            <Typography><b>Email:</b> {salesOrder?.contact_email || "-"}</Typography>
           </Grid>
           <Grid item xs={12}>
-            <Typography><b>Delivery Address:</b> {deliveryAddress || "-"}</Typography>
+            <Typography><b>Delivery Address:</b> {salesOrder?.delivery_address || "-"}</Typography>
           </Grid>
           <Grid item xs={12}>
-            <Typography><b>Comments:</b> {comments || "-"}</Typography>
+            <Typography><b>Reference:</b> {salesOrder?.reference || "-"}</Typography>
+          </Grid>
+          <Grid item xs={12}>
+            <Typography><b>Comments:</b> {salesOrder?.comments || "-"}</Typography>
           </Grid>
         </Grid>
       </Paper>
@@ -185,34 +262,37 @@ export default function ViewSalesQuotationEntry() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {items.length === 0 ? (
+              {orderDetails.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8}>No items available</TableCell>
                 </TableRow>
               ) : (
-                items.map((it: any, idx: number) => (
-                  <TableRow key={idx}>
-                    <TableCell>{it.itemCode ?? "-"}</TableCell>
-                    <TableCell>{it.description ?? "-"}</TableCell>
-                    <TableCell>{it.quantity ?? "-"}</TableCell>
-                    <TableCell>{it.unit ?? "-"}</TableCell>
-                    <TableCell>{it.price ?? "-"}</TableCell>
-                    <TableCell>{it.discount ?? "-"}</TableCell>
-                    <TableCell>{it.total ?? "-"}</TableCell>
-                    <TableCell>{it.quantityDelivered ?? "-"}</TableCell>
-                  </TableRow>
-                ))
+                orderDetails.map((item: any, idx: number) => {
+                  const itemTotal = (parseFloat(item.unit_price || 0) * parseFloat(item.quantity || 0) * (1 - parseFloat(item.discount_percent || 0) / 100)).toFixed(2);
+                  return (
+                    <TableRow key={idx}>
+                      <TableCell>{item.stk_code || "-"}</TableCell>
+                      <TableCell>{item.description || "-"}</TableCell>
+                      <TableCell>{item.quantity || "-"}</TableCell>
+                      <TableCell>{item.units || "-"}</TableCell>
+                      <TableCell>{item.unit_price || "-"}</TableCell>
+                      <TableCell>{item.discount_percent ? `${item.discount_percent}%` : "-"}</TableCell>
+                      <TableCell>{itemTotal}</TableCell>
+                      <TableCell>{item.qty_sent || "0"}</TableCell>
+                    </TableRow>
+                  );
+                })
               )}
               <TableRow>
                 <TableCell colSpan={5}></TableCell>
                 <TableCell>Subtotal</TableCell>
-                <TableCell>{subtotal ?? "-"}</TableCell>
+                <TableCell>{subtotal}</TableCell>
                 <TableCell></TableCell>
               </TableRow>
               <TableRow>
                 <TableCell colSpan={5}></TableCell>
                 <TableCell>Included Tax</TableCell>
-                <TableCell>{includedTax ?? "-"}</TableCell>
+                <TableCell>{includedTax}</TableCell>
                 <TableCell></TableCell>
               </TableRow>
               <TableRow>

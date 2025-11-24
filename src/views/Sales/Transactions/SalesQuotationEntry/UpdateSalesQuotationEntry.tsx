@@ -146,12 +146,16 @@ export default function UpdateSalesQuotationEntry() {
             if (selectedCustomer) {
                 setCredit(selectedCustomer.credit_limit || 0);
                 setDiscount(selectedCustomer.discount || 0);
+                setPayment(selectedCustomer.payment_terms ? String(selectedCustomer.payment_terms) : "");
+                setPriceList(selectedCustomer.sales_type ? String(selectedCustomer.sales_type) : "");
                 // Update table rows discount
                 setRows((prev) => prev.map((r) => ({ ...r, discount: selectedCustomer.discount || 0 })));
             }
         } else {
             setCredit(0);
             setDiscount(0);
+            setPayment("");
+            setPriceList("");
             // Reset table rows discount
             setRows((prev) => prev.map((r) => ({ ...r, discount: 0 })));
         }
@@ -200,6 +204,19 @@ export default function UpdateSalesQuotationEntry() {
 
     const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
 
+    const selectedPaymentTerm = useMemo(() => {
+        return paymentTerms.find((pt: any) => String(pt.terms_indicator) === String(payment));
+    }, [payment, paymentTerms]);
+
+    const selectedPaymentType = useMemo(() => {
+        const pt = selectedPaymentTerm?.payment_type;
+        if (pt == null) return null;
+        if (typeof pt === "number") return pt;
+        return pt.id ?? pt.payment_type ?? null;
+    }, [selectedPaymentTerm]);
+
+    const showQuotationDeliveryDetails = selectedPaymentType === 3 || selectedPaymentType === 4;
+
     return (
         <Stack spacing={2}>
             {/* Header */}
@@ -226,95 +243,95 @@ export default function UpdateSalesQuotationEntry() {
             {/* Form fields */}
             <Paper sx={{ p: 2, borderRadius: 2 }}>
                 <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Customer"
-                            value={customer}
-                            onChange={(e) => setCustomer(e.target.value)}
-                            size="small"
-                        >
-                            {customers.map((c: any) => (
-                                <MenuItem key={c.debtor_no} value={c.debtor_no}>
-                                    {c.name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Branch"
-                            value={branch}
-                            onChange={(e) => setBranch(e.target.value)}
-                            size="small"
-                        >
-                            {branches
-                                .filter((b: any) => b.debtor_no === customer)
-                                .map((b: any) => (
-                                    <MenuItem key={b.branch_code} value={b.branch_code}>
-                                        {b.br_name}
+                    <Grid item xs={12} sm={3}>
+                        <Stack spacing={2}>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Customer"
+                                value={customer}
+                                onChange={(e) => setCustomer(e.target.value)}
+                                size="small"
+                            >
+                                {customers.map((c: any) => (
+                                    <MenuItem key={c.debtor_no} value={c.debtor_no}>
+                                        {c.name}
                                     </MenuItem>
                                 ))}
-                        </TextField>
+                            </TextField>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Branch"
+                                value={branch}
+                                onChange={(e) => setBranch(e.target.value)}
+                                size="small"
+                            >
+                                {branches
+                                    .filter((b: any) => b.debtor_no === customer)
+                                    .map((b: any) => (
+                                        <MenuItem key={b.branch_code} value={b.branch_code}>
+                                            {b.br_name}
+                                        </MenuItem>
+                                    ))}
+                            </TextField>
+                            <TextField
+                                label="Reference"
+                                fullWidth
+                                size="small"
+                                value={reference}
+                                InputProps={{ readOnly: true }}
+                            />
+                        </Stack>
                     </Grid>
 
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            label="Reference"
-                            fullWidth
-                            size="small"
-                            value={reference}
-                            InputProps={{ readOnly: true }}
-                        />
+                    <Grid item xs={12} sm={3}>
+                        <Stack spacing={2}>
+                            <TextField label="Current Credit" fullWidth size="small" value={credit} InputProps={{ readOnly: true }} />
+                            <TextField label="Customer Discount (%)" fullWidth size="small" value={discount} InputProps={{ readOnly: true }} />
+                        </Stack>
                     </Grid>
 
-                    <Grid item xs={12} sm={4}>
-                        <TextField label="Current Credit" fullWidth size="small" value={credit} InputProps={{ readOnly: true }} />
+                    <Grid item xs={12} sm={3}>
+                        <Stack spacing={2}>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Payment Type"
+                                value={payment}
+                                onChange={(e) => setPayment(e.target.value)}
+                                size="small"
+                                SelectProps={{
+                                    renderValue: (selected) => {
+                                        const sel = paymentTerms.find((pt: any) => String(pt.terms_indicator) === String(selected));
+                                        return sel ? sel.description : (selected as string);
+                                    },
+                                }}
+                            >
+                                {paymentTerms.map((p: any) => (
+                                    <MenuItem key={p.terms_indicator} value={p.terms_indicator}>
+                                        {p.description}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Price List"
+                                value={priceList}
+                                onChange={(e) => setPriceList(e.target.value)}
+                                size="small"
+                            >
+                                {priceLists.map((pl: any) => (
+                                    <MenuItem key={pl.id} value={pl.id}>
+                                        {pl.typeName}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                        </Stack>
                     </Grid>
 
-                    <Grid item xs={12} sm={4}>
-                        <TextField label="Customer Discount (%)" fullWidth size="small" value={discount} InputProps={{ readOnly: true }} />
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Payment Type"
-                            value={payment}
-                            onChange={(e) => setPayment(e.target.value)}
-                            size="small"
-                        >
-                            {paymentTerms.map((p: any) => (
-                                <MenuItem key={p.terms_indicator} value={p.terms_indicator}>
-                                    {p.description}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Price List"
-                            value={priceList}
-                            onChange={(e) => setPriceList(e.target.value)}
-                            size="small"
-                        >
-                            {priceLists.map((pl: any) => (
-                                <MenuItem key={pl.id} value={pl.id}>
-                                    {pl.typeName}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={3}>
                         <TextField
                             label="Quotation Date"
                             type="date"
@@ -501,7 +518,7 @@ export default function UpdateSalesQuotationEntry() {
             {/* Cash Payment Section */}
             <Paper sx={{ p: 2, borderRadius: 2 }}>
                <Typography variant="subtitle1" sx={{ mb: 2, textAlign: 'center' }}>
-                    Cash Payment
+                    {showQuotationDeliveryDetails ? "Quotation Delivery Details" : "Cash Payment"}
                 </Typography>
                 <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>

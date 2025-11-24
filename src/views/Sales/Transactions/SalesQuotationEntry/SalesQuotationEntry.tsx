@@ -23,7 +23,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
@@ -33,12 +33,18 @@ import { getInventoryLocations } from "../../../../api/InventoryLocation/Invento
 import { getItems, getItemById } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getSalesPricingByStockId } from "../../../../api/SalesPricing/SalesPricingApi";
+import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCompanyApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { createSalesOrder, generateProvisionalOrderNo, getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { createSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 
 export default function SalesQuotationEntry() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
 
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
@@ -55,6 +61,14 @@ export default function SalesQuotationEntry() {
     const [shippingCharge, setShippingCharge] = useState(0);
     const [priceColumnLabel, setPriceColumnLabel] = useState("Price After Tax");
 
+    // Additional fields for Quotation Delivery Details
+    const [validUntil, setValidUntil] = useState("");
+    const [deliverTo, setDeliverTo] = useState("");
+    const [address, setAddress] = useState("");
+    const [contactPhoneNumber, setContactPhoneNumber] = useState("");
+    const [customerReference, setCustomerReference] = useState("");
+    const [shippingCompany, setShippingCompany] = useState("");
+
     // ===== Fetch master data =====
     const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
     const { data: branches = [] } = useQuery({ queryKey: ["branches"], queryFn: () => getBranches() });
@@ -65,6 +79,7 @@ export default function SalesQuotationEntry() {
     const { data: items = [] } = useQuery({ queryKey: ["items"], queryFn: getItems });
     const { data: itemUnits = [] } = useQuery({ queryKey: ["itemUnits"], queryFn: getItemUnits });
     const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
+    const { data: shippingCompanies = [] } = useQuery({ queryKey: ["shippingCompanies"], queryFn: getShippingCompanies });
 
     // ===== Table rows =====
     const [rows, setRows] = useState([
@@ -75,6 +90,7 @@ export default function SalesQuotationEntry() {
             quantity: 0,
             unit: "",
             priceAfterTax: 0,
+            priceBeforeTax: 0,
             discount: 0,
             total: 0,
             selectedItemId: null as string | number | null,
@@ -91,7 +107,8 @@ export default function SalesQuotationEntry() {
                 quantity: 0,
                 unit: "",
                 priceAfterTax: 0,
-                discount: 0,
+                priceBeforeTax: 0,
+                discount: discount,
                 total: 0,
                 selectedItemId: null,
             },
@@ -112,15 +129,39 @@ export default function SalesQuotationEntry() {
                         total:
                             field === "quantity" ||
                                 field === "priceAfterTax" ||
+                                field === "priceBeforeTax" ||
                                 field === "discount"
                                 ? (field === "quantity" ? value : r.quantity) *
-                                (field === "priceAfterTax" ? value : r.priceAfterTax) *
+                                (field === "priceAfterTax" ? value : field === "priceBeforeTax" ? value : r.priceAfterTax || r.priceBeforeTax) *
                                 (1 - (field === "discount" ? value : r.discount) / 100)
                                 : r.total,
                     }
                     : r
             )
         );
+    };
+
+    const handleItemChange = async (rowId: number, selectedItem: any) => {
+        handleChange(rowId, "description", selectedItem.description);
+        handleChange(rowId, "itemCode", selectedItem.stock_id);
+        handleChange(rowId, "selectedItemId", selectedItem.stock_id);
+        handleChange(rowId, "quantity", 1);
+        const itemData = await getItemById(selectedItem.stock_id);
+        if (itemData) {
+            const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
+            handleChange(rowId, "unit", unitName);
+            // Fetch pricing
+            const pricingList = await getSalesPricingByStockId(selectedItem.stock_id);
+            const pricing = pricingList.find((p: any) => p.sales_type_id === priceList);
+            if (pricing) {
+                handleChange(rowId, "priceAfterTax", pricing.price);
+                handleChange(rowId, "priceBeforeTax", pricing.price);
+            } else {
+                // Fallback to material_cost
+                handleChange(rowId, "priceAfterTax", itemData.material_cost || 0);
+                handleChange(rowId, "priceBeforeTax", itemData.material_cost || 0);
+            }
+        }
     };
 
     // Auto-select first customer on load
@@ -146,16 +187,34 @@ export default function SalesQuotationEntry() {
             if (selectedCustomer) {
                 setCredit(selectedCustomer.credit_limit || 0);
                 setDiscount(selectedCustomer.discount || 0);
+                setPayment(selectedCustomer.payment_terms ? String(selectedCustomer.payment_terms) : "");
+                setPriceList(selectedCustomer.sales_type ? String(selectedCustomer.sales_type) : "");
                 // Update table rows discount
                 setRows((prev) => prev.map((r) => ({ ...r, discount: selectedCustomer.discount || 0 })));
             }
         } else {
             setCredit(0);
             setDiscount(0);
+            setPayment("");
+            setPriceList("");
             // Reset table rows discount
             setRows((prev) => prev.map((r) => ({ ...r, discount: 0 })));
         }
     }, [customer, customers]);
+
+    // Update deliver to and address when branch changes
+    useEffect(() => {
+        if (branch) {
+            const selectedBranch = branches.find((b: any) => b.branch_code === branch);
+            if (selectedBranch) {
+                setDeliverTo(selectedBranch.br_name || "");
+                setAddress(selectedBranch.br_address || "");
+            }
+        } else {
+            setDeliverTo("");
+            setAddress("");
+        }
+    }, [branch, branches]);
 
     // Update price column label when price list changes
     useEffect(() => {
@@ -175,22 +234,109 @@ export default function SalesQuotationEntry() {
         }
     }, [priceList, priceLists]);
 
-    const handlePlaceQuotation = () => {
-        if (!customer || rows.length === 0) return;
-        console.log({
-            customer,
-            branch,
-            reference,
-            quotationDate,
-            payment,
-            priceList,
-            rows,
-            deliverFrom,
-            cashAccount,
-            comments,
-        });
-        alert("Quotation placed successfully!");
-        navigate(-1);
+    // Update prices when price list changes
+    useEffect(() => {
+        if (priceList) {
+            const updatePrices = async () => {
+                const newRows = await Promise.all(
+                    rows.map(async (row) => {
+                        if (row.selectedItemId) {
+                            const pricingList = await getSalesPricingByStockId(row.selectedItemId);
+                            const pricing = pricingList.find((p: any) => p.sales_type_id === priceList);
+                            if (pricing) {
+                                return {
+                                    ...row,
+                                    priceAfterTax: pricing.price,
+                                    priceBeforeTax: pricing.price,
+                                };
+                            }
+                        }
+                        return row;
+                    })
+                );
+                setRows(newRows);
+            };
+            updatePrices();
+        }
+    }, [priceList]);
+
+    // === Additional derived fields for backend mapping ===
+    const [submitting, setSubmitting] = useState(false);
+    const [orderNo, setOrderNo] = useState<number>(1);
+
+    // Helper to get selected customer object
+    const selectedCustomer = useMemo(() => customers.find((c: any) => String(c.debtor_no) === String(customer)), [customers, customer]);
+    const customerName = selectedCustomer?.name || null;
+    const customerPhone = selectedCustomer?.phone || selectedCustomer?.contact_phone || null;
+    const customerEmail = selectedCustomer?.email || selectedCustomer?.contact_email || null;
+    const customerAddr = selectedCustomer?.address || selectedCustomer?.delivery_address || address || null;
+
+    const handlePlaceQuotation = async () => {
+        if (!customer) { alert("Select customer first"); return; }
+        if (!branch) { alert("Select branch first"); return; }
+        if (!deliverFrom) { alert("Select deliver-from location"); return; }
+        if (rows.filter(r => r.itemCode && r.quantity > 0).length === 0) {
+            alert("At least one item must be added to the quotation.");
+            return;
+        }
+        setSubmitting(true);
+        try {
+            const payload = {
+                order_no: orderNo,
+                trans_type: 32,
+                version: 0,
+                type: 0,
+                debtor_no: Number(customer),
+                branch_code: Number(branch),
+                reference,
+                ord_date: quotationDate,
+                order_type: Number(priceList) || 0,
+                ship_via: 1, // Provide integer; replace with real location id if available
+                delivery_address: customerAddr,
+                contact_phone: customerPhone,
+                contact_email: customerEmail,
+                deliver_to: customerName,
+                freight_cost: 0,
+                from_stk_loc: deliverFrom,
+                delivery_date: validUntil || quotationDate,
+                payment_terms: payment ? Number(payment) : null,
+                customer_ref: "customer ref",
+                total: subTotal + shippingCharge,
+                prep_amount: 0,
+                alloc: 0,
+            };
+            console.log("Posting sales order payload", payload);
+            await createSalesOrder(payload as any);
+            // Post details
+            const detailsToPost = rows.filter(r => r.selectedItemId);
+            for (const row of detailsToPost) {
+                const unitPrice = priceColumnLabel === "Price after Tax" ? row.priceAfterTax : row.priceBeforeTax;
+                const detailPayload = {
+                    order_no: orderNo,
+                    trans_type: 32,
+                    stk_code: row.itemCode,
+                    description: row.description,
+                    qty_sent: row.quantity,
+                    unit_price: unitPrice,
+                    quantity: row.quantity,
+                    invoiced: 0,
+                    discount_percent: discount,
+                };
+                console.log("Posting sales order detail", detailPayload);
+                await createSalesOrderDetail(detailPayload);
+            }
+            alert("Saved to sales_orders (order_no: " + orderNo + ")");
+            await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
+            navigate("/sales/transactions/sales-quotation-entry/success", {
+                state: { orderNo, reference, quotationDate }
+            });
+        } catch (e: any) {
+            console.error("Save error", e);
+            const detail = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'Unknown error');
+            alert("Failed to save: " + detail);
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const breadcrumbItems = [
@@ -198,7 +344,76 @@ export default function SalesQuotationEntry() {
         { title: "New Sales Quotation Entry" },
     ];
 
-    const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
+    // Only calculate subtotal for completed rows (all rows except the last one which is being edited)
+    const subTotal = rows.slice(0, -1).reduce((sum, r) => sum + r.total, 0);
+
+    // Find currently selected payment term object so we can inspect its payment_type
+    const selectedPaymentTerm = useMemo(() => {
+        return paymentTerms.find((pt: any) => String(pt.terms_indicator) === String(payment));
+    }, [payment, paymentTerms]);
+
+    const selectedPaymentType = useMemo(() => {
+        const pt = selectedPaymentTerm?.payment_type;
+        if (pt == null) return null;
+        if (typeof pt === "number") return pt;
+        // try common id fields when payment_type is an object
+        return pt.id ?? pt.payment_type ?? null;
+    }, [selectedPaymentTerm]);
+
+    const showQuotationDeliveryDetails = selectedPaymentType === 3 || selectedPaymentType === 4;
+
+    // Fetch fiscal years
+    const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+
+    // Fetch sales orders to determine next order number
+    const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
+
+    // Set order number based on existing sales orders
+    useEffect(() => {
+        if (salesOrders.length > 0) {
+            const maxOrderNo = Math.max(...salesOrders.map((o: any) => o.order_no));
+            setOrderNo(maxOrderNo + 1);
+        }
+    }, [salesOrders]);
+
+    // Determine fiscal year (using fiscal_year_from / fiscal_year_to) that contains quotationDate and build next reference number for the fiscal year
+    useEffect(() => {
+        if (!quotationDate || fiscalYears.length === 0 || salesOrders.length === 0) return;
+        const dateObj = new Date(quotationDate);
+        if (isNaN(dateObj.getTime())) return;
+
+        const matching = fiscalYears.find((fy: any) => {
+            if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+            const from = new Date(fy.fiscal_year_from);
+            const to = new Date(fy.fiscal_year_to);
+            if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+            return dateObj >= from && dateObj <= to; // inclusive
+        });
+
+        // If not found, choose the one whose from date is closest but not after the quotationDate.
+        const chosen = matching || [...fiscalYears]
+            .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
+            .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
+            .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
+
+        if (chosen) {
+            // Preferred label: explicit fiscal_year field if exists, else derive from from/to years.
+            const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
+            const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
+            const yearLabel = chosen.fiscal_year || (fromYear === toYear ? fromYear : `${fromYear}-${toYear}`);
+
+            // Find existing references for this fiscal year
+            const relevantRefs = salesOrders.filter((o: any) => o.reference && o.reference.endsWith(`/${yearLabel}`));
+            const numbers = relevantRefs.map((o: any) => {
+                const match = o.reference.match(/^(\d{3})\/.+$/);
+                return match ? parseInt(match[1], 10) : 0;
+            });
+            const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
+            const nextNum = maxNum + 1;
+            const nextRef = `${nextNum.toString().padStart(3, '0')}/${yearLabel}`;
+            setReference(nextRef);
+        }
+    }, [quotationDate, fiscalYears, salesOrders]);
 
     return (
         <Stack spacing={2}>
@@ -226,95 +441,96 @@ export default function SalesQuotationEntry() {
             {/* Form fields */}
             <Paper sx={{ p: 2, borderRadius: 2 }}>
                 <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Customer"
-                            value={customer}
-                            onChange={(e) => setCustomer(e.target.value)}
-                            size="small"
-                        >
-                            {customers.map((c: any) => (
-                                <MenuItem key={c.debtor_no} value={c.debtor_no}>
-                                    {c.name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Branch"
-                            value={branch}
-                            onChange={(e) => setBranch(e.target.value)}
-                            size="small"
-                        >
-                            {branches
-                                .filter((b: any) => b.debtor_no === customer)
-                                .map((b: any) => (
-                                    <MenuItem key={b.branch_code} value={b.branch_code}>
-                                        {b.br_name}
+                    <Grid item xs={12} sm={3}>
+                        <Stack spacing={2}>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Customer"
+                                value={customer}
+                                onChange={(e) => setCustomer(e.target.value)}
+                                size="small"
+                            >
+                                {customers.map((c: any) => (
+                                    <MenuItem key={c.debtor_no} value={c.debtor_no}>
+                                        {c.name}
                                     </MenuItem>
                                 ))}
-                        </TextField>
+                            </TextField>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Branch"
+                                value={branch}
+                                onChange={(e) => setBranch(e.target.value)}
+                                size="small"
+                            >
+                                {branches
+                                    .filter((b: any) => b.debtor_no === customer)
+                                    .map((b: any) => (
+                                        <MenuItem key={b.branch_code} value={b.branch_code}>
+                                            {b.br_name}
+                                        </MenuItem>
+                                    ))}
+                            </TextField>
+                            <TextField
+                                label="Reference"
+                                fullWidth
+                                size="small"
+                                value={reference}
+                                InputProps={{ readOnly: true }}
+                            />
+                        </Stack>
                     </Grid>
 
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            label="Reference"
-                            fullWidth
-                            size="small"
-                            value={reference}
-                            InputProps={{ readOnly: true }}
-                        />
+                    <Grid item xs={12} sm={3}>
+                        <Stack spacing={2}>
+                            <TextField label="Current Credit" fullWidth size="small" value={credit} InputProps={{ readOnly: true }} />
+                            <TextField label="Customer Discount (%)" fullWidth size="small" value={discount} InputProps={{ readOnly: true }} />
+                        </Stack>
                     </Grid>
 
-                    <Grid item xs={12} sm={4}>
-                        <TextField label="Current Credit" fullWidth size="small" value={credit} InputProps={{ readOnly: true }} />
+                    <Grid item xs={12} sm={3}>
+                        <Stack spacing={2}>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Payment Type"
+                                value={payment}
+                                onChange={(e) => setPayment(e.target.value)}
+                                size="small"
+                                // Ensure the selected value shows the human-friendly `description`
+                                SelectProps={{
+                                    renderValue: (selected) => {
+                                        const sel = paymentTerms.find((pt: any) => String(pt.terms_indicator) === String(selected));
+                                        return sel ? sel.description : (selected as string);
+                                    },
+                                }}
+                            >
+                                {paymentTerms.map((p: any) => (
+                                    <MenuItem key={p.terms_indicator} value={p.terms_indicator}>
+                                        {p.description}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Price List"
+                                value={priceList}
+                                onChange={(e) => setPriceList(e.target.value)}
+                                size="small"
+                            >
+                                {priceLists.map((pl: any) => (
+                                    <MenuItem key={pl.id} value={pl.id}>
+                                        {pl.typeName}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                        </Stack>
                     </Grid>
 
-                    <Grid item xs={12} sm={4}>
-                        <TextField label="Customer Discount (%)" fullWidth size="small" value={discount} InputProps={{ readOnly: true }} />
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Payment Type"
-                            value={payment}
-                            onChange={(e) => setPayment(e.target.value)}
-                            size="small"
-                        >
-                            {paymentTerms.map((p: any) => (
-                                <MenuItem key={p.terms_indicator} value={p.terms_indicator}>
-                                    {p.description}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Price List"
-                            value={priceList}
-                            onChange={(e) => setPriceList(e.target.value)}
-                            size="small"
-                        >
-                            {priceLists.map((pl: any) => (
-                                <MenuItem key={pl.id} value={pl.id}>
-                                    {pl.typeName}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={3}>
                         <TextField
                             label="Quotation Date"
                             type="date"
@@ -362,18 +578,10 @@ export default function SalesQuotationEntry() {
                                         select
                                         size="small"
                                         value={row.description}
-                                        onChange={async (e) => {
+                                        onChange={(e) => {
                                             const selected = items.find((item: any) => item.description === e.target.value);
-                                            handleChange(row.id, "description", e.target.value);
                                             if (selected) {
-                                                handleChange(row.id, "itemCode", selected.stock_id);
-                                                handleChange(row.id, "selectedItemId", selected.stock_id);
-                                                const itemData = await getItemById(selected.stock_id);
-                                                if (itemData) {
-                                                    const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
-                                                    handleChange(row.id, "unit", unitName);
-                                                    handleChange(row.id, "priceAfterTax", itemData.material_cost || 0);
-                                                }
+                                                handleItemChange(row.id, selected);
                                             }
                                         }}
                                     >
@@ -405,12 +613,18 @@ export default function SalesQuotationEntry() {
                                 <TableCell>
                                     <TextField size="small" value={row.unit} InputProps={{ readOnly: true }} />
                                 </TableCell>
-                                <TableCell>
+                                <TableCell align="right">
                                     <TextField
                                         size="small"
                                         type="number"
-                                        value={row.priceAfterTax}
-                                        onChange={(e) => handleChange(row.id, "priceAfterTax", Number(e.target.value))}
+                                        value={priceColumnLabel === "Price before Tax" ? row.priceBeforeTax : row.priceAfterTax}
+                                        onChange={(e) => {
+                                            if (priceColumnLabel === "Price before Tax") {
+                                                handleChange(row.id, "priceBeforeTax", Number(e.target.value));
+                                            } else {
+                                                handleChange(row.id, "priceAfterTax", Number(e.target.value));
+                                            }
+                                        }}
                                     />
                                 </TableCell>
                                 <TableCell>
@@ -433,32 +647,32 @@ export default function SalesQuotationEntry() {
                                             Add
                                         </Button>
                                     ) : (
-                                       <Stack direction="row" spacing={1} justifyContent="center">
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<EditIcon />}
-                        onClick={() => {
-                          // Focus on the first editable field (item code)
-                          const rowElement = document.querySelector(`[data-row-id="${row.id}"]`);
-                          if (rowElement) {
-                            const firstInput = rowElement.querySelector('input') as HTMLInputElement;
-                            if (firstInput) firstInput.focus();
-                          }
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        color="error"
-                        size="small"
-                        startIcon={<DeleteIcon />}
-                        onClick={() => handleRemoveRow(row.id)}
-                      >
-                        Delete
-                      </Button>
-                    </Stack>
+                                        <Stack direction="row" spacing={1} justifyContent="center">
+                                            <Button
+                                                variant="outlined"
+                                                size="small"
+                                                startIcon={<EditIcon />}
+                                                onClick={() => {
+                                                    // Focus on the first editable field (item code)
+                                                    const rowElement = document.querySelector(`[data-row-id="${row.id}"]`);
+                                                    if (rowElement) {
+                                                        const firstInput = rowElement.querySelector('input') as HTMLInputElement;
+                                                        if (firstInput) firstInput.focus();
+                                                    }
+                                                }}
+                                            >
+                                                Edit
+                                            </Button>
+                                            <Button
+                                                variant="outlined"
+                                                color="error"
+                                                size="small"
+                                                startIcon={<DeleteIcon />}
+                                                onClick={() => handleRemoveRow(row.id)}
+                                            >
+                                                Delete
+                                            </Button>
+                                        </Stack>
                                     )}
                                 </TableCell>
                             </TableRow>
@@ -466,7 +680,7 @@ export default function SalesQuotationEntry() {
                     </TableBody>
 
                     <TableFooter>
-                         <TableRow>
+                        <TableRow>
                             <TableCell colSpan={7}>Shipping Charge</TableCell>
                             <TableCell>
                                 <TextField
@@ -478,18 +692,25 @@ export default function SalesQuotationEntry() {
                             </TableCell>
                             <TableCell></TableCell>
                         </TableRow>
-                        
+
                         <TableRow>
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>Sub-total</TableCell>
                             <TableCell sx={{ fontWeight: 600 }}>{subTotal.toFixed(2)}</TableCell>
                             <TableCell></TableCell>
                         </TableRow>
-                       
+
                         <TableRow>
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>Amount Total</TableCell>
                             <TableCell sx={{ fontWeight: 600 }}>{(subTotal + shippingCharge).toFixed(2)}</TableCell>
                             <TableCell>
-                                <Button variant="contained" size="small">
+                                <Button 
+                                    variant="contained" 
+                                    size="small"
+                                    onClick={() => {
+                                        // Force re-render to update totals
+                                        setRows([...rows]);
+                                    }}
+                                >
                                     Update
                                 </Button>
                             </TableCell>
@@ -500,63 +721,151 @@ export default function SalesQuotationEntry() {
 
             {/* Cash Payment Section */}
             <Paper sx={{ p: 2, borderRadius: 2 }}>
-               <Typography variant="subtitle1" sx={{ mb: 2, textAlign: 'center' }}>
-                    Cash Payment
+                <Typography variant="subtitle1" sx={{ mb: 2, textAlign: 'center' }}>
+                    {showQuotationDeliveryDetails ? "Quotation Delivery Details" : "Cash Payment"}
                 </Typography>
                 <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Deliver From Location"
-                            value={deliverFrom}
-                            onChange={(e) => setDeliverFrom(e.target.value)}
-                            size="small"
-                        >
-                            {locations.map((loc: any) => (
-                                <MenuItem key={loc.loc_code} value={loc.loc_code}>
-                                    {loc.location_name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={6}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Cash Account"
-                            value={cashAccount}
-                            onChange={(e) => setCashAccount(e.target.value)}
-                            size="small"
-                        >
-                            {/* {cashAccounts.map((acc: any) => (
-                <MenuItem key={acc.id} value={acc.id}>
-                  {acc.name}
-                </MenuItem>
-              ))} */}
-               <MenuItem value="">Select Cash Account</MenuItem>
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12}>
-                        <TextField
-                            fullWidth
-                            multiline
-                            rows={2}
-                            label="Comments"
-                            value={comments}
-                            onChange={(e) => setComments(e.target.value)}
-                        />
-                    </Grid>
+                    {showQuotationDeliveryDetails ? (
+                        <>
+                            <Grid item xs={12} sm={6}>
+                                <Stack spacing={2}>
+                                    <TextField
+                                        select
+                                        fullWidth
+                                        label="Deliver From Location"
+                                        value={deliverFrom}
+                                        onChange={(e) => setDeliverFrom(e.target.value)}
+                                        size="small"
+                                    >
+                                        {locations.map((loc: any) => (
+                                            <MenuItem key={loc.loc_code} value={loc.loc_code}>
+                                                {loc.location_name}
+                                            </MenuItem>
+                                        ))}
+                                    </TextField>
+                                    <TextField
+                                        label="Valid Until"
+                                        type="date"
+                                        fullWidth
+                                        size="small"
+                                        value={validUntil}
+                                        onChange={(e) => setValidUntil(e.target.value)}
+                                        InputLabelProps={{ shrink: true }}
+                                    />
+                                    <TextField
+                                        label="Deliver To"
+                                        fullWidth
+                                        size="small"
+                                        value={deliverTo}
+                                        onChange={(e) => setDeliverTo(e.target.value)}
+                                    />
+                                    <TextField
+                                        label="Address"
+                                        fullWidth
+                                        multiline
+                                        rows={2}
+                                        size="small"
+                                        value={address}
+                                        onChange={(e) => setAddress(e.target.value)}
+                                    />
+                                </Stack>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <Stack spacing={2}>
+                                    <TextField
+                                        label="Contact Phone Number"
+                                        fullWidth
+                                        size="small"
+                                        value={contactPhoneNumber}
+                                        onChange={(e) => setContactPhoneNumber(e.target.value)}
+                                    />
+                                    <TextField
+                                        label="Customer Reference"
+                                        fullWidth
+                                        size="small"
+                                        value={customerReference}
+                                        onChange={(e) => setCustomerReference(e.target.value)}
+                                    />
+                                    <TextField
+                                        select
+                                        fullWidth
+                                        label="Shipping Company"
+                                        value={shippingCompany}
+                                        onChange={(e) => setShippingCompany(e.target.value)}
+                                        size="small"
+                                    >
+                                        {shippingCompanies.map((sc: any) => (
+                                            <MenuItem key={sc.shipper_id} value={sc.shipper_id}>
+                                                {sc.shipper_name}
+                                            </MenuItem>
+                                        ))}
+                                    </TextField>
+                                    <TextField
+                                        fullWidth
+                                        multiline
+                                        rows={2}
+                                        label="Comments"
+                                        value={comments}
+                                        onChange={(e) => setComments(e.target.value)}
+                                    />
+                                </Stack>
+                            </Grid>
+                        </>
+                    ) : (
+                        <>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    select
+                                    fullWidth
+                                    label="Deliver From Location"
+                                    value={deliverFrom}
+                                    onChange={(e) => setDeliverFrom(e.target.value)}
+                                    size="small"
+                                >
+                                    {locations.map((loc: any) => (
+                                        <MenuItem key={loc.loc_code} value={loc.loc_code}>
+                                            {loc.location_name}
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    select
+                                    fullWidth
+                                    label="Cash Account"
+                                    value={cashAccount}
+                                    onChange={(e) => setCashAccount(e.target.value)}
+                                    size="small"
+                                >
+                                    <MenuItem value="">Select Cash Account</MenuItem>
+                                </TextField>
+                            </Grid>
+                            <Grid item xs={12}>
+                                <TextField
+                                    fullWidth
+                                    multiline
+                                    rows={2}
+                                    label="Comments"
+                                    value={comments}
+                                    onChange={(e) => setComments(e.target.value)}
+                                />
+                            </Grid>
+                        </>
+                    )}
                 </Grid>
 
                 <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, gap: 2 }}>
                     <Button variant="outlined" onClick={() => navigate(-1)}>
                         Cancel Quotation
                     </Button>
-                    <Button variant="contained" color="primary" onClick={handlePlaceQuotation}>
-                        Place Quotation
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={handlePlaceQuotation}
+                        disabled={submitting}
+                    >
+                        {submitting ? "Saving..." : "Place Quotation"}
                     </Button>
                 </Box>
             </Paper>

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/salesorderdetails";
+const API_URL = "http://localhost:8000/api/sales-order-details";
 
 export const getSalesOrderDetails = async () => {
   try {
@@ -19,6 +19,16 @@ export const getSalesOrderDetailById = async (id: string | number) => {
   } catch (error) {
     console.error(`Error fetching sales order detail ${id}:`, error);
     return null;
+  }
+};
+
+export const getSalesOrderDetailsByOrderNo = async (orderNo: string | number) => {
+  try {
+    const response = await axios.get(`${API_URL}/by-order/${orderNo}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching sales order details for order ${orderNo}:`, error);
+    return [];
   }
 };
 
