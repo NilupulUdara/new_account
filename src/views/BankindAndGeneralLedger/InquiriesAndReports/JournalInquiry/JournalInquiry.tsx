@@ -283,8 +283,8 @@ export default function JournalInquiry() {
                 </TableCell>
                 <TableCell align="center">
                   <Button variant="outlined" size="small" onClick={() => navigate(
-                    "/bankingandgeneralledger/inquiriesandreports/journal-inquiry/modify-sales-invoice"
-                    // "/bankingandgeneralledger/inquiriesandreports/journal-inquiry/Customer-payment-entry"
+                    //"/bankingandgeneralledger/inquiriesandreports/journal-inquiry/modify-sales-invoice"
+                     "/bankingandgeneralledger/inquiriesandreports/journal-inquiry/Customer-payment-entry"
                     // "/bankingandgeneralledger/inquiriesandreports/journal-inquiry/modify-purchase-invoice"
                     )}>
                     Edit
