@@ -31,6 +31,9 @@ import { getInventoryLocations } from "../../../../api/InventoryLocation/Invento
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { getSalesOrderDetails } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
+import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -56,11 +59,14 @@ export default function TemplateDelivery() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
 
-  // Fetch lookup data
-  const { data: locations = [] } = useQuery({ queryKey: ["inventoryLocations"], queryFn: getInventoryLocations });
-  const { data: items = [] } = useQuery({ queryKey: ["items"], queryFn: getItems });
-  const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
-  const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
+  // Fetch lookup + order data
+  const { data: locations = [] } = useQuery<any[]>({ queryKey: ["inventoryLocations"], queryFn: getInventoryLocations });
+  const { data: items = [] } = useQuery<any[]>({ queryKey: ["items"], queryFn: getItems });
+  const { data: customers = [] } = useQuery<any[]>({ queryKey: ["customers"], queryFn: getCustomers });
+  const { data: categories = [] } = useQuery<any[]>({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
+  const { data: salesOrders = [] } = useQuery<any[]>({ queryKey: ["salesOrders"], queryFn: () => getSalesOrders() });
+  const { data: salesOrderDetails = [] } = useQuery<any[]>({ queryKey: ["salesOrderDetails"], queryFn: () => getSalesOrderDetails() });
+  const { data: branches = [] } = useQuery<any[]>({ queryKey: ["custBranches"], queryFn: () => getBranches() });
 
   // Header fields
   const [numberText, setNumberText] = useState(""); // '#'
@@ -70,36 +76,70 @@ export default function TemplateDelivery() {
   const [itemCode, setItemCode] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState("ALL_CUSTOMERS");
 
-  // Table shows dummy sample rows (do not display selected header values).
-  const today = new Date().toISOString().split("T")[0];
-  const rows: Row[] = [
-    {
-      id: 1,
-      orderNo: "TD-001",
-      ref: "REF-001",
-      customer: "Acme Corporation",
-      branch: "Main Branch",
-      description: "Template Item A",
-      orderDate: today,
-      requiredBy: "2025-12-07",
-      deliveryTo: "Main Warehouse",
-      orderTotal: "100.00",
-      currency: "USD",
-    },
-    {
-      id: 2,
-      orderNo: "TD-002",
-      ref: "REF-002",
-      customer: "Beta Ltd",
-      branch: "Branch A",
-      description: "Template Item B",
-      orderDate: today,
-      requiredBy: "2025-12-07",
-      deliveryTo: "Branch Warehouse",
-      orderTotal: "250.00",
-      currency: "LKR",
-    },
-  ];
+  // Map and filter sales orders (only type === 1) according to header selections
+  const filteredSalesOrders = React.useMemo(() => {
+    if (!salesOrders || salesOrders.length === 0) return [] as any[];
+
+    return (salesOrders as any[]).filter((s: any) => {
+      // Only type === 1
+      const ordType = s.type ?? s.order_type ?? s.orderType ?? null;
+      if (ordType === null || Number(ordType) !== 1) return false;
+
+      // numberText (#) - match order_no (contains)
+      if (numberText && String(s.order_no ?? s.orderNo ?? "").indexOf(numberText) === -1) return false;
+
+      // referenceText (ref) - match reference contains
+      if (referenceText && String(s.reference ?? s.ref ?? "").indexOf(referenceText) === -1) return false;
+
+      // location - match from_stk_loc field on sales_order
+      if (location && location !== "ALL_LOCATIONS") {
+        if (String(s.from_stk_loc ?? s.from_location ?? s.location ?? "") !== String(location)) return false;
+      }
+
+      // customer selection - match debtor_no
+      if (selectedCustomer && selectedCustomer !== "ALL_CUSTOMERS") {
+        if (String(s.debtor_no ?? s.customer_id ?? "") !== String(selectedCustomer)) return false;
+      }
+
+      // selectedItem - need to check sales_order_details table
+      if (selectedItem && selectedItem !== "ALL_ITEMS") {
+        const hasItem = (salesOrderDetails || []).some((d: any) =>
+          String(d.order_no ?? d.orderNo ?? d.order_number) === String(s.order_no ?? s.orderNo ?? s.order_number) &&
+          String(d.stk_code ?? d.stock_id ?? d.stkId ?? "") === String(selectedItem)
+        );
+        if (!hasItem) return false;
+      }
+
+      return true;
+    });
+  }, [salesOrders, salesOrderDetails, numberText, referenceText, location, selectedCustomer, selectedItem]);
+
+  // Map filtered sales orders into table rows
+  const rows: Row[] = React.useMemo(() => {
+    const today = new Date().toISOString().split("T")[0];
+    return (filteredSalesOrders || []).map((s: any, idx: number) => {
+      const cust = (customers || []).find((c: any) => String(c.debtor_no ?? c.customer_id ?? c.id) === String(s.debtor_no ?? s.customer_id ?? s.debtor_no));
+      const br = (branches || []).find((b: any) => String(b.branch_code ?? b.code ?? b.branchCode) === String(s.branch_code ?? s.branch_code));
+
+      // try to get a description from order details or fallback
+      const firstDetail = (salesOrderDetails || []).find((d: any) => String(d.order_no ?? d.orderNo ?? d.order_number) === String(s.order_no ?? s.orderNo ?? s.order_number));
+      const description = firstDetail?.description ?? firstDetail?.item_desc ?? firstDetail?.stock_description ?? s.description ?? "";
+
+      return {
+        id: s.order_no ?? s.id ?? idx,
+        orderNo: s.order_no ?? s.orderNo ?? s.order_number ?? "",
+        ref: s.reference ?? s.ref ?? "",
+        customer: cust ? (cust.name ?? cust.customer_name ?? cust.debtor_name ?? String(s.debtor_no)) : (s.debtor_no ?? ""),
+        branch: br ? (br.br_name ?? br.branch_name ?? String(s.branch_code)) : (s.branch_code ?? ""),
+        description: description,
+        orderDate: s.ord_date ?? s.order_date ?? today,
+        requiredBy: s.delivery_date ?? s.required_by ?? "",
+        deliveryTo: s.deliver_to ?? s.delivery_to ?? "",
+        orderTotal: (s.total ?? s.order_total ?? 0),
+        currency: cust ? (cust.curr_code ?? "") : (s.curr_code ?? ""),
+      } as Row;
+    });
+  }, [filteredSalesOrders, customers, branches, salesOrderDetails]);
 
   const paginatedRows = React.useMemo(() => {
     if (rowsPerPage === -1) return rows;
