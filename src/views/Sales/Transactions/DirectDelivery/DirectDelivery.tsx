@@ -23,7 +23,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
@@ -35,12 +35,18 @@ import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import { getSalesPricingByStockId } from "../../../../api/SalesPricing/SalesPricingApi";
 import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCompanyApi";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { createSalesOrder, getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { createSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
+import { createDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 
 export default function DirectDelivery() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
 
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
@@ -104,7 +110,7 @@ export default function DirectDelivery() {
                 unit: "",
                 priceAfterTax: 0,
                 priceBeforeTax: 0,
-                discount: 0,
+                discount: discount,
                 total: 0,
                 selectedItemId: null,
             },
@@ -141,16 +147,22 @@ export default function DirectDelivery() {
         handleChange(rowId, "description", selectedItem.description);
         handleChange(rowId, "itemCode", selectedItem.stock_id);
         handleChange(rowId, "selectedItemId", selectedItem.stock_id);
+        handleChange(rowId, "quantity", 1);
         const itemData = await getItemById(selectedItem.stock_id);
         if (itemData) {
             const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
             handleChange(rowId, "unit", unitName);
             // Fetch pricing
             const pricingList = await getSalesPricingByStockId(selectedItem.stock_id);
-            const pricing = pricingList.find((p: any) => p.sales_type_id === priceList);
+            const pricing = pricingList.find((p: any) =>
+                Number(p.sales_type_id) === Number(priceList) &&
+                String(p.stock_id ?? p.stockId ?? p.stock) === String(selectedItem.stock_id)
+            );
             if (pricing) {
-                handleChange(rowId, "priceAfterTax", pricing.price);
-                handleChange(rowId, "priceBeforeTax", pricing.price);
+                const after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
+                const before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
+                handleChange(rowId, "priceAfterTax", after);
+                handleChange(rowId, "priceBeforeTax", before);
             } else {
                 // Fallback to material_cost
                 handleChange(rowId, "priceAfterTax", itemData.material_cost || 0);
@@ -168,10 +180,34 @@ export default function DirectDelivery() {
         setReference(`${random}/${year}`);
     }, []);
 
-    // Reset branch when customer changes
+    // Auto-select first customer on load (same logic as SalesQuotationEntry)
     useEffect(() => {
-        setBranch("");
-    }, [customer]);
+        if (customers.length > 0 && !customer) {
+            setCustomer(customers[0].debtor_no);
+        }
+    }, [customers, customer]);
+
+    // Reset branch when customer changes and auto-select first branch
+    useEffect(() => {
+        const customerBranches = branches.filter((b: any) => b.debtor_no === customer);
+        const newBranch = customerBranches.length > 0 ? customerBranches[0].branch_code : "";
+        if (newBranch !== branch) setBranch(newBranch);
+    }, [customer, branches]);
+
+    // Update deliver to and address when branch changes
+    useEffect(() => {
+        if (branch) {
+            const selectedBranch = branches.find((b: any) => b.branch_code === branch);
+            if (selectedBranch) {
+                setDeliverTo(selectedBranch.br_name || "");
+                setAddress(selectedBranch.br_address || "");
+            }
+        } else {
+            setDeliverTo("");
+            setAddress("");
+        }
+    }, [branch, branches]);
+
 
     // Update price column label when price list changes
     useEffect(() => {
@@ -196,16 +232,38 @@ export default function DirectDelivery() {
         if (customer) {
             const selectedCustomer = customers.find((c: any) => c.debtor_no === customer);
             if (selectedCustomer) {
-                setCredit(selectedCustomer.credit_limit || 0);
-                setDiscount(selectedCustomer.discount || 0);
-                // Update table rows discount
-                setRows((prev) => prev.map((r) => ({ ...r, discount: selectedCustomer.discount || 0 })));
+                const newCredit = selectedCustomer.credit_limit || 0;
+                const newDiscount = selectedCustomer.discount || 0;
+                const newPayment = selectedCustomer.payment_terms ? String(selectedCustomer.payment_terms) : "";
+                const newPriceList = selectedCustomer.sales_type ? String(selectedCustomer.sales_type) : "";
+                if (newCredit !== credit) setCredit(newCredit);
+                if (newDiscount !== discount) setDiscount(newDiscount);
+                if (newPayment !== payment) setPayment(newPayment);
+                if (newPriceList !== priceList) setPriceList(newPriceList);
+                setRows((prev) => {
+                    const updated = prev.map((r) => ({ ...r, discount: newDiscount }));
+                    try {
+                        const same = JSON.stringify(updated) === JSON.stringify(prev);
+                        return same ? prev : updated;
+                    } catch (e) {
+                        return updated;
+                    }
+                });
             }
         } else {
-            setCredit(0);
-            setDiscount(0);
-            // Reset table rows discount
-            setRows((prev) => prev.map((r) => ({ ...r, discount: 0 })));
+            if (credit !== 0) setCredit(0);
+            if (discount !== 0) setDiscount(0);
+            if (payment !== "") setPayment("");
+            if (priceList !== "") setPriceList("");
+            setRows((prev) => {
+                const updated = prev.map((r) => ({ ...r, discount: 0 }));
+                try {
+                    const same = JSON.stringify(updated) === JSON.stringify(prev);
+                    return same ? prev : updated;
+                } catch (e) {
+                    return updated;
+                }
+            });
         }
     }, [customer, customers]);
 
@@ -217,48 +275,173 @@ export default function DirectDelivery() {
                     rows.map(async (row) => {
                         if (row.selectedItemId) {
                             const pricingList = await getSalesPricingByStockId(row.selectedItemId);
-                            const pricing = pricingList.find((p: any) => p.sales_type_id === priceList);
+                            const pricing = pricingList.find((p: any) =>
+                                Number(p.sales_type_id) === Number(priceList) &&
+                                String(p.stock_id ?? p.stockId ?? p.stock) === String(row.selectedItemId)
+                            );
                             if (pricing) {
+                                const after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
+                                const before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
                                 return {
                                     ...row,
-                                    priceAfterTax: pricing.price,
-                                    priceBeforeTax: pricing.price,
+                                    priceAfterTax: after,
+                                    priceBeforeTax: before,
                                 };
                             }
                         }
                         return row;
                     })
                 );
-                setRows(newRows);
+                try {
+                    const same = JSON.stringify(newRows) === JSON.stringify(rows);
+                    if (!same) setRows(newRows);
+                } catch (e) {
+                    setRows(newRows);
+                }
             };
             updatePrices();
         }
     }, [priceList]);
 
-    const handlePlaceQuotation = () => {
-        if (!customer || rows.length === 0) return;
-        console.log({
-            customer,
-            branch,
-            reference,
-            deliveryDate,
-            payment,
-            priceList,
-            rows,
-            deliverFrom,
-            cashAccount,
-            comments,
-            ...(showQuotationDeliveryDetails && {
-                validUntil,
-                deliverTo,
-                address,
-                contactPhoneNumber,
-                customerReference,
-                shippingCompany,
-            }),
-        });
-        alert("Quotation placed successfully!");
-        navigate(-1);
+    // === Additional derived fields for backend mapping ===
+    const [submitting, setSubmitting] = useState(false);
+    const [orderNo, setOrderNo] = useState<number>(1);
+
+    // Helper to get selected customer object
+    const selectedCustomer = useMemo(() => customers.find((c: any) => String(c.debtor_no) === String(customer)), [customers, customer]);
+    const customerName = selectedCustomer?.name || null;
+    const customerPhone = selectedCustomer?.phone || selectedCustomer?.contact_phone || null;
+    const customerEmail = selectedCustomer?.email || selectedCustomer?.contact_email || null;
+    const customerAddr = selectedCustomer?.address || selectedCustomer?.delivery_address || address || null;
+
+    // Fetch fiscal years
+    const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+
+    // Fetch sales orders to determine next order number
+    const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
+
+    // Set order number based on existing sales orders
+    useEffect(() => {
+        if (salesOrders.length > 0) {
+            const maxOrderNo = Math.max(...salesOrders.map((o: any) => o.order_no));
+            setOrderNo(maxOrderNo + 1);
+        }
+    }, [salesOrders]);
+
+    const handlePlaceQuotation = async () => {
+        if (!customer) { alert("Select customer first"); return; }
+        if (!branch) { alert("Select branch first"); return; }
+        if (!deliverFrom) { alert("Select deliver-from location"); return; }
+        if (rows.filter(r => r.itemCode && r.quantity > 0).length === 0) {
+            alert("At least one item must be added to the delivery.");
+            return;
+        }
+        setSubmitting(true);
+        try {
+            const payload = {
+                order_no: orderNo,
+                trans_type: 30,
+                version: 1,
+                type: 0,
+                debtor_no: Number(customer),
+                branch_code: Number(branch),
+                reference: "auto",
+                ord_date: deliveryDate,
+                order_type: Number(priceList) || 0,
+                ship_via: 1,
+                delivery_address: customerAddr,
+                contact_phone: customerPhone,
+                contact_email: customerEmail,
+                deliver_to: customerName,
+                freight_cost: 0,
+                from_stk_loc: deliverFrom,
+                delivery_date: validUntil || deliveryDate,
+                payment_terms: payment ? Number(payment) : null,
+                customer_ref: "customer ref",
+                total: subTotal + shippingCharge,
+                prep_amount: 0,
+                alloc: 0,
+            };
+            console.log("Posting sales order payload", payload);
+            // Create sales order first
+            await createSalesOrder(payload as any);
+
+            // Create debtor_trans record mapping to this sales order (use orderNo as trans_no)
+            const debtorPayload = {
+                trans_no: orderNo,
+                trans_type: 13,
+                version: 1,
+                debtor_no: Number(customer),
+                branch_code: Number(branch),
+                tran_date: deliveryDate,
+                due_date: validUntil || deliveryDate,
+                reference: reference || "",
+                tpe: 1,
+                order_no: orderNo,
+                ov_amount: subTotal + shippingCharge,
+                ov_gst: 0,
+                ov_freight: shippingCharge || 0,
+                ov_freight_tax: 0,
+                ov_discount: 0,
+                alloc: 0,
+                prep_amount: 0,
+                rate: 1,
+                ship_via: 1,
+                dimension_id: 0,
+                dimension2_id: 0,
+                payment_terms: payment ? Number(payment) : null,
+                tax_included: false,
+            };
+            console.log("Posting debtor_trans payload", debtorPayload);
+            const debtorResp = await createDebtorTran(debtorPayload as any);
+
+            // Now create sales order details and matching debtor_trans_details (linking src_id to detail id)
+            const detailsToPost = rows.filter(r => r.selectedItemId);
+            for (const row of detailsToPost) {
+                const unitPrice = priceColumnLabel === "Price after Tax" ? row.priceAfterTax : row.priceBeforeTax;
+                const detailPayload = {
+                    order_no: orderNo,
+                    trans_type: 30,
+                    stk_code: row.itemCode,
+                    description: row.description,
+                    qty_sent: row.quantity,
+                    unit_price: unitPrice,
+                    quantity: row.quantity,
+                    invoiced: 0,
+                    discount_percent: discount,
+                };
+                console.log("Posting sales order detail", detailPayload);
+                const detailResp = await createSalesOrderDetail(detailPayload);
+
+                // determine created detail id for src_id (try common fields)
+                const createdDetailId = detailResp?.id ?? detailResp?.sales_order_detail_id ?? detailResp?.detail_id ?? detailResp?.order_detail_id ?? null;
+
+                const debtorDetailPayload = {
+                    debtor_trans_no: debtorResp?.trans_no ?? orderNo,
+                    debtor_trans_type: debtorResp?.trans_type ?? 30,
+                    stock_id: row.itemCode,
+                    description: row.description,
+                    unit_price: unitPrice,
+                    unit_tax: 0,
+                    quantity: row.quantity,
+                    discount_percent: discount,
+                    standard_cost: 0,
+                    qty_done: 0,
+                    src_id: createdDetailId,
+                };
+                console.log("Posting debtor_trans_detail", debtorDetailPayload);
+                await createDebtorTransDetail(debtorDetailPayload);
+            }
+            alert("Saved to sales_orders (order_no: " + orderNo + ")");
+            await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
+            navigate("/sales/transactions/direct-delivery/success", { state: { orderNo, reference, deliveryDate } });
+        } catch (e: any) {
+            console.error("Save error", e);
+            const detail = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'Unknown error');
+            alert("Failed to save: " + detail);
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const breadcrumbItems = [
@@ -266,7 +449,8 @@ export default function DirectDelivery() {
         { title: "Direct Sales Delivery" },
     ];
 
-    const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
+    // Only calculate subtotal for completed rows (all rows except the last one which is being edited)
+    const subTotal = rows.slice(0, -1).reduce((sum, r) => sum + r.total, 0);
 
     // Find currently selected payment term object so we can inspect its payment_type
     const selectedPaymentTerm = useMemo(() => {
@@ -445,9 +629,9 @@ export default function DirectDelivery() {
                                     <TextField
                                         select
                                         size="small"
-                                        value={row.description}
+                                        value={row.selectedItemId ?? ""}
                                         onChange={(e) => {
-                                            const selected = items.find((item: any) => item.description === e.target.value);
+                                            const selected = items.find((item: any) => String(item.stock_id) === String(e.target.value));
                                             if (selected) {
                                                 handleItemChange(row.id, selected);
                                             }
@@ -463,7 +647,7 @@ export default function DirectDelivery() {
                                         ).map(([category, catItems]: [string, any[]]) => [
                                             <ListSubheader key={category}>{category}</ListSubheader>,
                                             ...catItems.map((item: any) => (
-                                                <MenuItem key={item.stock_id} value={item.description}>
+                                                <MenuItem key={item.stock_id} value={item.stock_id}>
                                                     {item.description}
                                                 </MenuItem>
                                             )),
@@ -700,11 +884,7 @@ export default function DirectDelivery() {
                                     onChange={(e) => setCashAccount(e.target.value)}
                                     size="small"
                                 >
-                                    {/* {cashAccounts.map((acc: any) => (
-                <MenuItem key={acc.id} value={acc.id}>
-                  {acc.name}
-                </MenuItem>
-              ))} */}
+                                                                <MenuItem value="">Select Cash Account</MenuItem>
                                 </TextField>
                             </Grid>
 

@@ -141,16 +141,23 @@ export default function DirectInvoice() {
         handleChange(rowId, "description", selectedItem.description);
         handleChange(rowId, "itemCode", selectedItem.stock_id);
         handleChange(rowId, "selectedItemId", selectedItem.stock_id);
+        // default quantity to 1 when selecting an item (same as DirectDelivery)
+        handleChange(rowId, "quantity", 1);
         const itemData = await getItemById(selectedItem.stock_id);
         if (itemData) {
             const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
             handleChange(rowId, "unit", unitName);
             // Fetch pricing
             const pricingList = await getSalesPricingByStockId(selectedItem.stock_id);
-            const pricing = pricingList.find((p: any) => p.sales_type_id === priceList);
+            const pricing = pricingList.find((p: any) =>
+                Number(p.sales_type_id) === Number(priceList) &&
+                String(p.stock_id ?? p.stockId ?? p.stock) === String(selectedItem.stock_id)
+            );
             if (pricing) {
-                handleChange(rowId, "priceAfterTax", pricing.price);
-                handleChange(rowId, "priceBeforeTax", pricing.price);
+                const after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
+                const before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
+                handleChange(rowId, "priceAfterTax", after);
+                handleChange(rowId, "priceBeforeTax", before);
             } else {
                 // Fallback to material_cost
                 handleChange(rowId, "priceAfterTax", itemData.material_cost || 0);
@@ -168,10 +175,33 @@ export default function DirectInvoice() {
         setReference(`${random}/${year}`);
     }, []);
 
-    // Reset branch when customer changes
+    // Auto-select first customer on load (match DirectDelivery behaviour)
     useEffect(() => {
-        setBranch("");
-    }, [customer]);
+        if (customers.length > 0 && !customer) {
+            setCustomer(customers[0].debtor_no);
+        }
+    }, [customers, customer]);
+
+    // Reset branch when customer changes and auto-select first branch
+    useEffect(() => {
+        const customerBranches = branches.filter((b: any) => b.debtor_no === customer);
+        const newBranch = customerBranches.length > 0 ? customerBranches[0].branch_code : "";
+        if (newBranch !== branch) setBranch(newBranch);
+    }, [customer, branches]);
+
+    // Update deliver to and address when branch changes
+    useEffect(() => {
+        if (branch) {
+            const selectedBranch = branches.find((b: any) => b.branch_code === branch);
+            if (selectedBranch) {
+                setDeliverTo(selectedBranch.br_name || "");
+                setAddress(selectedBranch.br_address || "");
+            }
+        } else {
+            setDeliverTo("");
+            setAddress("");
+        }
+    }, [branch, branches]);
 
     // Update price column label when price list changes
     useEffect(() => {
@@ -191,7 +221,7 @@ export default function DirectInvoice() {
         }
     }, [priceList, priceLists]);
 
-    // Update prices when price list changes
+    // Update prices when price list changes (guarded update)
     useEffect(() => {
         if (priceList) {
             const updatePrices = async () => {
@@ -199,39 +229,71 @@ export default function DirectInvoice() {
                     rows.map(async (row) => {
                         if (row.selectedItemId) {
                             const pricingList = await getSalesPricingByStockId(row.selectedItemId);
-                            const pricing = pricingList.find((p: any) => p.sales_type_id === priceList);
+                            const pricing = pricingList.find((p: any) =>
+                                Number(p.sales_type_id) === Number(priceList) &&
+                                String(p.stock_id ?? p.stockId ?? p.stock) === String(row.selectedItemId)
+                            );
                             if (pricing) {
+                                const after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
+                                const before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
                                 return {
                                     ...row,
-                                    priceAfterTax: pricing.price,
-                                    priceBeforeTax: pricing.price,
+                                    priceAfterTax: after,
+                                    priceBeforeTax: before,
                                 };
                             }
                         }
                         return row;
                     })
                 );
-                setRows(newRows);
+                try {
+                    const same = JSON.stringify(newRows) === JSON.stringify(rows);
+                    if (!same) setRows(newRows);
+                } catch (e) {
+                    setRows(newRows);
+                }
             };
             updatePrices();
         }
     }, [priceList]);
 
-    // Update credit and discount when customer changes
+    // Update credit, discount, payment and priceList when customer changes (guarded updates)
     useEffect(() => {
         if (customer) {
             const selectedCustomer = customers.find((c: any) => c.debtor_no === customer);
             if (selectedCustomer) {
-                setCredit(selectedCustomer.credit_limit || 0);
-                setDiscount(selectedCustomer.discount || 0);
-                // Update table rows discount
-                setRows((prev) => prev.map((r) => ({ ...r, discount: selectedCustomer.discount || 0 })));
+                const newCredit = selectedCustomer.credit_limit || 0;
+                const newDiscount = selectedCustomer.discount || 0;
+                const newPayment = selectedCustomer.payment_terms ? String(selectedCustomer.payment_terms) : "";
+                const newPriceList = selectedCustomer.sales_type ? String(selectedCustomer.sales_type) : "";
+                if (newCredit !== credit) setCredit(newCredit);
+                if (newDiscount !== discount) setDiscount(newDiscount);
+                if (newPayment !== payment) setPayment(newPayment);
+                if (newPriceList !== priceList) setPriceList(newPriceList);
+                setRows((prev) => {
+                    const updated = prev.map((r) => ({ ...r, discount: newDiscount }));
+                    try {
+                        const same = JSON.stringify(updated) === JSON.stringify(prev);
+                        return same ? prev : updated;
+                    } catch (e) {
+                        return updated;
+                    }
+                });
             }
         } else {
-            setCredit(0);
-            setDiscount(0);
-            // Reset table rows discount
-            setRows((prev) => prev.map((r) => ({ ...r, discount: 0 })));
+            if (credit !== 0) setCredit(0);
+            if (discount !== 0) setDiscount(0);
+            if (payment !== "") setPayment("");
+            if (priceList !== "") setPriceList("");
+            setRows((prev) => {
+                const updated = prev.map((r) => ({ ...r, discount: 0 }));
+                try {
+                    const same = JSON.stringify(updated) === JSON.stringify(prev);
+                    return same ? prev : updated;
+                } catch (e) {
+                    return updated;
+                }
+            });
         }
     }, [customer, customers]);
 
@@ -264,7 +326,8 @@ export default function DirectInvoice() {
         { title: "Direct Sales Invoice" },
     ];
 
-    const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
+    // Only calculate subtotal for completed rows (all rows except the last one which is being edited)
+    const subTotal = rows.slice(0, -1).reduce((sum, r) => sum + r.total, 0);
 
     // Find currently selected payment term object so we can inspect its payment_type
     const selectedPaymentTerm = useMemo(() => {
@@ -690,20 +753,21 @@ export default function DirectInvoice() {
                             </Grid>
 
                             <Grid item xs={12} sm={6}>
-                                <TextField
-                                    select
-                                    fullWidth
-                                    label="Cash Account"
-                                    value={cashAccount}
-                                    onChange={(e) => setCashAccount(e.target.value)}
-                                    size="small"
-                                >
-                                    {/* {cashAccounts.map((acc: any) => (
-                <MenuItem key={acc.id} value={acc.id}>
-                  {acc.name}
-                </MenuItem>
-              ))} */}
-                                </TextField>
+                                                        <TextField
+                                                                select
+                                                                fullWidth
+                                                                label="Cash Account"
+                                                                value={cashAccount}
+                                                                onChange={(e) => setCashAccount(e.target.value)}
+                                                                size="small"
+                                                        >
+                                                                <MenuItem value="">Select</MenuItem>
+                                                                {/* {cashAccounts.map((acc: any) => (
+                                <MenuItem key={acc.id} value={acc.id}>
+                                    {acc.name}
+                                </MenuItem>
+                            ))} */}
+                                                        </TextField>
                             </Grid>
 
                             <Grid item xs={12}>

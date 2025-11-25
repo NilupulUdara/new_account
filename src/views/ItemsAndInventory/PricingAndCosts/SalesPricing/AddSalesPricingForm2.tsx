@@ -107,12 +107,14 @@ export default function AddSalesPricingForm2() {
   const handleSubmit = async () => {
     if (!validate()) return;
     try {
-      // Check for existing sales pricing with same currency and sales type
-      const existingPricings = await getSalesPricingByStockId(formData.stock_id);
-      const duplicate = existingPricings.some(
-        (pricing: any) =>
-          pricing.currency_id === formData.currency_id &&
-          pricing.sales_type_id === formData.sales_type_id
+      // Determine stock id (prefer route param if available)
+      const stockId = String(formData.stock_id || itemId || "");
+      // Check for existing sales pricing for this specific item (stock_id)
+      const existingPricings = await getSalesPricingByStockId(stockId);
+      const duplicate = existingPricings.some((pricing: any) =>
+        String(pricing.stock_id ?? pricing.stockId ?? pricing.stock) === stockId &&
+        Number(pricing.currency_id) === Number(formData.currency_id) &&
+        Number(pricing.sales_type_id) === Number(formData.sales_type_id)
       );
       if (duplicate) {
         setErrors({ ...errors, sales_type_id: "A sales pricing with this currency and sales type already exists for this item." });

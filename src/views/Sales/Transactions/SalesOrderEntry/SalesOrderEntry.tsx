@@ -23,7 +23,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
@@ -38,9 +38,13 @@ import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCo
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { createSalesOrder, generateProvisionalOrderNo, getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { createSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 
 export default function SalesOrderEntry() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
 
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
@@ -141,16 +145,22 @@ export default function SalesOrderEntry() {
         handleChange(rowId, "description", selectedItem.description);
         handleChange(rowId, "itemCode", selectedItem.stock_id);
         handleChange(rowId, "selectedItemId", selectedItem.stock_id);
+        handleChange(rowId, "quantity", 1);
         const itemData = await getItemById(selectedItem.stock_id);
         if (itemData) {
             const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
             handleChange(rowId, "unit", unitName);
             // Fetch pricing
             const pricingList = await getSalesPricingByStockId(selectedItem.stock_id);
-            const pricing = pricingList.find((p: any) => p.sales_type_id === priceList);
+            const pricing = pricingList.find((p: any) =>
+                Number(p.sales_type_id) === Number(priceList) &&
+                String(p.stock_id ?? p.stockId ?? p.stock) === String(selectedItem.stock_id)
+            );
             if (pricing) {
-                handleChange(rowId, "priceAfterTax", pricing.price);
-                handleChange(rowId, "priceBeforeTax", pricing.price);
+                const after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
+                const before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
+                handleChange(rowId, "priceAfterTax", after);
+                handleChange(rowId, "priceBeforeTax", before);
             } else {
                 // Fallback to material_cost
                 handleChange(rowId, "priceAfterTax", itemData.material_cost || 0);
@@ -168,10 +178,19 @@ export default function SalesOrderEntry() {
         setReference(`${random}/${year}`);
     }, []);
 
-    // Reset branch when customer changes
+    // Auto-select first customer on load (same behavior as SalesQuotationEntry)
     useEffect(() => {
-        setBranch("");
-    }, [customer]);
+        if (customers.length > 0 && !customer) {
+            setCustomer(customers[0].debtor_no);
+        }
+    }, [customers, customer]);
+
+    // Reset branch when customer changes and auto-select first branch
+    useEffect(() => {
+        const customerBranches = branches.filter((b: any) => b.debtor_no === customer);
+        const newBranch = customerBranches.length > 0 ? customerBranches[0].branch_code : "";
+        if (newBranch !== branch) setBranch(newBranch);
+    }, [customer, branches]);
 
     // Update price column label when price list changes
     useEffect(() => {
@@ -191,7 +210,7 @@ export default function SalesOrderEntry() {
         }
     }, [priceList, priceLists]);
 
-    // Update prices when price list changes
+    // Update prices when price list changes (match both sales_type and stock_id)
     useEffect(() => {
         if (priceList) {
             const updatePrices = async () => {
@@ -199,19 +218,29 @@ export default function SalesOrderEntry() {
                     rows.map(async (row) => {
                         if (row.selectedItemId) {
                             const pricingList = await getSalesPricingByStockId(row.selectedItemId);
-                            const pricing = pricingList.find((p: any) => p.sales_type_id === priceList);
+                            const pricing = pricingList.find((p: any) =>
+                                Number(p.sales_type_id) === Number(priceList) &&
+                                String(p.stock_id ?? p.stockId ?? p.stock) === String(row.selectedItemId)
+                            );
                             if (pricing) {
+                                const after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
+                                const before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
                                 return {
                                     ...row,
-                                    priceAfterTax: pricing.price,
-                                    priceBeforeTax: pricing.price,
+                                    priceAfterTax: after,
+                                    priceBeforeTax: before,
                                 };
                             }
                         }
                         return row;
                     })
                 );
-                setRows(newRows);
+                try {
+                    const same = JSON.stringify(newRows) === JSON.stringify(rows);
+                    if (!same) setRows(newRows);
+                } catch (e) {
+                    setRows(newRows);
+                }
             };
             updatePrices();
         }
@@ -222,47 +251,129 @@ export default function SalesOrderEntry() {
         if (customer) {
             const selectedCustomer = customers.find((c: any) => c.debtor_no === customer);
             if (selectedCustomer) {
-                setCredit(selectedCustomer.credit_limit || 0);
-                setDiscount(selectedCustomer.discount || 0);
-                setPayment(selectedCustomer.payment_terms ? String(selectedCustomer.payment_terms) : "");
-                setPriceList(selectedCustomer.sales_type ? String(selectedCustomer.sales_type) : "");
-                // Update table rows discount
-                setRows((prev) => prev.map((r) => ({ ...r, discount: selectedCustomer.discount || 0 })));
+                const newCredit = selectedCustomer.credit_limit || 0;
+                const newDiscount = selectedCustomer.discount || 0;
+                const newPayment = selectedCustomer.payment_terms ? String(selectedCustomer.payment_terms) : "";
+                const newPriceList = selectedCustomer.sales_type ? String(selectedCustomer.sales_type) : "";
+                if (newCredit !== credit) setCredit(newCredit);
+                if (newDiscount !== discount) setDiscount(newDiscount);
+                if (newPayment !== payment) setPayment(newPayment);
+                if (newPriceList !== priceList) setPriceList(newPriceList);
+                setRows((prev) => {
+                    const updated = prev.map((r) => ({ ...r, discount: newDiscount }));
+                    try {
+                        const same = JSON.stringify(updated) === JSON.stringify(prev);
+                        return same ? prev : updated;
+                    } catch (e) {
+                        return updated;
+                    }
+                });
             }
         } else {
-            setCredit(0);
-            setDiscount(0);
-            setPayment("");
-            setPriceList("");
-            // Reset table rows discount
-            setRows((prev) => prev.map((r) => ({ ...r, discount: 0 })));
+            if (credit !== 0) setCredit(0);
+            if (discount !== 0) setDiscount(0);
+            if (payment !== "") setPayment("");
+            if (priceList !== "") setPriceList("");
+            setRows((prev) => {
+                const updated = prev.map((r) => ({ ...r, discount: 0 }));
+                try {
+                    const same = JSON.stringify(updated) === JSON.stringify(prev);
+                    return same ? prev : updated;
+                } catch (e) {
+                    return updated;
+                }
+            });
         }
     }, [customer, customers]);
 
-    const handlePlaceQuotation = () => {
-        if (!customer || rows.length === 0) return;
-        console.log({
-            customer,
-            branch,
-            reference,
-            orderDate,
-            payment,
-            priceList,
-            rows,
-            deliverFrom,
-            cashAccount,
-            comments,
-            ...(showQuotationDeliveryDetails && {
-                validUntil,
-                deliverTo,
-                address,
-                contactPhoneNumber,
-                customerReference,
-                shippingCompany,
-            }),
-        });
-        alert("Quotation placed successfully!");
-        navigate(-1);
+    // === Additional derived fields for backend mapping ===
+    const [submitting, setSubmitting] = useState(false);
+    const [orderNo, setOrderNo] = useState<number>(1);
+
+    // Helper to get selected customer object
+    const selectedCustomer = useMemo(() => customers.find((c: any) => String(c.debtor_no) === String(customer)), [customers, customer]);
+    const customerName = selectedCustomer?.name || null;
+    const customerPhone = selectedCustomer?.phone || selectedCustomer?.contact_phone || null;
+    const customerEmail = selectedCustomer?.email || selectedCustomer?.contact_email || null;
+    const customerAddr = selectedCustomer?.address || selectedCustomer?.delivery_address || address || null;
+
+    // Fetch fiscal years
+    const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+
+    // Fetch sales orders to determine next order number
+    const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
+
+    // Set order number based on existing sales orders
+    useEffect(() => {
+        if (salesOrders.length > 0) {
+            const maxOrderNo = Math.max(...salesOrders.map((o: any) => o.order_no));
+            setOrderNo(maxOrderNo + 1);
+        }
+    }, [salesOrders]);
+
+    const handlePlaceQuotation = async () => {
+        if (!customer) { alert("Select customer first"); return; }
+        if (!branch) { alert("Select branch first"); return; }
+        if (!deliverFrom) { alert("Select deliver-from location"); return; }
+        if (rows.filter(r => r.itemCode && r.quantity > 0).length === 0) {
+            alert("At least one item must be added to the order.");
+            return;
+        }
+        setSubmitting(true);
+        try {
+            const payload = {
+                order_no: orderNo,
+                trans_type: 30,
+                version: 0,
+                type: 0,
+                debtor_no: Number(customer),
+                branch_code: Number(branch),
+                reference,
+                ord_date: orderDate,
+                order_type: Number(priceList) || 0,
+                ship_via: 1,
+                delivery_address: customerAddr,
+                contact_phone: customerPhone,
+                contact_email: customerEmail,
+                deliver_to: customerName,
+                freight_cost: 0,
+                from_stk_loc: deliverFrom,
+                delivery_date: validUntil || orderDate,
+                payment_terms: payment ? Number(payment) : null,
+                customer_ref: "customer ref",
+                total: subTotal + shippingCharge,
+                prep_amount: 0,
+                alloc: 0,
+            };
+            console.log("Posting sales order payload", payload);
+            await createSalesOrder(payload as any);
+            const detailsToPost = rows.filter(r => r.selectedItemId);
+            for (const row of detailsToPost) {
+                const unitPrice = priceColumnLabel === "Price after Tax" ? row.priceAfterTax : row.priceBeforeTax;
+                const detailPayload = {
+                    order_no: orderNo,
+                    trans_type: 30,
+                    stk_code: row.itemCode,
+                    description: row.description,
+                    qty_sent: row.quantity,
+                    unit_price: unitPrice,
+                    quantity: row.quantity,
+                    invoiced: 0,
+                    discount_percent: discount,
+                };
+                console.log("Posting sales order detail", detailPayload);
+                await createSalesOrderDetail(detailPayload);
+            }
+            alert("Saved to sales_orders (order_no: " + orderNo + ")");
+            await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
+            navigate("/sales/transactions/sales-order-entry/success", { state: { orderNo, reference, orderDate } });
+        } catch (e: any) {
+            console.error("Save error", e);
+            const detail = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'Unknown error');
+            alert("Failed to save: " + detail);
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const breadcrumbItems = [
@@ -270,7 +381,8 @@ export default function SalesOrderEntry() {
         { title: "New Sales Order Entry" },
     ];
 
-    const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
+    // Match SalesQuotationEntry subtotal behavior: exclude the last-edit row
+    const subTotal = rows.slice(0, -1).reduce((sum, r) => sum + r.total, 0);
 
     // Find currently selected payment term object so we can inspect its payment_type
     const selectedPaymentTerm = useMemo(() => {
@@ -704,11 +816,7 @@ export default function SalesOrderEntry() {
                                     onChange={(e) => setCashAccount(e.target.value)}
                                     size="small"
                                 >
-                                    {/* {cashAccounts.map((acc: any) => (
-                <MenuItem key={acc.id} value={acc.id}>
-                  {acc.name}
-                </MenuItem>
-              ))} */}
+                                                                <MenuItem value="">Select Cash Account</MenuItem>
                                 </TextField>
                             </Grid>
 
