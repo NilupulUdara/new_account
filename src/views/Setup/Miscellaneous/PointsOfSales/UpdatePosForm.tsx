@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Stack,
@@ -14,7 +14,16 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  CircularProgress,
 } from "@mui/material";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useParams } from "react-router-dom";
+import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
+import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi";
+import {
+  getSalesPos,
+  updateSalesPos,
+} from "../../../../api/SalePos/SalePosApi";
 
 interface UpdatePosData {
   posName: string;
@@ -34,8 +43,68 @@ export default function UpdatePosForm() {
   });
 
   const [errors, setErrors] = useState<Partial<UpdatePosData>>({});
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+
+  // Fetch inventory locations
+  const { data: locations = [] } = useQuery({
+    queryKey: ["inventoryLocations"],
+    queryFn: getInventoryLocations,
+  });
+
+  // Fetch bank accounts
+  const { data: allBankAccounts = [] } = useQuery({
+    queryKey: ["bankAccounts"],
+    queryFn: getBankAccounts,
+  });
+
+  // Filter bank accounts with account_type.id = 4 (Cash Account)
+  const cashBankAccounts = allBankAccounts.filter(
+    (account: any) => Number(account.account_type?.id) === 4
+  );
+
+  // For update form, include the current account even if it's not type 4
+  const bankAccounts = React.useMemo(() => {
+    if (!formData.defaultCashAccount) return cashBankAccounts;
+    
+    const currentAccount = allBankAccounts.find(
+      (account: any) => account.id.toString() === formData.defaultCashAccount
+    );
+    
+    if (currentAccount && Number(currentAccount.account_type?.id) !== 4) {
+      return [currentAccount, ...cashBankAccounts];
+    }
+    
+    return cashBankAccounts;
+  }, [allBankAccounts, cashBankAccounts, formData.defaultCashAccount]);
+
+  // Fetch existing POS data
+  useEffect(() => {
+    const fetchPosData = async () => {
+      if (id) {
+        try {
+          const data = await getSalesPos(id);
+          setFormData({
+            posName: data.pos_name || "",
+            allowCreditSale: data.credit_sale || false,
+            allowCashSale: data.cash_sale || false,
+            defaultCashAccount: data.pos_account?.toString() || "",
+            posLocation: data.pos_location || "",
+          });
+        } catch (error) {
+          console.error("Error fetching POS data:", error);
+          alert("Failed to load POS data");
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    fetchPosData();
+  }, [id]);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -63,25 +132,45 @@ export default function UpdatePosForm() {
   const validate = () => {
     const newErrors: Partial<UpdatePosData> = {};
     if (!formData.posName.trim()) newErrors.posName = "POS Name is required";
-    if (!formData.defaultCashAccount.trim())
+    if (!formData.defaultCashAccount)
       newErrors.defaultCashAccount = "Default Cash Account is required";
-    if (!formData.posLocation.trim())
+    if (!formData.posLocation)
       newErrors.posLocation = "POS Location is required";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
-    if (validate()) {
-      console.log("POS updated:", formData);
-      alert("POS updated successfully!");
-      // API call goes here
+  const handleSubmit = async () => {
+    if (validate() && id) {
+      setSubmitting(true);
+      try {
+        const payload = {
+          pos_name: formData.posName,
+          cash_sale: formData.allowCashSale,
+          credit_sale: formData.allowCreditSale,
+          pos_location: formData.posLocation,
+          pos_account: Number(formData.defaultCashAccount),
+          inactive: false,
+        };
+        await updateSalesPos(id, payload);
+        alert("POS updated successfully!");
+        navigate("/setup/miscellaneous/point-of-sale");
+      } catch (error: any) {
+        console.error("Error updating POS:", error);
+        const errorMessage = error?.message || error?.response?.data?.message || "Failed to update POS. Please try again.";
+        alert(errorMessage);
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
+      {loading ? (
+        <CircularProgress />
+      ) : (
       <Paper
         sx={{
           p: 3,
@@ -141,12 +230,17 @@ export default function UpdatePosForm() {
             <Select
               name="defaultCashAccount"
               value={formData.defaultCashAccount}
-            //   onChange={handleSelectChange}
+              onChange={(e) => {
+                setFormData({ ...formData, defaultCashAccount: e.target.value as string });
+                setErrors({ ...errors, defaultCashAccount: "" });
+              }}
               label="Default Cash Account"
             >
-              <MenuItem value="Account1">Account 1</MenuItem>
-              <MenuItem value="Account2">Account 2</MenuItem>
-              <MenuItem value="Account3">Account 3</MenuItem>
+              {bankAccounts.map((account: any) => (
+                <MenuItem key={account.id} value={account.id}>
+                  {account.bank_account_name}
+                </MenuItem>
+              ))}
             </Select>
             <Typography variant="caption" color="error">
               {errors.defaultCashAccount}
@@ -159,12 +253,17 @@ export default function UpdatePosForm() {
             <Select
               name="posLocation"
               value={formData.posLocation}
-            //   onChange={handleSelectChange}
+              onChange={(e) => {
+                setFormData({ ...formData, posLocation: e.target.value as string });
+                setErrors({ ...errors, posLocation: "" });
+              }}
               label="POS Location"
             >
-              <MenuItem value="Location1">Location 1</MenuItem>
-              <MenuItem value="Location2">Location 2</MenuItem>
-              <MenuItem value="Location3">Location 3</MenuItem>
+              {locations.map((location: any) => (
+                <MenuItem key={location.loc_code} value={location.loc_code}>
+                  {location.location_name}
+                </MenuItem>
+              ))}
             </Select>
             <Typography variant="caption" color="error">
               {errors.posLocation}
@@ -189,11 +288,13 @@ export default function UpdatePosForm() {
             fullWidth={isMobile}
             sx={{ backgroundColor: "var(--pallet-blue)" }}
             onClick={handleSubmit}
+            disabled={submitting}
           >
-            Update
+            {submitting ? "Updating..." : "Update"}
           </Button>
         </Box>
       </Paper>
+      )}
     </Stack>
   );
 }

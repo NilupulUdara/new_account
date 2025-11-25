@@ -1031,7 +1031,7 @@ const AppRoutes = () => {
           }
         />
         <Route
-          path="miscellaneous/update-point-of-sale/"
+          path="miscellaneous/update-point-of-sale/:id"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Point of Sale definitions']}>
               {withLayout(MainLayout, UpdatePosForm)}
