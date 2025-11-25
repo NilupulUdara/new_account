@@ -15,6 +15,11 @@ import {
   Select,
   MenuItem,
 } from "@mui/material";
+import { useQuery } from "@tanstack/react-query";
+import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
+import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi";
+import { createSalesPos } from "../../../../api/SalePos/SalePosApi";
+import { useNavigate } from "react-router-dom";
 
 interface AddPosData {
   posName: string;
@@ -34,8 +39,27 @@ export default function AddPosForm() {
   });
 
   const [errors, setErrors] = useState<Partial<AddPosData>>({});
+  const [submitting, setSubmitting] = useState(false);
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const navigate = useNavigate();
+
+  // Fetch inventory locations
+  const { data: locations = [] } = useQuery({
+    queryKey: ["inventoryLocations"],
+    queryFn: getInventoryLocations,
+  });
+
+  // Fetch bank accounts
+  const { data: allBankAccounts = [] } = useQuery({
+    queryKey: ["bankAccounts"],
+    queryFn: getBankAccounts,
+  });
+
+  // Filter bank accounts with account_type.id = 4 (Cash Account)
+  const bankAccounts = allBankAccounts.filter(
+    (account: any) => Number(account.account_type?.id) === 4
+  );
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -63,20 +87,38 @@ export default function AddPosForm() {
   const validate = () => {
     const newErrors: Partial<AddPosData> = {};
     if (!formData.posName.trim()) newErrors.posName = "POS Name is required";
-    if (!formData.defaultCashAccount.trim())
+    if (!formData.defaultCashAccount)
       newErrors.defaultCashAccount = "Default Cash Account is required";
-    if (!formData.posLocation.trim())
+    if (!formData.posLocation)
       newErrors.posLocation = "POS Location is required";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (validate()) {
-      console.log("POS Added:", formData);
-      alert("POS added successfully!");
-      // API call goes here
+      setSubmitting(true);
+      try {
+        const payload = {
+          pos_name: formData.posName,
+          cash_sale: formData.allowCashSale,
+          credit_sale: formData.allowCreditSale,
+          pos_location: formData.posLocation,
+          pos_account: Number(formData.defaultCashAccount),
+          inactive: false,
+        };
+        await createSalesPos(payload);
+        alert("POS added successfully!");
+        navigate("/setup/miscellaneous/point-of-sale");
+      } catch (error: any) {
+        console.error("Error adding POS:", error);
+        alert(
+          error?.response?.data?.message || "Failed to add POS. Please try again."
+        );
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
@@ -141,12 +183,17 @@ export default function AddPosForm() {
             <Select
               name="defaultCashAccount"
               value={formData.defaultCashAccount}
-            //   onChange={handleSelectChange}
+              onChange={(e) => {
+                setFormData({ ...formData, defaultCashAccount: e.target.value as string });
+                setErrors({ ...errors, defaultCashAccount: "" });
+              }}
               label="Default Cash Account"
             >
-              <MenuItem value="Account1">Account 1</MenuItem>
-              <MenuItem value="Account2">Account 2</MenuItem>
-              <MenuItem value="Account3">Account 3</MenuItem>
+              {bankAccounts.map((account: any) => (
+                <MenuItem key={account.id} value={account.id}>
+                  {account.bank_account_name}
+                </MenuItem>
+              ))}
             </Select>
             <Typography variant="caption" color="error">
               {errors.defaultCashAccount}
@@ -159,12 +206,17 @@ export default function AddPosForm() {
             <Select
               name="posLocation"
               value={formData.posLocation}
-            //   onChange={handleSelectChange}
+              onChange={(e) => {
+                setFormData({ ...formData, posLocation: e.target.value as string });
+                setErrors({ ...errors, posLocation: "" });
+              }}
               label="POS Location"
             >
-              <MenuItem value="Location1">Location 1</MenuItem>
-              <MenuItem value="Location2">Location 2</MenuItem>
-              <MenuItem value="Location3">Location 3</MenuItem>
+              {locations.map((location: any) => (
+                <MenuItem key={location.loc_code} value={location.loc_code}>
+                  {location.location_name}
+                </MenuItem>
+              ))}
             </Select>
             <Typography variant="caption" color="error">
               {errors.posLocation}
@@ -189,8 +241,9 @@ export default function AddPosForm() {
             fullWidth={isMobile}
             sx={{ backgroundColor: "var(--pallet-blue)" }}
             onClick={handleSubmit}
+            disabled={submitting}
           >
-            Add POS
+            {submitting ? "Adding..." : "Add POS"}
           </Button>
         </Box>
       </Paper>

@@ -14,6 +14,8 @@ import {
   Typography,
   useMediaQuery,
   Theme,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import { useMemo, useState, useEffect } from "react";
 import EditIcon from "@mui/icons-material/Edit";
@@ -24,52 +26,75 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
-
-// Mock API
-const getPOSList = async () => [
-  {
-    id: 1,
-    posName: "Main Counter",
-    creditSale: true,
-    cashSale: true,
-    location: "Colombo",
-    defaultAccount: "Cash Account 1",
-  },
-  {
-    id: 2,
-    posName: "Branch POS",
-    creditSale: false,
-    cashSale: true,
-    location: "Kandy",
-    defaultAccount: "Cash Account 2",
-  },
-];
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
+import {
+  getSalesPosList,
+  deleteSalesPos,
+  updateSalesPos,
+} from "../../../../api/SalePos/SalePosApi";
+import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
+import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi";
+import { useQuery } from "@tanstack/react-query";
 
 export default function PosTable() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [posList, setPosList] = useState<any[]>([]);
+  const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedPosId, setSelectedPosId] = useState<number | null>(null);
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
+  // Fetch master data
+  const { data: locations = [] } = useQuery({
+    queryKey: ["inventoryLocations"],
+    queryFn: getInventoryLocations,
+  });
+  const { data: bankAccounts = [] } = useQuery({
+    queryKey: ["bankAccounts"],
+    queryFn: getBankAccounts,
+  });
+
   // Fetch data
   useEffect(() => {
-    getPOSList().then((data) => setPosList(data));
+    getSalesPosList().then((data) => setPosList(data));
   }, []);
 
   // Filter data
   const filteredData = useMemo(() => {
-    if (searchQuery.trim() === "") return posList;
-    const lower = searchQuery.toLowerCase();
-    return posList.filter(
-      (p) =>
-        p.posName.toLowerCase().includes(lower) ||
-        p.location.toLowerCase().includes(lower) ||
-        p.defaultAccount.toLowerCase().includes(lower) ||
-        p.id.toString().includes(lower)
-    );
-  }, [posList, searchQuery]);
+    let data = showInactive ? posList : posList.filter((p) => !p.inactive);
+
+    if (searchQuery.trim() !== "") {
+      const lower = searchQuery.toLowerCase();
+      data = data.filter(
+        (p) =>
+          p.pos_name?.toLowerCase().includes(lower) ||
+          p.pos_location?.toLowerCase().includes(lower) ||
+          p.pos_account?.toString().includes(lower) ||
+          p.id?.toString().includes(lower)
+      );
+    }
+
+    return data;
+  }, [posList, showInactive, searchQuery]);
+
+  const columnsCount = showInactive ? 7 : 6;
+
+  // Helper functions to get names
+  const getLocationName = (locCode: string) => {
+    const location = locations.find((loc: any) => loc.loc_code === locCode);
+    return location?.location_name || locCode;
+  };
+
+  const getBankAccountName = (accountId: number) => {
+    const account = bankAccounts.find((acc: any) => acc.id === accountId);
+    return account?.bank_account_name || accountId;
+  };
 
   // Pagination
   const paginatedData = useMemo(() => {
@@ -85,13 +110,52 @@ export default function PosTable() {
     setPage(0);
   };
 
-  const handleDelete = (id: number) => {
-    alert(`Delete POS with id: ${id}`);
+  const handleToggleInactive = async (pos: any) => {
+    const id = pos.id;
+    if (!id) return;
+
+    const newValue = !pos.inactive;
+
+    // Optimistic update
+    setPosList((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, inactive: newValue } : p))
+    );
+
+    try {
+      await updateSalesPos(id, { ...pos, inactive: newValue });
+    } catch (error: any) {
+      // rollback
+      setPosList((prev) => prev.map((p) => (p.id === id ? { ...p, inactive: pos.inactive } : p)));
+      setErrorMessage(
+        error?.response?.data?.message || "Failed to update inactive flag. Please try again."
+      );
+      setErrorOpen(true);
+      console.error("Error updating inactive flag for POS:", error);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedPosId) return;
+
+    try {
+      await deleteSalesPos(selectedPosId);
+      setPosList((prev) => prev.filter((p) => p.id !== selectedPosId));
+    } catch (error: any) {
+      setErrorMessage(
+        error?.response?.data?.message ||
+        "Failed to delete POS. Please try again."
+      );
+      setErrorOpen(true);
+      console.error("Error deleting POS:", error);
+    } finally {
+      setOpenDeleteModal(false);
+      setSelectedPosId(null);
+    }
   };
 
   const breadcrumbItems = [
-    { title: "Home", href: "/home" },
-    { title: "POS" },
+    { title: "Miscellaneous", href: "/setup/miscellaneous" },
+    { title: "Point of Sale" },
   ];
 
   return (
@@ -133,12 +197,27 @@ export default function PosTable() {
         </Stack>
       </Box>
 
-      {/* Search */}
+      {/* Search + Filter */}
       <Stack
         direction={isMobile ? "column" : "row"}
         spacing={2}
-        sx={{ px: 2, mb: 2, alignItems: "center", justifyContent: "flex-end" }}
+        sx={{
+          px: 2,
+          mb: 2,
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
       >
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+            />
+          }
+          label="Show Also Inactive"
+        />
+
         <Box sx={{ width: isMobile ? "100%" : "300px" }}>
           <SearchBar
             searchQuery={searchQuery}
@@ -158,25 +237,33 @@ export default function PosTable() {
           <Table aria-label="pos table">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
-                <TableCell>#</TableCell>
                 <TableCell>POS Name</TableCell>
                 <TableCell>Credit Sale</TableCell>
                 <TableCell>Cash Sale</TableCell>
                 <TableCell>Location</TableCell>
                 <TableCell>Default Account</TableCell>
+                {showInactive && <TableCell align="center">Inactive</TableCell>}
                 <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {paginatedData.length > 0 ? (
-                paginatedData.map((pos) => (
-                  <TableRow key={pos.id} hover>
-                    <TableCell>{pos.id}</TableCell>
-                    <TableCell>{pos.posName}</TableCell>
-                    <TableCell>{pos.creditSale ? "Yes" : "No"}</TableCell>
-                    <TableCell>{pos.cashSale ? "Yes" : "No"}</TableCell>
-                    <TableCell>{pos.location}</TableCell>
-                    <TableCell>{pos.defaultAccount}</TableCell>
+                paginatedData.map((pos, index) => (
+                  <TableRow key={pos.id ?? index} hover>
+                    <TableCell>{pos.pos_name}</TableCell>
+                    <TableCell>{pos.credit_sale ? "Yes" : "No"}</TableCell>
+                    <TableCell>{pos.cash_sale ? "Yes" : "No"}</TableCell>
+                    <TableCell>{getLocationName(pos.pos_location)}</TableCell>
+                    <TableCell>{getBankAccountName(pos.pos_account)}</TableCell>
+                    {showInactive && (
+                      <TableCell align="center">
+                        <Checkbox
+                          checked={Boolean(pos.inactive)}
+                          onChange={() => handleToggleInactive(pos)}
+                          inputProps={{ 'aria-label': `inactive-${pos.id}` }}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell align="center">
                       <Stack direction="row" spacing={1} justifyContent="center">
                         <Button
@@ -194,7 +281,10 @@ export default function PosTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(pos.id)}
+                          onClick={() => {
+                            setSelectedPosId(pos.id);
+                            setOpenDeleteModal(true);
+                          }}
                         >
                           Delete
                         </Button>
@@ -204,7 +294,7 @@ export default function PosTable() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={columnsCount} align="center">
                     <Typography variant="body2">No Records Found</Typography>
                   </TableCell>
                 </TableRow>
@@ -214,7 +304,7 @@ export default function PosTable() {
               <TableRow>
                 <TablePagination
                   rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                  colSpan={7}
+                  colSpan={columnsCount}
                   count={filteredData.length}
                   rowsPerPage={rowsPerPage}
                   page={page}
@@ -228,6 +318,24 @@ export default function PosTable() {
           </Table>
         </TableContainer>
       </Stack>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete POS"
+        content="Are you sure you want to delete this POS? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedPosId(null)}
+        deleteFunc={handleDelete}
+        onSuccess={() => {
+          console.log("POS deleted successfully!");
+        }}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }
