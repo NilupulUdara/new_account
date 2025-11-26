@@ -35,6 +35,8 @@ import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import { getSalesPricingByStockId } from "../../../../api/SalesPricing/SalesPricingApi";
 import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCompanyApi";
+import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
+import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -80,6 +82,10 @@ export default function SalesQuotationEntry() {
     const { data: itemUnits = [] } = useQuery({ queryKey: ["itemUnits"], queryFn: getItemUnits });
     const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
     const { data: shippingCompanies = [] } = useQuery({ queryKey: ["shippingCompanies"], queryFn: getShippingCompanies });
+    const { data: taxTypes = [] } = useQuery({ queryKey: ["taxTypes"], queryFn: getTaxTypes });
+
+    // ===== Tax-related state =====
+    const [taxGroupItems, setTaxGroupItems] = useState<any[]>([]);
 
     // ===== Table rows =====
     const [rows, setRows] = useState([
@@ -158,14 +164,42 @@ export default function SalesQuotationEntry() {
             );
             if (pricing) {
                 // Prefer explicit before/after fields if available, otherwise use pricing.price
-                const after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
-                const before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
+                let after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
+                let before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
+
                 handleChange(rowId, "priceAfterTax", after);
                 handleChange(rowId, "priceBeforeTax", before);
             } else {
-                // Fallback to material_cost
-                handleChange(rowId, "priceAfterTax", itemData.material_cost || 0);
-                handleChange(rowId, "priceBeforeTax", itemData.material_cost || 0);
+                // No pricing record found for this sales_type
+                const selectedPriceList = priceLists.find((pl: any) => pl.id === priceList);
+                let fallbackPrice = itemData.material_cost || 0;
+
+                if (selectedPriceList && selectedPriceList.typeName === "Wholesale") {
+                    // For wholesale with no specific pricing record, try to use retail price * factor
+                    const retailPriceList = priceLists.find((pl: any) => pl.typeName === "Retail");
+                    if (retailPriceList) {
+                        const retailPricing = pricingList.find((p: any) =>
+                            Number(p.sales_type_id) === Number(retailPriceList.id) &&
+                            String(p.stock_id ?? p.stockId ?? p.stock) === String(selectedItem.stock_id)
+                        );
+                        if (retailPricing) {
+                            // Use retail price * factor
+                            const factor = selectedPriceList.factor || 1;
+                            fallbackPrice = (retailPricing.price_before_tax ?? retailPricing.priceBeforeTax ?? retailPricing.price ?? 0) * factor;
+                        } else {
+                            // No retail pricing either, use material_cost * factor
+                            const factor = selectedPriceList.factor || 1;
+                            fallbackPrice = fallbackPrice * factor;
+                        }
+                    } else {
+                        // No retail price list found, use material_cost * factor
+                        const factor = selectedPriceList.factor || 1;
+                        fallbackPrice = fallbackPrice * factor;
+                    }
+                }
+
+                handleChange(rowId, "priceAfterTax", fallbackPrice);
+                handleChange(rowId, "priceBeforeTax", fallbackPrice);
             }
         }
     };
@@ -232,10 +266,23 @@ export default function SalesQuotationEntry() {
             if (selectedBranch) {
                 setDeliverTo(selectedBranch.br_name || "");
                 setAddress(selectedBranch.br_address || "");
+                
+                // Fetch tax group items for this branch
+                if (selectedBranch.tax_group) {
+                    getTaxGroupItemsByGroupId(selectedBranch.tax_group)
+                        .then((items) => setTaxGroupItems(items))
+                        .catch((err) => {
+                            console.error("Failed to fetch tax group items:", err);
+                            setTaxGroupItems([]);
+                        });
+                } else {
+                    setTaxGroupItems([]);
+                }
             }
         } else {
             setDeliverTo("");
             setAddress("");
+            setTaxGroupItems([]);
         }
     }, [branch, branches]);
 
@@ -244,12 +291,10 @@ export default function SalesQuotationEntry() {
         if (priceList) {
             const selected = priceLists.find((pl: any) => pl.id === priceList);
             if (selected) {
-                if (selected.typeName === "Retail") {
+                if (selected.taxIncl) {
                     setPriceColumnLabel("Price after Tax");
-                } else if (selected.typeName === "Wholesale") {
-                    setPriceColumnLabel("Price before Tax");
                 } else {
-                    setPriceColumnLabel("Price");
+                    setPriceColumnLabel("Price before Tax");
                 }
             }
         } else {
@@ -270,12 +315,39 @@ export default function SalesQuotationEntry() {
                                 String(p.stock_id ?? p.stockId ?? p.stock) === String(row.selectedItemId)
                             );
                             if (pricing) {
-                                const after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
-                                const before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
+                                let after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
+                                let before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
+
                                 return {
                                     ...row,
                                     priceAfterTax: after,
                                     priceBeforeTax: before,
+                                };
+                            } else {
+                                // No pricing record found for this sales_type
+                                const selectedPriceList = priceLists.find((pl: any) => pl.id === priceList);
+                                let fallbackPrice = 0; // No material_cost available here, so start with 0
+
+                                if (selectedPriceList && selectedPriceList.typeName === "Wholesale") {
+                                    // For wholesale with no specific pricing record, try to use retail price * factor
+                                    const retailPriceList = priceLists.find((pl: any) => pl.typeName === "Retail");
+                                    if (retailPriceList) {
+                                        const retailPricing = pricingList.find((p: any) =>
+                                            Number(p.sales_type_id) === Number(retailPriceList.id) &&
+                                            String(p.stock_id ?? p.stockId ?? p.stock) === String(row.selectedItemId)
+                                        );
+                                        if (retailPricing) {
+                                            // Use retail price * factor
+                                            const factor = selectedPriceList.factor || 1;
+                                            fallbackPrice = (retailPricing.price_before_tax ?? retailPricing.priceBeforeTax ?? retailPricing.price ?? 0) * factor;
+                                        }
+                                    }
+                                }
+
+                                return {
+                                    ...row,
+                                    priceAfterTax: fallbackPrice,
+                                    priceBeforeTax: fallbackPrice,
                                 };
                             }
                         }
@@ -333,8 +405,8 @@ export default function SalesQuotationEntry() {
                 from_stk_loc: deliverFrom,
                 delivery_date: validUntil || quotationDate,
                 payment_terms: payment ? Number(payment) : null,
-                customer_ref: "customer ref",
-                total: subTotal + shippingCharge,
+                customer_ref: customerReference || null,
+                total: subTotal + shippingCharge + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount),
                 prep_amount: 0,
                 alloc: 0,
             };
@@ -380,6 +452,43 @@ export default function SalesQuotationEntry() {
     // Only calculate subtotal for completed rows (all rows except the last one which is being edited)
     const subTotal = rows.slice(0, -1).reduce((sum, r) => sum + r.total, 0);
 
+    // Calculate taxes if taxIncl is true
+    const selectedPriceList = useMemo(() => {
+        return priceLists.find((pl: any) => String(pl.id) === String(priceList));
+    }, [priceList, priceLists]);
+
+    const taxCalculations = useMemo(() => {
+        if (taxGroupItems.length === 0) {
+            return [];
+        }
+
+        // Calculate tax amounts for each tax type
+        return taxGroupItems.map((item: any) => {
+            const taxTypeData = taxTypes.find((t: any) => t.id === item.tax_type_id);
+            const taxRate = taxTypeData?.default_rate || 0;
+            const taxName = taxTypeData?.description || "Tax";
+            
+            let taxAmount = 0;
+            if (selectedPriceList?.taxIncl) {
+                // For prices that include tax, we need to extract the tax amount
+                // Tax amount = subtotal - (subtotal / (1 + rate/100))
+                taxAmount = subTotal - (subTotal / (1 + taxRate / 100));
+            } else {
+                // For prices that don't include tax, calculate tax on subtotal
+                // Tax amount = subtotal * (rate/100)
+                taxAmount = subTotal * (taxRate / 100);
+            }
+            
+            return {
+                name: taxName,
+                rate: taxRate,
+                amount: taxAmount,
+            };
+        });
+    }, [selectedPriceList, taxGroupItems, taxTypes, subTotal]);
+
+    const totalTaxAmount = taxCalculations.reduce((sum, tax) => sum + tax.amount, 0);
+
     // Find currently selected payment term object so we can inspect its payment_type
     const selectedPaymentTerm = useMemo(() => {
         return paymentTerms.find((pt: any) => String(pt.terms_indicator) === String(payment));
@@ -411,7 +520,7 @@ export default function SalesQuotationEntry() {
 
     // Determine fiscal year (using fiscal_year_from / fiscal_year_to) that contains quotationDate and build next reference number for the fiscal year
     useEffect(() => {
-        if (!quotationDate || fiscalYears.length === 0 || salesOrders.length === 0) return;
+        if (!quotationDate || fiscalYears.length === 0) return;
         const dateObj = new Date(quotationDate);
         if (isNaN(dateObj.getTime())) return;
 
@@ -435,8 +544,10 @@ export default function SalesQuotationEntry() {
             const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
             const yearLabel = chosen.fiscal_year || (fromYear === toYear ? fromYear : `${fromYear}-${toYear}`);
 
-            // Find existing references for this fiscal year
-            const relevantRefs = salesOrders.filter((o: any) => o.reference && o.reference.endsWith(`/${yearLabel}`));
+            // Find existing references for this fiscal year and for quotations only (trans_type = 32)
+            const relevantRefs = salesOrders.filter((o: any) =>
+                Number(o.trans_type) === 32 && o.reference && o.reference.endsWith(`/${yearLabel}`)
+            );
             const numbers = relevantRefs.map((o: any) => {
                 const match = o.reference.match(/^(\d{3})\/.+$/);
                 return match ? parseInt(match[1], 10) : 0;
@@ -732,9 +843,31 @@ export default function SalesQuotationEntry() {
                             <TableCell></TableCell>
                         </TableRow>
 
+                        {/* Show tax breakdown */}
+                        {taxCalculations.length > 0 && (
+                            <>
+                                <TableRow>
+                                    <TableCell colSpan={9} sx={{ fontWeight: 600, fontStyle: 'italic', color: 'text.secondary' }}>
+                                        {selectedPriceList?.taxIncl ? "Taxes Included:" : "Taxes:"}
+                                    </TableCell>
+                                </TableRow>
+                                {taxCalculations.map((tax, idx) => (
+                                    <TableRow key={idx}>
+                                        <TableCell colSpan={7} sx={{ pl: 4 }}>
+                                            {tax.name} ({tax.rate}%)
+                                        </TableCell>
+                                        <TableCell>{tax.amount.toFixed(2)}</TableCell>
+                                        <TableCell></TableCell>
+                                    </TableRow>
+                                ))}
+                            </>
+                        )}
+
                         <TableRow>
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>Amount Total</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>{(subTotal + shippingCharge).toFixed(2)}</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>
+                                {(subTotal + shippingCharge + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount)).toFixed(2)}
+                            </TableCell>
                             <TableCell>
                                 <Button 
                                     variant="contained" 
@@ -864,15 +997,12 @@ export default function SalesQuotationEntry() {
                             </Grid>
                             <Grid item xs={12} sm={6}>
                                 <TextField
-                                    select
                                     fullWidth
                                     label="Cash Account"
                                     value={cashAccount}
-                                    onChange={(e) => setCashAccount(e.target.value)}
                                     size="small"
-                                >
-                                    <MenuItem value="">Select Cash Account</MenuItem>
-                                </TextField>
+                                    InputProps={{ readOnly: true }}
+                                />
                             </Grid>
                             <Grid item xs={12}>
                                 <TextField
