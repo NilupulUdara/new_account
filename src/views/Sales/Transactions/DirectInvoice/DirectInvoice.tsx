@@ -23,7 +23,11 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createSalesOrder, getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { createSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
+import { createDebtorTran, getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
@@ -41,6 +45,7 @@ import theme from "../../../../theme";
 
 export default function DirectInvoice() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
 
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
@@ -297,28 +302,201 @@ export default function DirectInvoice() {
         }
     }, [customer, customers]);
 
-    const handlePlaceQuotation = () => {
-        if (!customer || rows.length === 0) return;
-        console.log({
-            customer,
-            branch,
-            reference,
-            invoiceDate,
-            payment,
-            priceList,
-            rows,
-            deliverFrom,
-            cashAccount,
-            comments,
-            validUntil,
-            deliverTo,
-            address,
-            contactPhoneNumber,
-            customerReference,
-            shippingCompany,
-        });
-        alert("Quotation placed successfully!");
-        navigate(-1);
+    // === Save flow: create sales_order, sales_order_details and two debtor_trans + details
+    const [submitting, setSubmitting] = useState(false);
+    const [orderNo, setOrderNo] = useState<number>(1);
+
+    // Fetch sales orders to determine next order number
+    const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
+
+    useEffect(() => {
+        if (salesOrders.length > 0) {
+            const maxOrderNo = Math.max(...salesOrders.map((o: any) => o.order_no));
+            setOrderNo(maxOrderNo + 1);
+        }
+    }, [salesOrders]);
+
+    // Helper to get selected customer object
+    const selectedCustomer = useMemo(() => customers.find((c: any) => String(c.debtor_no) === String(customer)), [customers, customer]);
+    const customerName = selectedCustomer?.name || null;
+    const customerPhone = selectedCustomer?.phone || selectedCustomer?.contact_phone || null;
+    const customerEmail = selectedCustomer?.email || selectedCustomer?.contact_email || null;
+    const customerAddr = selectedCustomer?.address || selectedCustomer?.delivery_address || address || null;
+
+    const handlePlaceQuotation = async () => {
+        if (!customer) { alert("Select customer first"); return; }
+        if (!branch) { alert("Select branch first"); return; }
+        if (!deliverFrom) { alert("Select deliver-from location"); return; }
+        if (rows.filter(r => r.itemCode && r.quantity > 0).length === 0) {
+            alert("At least one item must be added to the invoice.");
+            return;
+        }
+        setSubmitting(true);
+        try {
+            const payload = {
+                order_no: orderNo,
+                trans_type: 30,
+                version: 1,
+                type: 0,
+                debtor_no: Number(customer),
+                branch_code: Number(branch),
+                reference: "auto",
+                ord_date: invoiceDate,
+                order_type: priceList ? Number(priceList) : null,
+                ship_via: shippingCompany ? Number(shippingCompany) : 1,
+                delivery_address: customerAddr,
+                contact_phone: customerPhone,
+                contact_email: customerEmail,
+                deliver_to: customerName,
+                freight_cost: 0,
+                from_stk_loc: deliverFrom,
+                delivery_date: validUntil || invoiceDate,
+                payment_terms: payment ? Number(payment) : null,
+                customer_ref: "customer ref",
+                total: subTotal + shippingCharge,
+                prep_amount: 0,
+                alloc: 0,
+            };
+            console.log("Posting sales order payload", payload);
+            await createSalesOrder(payload as any);
+
+            // Prepare debtor trans numbers per type (10 -> version 0) and (13 -> version 1)
+            const existingDebtorTrans = await getDebtorTrans();
+            const maxTrans10 = (existingDebtorTrans || [])
+                .filter((d: any) => Number(d.trans_type) === 10 && d.trans_no != null)
+                .reduce((m: number, d: any) => Math.max(m, Number(d.trans_no)), 0);
+            const maxTrans13 = (existingDebtorTrans || [])
+                .filter((d: any) => Number(d.trans_type) === 13 && d.trans_no != null)
+                .reduce((m: number, d: any) => Math.max(m, Number(d.trans_no)), 0);
+
+            let nextTransNo10 = maxTrans10 + 1;
+            let nextTransNo13 = maxTrans13 + 1;
+            if (nextTransNo10 === orderNo) nextTransNo10++;
+            if (nextTransNo13 === orderNo) nextTransNo13++;
+
+            const debtorPayload10 = {
+                trans_no: nextTransNo10,
+                trans_type: 10,
+                version: 0,
+                debtor_no: Number(customer),
+                branch_code: Number(branch),
+                tran_date: invoiceDate,
+                due_date: validUntil || invoiceDate,
+                reference: reference || "",
+                tpe: 1,
+                order_no: orderNo,
+                ov_amount: subTotal + shippingCharge,
+                ov_gst: 0,
+                ov_freight: shippingCharge || 0,
+                ov_freight_tax: 0,
+                ov_discount: 0,
+                alloc: subTotal + shippingCharge,
+                prep_amount: 0,
+                rate: 1,
+                ship_via: shippingCompany ? Number(shippingCompany) : 1,
+                dimension_id: 0,
+                dimension2_id: 0,
+                payment_terms: payment ? Number(payment) : null,
+                tax_included: false,
+            };
+
+            const debtorPayload13 = {
+                trans_no: nextTransNo13,
+                trans_type: 13,
+                version: 1,
+                debtor_no: Number(customer),
+                branch_code: Number(branch),
+                tran_date: invoiceDate,
+                due_date: validUntil || invoiceDate,
+                reference: "auto",
+                tpe: 1,
+                order_no: orderNo,
+                ov_amount: subTotal + shippingCharge,
+                ov_gst: 0,
+                ov_freight: shippingCharge || 0,
+                ov_freight_tax: 0,
+                ov_discount: 0,
+                alloc: 0,
+                prep_amount: 0,
+                rate: 1,
+                ship_via: shippingCompany ? Number(shippingCompany) : 1,
+                dimension_id: 0,
+                dimension2_id: 0,
+                payment_terms: payment ? Number(payment) : null,
+                tax_included: false,
+            };
+
+            console.log("Posting debtor_trans payloads", debtorPayload10, debtorPayload13);
+            const debtorResp10 = await createDebtorTran(debtorPayload10 as any);
+            const debtorResp13 = await createDebtorTran(debtorPayload13 as any);
+
+            const debtorTransNo10 = debtorResp10?.trans_no ?? debtorResp10?.id ?? null;
+            const debtorTransNo13 = debtorResp13?.trans_no ?? debtorResp13?.id ?? null;
+
+            // Now create sales order details and for each created detail create two debtor_trans_details
+            const detailsToPost = rows.filter(r => r.selectedItemId);
+            for (const row of detailsToPost) {
+                const unitPrice = priceColumnLabel === "Price after Tax" ? row.priceAfterTax : row.priceBeforeTax;
+                const detailPayload = {
+                    order_no: orderNo,
+                    trans_type: 30,
+                    stk_code: row.itemCode,
+                    description: row.description,
+                    qty_sent: row.quantity,
+                    unit_price: unitPrice,
+                    quantity: row.quantity,
+                    invoiced: 0,
+                    discount_percent: discount,
+                };
+                console.log("Posting sales order detail", detailPayload);
+                const detailResp = await createSalesOrderDetail(detailPayload);
+
+                const createdDetailId = detailResp?.id ?? detailResp?.sales_order_detail_id ?? detailResp?.detail_id ?? detailResp?.order_detail_id ?? null;
+
+                const debtorDetail10 = {
+                    debtor_trans_no: debtorTransNo10,
+                    debtor_trans_type: debtorResp10?.trans_type ?? 10,
+                    stock_id: row.itemCode,
+                    description: row.description,
+                    unit_price: unitPrice,
+                    unit_tax: 0,
+                    quantity: row.quantity,
+                    discount_percent: discount,
+                    standard_cost: 0,
+                    qty_done: 0,
+                    src_id: createdDetailId,
+                };
+
+                const debtorDetail13 = {
+                    debtor_trans_no: debtorTransNo13,
+                    debtor_trans_type: debtorResp13?.trans_type ?? 13,
+                    stock_id: row.itemCode,
+                    description: row.description,
+                    unit_price: unitPrice,
+                    unit_tax: 0,
+                    quantity: row.quantity,
+                    discount_percent: discount,
+                    standard_cost: 0,
+                    qty_done: 0,
+                    src_id: createdDetailId,
+                };
+
+                console.log("Posting debtor_trans_detail 10", debtorDetail10);
+                await createDebtorTransDetail(debtorDetail10);
+                console.log("Posting debtor_trans_detail 13", debtorDetail13);
+                await createDebtorTransDetail(debtorDetail13);
+            }
+
+            alert("Saved to sales_orders (order_no: " + orderNo + ")");
+            await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
+            navigate("/sales/transactions/direct-invoice/success", { state: { orderNo, reference, invoiceDate } });
+        } catch (e: any) {
+            console.error("Save error", e);
+            const detail = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'Unknown error');
+            alert("Failed to save: " + detail);
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const breadcrumbItems = [
