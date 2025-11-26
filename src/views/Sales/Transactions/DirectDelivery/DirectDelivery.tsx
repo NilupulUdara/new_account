@@ -38,7 +38,7 @@ import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCo
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { createSalesOrder, getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
 import { createSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
-import { createDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { createDebtorTran, getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
@@ -348,7 +348,7 @@ export default function DirectDelivery() {
                 reference: "auto",
                 ord_date: deliveryDate,
                 order_type: Number(priceList) || 0,
-                ship_via: 1,
+                ship_via: shippingCompany ? Number(shippingCompany) : 1,
                 delivery_address: customerAddr,
                 contact_phone: customerPhone,
                 contact_email: customerEmail,
@@ -366,11 +366,20 @@ export default function DirectDelivery() {
             // Create sales order first
             await createSalesOrder(payload as any);
 
-            // Create debtor_trans record mapping to this sales order (use orderNo as trans_no)
+            // Create debtor_trans record mapping to this sales order.
+            // The API requires `trans_no` in the payload. Compute next `trans_no` client-side
+            // by inspecting existing debtor transactions for `trans_type === 13`.
+            const existingDebtorTrans = await getDebtorTrans();
+            const maxTrans = (existingDebtorTrans || [])
+                .filter((d: any) => Number(d.trans_type) === 13 && d.trans_no != null)
+                .reduce((m: number, d: any) => Math.max(m, Number(d.trans_no)), 0);
+            let nextTransNo = maxTrans + 1;
+            if (nextTransNo === orderNo) nextTransNo = nextTransNo + 1;
+
             const debtorPayload = {
-                trans_no: orderNo,
+                trans_no: nextTransNo,
                 trans_type: 13,
-                version: 1,
+                version: 0,
                 debtor_no: Number(customer),
                 branch_code: Number(branch),
                 tran_date: deliveryDate,
@@ -386,7 +395,7 @@ export default function DirectDelivery() {
                 alloc: 0,
                 prep_amount: 0,
                 rate: 1,
-                ship_via: 1,
+                ship_via: shippingCompany ? Number(shippingCompany) : 1,
                 dimension_id: 0,
                 dimension2_id: 0,
                 payment_terms: payment ? Number(payment) : null,
@@ -394,6 +403,7 @@ export default function DirectDelivery() {
             };
             console.log("Posting debtor_trans payload", debtorPayload);
             const debtorResp = await createDebtorTran(debtorPayload as any);
+            const debtorTransNo = debtorResp?.trans_no ?? debtorResp?.id ?? null;
 
             // Now create sales order details and matching debtor_trans_details (linking src_id to detail id)
             const detailsToPost = rows.filter(r => r.selectedItemId);
@@ -417,8 +427,9 @@ export default function DirectDelivery() {
                 const createdDetailId = detailResp?.id ?? detailResp?.sales_order_detail_id ?? detailResp?.detail_id ?? detailResp?.order_detail_id ?? null;
 
                 const debtorDetailPayload = {
-                    debtor_trans_no: debtorResp?.trans_no ?? orderNo,
-                    debtor_trans_type: debtorResp?.trans_type ?? 30,
+                    // Use whatever identifier backend returned for the created debtor trans (prefer trans_no, else primary id)
+                    debtor_trans_no: debtorTransNo,
+                    debtor_trans_type: debtorResp?.trans_type ?? 13,
                     stock_id: row.itemCode,
                     description: row.description,
                     unit_price: unitPrice,
