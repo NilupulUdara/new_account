@@ -35,6 +35,8 @@ import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import { getSalesPricingByStockId } from "../../../../api/SalesPricing/SalesPricingApi";
 import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCompanyApi";
+import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
+import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -80,6 +82,10 @@ export default function SalesOrderEntry() {
     const { data: itemUnits = [] } = useQuery({ queryKey: ["itemUnits"], queryFn: getItemUnits });
     const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
     const { data: shippingCompanies = [] } = useQuery({ queryKey: ["shippingCompanies"], queryFn: getShippingCompanies });
+    const { data: taxTypes = [] } = useQuery({ queryKey: ["taxTypes"], queryFn: getTaxTypes });
+
+    // ===== Tax-related state =====
+    const [taxGroupItems, setTaxGroupItems] = useState<any[]>([]);
 
     // ===== Table rows =====
     const [rows, setRows] = useState([
@@ -157,26 +163,48 @@ export default function SalesOrderEntry() {
                 String(p.stock_id ?? p.stockId ?? p.stock) === String(selectedItem.stock_id)
             );
             if (pricing) {
-                const after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
-                const before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
+                // Prefer explicit before/after fields if available, otherwise use pricing.price
+                let after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
+                let before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
+
                 handleChange(rowId, "priceAfterTax", after);
                 handleChange(rowId, "priceBeforeTax", before);
             } else {
-                // Fallback to material_cost
-                handleChange(rowId, "priceAfterTax", itemData.material_cost || 0);
-                handleChange(rowId, "priceBeforeTax", itemData.material_cost || 0);
+                // No pricing record found for this sales_type
+                const selectedPriceList = priceLists.find((pl: any) => pl.id === priceList);
+                let fallbackPrice = itemData.material_cost || 0;
+
+                if (selectedPriceList && selectedPriceList.typeName === "Wholesale") {
+                    // For wholesale with no specific pricing record, try to use retail price * factor
+                    const retailPriceList = priceLists.find((pl: any) => pl.typeName === "Retail");
+                    if (retailPriceList) {
+                        const retailPricing = pricingList.find((p: any) =>
+                            Number(p.sales_type_id) === Number(retailPriceList.id) &&
+                            String(p.stock_id ?? p.stockId ?? p.stock) === String(selectedItem.stock_id)
+                        );
+                        if (retailPricing) {
+                            // Use retail price * factor
+                            const factor = selectedPriceList.factor || 1;
+                            fallbackPrice = (retailPricing.price_before_tax ?? retailPricing.priceBeforeTax ?? retailPricing.price ?? 0) * factor;
+                        } else {
+                            // No retail pricing either, use material_cost * factor
+                            const factor = selectedPriceList.factor || 1;
+                            fallbackPrice = fallbackPrice * factor;
+                        }
+                    } else {
+                        // No retail price list found, use material_cost * factor
+                        const factor = selectedPriceList.factor || 1;
+                        fallbackPrice = fallbackPrice * factor;
+                    }
+                }
+
+                handleChange(rowId, "priceAfterTax", fallbackPrice);
+                handleChange(rowId, "priceBeforeTax", fallbackPrice);
             }
         }
     };
 
     // ===== Auto-generate reference =====
-    useEffect(() => {
-        const year = new Date().getFullYear();
-        const random = Math.floor(Math.random() * 1000)
-            .toString()
-            .padStart(3, "0");
-        setReference(`${random}/${year}`);
-    }, []);
 
     // Auto-select first customer on load (same behavior as SalesQuotationEntry)
     useEffect(() => {
@@ -192,17 +220,34 @@ export default function SalesOrderEntry() {
         if (newBranch !== branch) setBranch(newBranch);
     }, [customer, branches]);
 
+    // Fetch tax group items when branch changes
+    useEffect(() => {
+        if (branch) {
+            const selectedBranch = branches.find((b: any) => b.branch_code === branch);
+            if (selectedBranch?.tax_group) {
+                getTaxGroupItemsByGroupId(selectedBranch.tax_group)
+                    .then((items) => setTaxGroupItems(items))
+                    .catch((err) => {
+                        console.error("Failed to fetch tax group items:", err);
+                        setTaxGroupItems([]);
+                    });
+            } else {
+                setTaxGroupItems([]);
+            }
+        } else {
+            setTaxGroupItems([]);
+        }
+    }, [branch, branches]);
+
     // Update price column label when price list changes
     useEffect(() => {
         if (priceList) {
             const selected = priceLists.find((pl: any) => pl.id === priceList);
             if (selected) {
-                if (selected.typeName === "Retail") {
+                if (selected.taxIncl) {
                     setPriceColumnLabel("Price after Tax");
-                } else if (selected.typeName === "Wholesale") {
-                    setPriceColumnLabel("Price before Tax");
                 } else {
-                    setPriceColumnLabel("Price");
+                    setPriceColumnLabel("Price before Tax");
                 }
             }
         } else {
@@ -223,12 +268,39 @@ export default function SalesOrderEntry() {
                                 String(p.stock_id ?? p.stockId ?? p.stock) === String(row.selectedItemId)
                             );
                             if (pricing) {
-                                const after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
-                                const before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
+                                let after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
+                                let before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
+
                                 return {
                                     ...row,
                                     priceAfterTax: after,
                                     priceBeforeTax: before,
+                                };
+                            } else {
+                                // No pricing record found for this sales_type
+                                const selectedPriceList = priceLists.find((pl: any) => pl.id === priceList);
+                                let fallbackPrice = 0; // No material_cost available here, so start with 0
+
+                                if (selectedPriceList && selectedPriceList.typeName === "Wholesale") {
+                                    // For wholesale with no specific pricing record, try to use retail price * factor
+                                    const retailPriceList = priceLists.find((pl: any) => pl.typeName === "Retail");
+                                    if (retailPriceList) {
+                                        const retailPricing = pricingList.find((p: any) =>
+                                            Number(p.sales_type_id) === Number(retailPriceList.id) &&
+                                            String(p.stock_id ?? p.stockId ?? p.stock) === String(row.selectedItemId)
+                                        );
+                                        if (retailPricing) {
+                                            // Use retail price * factor
+                                            const factor = selectedPriceList.factor || 1;
+                                            fallbackPrice = (retailPricing.price_before_tax ?? retailPricing.priceBeforeTax ?? retailPricing.price ?? 0) * factor;
+                                        }
+                                    }
+                                }
+
+                                return {
+                                    ...row,
+                                    priceAfterTax: fallbackPrice,
+                                    priceBeforeTax: fallbackPrice,
                                 };
                             }
                         }
@@ -311,6 +383,47 @@ export default function SalesOrderEntry() {
         }
     }, [salesOrders]);
 
+    // Determine fiscal year and build next reference number for the fiscal year (for sales orders, trans_type = 30)
+    useEffect(() => {
+        if (!orderDate || fiscalYears.length === 0) return;
+        const dateObj = new Date(orderDate);
+        if (isNaN(dateObj.getTime())) return;
+
+        const matching = fiscalYears.find((fy: any) => {
+            if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+            const from = new Date(fy.fiscal_year_from);
+            const to = new Date(fy.fiscal_year_to);
+            if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+            return dateObj >= from && dateObj <= to; // inclusive
+        });
+
+        // If not found, choose the one whose from date is closest but not after the orderDate.
+        const chosen = matching || [...fiscalYears]
+            .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
+            .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
+            .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
+
+        if (chosen) {
+            // Preferred label: explicit fiscal_year field if exists, else derive from from/to years.
+            const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
+            const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
+            const yearLabel = chosen.fiscal_year || (fromYear === toYear ? fromYear : `${fromYear}-${toYear}`);
+
+            // Find existing references for this fiscal year and for sales orders only (trans_type = 30)
+            const relevantRefs = salesOrders.filter((o: any) =>
+                Number(o.trans_type) === 30 && o.reference && o.reference.endsWith(`/${yearLabel}`)
+            );
+            const numbers = relevantRefs.map((o: any) => {
+                const match = o.reference.match(/^(\d{3})\/.+$/);
+                return match ? parseInt(match[1], 10) : 0;
+            });
+            const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
+            const nextNum = maxNum + 1;
+            const nextRef = `${nextNum.toString().padStart(3, '0')}/${yearLabel}`;
+            setReference(nextRef);
+        }
+    }, [orderDate, fiscalYears, salesOrders]);
+
     const handlePlaceQuotation = async () => {
         if (!customer) { alert("Select customer first"); return; }
         if (!branch) { alert("Select branch first"); return; }
@@ -340,8 +453,8 @@ export default function SalesOrderEntry() {
                 from_stk_loc: deliverFrom,
                 delivery_date: validUntil || orderDate,
                 payment_terms: payment ? Number(payment) : null,
-                customer_ref: "customer ref",
-                total: subTotal + shippingCharge,
+                customer_ref: customerReference || null,
+                total: subTotal + shippingCharge + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount),
                 prep_amount: 0,
                 alloc: 0,
             };
@@ -383,6 +496,43 @@ export default function SalesOrderEntry() {
 
     // Match SalesQuotationEntry subtotal behavior: exclude the last-edit row
     const subTotal = rows.slice(0, -1).reduce((sum, r) => sum + r.total, 0);
+
+    // Calculate taxes if taxIncl is true
+    const selectedPriceList = useMemo(() => {
+        return priceLists.find((pl: any) => String(pl.id) === String(priceList));
+    }, [priceList, priceLists]);
+
+    const taxCalculations = useMemo(() => {
+        if (taxGroupItems.length === 0) {
+            return [];
+        }
+
+        // Calculate tax amounts for each tax type
+        return taxGroupItems.map((item: any) => {
+            const taxTypeData = taxTypes.find((t: any) => t.id === item.tax_type_id);
+            const taxRate = taxTypeData?.default_rate || 0;
+            const taxName = taxTypeData?.description || "Tax";
+            
+            let taxAmount = 0;
+            if (selectedPriceList?.taxIncl) {
+                // For prices that include tax, we need to extract the tax amount
+                // Tax amount = subtotal - (subtotal / (1 + rate/100))
+                taxAmount = subTotal - (subTotal / (1 + taxRate / 100));
+            } else {
+                // For prices that don't include tax, calculate tax on subtotal
+                // Tax amount = subtotal * (rate/100)
+                taxAmount = subTotal * (taxRate / 100);
+            }
+            
+            return {
+                name: taxName,
+                rate: taxRate,
+                amount: taxAmount,
+            };
+        });
+    }, [selectedPriceList, taxGroupItems, taxTypes, subTotal]);
+
+    const totalTaxAmount = taxCalculations.reduce((sum, tax) => sum + tax.amount, 0);
 
     // Find currently selected payment term object so we can inspect its payment_type
     const selectedPaymentTerm = useMemo(() => {
@@ -682,10 +832,32 @@ export default function SalesOrderEntry() {
                             <TableCell sx={{ fontWeight: 600 }}>{subTotal.toFixed(2)}</TableCell>
                             <TableCell></TableCell>
                         </TableRow>
+
+                        {/* Show tax breakdown */}
+                        {taxCalculations.length > 0 && (
+                            <>
+                                <TableRow>
+                                    <TableCell colSpan={9} sx={{ fontWeight: 600, fontStyle: 'italic', color: 'text.secondary' }}>
+                                        {selectedPriceList?.taxIncl ? "Taxes Included:" : "Taxes:"}
+                                    </TableCell>
+                                </TableRow>
+                                {taxCalculations.map((tax, idx) => (
+                                    <TableRow key={idx}>
+                                        <TableCell colSpan={7} sx={{ pl: 4 }}>
+                                            {tax.name} ({tax.rate}%)
+                                        </TableCell>
+                                        <TableCell>{tax.amount.toFixed(2)}</TableCell>
+                                        <TableCell></TableCell>
+                                    </TableRow>
+                                ))}
+                            </>
+                        )}
                        
                         <TableRow>
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>Amount Total</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>{(subTotal + shippingCharge).toFixed(2)}</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>
+                                {(subTotal + shippingCharge + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount)).toFixed(2)}
+                            </TableCell>
                             <TableCell>
                                 <Button variant="contained" size="small">
                                     Update
@@ -809,15 +981,12 @@ export default function SalesOrderEntry() {
 
                             <Grid item xs={12} sm={6}>
                                 <TextField
-                                    select
                                     fullWidth
                                     label="Cash Account"
                                     value={cashAccount}
-                                    onChange={(e) => setCashAccount(e.target.value)}
                                     size="small"
-                                >
-                                                                <MenuItem value="">Select Cash Account</MenuItem>
-                                </TextField>
+                                    InputProps={{ readOnly: true }}
+                                />
                             </Grid>
 
                             <Grid item xs={12}>
