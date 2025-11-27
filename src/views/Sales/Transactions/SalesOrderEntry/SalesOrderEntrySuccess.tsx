@@ -8,7 +8,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 export default function SalesOrderEntrySuccess() {
   const navigate = useNavigate();
   const { state } = useLocation();
-  const { location: loc, reference, date } = state || {};
+  const { location: loc, reference, date, orderNo } = state || {};
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
@@ -43,15 +43,15 @@ export default function SalesOrderEntrySuccess() {
       </Box>
 
       <Paper sx={{ p: 2 }}>
-        <Typography sx={{ mb: 2 }}>
-        Order # has been entered.
+        <Typography sx={{ mb: 2, textAlign: 'center' }}>
+        Order #{orderNo || reference || ''} has been entered.
         </Typography>
 
         <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
             sx={{ width: '300px' }}
-            onClick={() => navigate("/sales/transactions/sales-order-entry/view-sales-order", { state })}
+            onClick={() => navigate("/sales/transactions/sales-order-entry/view-sales-order", { state: { orderNo: orderNo || reference } })}
           >
             View This Order
           </Button>

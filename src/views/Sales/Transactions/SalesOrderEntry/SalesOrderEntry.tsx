@@ -22,7 +22,7 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
@@ -41,11 +41,12 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
-import { createSalesOrder, generateProvisionalOrderNo, getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
-import { createSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
+import { createSalesOrder, generateProvisionalOrderNo, getSalesOrders, getSalesOrderByOrderNo } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { createSalesOrderDetail, getSalesOrderDetailsByOrderNo } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 
 export default function SalesOrderEntry() {
     const navigate = useNavigate();
+    const location = useLocation();
     const queryClient = useQueryClient();
 
     // ===== Form fields =====
@@ -217,7 +218,7 @@ export default function SalesOrderEntry() {
     useEffect(() => {
         const customerBranches = branches.filter((b: any) => b.debtor_no === customer);
         const newBranch = customerBranches.length > 0 ? customerBranches[0].branch_code : "";
-        if (newBranch !== branch) setBranch(newBranch);
+        if (!branch && newBranch) setBranch(newBranch);
     }, [customer, branches]);
 
     // Fetch tax group items when branch changes
@@ -423,6 +424,61 @@ export default function SalesOrderEntry() {
             setReference(nextRef);
         }
     }, [orderDate, fiscalYears, salesOrders]);
+
+    // Handle quotation data if coming from quotation success
+    useEffect(() => {
+        const state = location.state;
+        if (state && state.orderNo && items.length > 0 && itemUnits.length > 0) {
+            const fetchQuotation = async () => {
+                try {
+                    const quotation = await getSalesOrderByOrderNo(state.orderNo);
+                    if (quotation && quotation.trans_type === 32) { // Ensure it's a quotation
+                        setCustomer(String(quotation.debtor_no));
+                        setBranch(String(quotation.branch_code));
+                        setPriceList(String(quotation.order_type));
+                        setComments(`Sales Quotation # ${state.orderNo}`);
+                        // Fetch details
+                        const details = await getSalesOrderDetailsByOrderNo(state.orderNo);
+                        if (details.length > 0) {
+                            const newRows = details.map((detail: any, index: number) => {
+                                const item = items.find((i: any) => i.stock_id === detail.stk_code);
+                                const unitName = item ? itemUnits.find((u: any) => u.id === item.units)?.name || "" : "";
+                                return {
+                                    id: index + 1,
+                                    itemCode: detail.stk_code,
+                                    description: detail.description,
+                                    quantity: detail.quantity,
+                                    unit: unitName,
+                                    priceAfterTax: detail.unit_price,
+                                    priceBeforeTax: detail.unit_price,
+                                    discount: detail.discount_percent || 0,
+                                    total: detail.quantity * detail.unit_price * (1 - (detail.discount_percent || 0) / 100),
+                                    selectedItemId: detail.stk_code,
+                                };
+                            });
+                            // Add empty row at end
+                            newRows.push({
+                                id: newRows.length + 1,
+                                itemCode: "",
+                                description: "",
+                                quantity: 0,
+                                unit: "",
+                                priceAfterTax: 0,
+                                priceBeforeTax: 0,
+                                discount: 0,
+                                total: 0,
+                                selectedItemId: null,
+                            });
+                            setRows(newRows);
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error fetching quotation data:", error);
+                }
+            };
+            fetchQuotation();
+        }
+    }, [location.state, items, itemUnits]);
 
     const handlePlaceQuotation = async () => {
         if (!customer) { alert("Select customer first"); return; }
