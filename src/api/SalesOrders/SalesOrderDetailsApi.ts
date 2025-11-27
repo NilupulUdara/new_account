@@ -24,8 +24,9 @@ export const getSalesOrderDetailById = async (id: string | number) => {
 
 export const getSalesOrderDetailsByOrderNo = async (orderNo: string | number) => {
   try {
-    const response = await axios.get(`${API_URL}/by-order/${orderNo}`);
-    return response.data;
+    const response = await axios.get(API_URL);
+    const allDetails = response.data;
+    return allDetails.filter((detail: any) => String(detail.order_no) === String(orderNo));
   } catch (error) {
     console.error(`Error fetching sales order details for order ${orderNo}:`, error);
     return [];

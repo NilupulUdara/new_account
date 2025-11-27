@@ -39,6 +39,9 @@ import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import { getSalesPricingByStockId } from "../../../../api/SalesPricing/SalesPricingApi";
 import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCompanyApi";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
+import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -81,6 +84,13 @@ export default function DirectInvoice() {
     const { data: itemUnits = [] } = useQuery({ queryKey: ["itemUnits"], queryFn: getItemUnits });
     const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
     const { data: shippingCompanies = [] } = useQuery({ queryKey: ["shippingCompanies"], queryFn: getShippingCompanies });
+    const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+    const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
+    const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
+    const { data: taxTypes = [] } = useQuery({ queryKey: ["taxTypes"], queryFn: getTaxTypes });
+
+    // ===== Tax-related state =====
+    const [taxGroupItems, setTaxGroupItems] = useState<any[]>([]);
 
     // ===== Table rows =====
     const [rows, setRows] = useState([
@@ -95,6 +105,7 @@ export default function DirectInvoice() {
             discount: 0,
             total: 0,
             selectedItemId: null as string | number | null,
+            materialCost: 0,
         },
     ]);
 
@@ -112,6 +123,7 @@ export default function DirectInvoice() {
                 discount: 0,
                 total: 0,
                 selectedItemId: null,
+                materialCost: 0,
             },
         ]);
     };
@@ -152,6 +164,7 @@ export default function DirectInvoice() {
         if (itemData) {
             const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
             handleChange(rowId, "unit", unitName);
+            handleChange(rowId, "materialCost", itemData.material_cost || 0);
             // Fetch pricing
             const pricingList = await getSalesPricingByStockId(selectedItem.stock_id);
             const pricing = pricingList.find((p: any) =>
@@ -171,14 +184,48 @@ export default function DirectInvoice() {
         }
     };
 
-    // ===== Auto-generate reference =====
+    // ===== Auto-generate reference based on fiscal year =====
     useEffect(() => {
-        const year = new Date().getFullYear();
-        const random = Math.floor(Math.random() * 1000)
-            .toString()
-            .padStart(3, "0");
-        setReference(`${random}/${year}`);
-    }, []);
+        if (fiscalYears.length === 0 || debtorTrans.length === 0) return;
+
+        const today = new Date(invoiceDate);
+        const currentFiscalYear = fiscalYears.find((fy: any) => {
+            const fromDate = new Date(fy.fiscal_year_from);
+            const toDate = new Date(fy.fiscal_year_to);
+            return today >= fromDate && today <= toDate;
+        });
+
+        if (currentFiscalYear) {
+            const fromYear = new Date(currentFiscalYear.fiscal_year_from).getFullYear();
+            const toYear = new Date(currentFiscalYear.fiscal_year_to).getFullYear();
+            const yearLabel = fromYear === toYear ? `${fromYear}` : `${fromYear}/${toYear}`;
+
+            // Filter for trans_type=10 (invoice) references from debtor_trans
+            const existingRefs = debtorTrans
+                .filter((d: any) => Number(d.trans_type) === 10 && d.reference)
+                .map((d: any) => d.reference);
+
+            const currentYearRefs = existingRefs.filter((ref: string) => 
+                ref.endsWith(`/${yearLabel}`) || ref === yearLabel
+            );
+
+            let nextNum = 1;
+            if (currentYearRefs.length > 0) {
+                const nums = currentYearRefs
+                    .map((ref: string) => {
+                        const match = ref.match(/^(\d{3})\/.+$/);
+                        return match ? parseInt(match[1], 10) : 0;
+                    })
+                    .filter((n: number) => n > 0);
+                
+                if (nums.length > 0) {
+                    nextNum = Math.max(...nums) + 1;
+                }
+            }
+
+            setReference(`${nextNum.toString().padStart(3, '0')}/${yearLabel}`);
+        }
+    }, [fiscalYears, debtorTrans, invoiceDate]);
 
     // Auto-select first customer on load (match DirectDelivery behaviour)
     useEffect(() => {
@@ -201,10 +248,23 @@ export default function DirectInvoice() {
             if (selectedBranch) {
                 setDeliverTo(selectedBranch.br_name || "");
                 setAddress(selectedBranch.br_address || "");
+                
+                // Fetch tax group items for this branch
+                if (selectedBranch.tax_group) {
+                    getTaxGroupItemsByGroupId(selectedBranch.tax_group)
+                        .then((items) => setTaxGroupItems(items))
+                        .catch((err) => {
+                            console.error("Failed to fetch tax group items:", err);
+                            setTaxGroupItems([]);
+                        });
+                } else {
+                    setTaxGroupItems([]);
+                }
             }
         } else {
             setDeliverTo("");
             setAddress("");
+            setTaxGroupItems([]);
         }
     }, [branch, branches]);
 
@@ -213,12 +273,10 @@ export default function DirectInvoice() {
         if (priceList) {
             const selected = priceLists.find((pl: any) => pl.id === priceList);
             if (selected) {
-                if (selected.typeName === "Retail") {
+                if (selected.taxIncl) {
                     setPriceColumnLabel("Price after Tax");
-                } else if (selected.typeName === "Wholesale") {
-                    setPriceColumnLabel("Price before Tax");
                 } else {
-                    setPriceColumnLabel("Price");
+                    setPriceColumnLabel("Price before Tax");
                 }
             }
         } else {
@@ -306,9 +364,6 @@ export default function DirectInvoice() {
     const [submitting, setSubmitting] = useState(false);
     const [orderNo, setOrderNo] = useState<number>(1);
 
-    // Fetch sales orders to determine next order number
-    const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
-
     useEffect(() => {
         if (salesOrders.length > 0) {
             const maxOrderNo = Math.max(...salesOrders.map((o: any) => o.order_no));
@@ -352,7 +407,7 @@ export default function DirectInvoice() {
                 from_stk_loc: deliverFrom,
                 delivery_date: validUntil || invoiceDate,
                 payment_terms: payment ? Number(payment) : null,
-                customer_ref: "customer ref",
+                customer_ref: customerReference || "",
                 total: subTotal + shippingCharge,
                 prep_amount: 0,
                 alloc: 0,
@@ -397,7 +452,7 @@ export default function DirectInvoice() {
                 dimension_id: 0,
                 dimension2_id: 0,
                 payment_terms: payment ? Number(payment) : null,
-                tax_included: false,
+                tax_included: selectedPriceList?.taxIncl ? 0 : 1,
             };
 
             const debtorPayload13 = {
@@ -423,7 +478,7 @@ export default function DirectInvoice() {
                 dimension_id: 0,
                 dimension2_id: 0,
                 payment_terms: payment ? Number(payment) : null,
-                tax_included: false,
+                tax_included: selectedPriceList?.taxIncl ? 1 : 0,
             };
 
             console.log("Posting debtor_trans payloads", debtorPayload10, debtorPayload13);
@@ -462,7 +517,7 @@ export default function DirectInvoice() {
                     unit_tax: 0,
                     quantity: row.quantity,
                     discount_percent: discount,
-                    standard_cost: 0,
+                    standard_cost: row.materialCost,
                     qty_done: 0,
                     src_id: createdDetailId,
                 };
@@ -476,7 +531,7 @@ export default function DirectInvoice() {
                     unit_tax: 0,
                     quantity: row.quantity,
                     discount_percent: discount,
-                    standard_cost: 0,
+                    standard_cost: row.materialCost,
                     qty_done: 0,
                     src_id: createdDetailId,
                 };
@@ -506,6 +561,43 @@ export default function DirectInvoice() {
 
     // Only calculate subtotal for completed rows (all rows except the last one which is being edited)
     const subTotal = rows.slice(0, -1).reduce((sum, r) => sum + r.total, 0);
+
+    // Calculate taxes if taxIncl is true
+    const selectedPriceList = useMemo(() => {
+        return priceLists.find((pl: any) => String(pl.id) === String(priceList));
+    }, [priceList, priceLists]);
+
+    const taxCalculations = useMemo(() => {
+        if (taxGroupItems.length === 0) {
+            return [];
+        }
+
+        // Calculate tax amounts for each tax type
+        return taxGroupItems.map((item: any) => {
+            const taxTypeData = taxTypes.find((t: any) => t.id === item.tax_type_id);
+            const taxRate = taxTypeData?.default_rate || 0;
+            const taxName = taxTypeData?.description || "Tax";
+            
+            let taxAmount = 0;
+            if (selectedPriceList?.taxIncl) {
+                // For prices that include tax, we need to extract the tax amount
+                // Tax amount = subtotal - (subtotal / (1 + rate/100))
+                taxAmount = subTotal - (subTotal / (1 + taxRate / 100));
+            } else {
+                // For prices that don't include tax, calculate tax on subtotal
+                // Tax amount = subtotal * (rate/100)
+                taxAmount = subTotal * (taxRate / 100);
+            }
+            
+            return {
+                name: taxName,
+                rate: taxRate,
+                amount: taxAmount,
+            };
+        });
+    }, [selectedPriceList, taxGroupItems, taxTypes, subTotal]);
+
+    const totalTaxAmount = taxCalculations.reduce((sum, tax) => sum + tax.amount, 0);
 
     // Find currently selected payment term object so we can inspect its payment_type
     const selectedPaymentTerm = useMemo(() => {
@@ -805,10 +897,32 @@ export default function DirectInvoice() {
                             <TableCell sx={{ fontWeight: 600 }}>{subTotal.toFixed(2)}</TableCell>
                             <TableCell></TableCell>
                         </TableRow>
-                       
+
+                        {/* Show tax breakdown */}
+                        {taxCalculations.length > 0 && (
+                            <>
+                                <TableRow>
+                                    <TableCell colSpan={9} sx={{ fontWeight: 600, fontStyle: 'italic', color: 'text.secondary' }}>
+                                        {selectedPriceList?.taxIncl ? "Taxes Included:" : "Taxes:"}
+                                    </TableCell>
+                                </TableRow>
+                                {taxCalculations.map((tax, idx) => (
+                                    <TableRow key={idx}>
+                                        <TableCell colSpan={7} sx={{ pl: 4 }}>
+                                            {tax.name} ({tax.rate}%)
+                                        </TableCell>
+                                        <TableCell>{tax.amount.toFixed(2)}</TableCell>
+                                        <TableCell></TableCell>
+                                    </TableRow>
+                                ))}
+                            </>
+                        )}
+
                         <TableRow>
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>Amount Total</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>{(subTotal + shippingCharge).toFixed(2)}</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>
+                                {(subTotal + shippingCharge + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount)).toFixed(2)}
+                            </TableCell>
                             <TableCell>
                                 <Button variant="contained" size="small">
                                     Update

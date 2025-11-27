@@ -40,6 +40,8 @@ import { createSalesOrder, getSalesOrders } from "../../../../api/SalesOrders/Sa
 import { createSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 import { createDebtorTran, getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
+import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
+import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -63,6 +65,9 @@ export default function DirectDelivery() {
     const [shippingCharge, setShippingCharge] = useState(0);
     const [priceColumnLabel, setPriceColumnLabel] = useState("Price After Tax");
 
+    // Tax calculation state
+    const [taxGroupItems, setTaxGroupItems] = useState<any[]>([]);
+
     // Additional fields for Quotation Delivery Details
     const [validUntil, setValidUntil] = useState("");
     const [deliverTo, setDeliverTo] = useState("");
@@ -82,6 +87,10 @@ export default function DirectDelivery() {
     const { data: itemUnits = [] } = useQuery({ queryKey: ["itemUnits"], queryFn: getItemUnits });
     const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
     const { data: shippingCompanies = [] } = useQuery({ queryKey: ["shippingCompanies"], queryFn: getShippingCompanies });
+    const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+    const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
+    const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
+    const { data: taxTypes = [] } = useQuery({ queryKey: ["taxTypes"], queryFn: getTaxTypes });
 
     // ===== Table rows =====
     const [rows, setRows] = useState([
@@ -96,6 +105,7 @@ export default function DirectDelivery() {
             discount: 0,
             total: 0,
             selectedItemId: null as string | number | null,
+            materialCost: 0,
         },
     ]);
 
@@ -113,6 +123,7 @@ export default function DirectDelivery() {
                 discount: discount,
                 total: 0,
                 selectedItemId: null,
+                materialCost: 0,
             },
         ]);
     };
@@ -152,6 +163,7 @@ export default function DirectDelivery() {
         if (itemData) {
             const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
             handleChange(rowId, "unit", unitName);
+            handleChange(rowId, "materialCost", itemData.material_cost || 0);
             // Fetch pricing
             const pricingList = await getSalesPricingByStockId(selectedItem.stock_id);
             const pricing = pricingList.find((p: any) =>
@@ -171,14 +183,48 @@ export default function DirectDelivery() {
         }
     };
 
-    // ===== Auto-generate reference =====
+    // ===== Auto-generate reference based on fiscal year =====
     useEffect(() => {
-        const year = new Date().getFullYear();
-        const random = Math.floor(Math.random() * 1000)
-            .toString()
-            .padStart(3, "0");
-        setReference(`${random}/${year}`);
-    }, []);
+        if (fiscalYears.length === 0 || debtorTrans.length === 0) return;
+
+        const today = new Date(deliveryDate);
+        const currentFiscalYear = fiscalYears.find((fy: any) => {
+            const fromDate = new Date(fy.fiscal_year_from);
+            const toDate = new Date(fy.fiscal_year_to);
+            return today >= fromDate && today <= toDate;
+        });
+
+        if (currentFiscalYear) {
+            const fromYear = new Date(currentFiscalYear.fiscal_year_from).getFullYear();
+            const toYear = new Date(currentFiscalYear.fiscal_year_to).getFullYear();
+            const yearLabel = fromYear === toYear ? `${fromYear}` : `${fromYear}/${toYear}`;
+
+            // Filter for trans_type=13 (debtor_trans) references
+            const existingRefs = debtorTrans
+                .filter((d: any) => Number(d.trans_type) === 13 && d.reference)
+                .map((d: any) => d.reference);
+
+            const currentYearRefs = existingRefs.filter((ref: string) => 
+                ref.endsWith(`/${yearLabel}`) || ref === yearLabel
+            );
+
+            let nextNum = 1;
+            if (currentYearRefs.length > 0) {
+                const nums = currentYearRefs
+                    .map((ref: string) => {
+                        const match = ref.match(/^(\d{3})\/.+$/);
+                        return match ? parseInt(match[1], 10) : 0;
+                    })
+                    .filter((n: number) => n > 0);
+                
+                if (nums.length > 0) {
+                    nextNum = Math.max(...nums) + 1;
+                }
+            }
+
+            setReference(`${nextNum.toString().padStart(3, '0')}/${yearLabel}`);
+        }
+    }, [fiscalYears, debtorTrans, deliveryDate]);
 
     // Auto-select first customer on load (same logic as SalesQuotationEntry)
     useEffect(() => {
@@ -201,10 +247,17 @@ export default function DirectDelivery() {
             if (selectedBranch) {
                 setDeliverTo(selectedBranch.br_name || "");
                 setAddress(selectedBranch.br_address || "");
+                // Fetch tax group items for the branch
+                if (selectedBranch.tax_group) {
+                    getTaxGroupItemsByGroupId(selectedBranch.tax_group).then(setTaxGroupItems);
+                } else {
+                    setTaxGroupItems([]);
+                }
             }
         } else {
             setDeliverTo("");
             setAddress("");
+            setTaxGroupItems([]);
         }
     }, [branch, branches]);
 
@@ -214,12 +267,10 @@ export default function DirectDelivery() {
         if (priceList) {
             const selected = priceLists.find((pl: any) => pl.id === priceList);
             if (selected) {
-                if (selected.typeName === "Retail") {
+                if (selected.taxIncl) {
                     setPriceColumnLabel("Price after Tax");
-                } else if (selected.typeName === "Wholesale") {
-                    setPriceColumnLabel("Price before Tax");
                 } else {
-                    setPriceColumnLabel("Price");
+                    setPriceColumnLabel("Price before Tax");
                 }
             }
         } else {
@@ -314,12 +365,6 @@ export default function DirectDelivery() {
     const customerEmail = selectedCustomer?.email || selectedCustomer?.contact_email || null;
     const customerAddr = selectedCustomer?.address || selectedCustomer?.delivery_address || address || null;
 
-    // Fetch fiscal years
-    const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
-
-    // Fetch sales orders to determine next order number
-    const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
-
     // Set order number based on existing sales orders
     useEffect(() => {
         if (salesOrders.length > 0) {
@@ -357,7 +402,7 @@ export default function DirectDelivery() {
                 from_stk_loc: deliverFrom,
                 delivery_date: validUntil || deliveryDate,
                 payment_terms: payment ? Number(payment) : null,
-                customer_ref: "customer ref",
+                customer_ref: customerReference || "",
                 total: subTotal + shippingCharge,
                 prep_amount: 0,
                 alloc: 0,
@@ -399,7 +444,7 @@ export default function DirectDelivery() {
                 dimension_id: 0,
                 dimension2_id: 0,
                 payment_terms: payment ? Number(payment) : null,
-                tax_included: false,
+                tax_included: selectedPriceList?.taxIncl ? 1 : 0,
             };
             console.log("Posting debtor_trans payload", debtorPayload);
             const debtorResp = await createDebtorTran(debtorPayload as any);
@@ -436,7 +481,7 @@ export default function DirectDelivery() {
                     unit_tax: 0,
                     quantity: row.quantity,
                     discount_percent: discount,
-                    standard_cost: 0,
+                    standard_cost: row.materialCost,
                     qty_done: 0,
                     src_id: createdDetailId,
                 };
@@ -462,6 +507,33 @@ export default function DirectDelivery() {
 
     // Only calculate subtotal for completed rows (all rows except the last one which is being edited)
     const subTotal = rows.slice(0, -1).reduce((sum, r) => sum + r.total, 0);
+
+    // Tax calculations
+    const selectedPriceList = useMemo(() => priceLists.find((pl: any) => pl.id === priceList), [priceLists, priceList]);
+    const taxCalculations = useMemo(() => {
+        if (!selectedPriceList || taxGroupItems.length === 0 || taxTypes.length === 0) return [];
+        
+        return taxGroupItems.map((taxItem: any) => {
+            const taxType = taxTypes.find((t: any) => t.id === taxItem.tax_type_id);
+            if (!taxType) return null;
+            
+            const rate = taxType.default_rate || 0;
+            const name = taxType.description || `Tax ${taxItem.tax_type_id}`;
+            
+            let amount = 0;
+            if (selectedPriceList.taxIncl) {
+                // Extract tax from subtotal
+                amount = subTotal - (subTotal / (1 + rate / 100));
+            } else {
+                // Add tax to subtotal
+                amount = subTotal * (rate / 100);
+            }
+            
+            return { name, rate, amount };
+        }).filter(Boolean);
+    }, [selectedPriceList, taxGroupItems, taxTypes, subTotal]);
+    
+    const totalTaxAmount = taxCalculations.reduce((sum, tax) => sum + tax.amount, 0);
 
     // Find currently selected payment term object so we can inspect its payment_type
     const selectedPaymentTerm = useMemo(() => {
@@ -761,10 +833,32 @@ export default function DirectDelivery() {
                             <TableCell sx={{ fontWeight: 600 }}>{subTotal.toFixed(2)}</TableCell>
                             <TableCell></TableCell>
                         </TableRow>
+
+                        {/* Show tax breakdown */}
+                        {taxCalculations.length > 0 && (
+                            <>
+                                <TableRow>
+                                    <TableCell colSpan={9} sx={{ fontWeight: 600, fontStyle: 'italic', color: 'text.secondary' }}>
+                                        {selectedPriceList?.taxIncl ? "Taxes Included:" : "Taxes:"}
+                                    </TableCell>
+                                </TableRow>
+                                {taxCalculations.map((tax, idx) => (
+                                    <TableRow key={idx}>
+                                        <TableCell colSpan={7} sx={{ pl: 4 }}>
+                                            {tax.name} ({tax.rate}%)
+                                        </TableCell>
+                                        <TableCell>{tax.amount.toFixed(2)}</TableCell>
+                                        <TableCell></TableCell>
+                                    </TableRow>
+                                ))}
+                            </>
+                        )}
                        
                         <TableRow>
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>Amount Total</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>{(subTotal + shippingCharge).toFixed(2)}</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>
+                                {(subTotal + shippingCharge + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount)).toFixed(2)}
+                            </TableCell>
                             <TableCell>
                                 <Button variant="contained" size="small">
                                     Update

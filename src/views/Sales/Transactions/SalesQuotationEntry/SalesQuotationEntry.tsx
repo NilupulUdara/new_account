@@ -415,14 +415,15 @@ export default function SalesQuotationEntry() {
             // Post details
             const detailsToPost = rows.filter(r => r.selectedItemId);
             for (const row of detailsToPost) {
-                const unitPrice = priceColumnLabel === "Price after Tax" ? row.priceAfterTax : row.priceBeforeTax;
                 const detailPayload = {
                     order_no: orderNo,
                     trans_type: 32,
                     stk_code: row.itemCode,
                     description: row.description,
                     qty_sent: row.quantity,
-                    unit_price: unitPrice,
+                    unit_price: row.priceAfterTax, // Use price after tax as main unit_price
+                    price_before_tax: row.priceBeforeTax,
+                    price_after_tax: row.priceAfterTax,
                     quantity: row.quantity,
                     invoiced: 0,
                     discount_percent: discount,
