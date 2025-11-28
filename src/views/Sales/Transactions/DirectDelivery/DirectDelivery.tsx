@@ -490,7 +490,7 @@ export default function DirectDelivery() {
             }
             alert("Saved to sales_orders (order_no: " + orderNo + ")");
             await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
-            navigate("/sales/transactions/direct-delivery/success", { state: { orderNo, reference, deliveryDate } });
+            navigate("/sales/transactions/direct-delivery/success", { state: { orderNo, reference, deliveryDate, trans_no: debtorTransNo } });
         } catch (e: any) {
             console.error("Save error", e);
             const detail = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'Unknown error');

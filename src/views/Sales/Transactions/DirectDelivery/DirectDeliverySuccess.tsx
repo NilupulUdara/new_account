@@ -8,7 +8,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 export default function DirectDeliverySuccess() {
     const navigate = useNavigate();
     const { state } = useLocation();
-    const { location: loc, reference, date } = state || {};
+    const { location: loc, reference, date, trans_no } = state || {};
 
     const breadcrumbItems = [
         { title: "Home", href: "/home" },
@@ -43,8 +43,8 @@ export default function DirectDeliverySuccess() {
             </Box>
 
             <Paper sx={{ p: 2 }}>
-                <Typography sx={{ mb: 2 }}>
-                    Delivery # has been entered.
+                <Typography sx={{ mb: 2, textAlign: 'center' }}>
+                    Delivery # {trans_no} has been entered.
                 </Typography>
 
                 <Stack spacing={3} direction="column" alignItems="center">
