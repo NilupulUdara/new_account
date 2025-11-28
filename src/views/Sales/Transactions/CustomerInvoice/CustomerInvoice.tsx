@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -17,45 +17,43 @@ import {
   Grid,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
 import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCompanyApi";
+import { getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
+import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
+import { getSalesTypes } from "../../../../api/SalesMaintenance/salesService";
+import { getDebtorTransDetails } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
+import { getItems } from "../../../../api/Item/ItemApi";
+import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
+import { getItemTaxTypes } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
+import { createDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
 
 export default function CustomerInvoice() {
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const { reference: stateReference, date: stateDate } = state || {};
 
   // === Fields ===
-  const [customer, setCustomer] = useState("John Traders Pvt Ltd");
-  const [branch, setBranch] = useState("Main Branch");
+  const [customer, setCustomer] = useState("");
+  const [branch, setBranch] = useState("");
   const [paymentTerm, setPaymentTerm] = useState("");
-  const [reference, setReference] = useState("INV/2025/001");
-  const [salesType, setSalesType] = useState("Cash");
-  const [currency, setCurrency] = useState("LKR");
+  const [reference, setReference] = useState(stateReference || "INV/2025/001");
+  const [salesType, setSalesType] = useState("");
+  const [currency, setCurrency] = useState("");
   const [shippingCompany, setShippingCompany] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(stateDate || new Date().toISOString().split("T")[0]);
   const [dueDate, setDueDate] = useState("");
   const [memo, setMemo] = useState("");
   const [shippingCost, setShippingCost] = useState(0);
 
   // === Table Data ===
-  const [rows, setRows] = useState([
-    {
-      id: 1,
-      itemCode: "ITM-001",
-      description: "Cement Bag 50kg",
-      delivered: 100,
-      units: "Bags",
-      invoiced: 50,
-      thisInvoice: 0,
-      price: 1250,
-      taxType: "VAT 15%",
-      discount: 0,
-      total: 0,
-    },
-  ]);
+  const [rows, setRows] = useState([]);
 
   // === API Queries ===
   const { data: paymentTerms = [] } = useQuery({
@@ -68,13 +66,182 @@ export default function CustomerInvoice() {
     queryFn: getShippingCompanies,
   });
 
+  const { data: debtorTrans = [] } = useQuery({
+    queryKey: ["debtorTrans"],
+    queryFn: getDebtorTrans,
+  });
+
+  const { data: customers = [] } = useQuery({
+    queryKey: ["customers"],
+    queryFn: getCustomers,
+  });
+
+  const { data: branches = [] } = useQuery({
+    queryKey: ["branches"],
+    queryFn: () => getBranches(),
+  });
+
+  const { data: salesTypes = [] } = useQuery({
+    queryKey: ["salesTypes"],
+    queryFn: getSalesTypes,
+  });
+
+  const { data: debtorTransDetails = [] } = useQuery({
+    queryKey: ["debtorTransDetails"],
+    queryFn: getDebtorTransDetails,
+  });
+
+  const { data: items = [] } = useQuery({
+    queryKey: ["items"],
+    queryFn: getItems,
+  });
+
+  const { data: itemUnits = [] } = useQuery({
+    queryKey: ["itemUnits"],
+    queryFn: getItemUnits,
+  });
+
+  const { data: itemTaxTypes = [] } = useQuery({
+    queryKey: ["itemTaxTypes"],
+    queryFn: getItemTaxTypes,
+  });
+
+  // Mutations
+  const createTransMutation = useMutation({
+    mutationFn: createDebtorTran,
+  });
+
+  const createDetailMutation = useMutation({
+    mutationFn: createDebtorTransDetail,
+  });
+
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    
+    if (stateReference && debtorTrans.length > 0 && customers.length > 0) {
+      const delivery = debtorTrans.find((d: any) => d.reference === stateReference && d.trans_type === 13);
+     
+      if (delivery) {
+        const customerData = customers.find((c: any) => String(c.debtor_no) === String(delivery.debtor_no));
+        const branchData = branches.find((b: any) => String(b.branch_code) === String(delivery.branch_code));
+        const salesTypeData = salesTypes.find((st: any) => String(st.id) === String(delivery.tpe));
+        setCustomer(customerData?.name || "");
+        setBranch(branchData?.br_name || "");
+        setCurrency(customerData?.curr_code || "");
+        setSalesType(salesTypeData?.typeName || "");
+
+        // Set rows from delivery details
+        const deliveryDetails = debtorTransDetails.filter((dd: any) => dd.debtor_trans_no === delivery.trans_no);
+       
+        if (deliveryDetails.length > 0) {
+          const newRows = deliveryDetails.map((detail: any, index: number) => {
+            const itemData = items.find((i: any) => i.stock_id === detail.stock_id);
+            const unitData = itemUnits.find((u: any) => u.id === itemData?.units);
+            const unitName = unitData?.abbr || detail.units || "";
+            const price = parseFloat(detail.unit_price || 0);
+            const qty = parseFloat(detail.quantity || 0);
+            const taxTypeData = itemTaxTypes.find((t: any) => String(t.id) === String(itemData?.tax_type_id));
+            const taxRate = parseFloat(taxTypeData?.rate || 15);
+            const unitTax = price * (taxRate / 100);
+            const total = 1 * price;
+            const standardCost = parseFloat(itemData?.standard_cost || 0);
+
+            return {
+              id: index + 1,
+              itemCode: detail.stock_id || "",
+              description: detail.description || "",
+              delivered: qty,
+              units: unitName,
+              invoiced: 0, // assuming no previous invoices
+              thisInvoice: 1,
+              price: price,
+              taxType: taxTypeData?.name || "VAT 15%",
+              discount: parseFloat(detail.discount_percent || 0),
+              total: total,
+              src_id: detail.id,
+              unitTax: unitTax,
+              standardCost: standardCost,
+            };
+          });
+          setRows(newRows);
+        } else {
+          setRows([]);
+        }
+      } else {
+        setRows([]);
+      }
+    }
+  }, [stateReference, debtorTrans, customers, branches, salesTypes, debtorTransDetails, items, itemUnits, itemTaxTypes]);
+
   // === Calculations ===
   const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
   const invoiceTotal = subTotal + shippingCost;
 
   // === Actions ===
   const handleUpdate = () => alert("Invoice updated!");
-  const handleProcessInvoice = () => alert("Invoice processed successfully!");
+  const handleProcessInvoice = async () => {
+    const delivery = debtorTrans.find((d: any) => d.reference === stateReference && d.trans_type === 13);
+    if (!delivery) {
+      alert("Delivery not found");
+      return;
+    }
+
+    // Generate new trans_no
+    const maxTransNo = debtorTrans.length > 0 ? Math.max(...debtorTrans.map(d => d.trans_no || 0)) : 0;
+    const newTransNo = maxTransNo + 1;
+
+    // Generate new reference
+    const year = new Date().getFullYear();
+    const invoices = debtorTrans.filter(d => d.trans_type === 10 && d.reference.endsWith(`/${year}`));
+    const numbers = invoices.map(d => parseInt(d.reference.split('/')[0]) || 0);
+    const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
+    const nextNum = (maxNum + 1).toString().padStart(3, '0');
+    const newReference = `${nextNum}/${year}`;
+
+    const invoiceData = {
+      trans_no: newTransNo,
+      debtor_no: delivery.debtor_no,
+      branch_code: delivery.branch_code,
+      reference: newReference,
+      trans_type: 10,
+      tpe: delivery.tpe,
+      tran_date: date,
+      due_date: dueDate || date,
+      payment_terms: paymentTerm,
+      shipping_company: shippingCompany,
+      memo: memo,
+      order_no: delivery.order_no,
+    };
+
+    try {
+      const newTrans = await createTransMutation.mutateAsync(invoiceData);
+      const transNo = newTrans.trans_no;
+      const filteredRows = rows.filter(r => r.thisInvoice > 0);
+      console.log("Filtered rows for details:", filteredRows);
+      const detailsPromises = filteredRows.map(r =>
+        createDetailMutation.mutateAsync({
+          debtor_trans_no: transNo,
+          debtor_trans_type: 10,
+          stock_id: r.itemCode,
+          description: r.description,
+          quantity: r.thisInvoice,
+          unit_price: r.price,
+          unit_tax: r.unitTax,
+          discount_percent: r.discount,
+          standard_cost: r.standardCost,
+          qty_done: 0,
+          src_id: r.src_id,
+        })
+      );
+      console.log("Details promises:", detailsPromises.length);
+      await Promise.all(detailsPromises);
+      queryClient.invalidateQueries({ queryKey: ['debtorTransDetails'] });
+      alert("Invoice processed successfully!");
+    } catch (error: any) {
+      console.error("Error:", error);
+      alert("Error processing invoice: " + (error.response?.data?.message || error.message));
+    }
+  };
 
   const breadcrumbItems = [
     { title: "Transactions", href: "/sales/transactions" },
@@ -154,7 +321,7 @@ export default function CustomerInvoice() {
               size="small"
             >
               {shippingCompanies.map((sc: any) => (
-                <MenuItem key={sc.id} value={sc.id}>
+                <MenuItem key={sc.shipper_id} value={sc.shipper_id}>
                   {sc.shipper_name}
                 </MenuItem>
               ))}

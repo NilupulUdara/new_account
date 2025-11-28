@@ -510,6 +510,7 @@ export default function SalesOrderEntry() {
                 delivery_date: validUntil || orderDate,
                 payment_terms: payment ? Number(payment) : null,
                 customer_ref: customerReference || null,
+                comments: comments || null,
                 total: subTotal + shippingCharge + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount),
                 prep_amount: 0,
                 alloc: 0,

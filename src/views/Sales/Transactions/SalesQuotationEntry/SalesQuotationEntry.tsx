@@ -405,6 +405,7 @@ export default function SalesQuotationEntry() {
                 from_stk_loc: deliverFrom,
                 delivery_date: validUntil || quotationDate,
                 payment_terms: payment ? Number(payment) : null,
+                comments: comments || null,
                 customer_ref: customerReference || null,
                 total: subTotal + shippingCharge + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount),
                 prep_amount: 0,
