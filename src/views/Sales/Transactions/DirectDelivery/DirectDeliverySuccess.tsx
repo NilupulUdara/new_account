@@ -2,13 +2,23 @@ import React from "react";
 import { Box, Button, Stack, Typography, Paper } from "@mui/material";
 import CloseIcon from '@mui/icons-material/Close';
 import { useLocation, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
+import { getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
 
 export default function DirectDeliverySuccess() {
     const navigate = useNavigate();
     const { state } = useLocation();
     const { location: loc, reference, date, trans_no } = state || {};
+
+    const { data: debtorTrans } = useQuery({
+        queryKey: ['debtorTrans'],
+        queryFn: getDebtorTrans,
+    });
+
+    const currentTrans = debtorTrans?.find((trans: any) => trans.trans_type === 13 && String(trans.trans_no) === String(trans_no));
+    const displayTransNo = currentTrans?.trans_no || trans_no;
 
     const breadcrumbItems = [
         { title: "Home", href: "/home" },
@@ -44,7 +54,7 @@ export default function DirectDeliverySuccess() {
 
             <Paper sx={{ p: 2 }}>
                 <Typography sx={{ mb: 2, textAlign: 'center' }}>
-                    Delivery # {trans_no} has been entered.
+                    Delivery # {displayTransNo} has been entered.
                 </Typography>
 
                 <Stack spacing={3} direction="column" alignItems="center">

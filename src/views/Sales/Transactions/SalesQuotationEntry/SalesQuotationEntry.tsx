@@ -43,11 +43,14 @@ import theme from "../../../../theme";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { createSalesOrder, generateProvisionalOrderNo, getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
 import { createSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 
 export default function SalesQuotationEntry() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
 
+
+    const [open, setOpen] = useState(false);
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
     const [branch, setBranch] = useState("");
@@ -266,7 +269,7 @@ export default function SalesQuotationEntry() {
             if (selectedBranch) {
                 setDeliverTo(selectedBranch.br_name || "");
                 setAddress(selectedBranch.br_address || "");
-                
+
                 // Fetch tax group items for this branch
                 if (selectedBranch.tax_group) {
                     getTaxGroupItemsByGroupId(selectedBranch.tax_group)
@@ -432,7 +435,8 @@ export default function SalesQuotationEntry() {
                 console.log("Posting sales order detail", detailPayload);
                 await createSalesOrderDetail(detailPayload);
             }
-            alert("Saved to sales_orders (order_no: " + orderNo + ")");
+            // alert("Saved to sales_orders (order_no: " + orderNo + ")");
+             setOpen(true);
             await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
             navigate("/sales/transactions/sales-quotation-entry/success", {
                 state: { orderNo, reference, quotationDate }
@@ -469,7 +473,7 @@ export default function SalesQuotationEntry() {
             const taxTypeData = taxTypes.find((t: any) => t.id === item.tax_type_id);
             const taxRate = taxTypeData?.default_rate || 0;
             const taxName = taxTypeData?.description || "Tax";
-            
+
             let taxAmount = 0;
             if (selectedPriceList?.taxIncl) {
                 // For prices that include tax, we need to extract the tax amount
@@ -480,7 +484,7 @@ export default function SalesQuotationEntry() {
                 // Tax amount = subtotal * (rate/100)
                 taxAmount = subTotal * (taxRate / 100);
             }
-            
+
             return {
                 name: taxName,
                 rate: taxRate,
@@ -871,8 +875,8 @@ export default function SalesQuotationEntry() {
                                 {(subTotal + shippingCharge + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount)).toFixed(2)}
                             </TableCell>
                             <TableCell>
-                                <Button 
-                                    variant="contained" 
+                                <Button
+                                    variant="contained"
                                     size="small"
                                     onClick={() => {
                                         // Force re-render to update totals
@@ -1034,6 +1038,13 @@ export default function SalesQuotationEntry() {
                     </Button>
                 </Box>
             </Paper>
+            <AddedConfirmationModal
+                open={open}
+                title="Success"
+                content="Sales Invoice has been added successfully!"
+                addFunc={async () => { }}
+                handleClose={() => setOpen(false)}
+            />
         </Stack>
     );
 }

@@ -20,7 +20,7 @@ import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
-import { getDebtorTranById } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getSalesTypes } from "../../../../api/SalesMaintenance/salesService";
 import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCompanyApi";
@@ -93,11 +93,12 @@ export default function ViewDirectDelivery() {
   });
 
   // Fetch debtor trans for due_date
-  const { data: debtorTrans } = useQuery({
-    queryKey: ["debtorTrans", trans_no],
-    queryFn: () => getDebtorTranById(trans_no),
-    enabled: !!trans_no,
+  const { data: debtorTransList = [] } = useQuery({
+    queryKey: ["debtorTrans"],
+    queryFn: getDebtorTrans,
   });
+
+  const debtorTrans = debtorTransList.find((trans: any) => String(trans.trans_no) === String(trans_no) && trans.trans_type === 13);
 
   // Fetch debtor trans details for items
   const { data: debtorTransDetails = [] } = useQuery({

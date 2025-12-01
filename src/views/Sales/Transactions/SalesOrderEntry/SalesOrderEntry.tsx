@@ -43,12 +43,14 @@ import theme from "../../../../theme";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { createSalesOrder, generateProvisionalOrderNo, getSalesOrders, getSalesOrderByOrderNo } from "../../../../api/SalesOrders/SalesOrdersApi";
 import { createSalesOrderDetail, getSalesOrderDetailsByOrderNo } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 
 export default function SalesOrderEntry() {
     const navigate = useNavigate();
     const location = useLocation();
     const queryClient = useQueryClient();
 
+    const [open, setOpen] = useState(false);
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
     const [branch, setBranch] = useState("");
@@ -534,9 +536,10 @@ export default function SalesOrderEntry() {
                 console.log("Posting sales order detail", detailPayload);
                 await createSalesOrderDetail(detailPayload);
             }
-            alert("Saved to sales_orders (order_no: " + orderNo + ")");
+            // alert("Saved to sales_orders (order_no: " + orderNo + ")");
+             setOpen(true);
             await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
-            navigate("/sales/transactions/sales-order-entry/success", { state: { orderNo, reference, orderDate } });
+            // navigate("/sales/transactions/sales-order-entry/success", { state: { orderNo, reference, orderDate } });
         } catch (e: any) {
             console.error("Save error", e);
             const detail = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'Unknown error');
@@ -569,7 +572,7 @@ export default function SalesOrderEntry() {
             const taxTypeData = taxTypes.find((t: any) => t.id === item.tax_type_id);
             const taxRate = taxTypeData?.default_rate || 0;
             const taxName = taxTypeData?.description || "Tax";
-            
+
             let taxAmount = 0;
             if (selectedPriceList?.taxIncl) {
                 // For prices that include tax, we need to extract the tax amount
@@ -580,7 +583,7 @@ export default function SalesOrderEntry() {
                 // Tax amount = subtotal * (rate/100)
                 taxAmount = subTotal * (taxRate / 100);
             }
-            
+
             return {
                 name: taxName,
                 rate: taxRate,
@@ -838,32 +841,32 @@ export default function SalesOrderEntry() {
                                             Add
                                         </Button>
                                     ) : (
-                                       <Stack direction="row" spacing={1} justifyContent="center">
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<EditIcon />}
-                        onClick={() => {
-                          // Focus on the first editable field (item code)
-                          const rowElement = document.querySelector(`[data-row-id="${row.id}"]`);
-                          if (rowElement) {
-                            const firstInput = rowElement.querySelector('input') as HTMLInputElement;
-                            if (firstInput) firstInput.focus();
-                          }
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        color="error"
-                        size="small"
-                        startIcon={<DeleteIcon />}
-                        onClick={() => handleRemoveRow(row.id)}
-                      >
-                        Delete
-                      </Button>
-                    </Stack>
+                                        <Stack direction="row" spacing={1} justifyContent="center">
+                                            <Button
+                                                variant="outlined"
+                                                size="small"
+                                                startIcon={<EditIcon />}
+                                                onClick={() => {
+                                                    // Focus on the first editable field (item code)
+                                                    const rowElement = document.querySelector(`[data-row-id="${row.id}"]`);
+                                                    if (rowElement) {
+                                                        const firstInput = rowElement.querySelector('input') as HTMLInputElement;
+                                                        if (firstInput) firstInput.focus();
+                                                    }
+                                                }}
+                                            >
+                                                Edit
+                                            </Button>
+                                            <Button
+                                                variant="outlined"
+                                                color="error"
+                                                size="small"
+                                                startIcon={<DeleteIcon />}
+                                                onClick={() => handleRemoveRow(row.id)}
+                                            >
+                                                Delete
+                                            </Button>
+                                        </Stack>
                                     )}
                                 </TableCell>
                             </TableRow>
@@ -871,7 +874,7 @@ export default function SalesOrderEntry() {
                     </TableBody>
 
                     <TableFooter>
-                         <TableRow>
+                        <TableRow>
                             <TableCell colSpan={7}>Shipping Charge</TableCell>
                             <TableCell>
                                 <TextField
@@ -883,7 +886,7 @@ export default function SalesOrderEntry() {
                             </TableCell>
                             <TableCell></TableCell>
                         </TableRow>
-                        
+
                         <TableRow>
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>Sub-total</TableCell>
                             <TableCell sx={{ fontWeight: 600 }}>{subTotal.toFixed(2)}</TableCell>
@@ -909,7 +912,7 @@ export default function SalesOrderEntry() {
                                 ))}
                             </>
                         )}
-                       
+
                         <TableRow>
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>Amount Total</TableCell>
                             <TableCell sx={{ fontWeight: 600 }}>
@@ -927,7 +930,7 @@ export default function SalesOrderEntry() {
 
             {/* Cash Payment Section */}
             <Paper sx={{ p: 2, borderRadius: 2 }}>
-               <Typography variant="subtitle1" sx={{ mb: 2, textAlign: 'center' }}>
+                <Typography variant="subtitle1" sx={{ mb: 2, textAlign: 'center' }}>
                     {showQuotationDeliveryDetails ? "Quotation Delivery Details" : "Cash Payment"}
                 </Typography>
                 <Grid container spacing={2}>
@@ -1069,6 +1072,17 @@ export default function SalesOrderEntry() {
                     </Button>
                 </Box>
             </Paper>
+            <AddedConfirmationModal
+                open={open}
+                title="Success"
+                content="Sales Order Entry has been added successfully!"
+                addFunc={async () => { }}
+                handleClose={() => setOpen(false)}
+                onSuccess={() => {
+                    // Form was already cleared on successful submission
+                   navigate("/sales/transactions/sales-order-entry/success", { state: { orderNo, reference, orderDate } });
+                }}
+            />
         </Stack>
     );
 }

@@ -2,13 +2,23 @@ import React from "react";
 import { Box, Button, Stack, Typography, Paper } from "@mui/material";
 import CloseIcon from '@mui/icons-material/Close';
 import { useLocation, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
+import { getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
 
 export default function DirectInvoiceSuccess() {
     const navigate = useNavigate();
     const { state } = useLocation();
     const { location: loc, reference, date } = state || {};
+
+    const { data: debtorTrans } = useQuery({
+        queryKey: ['debtorTrans'],
+        queryFn: getDebtorTrans,
+    });
+
+    const currentTrans = debtorTrans?.find((trans: any) => trans.trans_type === 10 && trans.reference === reference);
+    const trans_no = currentTrans?.trans_no;
 
     const breadcrumbItems = [
         { title: "Home", href: "/home" },
@@ -43,8 +53,8 @@ export default function DirectInvoiceSuccess() {
             </Box>
 
             <Paper sx={{ p: 2 }}>
-                <Typography sx={{ mb: 2 }}>
-                    Invoice #  has been entered.
+                <Typography sx={{ mb: 2, textAlign: 'center' }}>
+                    Invoice # {trans_no} has been entered.
                 </Typography>
 
                 <Stack spacing={3} direction="column" alignItems="center">
