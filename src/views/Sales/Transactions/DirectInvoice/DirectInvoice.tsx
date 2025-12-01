@@ -45,10 +45,13 @@ import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 
 export default function DirectInvoice() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+
+     const [open, setOpen] = useState(false);
 
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
@@ -205,7 +208,7 @@ export default function DirectInvoice() {
                 .filter((d: any) => Number(d.trans_type) === 10 && d.reference)
                 .map((d: any) => d.reference);
 
-            const currentYearRefs = existingRefs.filter((ref: string) => 
+            const currentYearRefs = existingRefs.filter((ref: string) =>
                 ref.endsWith(`/${yearLabel}`) || ref === yearLabel
             );
 
@@ -217,7 +220,7 @@ export default function DirectInvoice() {
                         return match ? parseInt(match[1], 10) : 0;
                     })
                     .filter((n: number) => n > 0);
-                
+
                 if (nums.length > 0) {
                     nextNum = Math.max(...nums) + 1;
                 }
@@ -248,7 +251,7 @@ export default function DirectInvoice() {
             if (selectedBranch) {
                 setDeliverTo(selectedBranch.br_name || "");
                 setAddress(selectedBranch.br_address || "");
-                
+
                 // Fetch tax group items for this branch
                 if (selectedBranch.tax_group) {
                     getTaxGroupItemsByGroupId(selectedBranch.tax_group)
@@ -438,7 +441,7 @@ export default function DirectInvoice() {
                 tran_date: invoiceDate,
                 due_date: validUntil || invoiceDate,
                 reference: reference || "",
-                tpe: 1,
+                tpe: priceList ? Number(priceList) : 1,
                 order_no: orderNo,
                 ov_amount: subTotal + shippingCharge,
                 ov_gst: 0,
@@ -452,7 +455,7 @@ export default function DirectInvoice() {
                 dimension_id: 0,
                 dimension2_id: 0,
                 payment_terms: payment ? Number(payment) : null,
-                tax_included: selectedPriceList?.taxIncl ? 0 : 1,
+                tax_included: selectedPriceList?.taxIncl ? 1 : 0,
             };
 
             const debtorPayload13 = {
@@ -464,7 +467,7 @@ export default function DirectInvoice() {
                 tran_date: invoiceDate,
                 due_date: validUntil || invoiceDate,
                 reference: "auto",
-                tpe: 1,
+                tpe: priceList ? Number(priceList) : 1,
                 order_no: orderNo,
                 ov_amount: subTotal + shippingCharge,
                 ov_gst: 0,
@@ -542,8 +545,10 @@ export default function DirectInvoice() {
                 await createDebtorTransDetail(debtorDetail13);
             }
 
-            alert("Saved to sales_orders (order_no: " + orderNo + ")");
+           // alert("Saved to sales_orders (order_no: " + orderNo + ")");
+             setOpen(true);
             await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
+            await queryClient.invalidateQueries({ queryKey: ["debtorTrans"] });
             navigate("/sales/transactions/direct-invoice/success", { state: { orderNo, reference, invoiceDate } });
         } catch (e: any) {
             console.error("Save error", e);
@@ -577,7 +582,7 @@ export default function DirectInvoice() {
             const taxTypeData = taxTypes.find((t: any) => t.id === item.tax_type_id);
             const taxRate = taxTypeData?.default_rate || 0;
             const taxName = taxTypeData?.description || "Tax";
-            
+
             let taxAmount = 0;
             if (selectedPriceList?.taxIncl) {
                 // For prices that include tax, we need to extract the tax amount
@@ -588,7 +593,7 @@ export default function DirectInvoice() {
                 // Tax amount = subtotal * (rate/100)
                 taxAmount = subTotal * (taxRate / 100);
             }
-            
+
             return {
                 name: taxName,
                 rate: taxRate,
@@ -745,7 +750,7 @@ export default function DirectInvoice() {
 
             {/* Items Table */}
             <Typography variant="subtitle1" sx={{ mb: 2, textAlign: 'center' }}>Sales Invoice Items</Typography>
-            <TableContainer component={Paper}>     
+            <TableContainer component={Paper}>
                 <Table>
                     <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
                         <TableRow>
@@ -846,32 +851,32 @@ export default function DirectInvoice() {
                                             Add
                                         </Button>
                                     ) : (
-                                       <Stack direction="row" spacing={1} justifyContent="center">
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<EditIcon />}
-                        onClick={() => {
-                          // Focus on the first editable field (item code)
-                          const rowElement = document.querySelector(`[data-row-id="${row.id}"]`);
-                          if (rowElement) {
-                            const firstInput = rowElement.querySelector('input') as HTMLInputElement;
-                            if (firstInput) firstInput.focus();
-                          }
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        color="error"
-                        size="small"
-                        startIcon={<DeleteIcon />}
-                        onClick={() => handleRemoveRow(row.id)}
-                      >
-                        Delete
-                      </Button>
-                    </Stack>
+                                        <Stack direction="row" spacing={1} justifyContent="center">
+                                            <Button
+                                                variant="outlined"
+                                                size="small"
+                                                startIcon={<EditIcon />}
+                                                onClick={() => {
+                                                    // Focus on the first editable field (item code)
+                                                    const rowElement = document.querySelector(`[data-row-id="${row.id}"]`);
+                                                    if (rowElement) {
+                                                        const firstInput = rowElement.querySelector('input') as HTMLInputElement;
+                                                        if (firstInput) firstInput.focus();
+                                                    }
+                                                }}
+                                            >
+                                                Edit
+                                            </Button>
+                                            <Button
+                                                variant="outlined"
+                                                color="error"
+                                                size="small"
+                                                startIcon={<DeleteIcon />}
+                                                onClick={() => handleRemoveRow(row.id)}
+                                            >
+                                                Delete
+                                            </Button>
+                                        </Stack>
                                     )}
                                 </TableCell>
                             </TableRow>
@@ -879,7 +884,7 @@ export default function DirectInvoice() {
                     </TableBody>
 
                     <TableFooter>
-                         <TableRow>
+                        <TableRow>
                             <TableCell colSpan={7}>Shipping Charge</TableCell>
                             <TableCell>
                                 <TextField
@@ -1045,21 +1050,21 @@ export default function DirectInvoice() {
                             </Grid>
 
                             <Grid item xs={12} sm={6}>
-                                                        <TextField
-                                                                select
-                                                                fullWidth
-                                                                label="Cash Account"
-                                                                value={cashAccount}
-                                                                onChange={(e) => setCashAccount(e.target.value)}
-                                                                size="small"
-                                                        >
-                                                                <MenuItem value="">Select</MenuItem>
-                                                                {/* {cashAccounts.map((acc: any) => (
+                                <TextField
+                                    select
+                                    fullWidth
+                                    label="Cash Account"
+                                    value={cashAccount}
+                                    onChange={(e) => setCashAccount(e.target.value)}
+                                    size="small"
+                                >
+                                    <MenuItem value="">Select</MenuItem>
+                                    {/* {cashAccounts.map((acc: any) => (
                                 <MenuItem key={acc.id} value={acc.id}>
                                     {acc.name}
                                 </MenuItem>
                             ))} */}
-                                                        </TextField>
+                                </TextField>
                             </Grid>
 
                             <Grid item xs={12}>
@@ -1085,6 +1090,17 @@ export default function DirectInvoice() {
                     </Button>
                 </Box>
             </Paper>
+            <AddedConfirmationModal
+                open={open}
+                title="Success"
+                content="Sales Invoice has been added successfully!"
+                addFunc={async () => { }}
+                handleClose={() => setOpen(false)}
+                onSuccess={() => {
+                    // Form was already cleared on successful submission
+                    window.history.back();
+                }}
+            />
         </Stack>
     );
 }

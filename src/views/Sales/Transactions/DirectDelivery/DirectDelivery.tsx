@@ -45,11 +45,13 @@ import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 
 export default function DirectDelivery() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
 
+    const [open, setOpen] = useState(false);
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
     const [branch, setBranch] = useState("");
@@ -204,7 +206,7 @@ export default function DirectDelivery() {
                 .filter((d: any) => Number(d.trans_type) === 13 && d.reference)
                 .map((d: any) => d.reference);
 
-            const currentYearRefs = existingRefs.filter((ref: string) => 
+            const currentYearRefs = existingRefs.filter((ref: string) =>
                 ref.endsWith(`/${yearLabel}`) || ref === yearLabel
             );
 
@@ -216,7 +218,7 @@ export default function DirectDelivery() {
                         return match ? parseInt(match[1], 10) : 0;
                     })
                     .filter((n: number) => n > 0);
-                
+
                 if (nums.length > 0) {
                     nextNum = Math.max(...nums) + 1;
                 }
@@ -488,7 +490,8 @@ export default function DirectDelivery() {
                 console.log("Posting debtor_trans_detail", debtorDetailPayload);
                 await createDebtorTransDetail(debtorDetailPayload);
             }
-            alert("Saved to sales_orders (order_no: " + orderNo + ")");
+           // alert("Saved to sales_orders (order_no: " + orderNo + ")");
+            setOpen(true);
             await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
             navigate("/sales/transactions/direct-delivery/success", { state: { orderNo, reference, deliveryDate, trans_no: debtorTransNo } });
         } catch (e: any) {
@@ -512,14 +515,14 @@ export default function DirectDelivery() {
     const selectedPriceList = useMemo(() => priceLists.find((pl: any) => pl.id === priceList), [priceLists, priceList]);
     const taxCalculations = useMemo(() => {
         if (!selectedPriceList || taxGroupItems.length === 0 || taxTypes.length === 0) return [];
-        
+
         return taxGroupItems.map((taxItem: any) => {
             const taxType = taxTypes.find((t: any) => t.id === taxItem.tax_type_id);
             if (!taxType) return null;
-            
+
             const rate = taxType.default_rate || 0;
             const name = taxType.description || `Tax ${taxItem.tax_type_id}`;
-            
+
             let amount = 0;
             if (selectedPriceList.taxIncl) {
                 // Extract tax from subtotal
@@ -528,11 +531,11 @@ export default function DirectDelivery() {
                 // Add tax to subtotal
                 amount = subTotal * (rate / 100);
             }
-            
+
             return { name, rate, amount };
         }).filter(Boolean);
     }, [selectedPriceList, taxGroupItems, taxTypes, subTotal]);
-    
+
     const totalTaxAmount = taxCalculations.reduce((sum, tax) => sum + tax.amount, 0);
 
     // Find currently selected payment term object so we can inspect its payment_type
@@ -782,32 +785,32 @@ export default function DirectDelivery() {
                                             Add
                                         </Button>
                                     ) : (
-                                       <Stack direction="row" spacing={1} justifyContent="center">
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<EditIcon />}
-                        onClick={() => {
-                          // Focus on the first editable field (item code)
-                          const rowElement = document.querySelector(`[data-row-id="${row.id}"]`);
-                          if (rowElement) {
-                            const firstInput = rowElement.querySelector('input') as HTMLInputElement;
-                            if (firstInput) firstInput.focus();
-                          }
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        color="error"
-                        size="small"
-                        startIcon={<DeleteIcon />}
-                        onClick={() => handleRemoveRow(row.id)}
-                      >
-                        Delete
-                      </Button>
-                    </Stack>
+                                        <Stack direction="row" spacing={1} justifyContent="center">
+                                            <Button
+                                                variant="outlined"
+                                                size="small"
+                                                startIcon={<EditIcon />}
+                                                onClick={() => {
+                                                    // Focus on the first editable field (item code)
+                                                    const rowElement = document.querySelector(`[data-row-id="${row.id}"]`);
+                                                    if (rowElement) {
+                                                        const firstInput = rowElement.querySelector('input') as HTMLInputElement;
+                                                        if (firstInput) firstInput.focus();
+                                                    }
+                                                }}
+                                            >
+                                                Edit
+                                            </Button>
+                                            <Button
+                                                variant="outlined"
+                                                color="error"
+                                                size="small"
+                                                startIcon={<DeleteIcon />}
+                                                onClick={() => handleRemoveRow(row.id)}
+                                            >
+                                                Delete
+                                            </Button>
+                                        </Stack>
                                     )}
                                 </TableCell>
                             </TableRow>
@@ -815,7 +818,7 @@ export default function DirectDelivery() {
                     </TableBody>
 
                     <TableFooter>
-                         <TableRow>
+                        <TableRow>
                             <TableCell colSpan={7}>Shipping Charge</TableCell>
                             <TableCell>
                                 <TextField
@@ -827,7 +830,7 @@ export default function DirectDelivery() {
                             </TableCell>
                             <TableCell></TableCell>
                         </TableRow>
-                        
+
                         <TableRow>
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>Sub-total</TableCell>
                             <TableCell sx={{ fontWeight: 600 }}>{subTotal.toFixed(2)}</TableCell>
@@ -853,7 +856,7 @@ export default function DirectDelivery() {
                                 ))}
                             </>
                         )}
-                       
+
                         <TableRow>
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>Amount Total</TableCell>
                             <TableCell sx={{ fontWeight: 600 }}>
@@ -989,7 +992,7 @@ export default function DirectDelivery() {
                                     onChange={(e) => setCashAccount(e.target.value)}
                                     size="small"
                                 >
-                                                                <MenuItem value="">Select Cash Account</MenuItem>
+                                    <MenuItem value="">Select Cash Account</MenuItem>
                                 </TextField>
                             </Grid>
 
@@ -1016,6 +1019,17 @@ export default function DirectDelivery() {
                     </Button>
                 </Box>
             </Paper>
+            <AddedConfirmationModal
+                open={open}
+                title="Success"
+                content="Direct Delivery has been added successfully!"
+                addFunc={async () => { }}
+                handleClose={() => setOpen(false)}
+                onSuccess={() => {
+                   
+                   
+                }}
+            />
         </Stack>
     );
 }

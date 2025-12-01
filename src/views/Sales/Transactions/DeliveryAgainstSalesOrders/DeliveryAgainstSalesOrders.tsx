@@ -84,6 +84,12 @@ export default function DeliveryAgainstSalesOrders() {
     if (!salesOrders || salesOrders.length === 0) return [] as any[];
 
     return (salesOrders as any[]).filter((s: any) => {
+      // Ensure it's a sales order (trans_type = 30)
+      if (s.trans_type !== 30) return false;
+
+      // Exclude orders with reference 'auto'
+      if (String(s.reference ?? s.ref ?? "").toLowerCase() === 'auto') return false;
+
       // numberText (#) - match order_no (contains)
       if (numberText && String(s.order_no ?? s.orderNo ?? "").indexOf(numberText) === -1) return false;
 
