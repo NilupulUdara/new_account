@@ -78,7 +78,7 @@ export default function UpdateCustomerDeliverySuccess() {
                     <Button
                         variant="outlined"
                         sx={{ width: '300px' }}
-                        onClick={() => navigate("/sales/transactions/customer-delivery", { state })}
+                        onClick={() => navigate("/sales/transactions/", { state })}
                     >
                         Print as Packing Slip
                     </Button>

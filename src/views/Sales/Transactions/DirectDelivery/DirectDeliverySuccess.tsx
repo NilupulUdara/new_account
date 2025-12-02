@@ -88,14 +88,14 @@ export default function DirectDeliverySuccess() {
                     <Button
                         variant="outlined"
                         sx={{ width: '300px' }}
-                        onClick={() => navigate("/sales/transactions/customer-delivery", { state })}
+                        onClick={() => navigate("/sales/transactions/", { state })}
                     >
                         Print as Packing Slip
                     </Button>
                     <Button
                         variant="outlined"
                         sx={{ width: '300px' }}
-                        onClick={() => navigate("/sales/transactions/work-order-entry", { state })}
+                        onClick={() => navigate("/sales/transactions/", { state })}
                     >
                         Email as Packing Slip
                     </Button>

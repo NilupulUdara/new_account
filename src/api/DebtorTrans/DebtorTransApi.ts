@@ -27,7 +27,8 @@ export const createDebtorTran = async (data: any) => {
     const response = await axios.post(API_URL, data);
     return response.data;
   } catch (error: any) {
-    console.error("Error creating debtor transaction:", error.response?.data || error);
+    console.error("Error creating debtor transaction:", error.response?.data || error.message || error);
+    console.log("Full error:", error);
     throw error.response?.data || error;
   }
 };

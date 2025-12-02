@@ -8,7 +8,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 export default function CustomerDeliverySuccess() {
     const navigate = useNavigate();
     const { state } = useLocation();
-    const { location: loc, reference, date } = state || {};
+    const { transNo, reference, date } = state || {};
 
     const breadcrumbItems = [
         { title: "Home", href: "/home" },
@@ -43,15 +43,15 @@ export default function CustomerDeliverySuccess() {
             </Box>
 
             <Paper sx={{ p: 2 }}>
-                <Typography sx={{ mb: 2 }}>
-                    Delivery # has been entered.
+                <Typography sx={{ mb: 2, textAlign: 'center' }}>
+                    Delivery #{transNo} has been entered.
                 </Typography>
 
                 <Stack spacing={3} direction="column" alignItems="center">
                     <Button
                         variant="outlined"
                         sx={{ width: '300px' }}
-                        onClick={() => navigate("/sales/transactions/direct-delivery/view-direct-delivery", { state })}
+                        onClick={() => navigate("/sales/transactions/customer-delivery/view", { state })}
                     >
                         View This Delivery
                     </Button>
@@ -78,7 +78,7 @@ export default function CustomerDeliverySuccess() {
                     <Button
                         variant="outlined"
                         sx={{ width: '300px' }}
-                        onClick={() => navigate("/sales/transactions/customer-delivery", { state })}
+                        onClick={() => navigate("/sales/transactions/", { state })}
                     >
                         Print as Packing Slip
                     </Button>

@@ -155,7 +155,7 @@ export default function CustomerInvoice() {
               invoiced: 0, // assuming no previous invoices
               thisInvoice: 1,
               price: price,
-              taxType: taxTypeData?.name || "VAT 15%",
+              taxType: taxTypeData?.name,
               discount: parseFloat(detail.discount_percent || 0),
               total: total,
               src_id: detail.id,
