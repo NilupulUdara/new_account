@@ -106,7 +106,7 @@ export default function CustomerDeliverySuccess() {
                     <Button
                         variant="outlined"
                         sx={{ width: '300px' }}
-                        onClick={() => navigate("/sales/transactions/customer-delivery", { state })}
+                        onClick={() => navigate("/sales/transactions/delivery-against-sales-orders", { state })}
                     >
                         Select Another Order For Dispatch
                     </Button>

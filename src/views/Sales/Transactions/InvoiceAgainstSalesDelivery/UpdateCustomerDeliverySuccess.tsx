@@ -8,11 +8,11 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 export default function UpdateCustomerDeliverySuccess() {
     const navigate = useNavigate();
     const { state } = useLocation();
-    const { location: loc, reference, date } = state || {};
+    const { deliveryNo, reference, date } = state || {};
 
     const breadcrumbItems = [
         { title: "Home", href: "/home" },
-        { title: "Modifying Delivery Note # 2." },
+        { title: `Modifying Delivery Note #${deliveryNo || ""}` },
     ];
 
     return (
@@ -29,7 +29,7 @@ export default function UpdateCustomerDeliverySuccess() {
                 }}
             >
                 <Box>
-                    <PageTitle title="Modifying Delivery Note # 2." />
+                    <PageTitle title={`Modifying Delivery Note #${deliveryNo || ""}`} />
                     <Breadcrumb breadcrumbs={breadcrumbItems} />
                 </Box>
 
@@ -44,7 +44,7 @@ export default function UpdateCustomerDeliverySuccess() {
 
             <Paper sx={{ p: 2 }}>
                 <Typography sx={{ mb: 2 }}>
-                    Delivery Note # 2 has been updated.
+                    Delivery Note # {deliveryNo || ""} has been updated.
                 </Typography>
 
                 <Stack spacing={3} direction="column" alignItems="center">

@@ -43,8 +43,9 @@ export default function CustomerInvoiceSuccess() {
             </Box>
 
             <Paper sx={{ p: 2 }}>
-                <Typography sx={{ mb: 2 }}>
-                    Invoice #  has been entered.
+                <Typography sx={{ mb: 2, textAlign: 'center' }}>
+                    Selected deliveries has been processed
+                    {/* Invoice #  has been entered. */}
                 </Typography>
 
                 <Stack spacing={3} direction="column" alignItems="center">
@@ -84,9 +85,9 @@ export default function CustomerInvoiceSuccess() {
                     <Button
                         variant="outlined"
                         sx={{ width: '300px' }}
-                        onClick={() => navigate("/sales/transactions/direct-invoice", { state })}
+                        onClick={() => navigate("/sales/transactions/invoice-against-sales-delivery", { state })}
                     >
-                       Select Another Delivery For Invoicing
+                        Select Another Delivery For Invoicing
                     </Button>
                     <Button
                         variant="outlined"

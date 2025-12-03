@@ -237,7 +237,7 @@ export default function CustomerDelivery() {
 
       // Get next trans_no
       const debtorTrans = await getDebtorTrans();
-      const maxTransNo = Math.max(...debtorTrans.map((t: any) => t.trans_no || 0));
+      const maxTransNo = debtorTrans.length > 0 ? Math.max(...debtorTrans.map((t: any) => t.trans_no || 0)) : 0;
       const transNo = maxTransNo + 1;
 
       // Create debtor_trans

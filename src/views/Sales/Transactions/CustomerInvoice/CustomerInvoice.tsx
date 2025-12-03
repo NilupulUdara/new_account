@@ -43,7 +43,7 @@ export default function CustomerInvoice() {
   const [customer, setCustomer] = useState("");
   const [branch, setBranch] = useState("");
   const [paymentTerm, setPaymentTerm] = useState("");
-  const [reference, setReference] = useState(stateReference || "INV/2025/001");
+  const [reference, setReference] = useState(stateReference || "");
   const [salesType, setSalesType] = useState("");
   const [currency, setCurrency] = useState("");
   const [shippingCompany, setShippingCompany] = useState("");
@@ -120,15 +120,14 @@ export default function CustomerInvoice() {
     
     if (stateReference && debtorTrans.length > 0 && customers.length > 0) {
       const delivery = debtorTrans.find((d: any) => d.reference === stateReference && d.trans_type === 13);
-     
       if (delivery) {
         const customerData = customers.find((c: any) => String(c.debtor_no) === String(delivery.debtor_no));
         const branchData = branches.find((b: any) => String(b.branch_code) === String(delivery.branch_code));
         const salesTypeData = salesTypes.find((st: any) => String(st.id) === String(delivery.tpe));
-        setCustomer(customerData?.name || "");
-        setBranch(branchData?.br_name || "");
-        setCurrency(customerData?.curr_code || "");
-        setSalesType(salesTypeData?.typeName || "");
+        setCustomer(customerData?.name || "Customer not found");
+        setBranch(branchData?.br_name || "Branch not found");
+        setCurrency(customerData?.curr_code || "Currency not found");
+        setSalesType(salesTypeData?.typeName || "Sales type not found");
 
         // Set rows from delivery details
         const deliveryDetails = debtorTransDetails.filter((dd: any) => dd.debtor_trans_no === delivery.trans_no);
@@ -158,7 +157,7 @@ export default function CustomerInvoice() {
               taxType: taxTypeData?.name,
               discount: parseFloat(detail.discount_percent || 0),
               total: total,
-              src_id: detail.id,
+              src_id: detail.src_id,
               unitTax: unitTax,
               standardCost: standardCost,
             };
@@ -204,6 +203,7 @@ export default function CustomerInvoice() {
       branch_code: delivery.branch_code,
       reference: newReference,
       trans_type: 10,
+      ship_via: delivery.ship_via,
       tpe: delivery.tpe,
       tran_date: date,
       due_date: dueDate || date,
@@ -237,6 +237,7 @@ export default function CustomerInvoice() {
       await Promise.all(detailsPromises);
       queryClient.invalidateQueries({ queryKey: ['debtorTransDetails'] });
       alert("Invoice processed successfully!");
+      navigate("/sales/transactions/direct-delivery/customer-invoice/success", { state: { transNo: newTransNo, reference: newReference, date } });
     } catch (error: any) {
       console.error("Error:", error);
       alert("Error processing invoice: " + (error.response?.data?.message || error.message));

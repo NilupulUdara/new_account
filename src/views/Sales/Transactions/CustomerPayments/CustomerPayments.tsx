@@ -182,106 +182,100 @@ export default function CustomerPayments() {
       <Paper sx={{ p: 2, borderRadius: 2 }}>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={4}>
-            <TextField
-              select
-              label="Customer"
-              fullWidth
-              size="small"
-              value={customer}
-              onChange={(e) => setCustomer(e.target.value)}
-            >
-              {customers.map((c: any) => (
-                <MenuItem key={c.debtor_no} value={c.debtor_no}>
-                  {c.name}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-
-          <Grid item xs={12} sm={4}>
-            <TextField
-              select
-              label="Branch"
-              fullWidth
-              size="small"
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-            >
-              {branches
-                .filter((b: any) => b.debtor_no === customer)
-                .map((b: any) => (
-                  <MenuItem key={b.branch_code} value={b.branch_code}>
-                    {b.br_name}
+            <Stack spacing={2}>
+              <TextField
+                select
+                label="Customer"
+                fullWidth
+                size="small"
+                value={customer}
+                onChange={(e) => setCustomer(e.target.value)}
+              >
+                {customers.map((c: any) => (
+                  <MenuItem key={c.debtor_no} value={c.debtor_no}>
+                    {c.name}
                   </MenuItem>
                 ))}
-            </TextField>
+              </TextField>
+              <TextField
+                select
+                label="Branch"
+                fullWidth
+                size="small"
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+              >
+                {branches
+                  .filter((b: any) => b.debtor_no === customer)
+                  .map((b: any) => (
+                    <MenuItem key={b.branch_code} value={b.branch_code}>
+                      {b.br_name}
+                    </MenuItem>
+                  ))}
+              </TextField>
+              <TextField
+                select
+                label="Into Bank Account"
+                fullWidth
+                size="small"
+                value={bankAccount}
+                onChange={(e) => setBankAccount(e.target.value)}
+              >
+                {bankAccounts.map((acc: any) => (
+                  <MenuItem key={acc.id} value={acc.id}>
+                    {acc.bank_account_name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Stack>
           </Grid>
 
           <Grid item xs={12} sm={4}>
-            <TextField
-              select
-              label="Into Bank Account"
-              fullWidth
-              size="small"
-              value={bankAccount}
-              onChange={(e) => setBankAccount(e.target.value)}
-            >
-              {bankAccounts.map((acc: any) => (
-                <MenuItem key={acc.id} value={acc.id}>
-                  {acc.bank_account_name}
-                </MenuItem>
-              ))}
-            </TextField>
+            <Stack spacing={2}>
+              <TextField
+                label="Date of Deposit"
+                type="date"
+                fullWidth
+                size="small"
+                value={depositDate}
+                onChange={(e) => setDepositDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="Reference"
+                fullWidth
+                size="small"
+                value={reference}
+                InputProps={{ readOnly: true }}
+              />
+            </Stack>
           </Grid>
 
           <Grid item xs={12} sm={4}>
-            <TextField
-              label="Date of Deposit"
-              type="date"
-              fullWidth
-              size="small"
-              value={depositDate}
-              onChange={(e) => setDepositDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-            />
-          </Grid>
-
-          <Grid item xs={12} sm={4}>
-            <TextField
-              label="Reference"
-              fullWidth
-              size="small"
-              value={reference}
-              InputProps={{ readOnly: true }}
-            />
-          </Grid>
-
-          <Grid item xs={12} sm={4}>
-            <TextField
-              label="Bank Charge"
-              fullWidth
-              type="number"
-              size="small"
-              value={bankCharge}
-              onChange={(e) => setBankCharge(Number(e.target.value))}
-            />
-          </Grid>
-
-          <Grid item xs={12} sm={4}>
-            <TextField
-              select
-              label="Dimension"
-              fullWidth
-              size="small"
-              value={dimension}
-              onChange={(e) => setDimension(e.target.value)}
-            >
-              {/* {dimensions.map((d: any) => (
-                <MenuItem key={d.id} value={d.id}>
-                  {d.name}
-                </MenuItem>
-              ))} */}
-            </TextField>
+            <Stack spacing={2}>
+              <TextField
+                label="Bank Charge"
+                fullWidth
+                type="number"
+                size="small"
+                value={bankCharge}
+                onChange={(e) => setBankCharge(Number(e.target.value))}
+              />
+              <TextField
+                select
+                label="Dimension"
+                fullWidth
+                size="small"
+                value={dimension}
+                onChange={(e) => setDimension(e.target.value)}
+              >
+                {/* {dimensions.map((d: any) => (
+                  <MenuItem key={d.id} value={d.id}>
+                    {d.name}
+                  </MenuItem>
+                ))} */}
+              </TextField>
+            </Stack>
           </Grid>
         </Grid>
       </Paper>

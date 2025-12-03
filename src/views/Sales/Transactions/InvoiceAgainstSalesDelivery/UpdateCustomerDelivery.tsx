@@ -15,48 +15,52 @@ import {
   Typography,
   MenuItem,
   Grid,
+  CircularProgress,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCompanyApi";
+import { getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { getDebtorTransDetails } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
+import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
+import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
+import { getSalesTypes } from "../../../../api/SalesMaintenance/salesService";
+import { getItems } from "../../../../api/Item/ItemApi";
+import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
+import { getItemTaxTypes } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
+import { updateDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { updateDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
+import { getSalesOrders, updateSalesOrder } from "../../../../api/SalesOrders/SalesOrdersApi";
 
 export default function UpdateCustomerDelivery() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const deliveryNo = location.state?.id;
+
+  // === State ===
+  const [salesOrder, setSalesOrder] = useState<any>(null);
+  const [orderDetails, setOrderDetails] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // === Fields ===
-  const [customer, setCustomer] = useState("John Traders Pvt Ltd");
-  const [branch, setBranch] = useState("Main Branch");
-  const [currency, setCurrency] = useState("LKR");
-  const [currentCredit, setCurrentCredit] = useState(150000);
-  const [reference, setReference] = useState("SO/2025/102");
-  const [salesOrder, setSalesOrder] = useState("Sales Order #102");
-  const [salesType, setSalesType] = useState("Cash");
+  const [customer, setCustomer] = useState("");
+  const [branch, setBranch] = useState("");
+  const [currency, setCurrency] = useState("");
+  const [reference, setReference] = useState("");
+  const [salesType, setSalesType] = useState("");
   const [deliveryFrom, setDeliveryFrom] = useState("");
   const [shippingCompany, setShippingCompany] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [invoiceDeadline, setInvoiceDeadline] = useState("");
   const [memo, setMemo] = useState("");
   const [balanceAction, setBalanceAction] = useState("");
+  const [currentCredit, setCurrentCredit] = useState("");
 
-  const [rows, setRows] = useState([
-    {
-      id: 1,
-      itemCode: "ITM-001",
-      description: "Cement Bag 50kg",
-      ordered: 100,
-      units: "Bags",
-      deliveryQty: 50,
-      invoice: 50,
-      price: 1250,
-      taxType: "VAT 15%",
-      discount: 0,
-      total: 62500,
-    },
-  ]);
+  const [rows, setRows] = useState<any[]>([]);
 
   // === API Queries ===
   const { data: locations = [] } = useQuery({
@@ -69,22 +73,220 @@ export default function UpdateCustomerDelivery() {
     queryFn: getShippingCompanies,
   });
 
+  const { data: customers = [] } = useQuery({
+    queryKey: ["customers"],
+    queryFn: getCustomers,
+  });
+
+  const { data: branches = [] } = useQuery({
+    queryKey: ["branches"],
+    queryFn: () => getBranches(),
+  });
+
+  const { data: salesTypes = [] } = useQuery({
+    queryKey: ["salesTypes"],
+    queryFn: getSalesTypes,
+  });
+
+  const { data: items = [] } = useQuery({
+    queryKey: ["items"],
+    queryFn: getItems,
+  });
+
+  const { data: itemUnits = [] } = useQuery({
+    queryKey: ["itemUnits"],
+    queryFn: getItemUnits,
+  });
+
+  const { data: itemTaxTypes = [] } = useQuery({
+    queryKey: ["itemTaxTypes"],
+    queryFn: getItemTaxTypes,
+  });
+
+  const { data: debtorTrans = [] } = useQuery({
+    queryKey: ["debtorTrans"],
+    queryFn: getDebtorTrans,
+  });
+
+  const { data: allSalesOrders = [] } = useQuery({
+    queryKey: ["salesOrders"],
+    queryFn: getSalesOrders,
+  });
+
+  // Fetch delivery data
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!deliveryNo) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const delivery = debtorTrans.find((d: any) => String(d.trans_no) === String(deliveryNo) && d.trans_type === 13);
+        if (delivery) {
+          setSalesOrder(delivery);
+          const details = await getDebtorTransDetails();
+          const deliveryDetails = details.filter((dd: any) => dd.debtor_trans_no === delivery.trans_no);
+          setOrderDetails(deliveryDetails || []);
+        }
+      } catch (error) {
+        console.error("Error fetching delivery data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (debtorTrans.length > 0) {
+      fetchData();
+    }
+  }, [deliveryNo, debtorTrans]);
+
+  // Set fields based on salesOrder
+  useEffect(() => {
+    if (salesOrder && customers.length > 0 && branches.length > 0 && salesTypes.length > 0) {
+      const customerData = customers.find((c: any) => String(c.debtor_no) === String(salesOrder.debtor_no));
+      const branchData = branches.find((b: any) => String(b.branch_code) === String(salesOrder.branch_code));
+      const salesTypeData = salesTypes.find((st: any) => String(st.id) === String(salesOrder.tpe));
+
+      setCustomer(customerData?.name || "");
+      setBranch(branchData?.br_name || "");
+      setCurrency(customerData?.curr_code || "");
+      setReference(salesOrder.reference || "");
+      setSalesType(salesTypeData?.typeName || "");
+      setDeliveryFrom(salesOrder.from_stk_loc || "");
+      setDate(salesOrder.tran_date ? salesOrder.tran_date.split(" ")[0] : new Date().toISOString().split("T")[0]);
+      setInvoiceDeadline(salesOrder.due_date ? salesOrder.due_date.split(" ")[0] : "");
+      setMemo(salesOrder.comments || "");
+      setShippingCompany(String(salesOrder.ship_via) || "");
+      setCurrentCredit(customerData?.credit_limit || "");
+      setShippingCost(salesOrder.ov_freight || 0);
+    }
+  }, [salesOrder, customers, branches, salesTypes]);
+
+  // Set rows from orderDetails
+  useEffect(() => {
+    if (orderDetails.length > 0 && items.length > 0 && itemUnits.length > 0 && itemTaxTypes.length > 0) {
+      const newRows = orderDetails.map((detail: any, index: number) => {
+        const itemData = items.find((i: any) => i.stock_id === detail.stock_id);
+        const unitData = itemUnits.find((u: any) => u.id === itemData?.units);
+        const unitName = unitData?.abbr || detail.units || "";
+        const price = parseFloat(detail.unit_price || 0);
+        const qty = parseFloat(detail.quantity || 0);
+        const discountPercent = parseFloat(detail.discount_percent || 0);
+        const discountedPrice = price * (1 - discountPercent / 100);
+        const total = discountedPrice * qty;
+        const taxTypeData = itemTaxTypes.find((t: any) => String(t.id) === String(itemData?.tax_type_id));
+
+        return {
+          id: index + 1,
+          detailId: detail.id,
+          itemCode: detail.stock_id || "",
+          description: detail.description || "",
+          ordered: qty,
+          units: unitName,
+          deliveryQty: qty, // default to current quantity
+          invoice: 0, // assuming not invoiced
+          price: price,
+          taxType: taxTypeData?.name || "VAT 15%",
+          discount: discountPercent,
+          total: total,
+        };
+      });
+      setRows(newRows);
+    }
+  }, [orderDetails, items, itemUnits, itemTaxTypes]);
+
   // === Table totals ===
   const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
   const includedTax = subTotal * 0.15;
   const [shippingCost, setShippingCost] = useState(0);
   const amountTotal = subTotal + shippingCost;
 
-  const handleUpdate = () => alert("Delivery updated!");
+  const handleUpdate = async () => {
+    if (!salesOrder || !deliveryNo) {
+      alert("No delivery data available.");
+      return;
+    }
+
+    try {
+      // Update debtor_trans
+      const transData = {
+        ...salesOrder,
+        reference,
+        tran_date: date + " 00:00:00",
+        due_date: invoiceDeadline + " 00:00:00",
+        ship_via: shippingCompany,
+        comments: memo,
+        from_stk_loc: deliveryFrom,
+        ov_freight: shippingCost,
+      };
+      await updateDebtorTran(salesOrder.trans_no, transData);
+
+      // Update sales order version
+      const orderData = allSalesOrders.find((o: any) => String(o.order_no) === String(salesOrder.order_no));
+      if (orderData) {
+        await updateSalesOrder(orderData.order_no, { ...orderData, version: (orderData.version || 0) + 1 });
+      }
+
+      // Update debtor_trans_details
+      for (const row of rows) {
+        const detailData = {
+          debtor_trans_no: salesOrder.trans_no,
+          debtor_trans_type: 13,
+          stock_id: row.itemCode,
+          description: row.description,
+          quantity: row.deliveryQty,
+          unit_price: row.price,
+          discount_percent: row.discount,
+          qty_done: row.deliveryQty,
+          src_id: row.detailId,
+        };
+        await updateDebtorTransDetail(row.detailId, detailData);
+      }
+
+      alert("Delivery updated successfully!");
+      navigate("/sales/transactions/update-customer-delivery/success", { state: { deliveryNo, reference, date } });
+    } catch (error) {
+      console.error("Error updating delivery:", error);
+      alert("Failed to update delivery. Please try again.");
+    }
+  };
   const handleClear = () => {
     setRows((prev) => prev.map((r) => ({ ...r, deliveryQty: 0 })));
   };
-  const handleDispatch = () => alert("Dispatch processed successfully!");
+  const handleDispatch = async () => {
+    if (!salesOrder || !deliveryNo) {
+      alert("No delivery data available.");
+      return;
+    }
+
+    try {
+      // Update sales order version
+      const orderData = allSalesOrders.find((o: any) => String(o.order_no) === String(salesOrder.order_no));
+      if (orderData) {
+        await updateSalesOrder(orderData.order_no, { ...orderData, version: (orderData.version || 0) + 1 });
+      }
+
+      alert("Dispatch processed successfully!");
+    } catch (error) {
+      console.error("Error processing dispatch:", error);
+      alert("Failed to process dispatch. Please try again.");
+    }
+  };
 
   const breadcrumbItems = [
     { title: "Transactions", href: "/sales/transactions" },
-    { title: "Modifying Delivery Note" },
+    { title: `Modifying Delivery Note #${deliveryNo || ""}` },
   ];
+
+  if (loading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Stack spacing={2}>
@@ -100,7 +302,7 @@ export default function UpdateCustomerDelivery() {
         }}
       >
         <Box>
-          <PageTitle title="Modifying Delivery Note" />
+          <PageTitle title={`Modifying Delivery Note #${deliveryNo || ""}`} />
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
 
@@ -112,90 +314,82 @@ export default function UpdateCustomerDelivery() {
       {/* Form */}
       <Paper sx={{ p: 2, borderRadius: 2 }}>
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={4}>
-            <TextField fullWidth label="Customer" value={customer} size="small" InputProps={{ readOnly: true }} />
+          {/* Column 1 */}
+          <Grid item xs={12} md={3}>
+            <Stack spacing={2}>
+              <TextField fullWidth label="Customer" value={customer} size="small" InputProps={{ readOnly: true }} />
+              <TextField fullWidth label="Reference" value={reference} size="small" onChange={(e) => setReference(e.target.value)} />
+              <TextField
+                select
+                fullWidth
+                label="Delivery From"
+                value={deliveryFrom}
+                onChange={(e) => setDeliveryFrom(e.target.value)}
+                size="small"
+              >
+                {locations.map((loc: any) => (
+                  <MenuItem key={loc.loc_code} value={loc.loc_code}>
+                    {loc.location_name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Stack>
           </Grid>
 
-          <Grid item xs={12} sm={4}>
-            <TextField fullWidth label="Branch" value={branch} size="small" InputProps={{ readOnly: true }} />
+          {/* Column 2 */}
+          <Grid item xs={12} md={3}>
+            <Stack spacing={2}>
+              <TextField fullWidth label="Branch" value={branch} size="small" InputProps={{ readOnly: true }} />
+              <TextField fullWidth label="Sales Order" value={salesOrder?.order_no || ""} size="small" InputProps={{ readOnly: true }} />
+              <TextField
+                select
+                fullWidth
+                label="Shipping Company"
+                value={shippingCompany}
+                onChange={(e) => setShippingCompany(e.target.value)}
+                size="small"
+              >
+                {shippingCompanies.map((sc: any) => (
+                  <MenuItem key={sc.shipper_id} value={sc.shipper_id}>
+                    {sc.shipper_name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Stack>
           </Grid>
 
-          <Grid item xs={12} sm={4}>
-            <TextField fullWidth label="Currency" value={currency} size="small" InputProps={{ readOnly: true }} />
+          {/* Column 3 */}
+          <Grid item xs={12} md={3}>
+            <Stack spacing={2}>
+              <TextField fullWidth label="Currency" value={currency} size="small" InputProps={{ readOnly: true }} />
+              <TextField fullWidth label="Sales Type" value={salesType} size="small" InputProps={{ readOnly: true }} />
+              <TextField
+                type="date"
+                label="Date"
+                fullWidth
+                size="small"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Stack>
           </Grid>
 
-          <Grid item xs={12} sm={4}>
-            <TextField fullWidth label="Current Credit" value={currentCredit} size="small" InputProps={{ readOnly: true }} />
-          </Grid>
-
-          <Grid item xs={12} sm={4}>
-            <TextField fullWidth label="Reference" value={reference} size="small" InputProps={{ readOnly: true }} />
-          </Grid>
-
-          <Grid item xs={12} sm={4}>
-            <TextField fullWidth label="For Sales Order" value={salesOrder} size="small" InputProps={{ readOnly: true }} />
-          </Grid>
-
-          <Grid item xs={12} sm={4}>
-            <TextField fullWidth label="Sales Type" value={salesType} size="small" InputProps={{ readOnly: true }} />
-          </Grid>
-
-          <Grid item xs={12} sm={4}>
-            <TextField
-              select
-              fullWidth
-              label="Delivery From"
-              value={deliveryFrom}
-              onChange={(e) => setDeliveryFrom(e.target.value)}
-              size="small"
-            >
-              {locations.map((loc: any) => (
-                <MenuItem key={loc.loc_code} value={loc.loc_code}>
-                  {loc.location_name}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-
-          <Grid item xs={12} sm={4}>
-            <TextField
-              select
-              fullWidth
-              label="Shipping Company"
-              value={shippingCompany}
-              onChange={(e) => setShippingCompany(e.target.value)}
-              size="small"
-            >
-              {shippingCompanies.map((sc: any) => (
-                <MenuItem key={sc.id} value={sc.id}>
-                  {sc.name}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-
-          <Grid item xs={12} sm={4}>
-            <TextField
-              type="date"
-              label="Date"
-              fullWidth
-              size="small"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-            />
-          </Grid>
-
-          <Grid item xs={12} sm={4}>
-            <TextField
-              type="date"
-              label="Invoice Deadline"
-              fullWidth
-              size="small"
-              value={invoiceDeadline}
-              onChange={(e) => setInvoiceDeadline(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-            />
+          {/* Column 4 */}
+          <Grid item xs={12} md={3}>
+            <Stack spacing={2}>
+              <TextField fullWidth label="Current Credit" value={currentCredit} size="small" InputProps={{ readOnly: true }} />
+              <TextField fullWidth label="Dimension" value="" size="small" InputProps={{ readOnly: true }} />
+              <TextField
+                type="date"
+                label="Invoice Deadline"
+                fullWidth
+                size="small"
+                value={invoiceDeadline}
+                onChange={(e) => setInvoiceDeadline(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Stack>
           </Grid>
         </Grid>
       </Paper>
@@ -304,8 +498,8 @@ export default function UpdateCustomerDelivery() {
               onChange={(e) => setBalanceAction(e.target.value)}
               size="small"
             >
-              <MenuItem value="Back Order">Back Order</MenuItem>
-              <MenuItem value="Cancel Balance">Cancel Balance</MenuItem>
+              <MenuItem value="Back Order">Automatically put balance on back order</MenuItem>
+              <MenuItem value="Cancel Balance">Cancel any quantities not delivered</MenuItem>
             </TextField>
           </Grid>
 
