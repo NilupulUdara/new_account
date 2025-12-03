@@ -22,8 +22,8 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
@@ -33,13 +33,26 @@ import { getInventoryLocations } from "../../../../api/InventoryLocation/Invento
 import { getItems, getItemById } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getSalesPricingByStockId } from "../../../../api/SalesPricing/SalesPricingApi";
+import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCompanyApi";
+import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
+import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { createSalesOrder, generateProvisionalOrderNo, getSalesOrders, getSalesOrderByOrderNo, updateSalesOrder } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { createSalesOrderDetail, getSalesOrderDetailsByOrderNo, updateSalesOrderDetail, deleteSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 
 export default function UpdateSalesOrderEntry() {
     const navigate = useNavigate();
+    const location = useLocation();
+    const queryClient = useQueryClient();
 
+    const [open, setOpen] = useState(false);
+    const isUpdate = !!location.state?.id;
+    const [currentVersion, setCurrentVersion] = useState(0);
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
     const [branch, setBranch] = useState("");
@@ -53,6 +66,15 @@ export default function UpdateSalesOrderEntry() {
     const [cashAccount, setCashAccount] = useState("");
     const [comments, setComments] = useState("");
     const [shippingCharge, setShippingCharge] = useState(0);
+    const [priceColumnLabel, setPriceColumnLabel] = useState("Price After Tax");
+
+    // Additional fields for Quotation Delivery Details
+    const [validUntil, setValidUntil] = useState("");
+    const [deliverTo, setDeliverTo] = useState("");
+    const [address, setAddress] = useState("");
+    const [contactPhoneNumber, setContactPhoneNumber] = useState("");
+    const [customerReference, setCustomerReference] = useState("");
+    const [shippingCompany, setShippingCompany] = useState("");
 
     // ===== Fetch master data =====
     const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
@@ -64,6 +86,11 @@ export default function UpdateSalesOrderEntry() {
     const { data: items = [] } = useQuery({ queryKey: ["items"], queryFn: getItems });
     const { data: itemUnits = [] } = useQuery({ queryKey: ["itemUnits"], queryFn: getItemUnits });
     const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
+    const { data: shippingCompanies = [] } = useQuery({ queryKey: ["shippingCompanies"], queryFn: getShippingCompanies });
+    const { data: taxTypes = [] } = useQuery({ queryKey: ["taxTypes"], queryFn: getTaxTypes });
+
+    // ===== Tax-related state =====
+    const [taxGroupItems, setTaxGroupItems] = useState<any[]>([]);
 
     // ===== Table rows =====
     const [rows, setRows] = useState([
@@ -74,6 +101,7 @@ export default function UpdateSalesOrderEntry() {
             quantity: 0,
             unit: "",
             priceAfterTax: 0,
+            priceBeforeTax: 0,
             discount: 0,
             total: 0,
             selectedItemId: null as string | number | null,
@@ -90,6 +118,7 @@ export default function UpdateSalesOrderEntry() {
                 quantity: 0,
                 unit: "",
                 priceAfterTax: 0,
+                priceBeforeTax: 0,
                 discount: 0,
                 total: 0,
                 selectedItemId: null,
@@ -111,9 +140,10 @@ export default function UpdateSalesOrderEntry() {
                         total:
                             field === "quantity" ||
                                 field === "priceAfterTax" ||
+                                field === "priceBeforeTax" ||
                                 field === "discount"
                                 ? (field === "quantity" ? value : r.quantity) *
-                                (field === "priceAfterTax" ? value : r.priceAfterTax) *
+                                (field === "priceAfterTax" ? value : field === "priceBeforeTax" ? value : r.priceAfterTax || r.priceBeforeTax) *
                                 (1 - (field === "discount" ? value : r.discount) / 100)
                                 : r.total,
                     }
@@ -122,58 +152,485 @@ export default function UpdateSalesOrderEntry() {
         );
     };
 
-    // ===== Auto-generate reference =====
-    useEffect(() => {
-        const year = new Date().getFullYear();
-        const random = Math.floor(Math.random() * 1000)
-            .toString()
-            .padStart(3, "0");
-        setReference(`${random}/${year}`);
-    }, []);
+    const handleItemChange = async (rowId: number, selectedItem: any) => {
+        handleChange(rowId, "description", selectedItem.description);
+        handleChange(rowId, "itemCode", selectedItem.stock_id);
+        handleChange(rowId, "selectedItemId", selectedItem.stock_id);
+        handleChange(rowId, "quantity", 1);
+        const itemData = await getItemById(selectedItem.stock_id);
+        if (itemData) {
+            const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
+            handleChange(rowId, "unit", unitName);
+            // Fetch pricing
+            const pricingList = await getSalesPricingByStockId(selectedItem.stock_id);
+            const pricing = pricingList.find((p: any) =>
+                Number(p.sales_type_id) === Number(priceList) &&
+                String(p.stock_id ?? p.stockId ?? p.stock) === String(selectedItem.stock_id)
+            );
+            if (pricing) {
+                // Prefer explicit before/after fields if available, otherwise use pricing.price
+                let after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
+                let before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
 
-    // Reset branch when customer changes
+                handleChange(rowId, "priceAfterTax", after);
+                handleChange(rowId, "priceBeforeTax", before);
+            } else {
+                // No pricing record found for this sales_type
+                const selectedPriceList = priceLists.find((pl: any) => pl.id === priceList);
+                let fallbackPrice = itemData.material_cost || 0;
+
+                if (selectedPriceList && selectedPriceList.typeName === "Wholesale") {
+                    // For wholesale with no specific pricing record, try to use retail price * factor
+                    const retailPriceList = priceLists.find((pl: any) => pl.typeName === "Retail");
+                    if (retailPriceList) {
+                        const retailPricing = pricingList.find((p: any) =>
+                            Number(p.sales_type_id) === Number(retailPriceList.id) &&
+                            String(p.stock_id ?? p.stockId ?? p.stock) === String(selectedItem.stock_id)
+                        );
+                        if (retailPricing) {
+                            // Use retail price * factor
+                            const factor = selectedPriceList.factor || 1;
+                            fallbackPrice = (retailPricing.price_before_tax ?? retailPricing.priceBeforeTax ?? retailPricing.price ?? 0) * factor;
+                        } else {
+                            // No retail pricing either, use material_cost * factor
+                            const factor = selectedPriceList.factor || 1;
+                            fallbackPrice = fallbackPrice * factor;
+                        }
+                    } else {
+                        // No retail price list found, use material_cost * factor
+                        const factor = selectedPriceList.factor || 1;
+                        fallbackPrice = fallbackPrice * factor;
+                    }
+                }
+
+                handleChange(rowId, "priceAfterTax", fallbackPrice);
+                handleChange(rowId, "priceBeforeTax", fallbackPrice);
+            }
+        }
+    };
+
+    // ===== Auto-generate reference =====
+
+    // Auto-select first customer on load (same behavior as SalesQuotationEntry)
     useEffect(() => {
-        setBranch("");
-    }, [customer]);
+        if (customers.length > 0 && !customer) {
+            setCustomer(customers[0].debtor_no);
+        }
+    }, [customers, customer]);
+
+    // Reset branch when customer changes and auto-select first branch
+    useEffect(() => {
+        const customerBranches = branches.filter((b: any) => b.debtor_no === customer);
+        const newBranch = customerBranches.length > 0 ? customerBranches[0].branch_code : "";
+        if (!branch && newBranch) setBranch(newBranch);
+    }, [customer, branches]);
+
+    // Fetch tax group items when branch changes
+    useEffect(() => {
+        if (branch) {
+            const selectedBranch = branches.find((b: any) => b.branch_code === branch);
+            if (selectedBranch?.tax_group) {
+                getTaxGroupItemsByGroupId(selectedBranch.tax_group)
+                    .then((items) => setTaxGroupItems(items))
+                    .catch((err) => {
+                        console.error("Failed to fetch tax group items:", err);
+                        setTaxGroupItems([]);
+                    });
+            } else {
+                setTaxGroupItems([]);
+            }
+        } else {
+            setTaxGroupItems([]);
+        }
+    }, [branch, branches]);
+
+    // Update price column label when price list changes
+    useEffect(() => {
+        if (priceList) {
+            const selected = priceLists.find((pl: any) => pl.id === priceList);
+            if (selected) {
+                if (selected.taxIncl) {
+                    setPriceColumnLabel("Price after Tax");
+                } else {
+                    setPriceColumnLabel("Price before Tax");
+                }
+            }
+        } else {
+            setPriceColumnLabel("Price after Tax");
+        }
+    }, [priceList, priceLists]);
+
+    // Update prices when price list changes (match both sales_type and stock_id)
+    useEffect(() => {
+        if (priceList) {
+            const updatePrices = async () => {
+                const newRows = await Promise.all(
+                    rows.map(async (row) => {
+                        if (row.selectedItemId) {
+                            const pricingList = await getSalesPricingByStockId(row.selectedItemId);
+                            const pricing = pricingList.find((p: any) =>
+                                Number(p.sales_type_id) === Number(priceList) &&
+                                String(p.stock_id ?? p.stockId ?? p.stock) === String(row.selectedItemId)
+                            );
+                            if (pricing) {
+                                let after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
+                                let before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
+
+                                return {
+                                    ...row,
+                                    priceAfterTax: after,
+                                    priceBeforeTax: before,
+                                };
+                            } else {
+                                // No pricing record found for this sales_type
+                                const selectedPriceList = priceLists.find((pl: any) => pl.id === priceList);
+                                let fallbackPrice = 0; // No material_cost available here, so start with 0
+
+                                if (selectedPriceList && selectedPriceList.typeName === "Wholesale") {
+                                    // For wholesale with no specific pricing record, try to use retail price * factor
+                                    const retailPriceList = priceLists.find((pl: any) => pl.typeName === "Retail");
+                                    if (retailPriceList) {
+                                        const retailPricing = pricingList.find((p: any) =>
+                                            Number(p.sales_type_id) === Number(retailPriceList.id) &&
+                                            String(p.stock_id ?? p.stockId ?? p.stock) === String(row.selectedItemId)
+                                        );
+                                        if (retailPricing) {
+                                            // Use retail price * factor
+                                            const factor = selectedPriceList.factor || 1;
+                                            fallbackPrice = (retailPricing.price_before_tax ?? retailPricing.priceBeforeTax ?? retailPricing.price ?? 0) * factor;
+                                        }
+                                    }
+                                }
+
+                                return {
+                                    ...row,
+                                    priceAfterTax: fallbackPrice,
+                                    priceBeforeTax: fallbackPrice,
+                                };
+                            }
+                        }
+                        return row;
+                    })
+                );
+                try {
+                    const same = JSON.stringify(newRows) === JSON.stringify(rows);
+                    if (!same) setRows(newRows);
+                } catch (e) {
+                    setRows(newRows);
+                }
+            };
+            updatePrices();
+        }
+    }, [priceList]);
 
     // Update credit and discount when customer changes
     useEffect(() => {
         if (customer) {
             const selectedCustomer = customers.find((c: any) => c.debtor_no === customer);
             if (selectedCustomer) {
-                setCredit(selectedCustomer.credit_limit || 0);
-                setDiscount(selectedCustomer.discount || 0);
-                setPayment(selectedCustomer.payment_terms ? String(selectedCustomer.payment_terms) : "");
-                setPriceList(selectedCustomer.sales_type ? String(selectedCustomer.sales_type) : "");
-                // Update table rows discount
-                setRows((prev) => prev.map((r) => ({ ...r, discount: selectedCustomer.discount || 0 })));
+                const newCredit = selectedCustomer.credit_limit || 0;
+                const newDiscount = selectedCustomer.discount || 0;
+                const newPayment = selectedCustomer.payment_terms ? String(selectedCustomer.payment_terms) : "";
+                const newPriceList = selectedCustomer.sales_type ? String(selectedCustomer.sales_type) : "";
+                if (newCredit !== credit) setCredit(newCredit);
+                if (newDiscount !== discount) setDiscount(newDiscount);
+                if (newPayment !== payment) setPayment(newPayment);
+                if (newPriceList !== priceList) setPriceList(newPriceList);
+                setRows((prev) => {
+                    const updated = prev.map((r) => ({ ...r, discount: newDiscount }));
+                    try {
+                        const same = JSON.stringify(updated) === JSON.stringify(prev);
+                        return same ? prev : updated;
+                    } catch (e) {
+                        return updated;
+                    }
+                });
             }
         } else {
-            setCredit(0);
-            setDiscount(0);
-            setPayment("");
-            setPriceList("");
-            // Reset table rows discount
-            setRows((prev) => prev.map((r) => ({ ...r, discount: 0 })));
+            if (credit !== 0) setCredit(0);
+            if (discount !== 0) setDiscount(0);
+            if (payment !== "") setPayment("");
+            if (priceList !== "") setPriceList("");
+            setRows((prev) => {
+                const updated = prev.map((r) => ({ ...r, discount: 0 }));
+                try {
+                    const same = JSON.stringify(updated) === JSON.stringify(prev);
+                    return same ? prev : updated;
+                } catch (e) {
+                    return updated;
+                }
+            });
         }
     }, [customer, customers]);
 
-    const handlePlaceQuotation = () => {
-        if (!customer || rows.length === 0) return;
-        console.log({
-            customer,
-            branch,
-            reference,
-            orderDate,
-            payment,
-            priceList,
-            rows,
-            deliverFrom,
-            cashAccount,
-            comments,
+    // === Additional derived fields for backend mapping ===
+    const [submitting, setSubmitting] = useState(false);
+    const [orderNo, setOrderNo] = useState<number>(1);
+
+    // Helper to get selected customer object
+    const selectedCustomer = useMemo(() => customers.find((c: any) => String(c.debtor_no) === String(customer)), [customers, customer]);
+    const customerName = selectedCustomer?.name || null;
+    const customerPhone = selectedCustomer?.phone || selectedCustomer?.contact_phone || null;
+    const customerEmail = selectedCustomer?.email || selectedCustomer?.contact_email || null;
+    const customerAddr = selectedCustomer?.address || selectedCustomer?.delivery_address || address || null;
+
+    // Fetch fiscal years
+    const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+
+    // Fetch sales orders to determine next order number
+    const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
+
+    // Set order number based on existing sales orders
+    useEffect(() => {
+        if (salesOrders.length > 0) {
+            const maxOrderNo = Math.max(...salesOrders.map((o: any) => o.order_no));
+            setOrderNo(maxOrderNo + 1);
+        }
+    }, [salesOrders]);
+
+    // Determine fiscal year and build next reference number for the fiscal year (for sales orders, trans_type = 30)
+    useEffect(() => {
+        if (!orderDate || fiscalYears.length === 0) return;
+        const dateObj = new Date(orderDate);
+        if (isNaN(dateObj.getTime())) return;
+
+        const matching = fiscalYears.find((fy: any) => {
+            if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+            const from = new Date(fy.fiscal_year_from);
+            const to = new Date(fy.fiscal_year_to);
+            if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+            return dateObj >= from && dateObj <= to; // inclusive
         });
-        alert("Quotation placed successfully!");
-        navigate(-1);
+
+        // If not found, choose the one whose from date is closest but not after the orderDate.
+        const chosen = matching || [...fiscalYears]
+            .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
+            .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
+            .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
+
+        if (chosen) {
+            // Preferred label: explicit fiscal_year field if exists, else derive from from/to years.
+            const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
+            const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
+            const yearLabel = chosen.fiscal_year || (fromYear === toYear ? fromYear : `${fromYear}-${toYear}`);
+
+            // Find existing references for this fiscal year and for sales orders only (trans_type = 30)
+            const relevantRefs = salesOrders.filter((o: any) =>
+                Number(o.trans_type) === 30 && o.reference && o.reference.endsWith(`/${yearLabel}`)
+            );
+            const numbers = relevantRefs.map((o: any) => {
+                const match = o.reference.match(/^(\d{3})\/.+$/);
+                return match ? parseInt(match[1], 10) : 0;
+            });
+            const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
+            const nextNum = maxNum + 1;
+            const nextRef = `${nextNum.toString().padStart(3, '0')}/${yearLabel}`;
+            setReference(nextRef);
+        }
+    }, [orderDate, fiscalYears, salesOrders]);
+
+    // Handle quotation data if coming from quotation success or edit from delivery against sales orders
+    useEffect(() => {
+        const state = location.state;
+        if (state && state.orderNo && items.length > 0 && itemUnits.length > 0) {
+            const fetchQuotation = async () => {
+                try {
+                    const quotation = await getSalesOrderByOrderNo(state.orderNo);
+                    if (quotation && quotation.trans_type === 32) { // Ensure it's a quotation
+                        setCustomer(String(quotation.debtor_no));
+                        setBranch(String(quotation.branch_code));
+                        setPriceList(String(quotation.order_type));
+                        setComments(`Sales Quotation # ${state.orderNo}`);
+                        // Fetch details
+                        const details = await getSalesOrderDetailsByOrderNo(state.orderNo);
+                        if (details.length > 0) {
+                            const newRows = details.map((detail: any, index: number) => {
+                                const item = items.find((i: any) => i.stock_id === detail.stk_code);
+                                const unitName = item ? itemUnits.find((u: any) => u.id === item.units)?.name || "" : "";
+                                return {
+                                    id: index + 1,
+                                    itemCode: detail.stk_code,
+                                    description: detail.description,
+                                    quantity: detail.quantity,
+                                    unit: unitName,
+                                    priceAfterTax: detail.unit_price,
+                                    priceBeforeTax: detail.unit_price,
+                                    discount: detail.discount_percent || 0,
+                                    total: detail.quantity * detail.unit_price * (1 - (detail.discount_percent || 0) / 100),
+                                    selectedItemId: detail.stk_code,
+                                };
+                            });
+                            // Add empty row at end
+                            newRows.push({
+                                id: newRows.length + 1,
+                                itemCode: "",
+                                description: "",
+                                quantity: 0,
+                                unit: "",
+                                priceAfterTax: 0,
+                                priceBeforeTax: 0,
+                                discount: 0,
+                                total: 0,
+                                selectedItemId: null,
+                            });
+                            setRows(newRows);
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error fetching quotation data:", error);
+                }
+            };
+            fetchQuotation();
+        } else if (state && state.id && items.length > 0 && itemUnits.length > 0) {
+            const fetchOrder = async () => {
+                try {
+                    const order = await getSalesOrderByOrderNo(state.id);
+                    if (order && order.trans_type === 30) { // Ensure it's a sales order
+                        setOrderNo(order.order_no);
+                        setCurrentVersion(order.version || 0);
+                        setCustomer(String(order.debtor_no));
+                        setBranch(String(order.branch_code));
+                        setReference(order.reference);
+                        setOrderDate(order.ord_date);
+                        setPriceList(String(order.order_type));
+                        setDeliverFrom(order.from_stk_loc);
+                        setValidUntil(order.delivery_date);
+                        setDeliverTo(order.deliver_to);
+                        setAddress(order.delivery_address);
+                        setContactPhoneNumber(order.contact_phone);
+                        setCustomerReference(order.customer_ref);
+                        setComments(order.comments);
+                        setShippingCharge(order.freight_cost || 0);
+                        // Fetch details
+                        const details = await getSalesOrderDetailsByOrderNo(state.id);
+                        if (details.length > 0) {
+                            const newRows = details.map((detail: any, index: number) => {
+                                const item = items.find((i: any) => i.stock_id === detail.stk_code);
+                                const unitName = item ? itemUnits.find((u: any) => u.id === item.units)?.name || "" : "";
+                                return {
+                                    id: index + 1,
+                                    itemCode: detail.stk_code,
+                                    description: detail.description,
+                                    quantity: detail.quantity,
+                                    unit: unitName,
+                                    priceAfterTax: detail.unit_price,
+                                    priceBeforeTax: detail.unit_price,
+                                    discount: detail.discount_percent || 0,
+                                    total: detail.quantity * detail.unit_price * (1 - (detail.discount_percent || 0) / 100),
+                                    selectedItemId: detail.stk_code,
+                                };
+                            });
+                            // Add empty row at end
+                            newRows.push({
+                                id: newRows.length + 1,
+                                itemCode: "",
+                                description: "",
+                                quantity: 0,
+                                unit: "",
+                                priceAfterTax: 0,
+                                priceBeforeTax: 0,
+                                discount: 0,
+                                total: 0,
+                                selectedItemId: null,
+                            });
+                            setRows(newRows);
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error fetching sales order data:", error);
+                }
+            };
+            fetchOrder();
+        }
+    }, [location.state, items, itemUnits]);
+
+    const handlePlaceQuotation = async () => {
+        if (!customer) { alert("Select customer first"); return; }
+        if (!branch) { alert("Select branch first"); return; }
+        if (!deliverFrom) { alert("Select deliver-from location"); return; }
+        if (rows.filter(r => r.itemCode && r.quantity > 0).length === 0) {
+            alert("At least one item must be added to the order.");
+            return;
+        }
+        setSubmitting(true);
+        try {
+            const payload = {
+                order_no: orderNo,
+                trans_type: 30,
+                version: isUpdate ? currentVersion + 1 : 0,
+                type: 0,
+                debtor_no: Number(customer),
+                branch_code: Number(branch),
+                reference,
+                ord_date: orderDate,
+                order_type: Number(priceList) || 0,
+                ship_via: 1,
+                delivery_address: customerAddr,
+                contact_phone: customerPhone,
+                contact_email: customerEmail,
+                deliver_to: customerName,
+                freight_cost: 0,
+                from_stk_loc: deliverFrom,
+                delivery_date: validUntil || orderDate,
+                payment_terms: payment ? Number(payment) : null,
+                customer_ref: customerReference || null,
+                comments: comments || null,
+                total: subTotal + shippingCharge + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount),
+                prep_amount: 0,
+                alloc: 0,
+            };
+            console.log("Posting sales order payload", payload);
+            if (isUpdate) {
+                await updateSalesOrder(orderNo, payload as any);
+            } else {
+                await createSalesOrder(payload as any);
+            }
+            const detailsToPost = rows.filter(r => r.selectedItemId);
+            let existingDetails: any[] = [];
+            if (isUpdate) {
+                existingDetails = await getSalesOrderDetailsByOrderNo(orderNo);
+            }
+            for (const row of detailsToPost) {
+                const unitPrice = priceColumnLabel === "Price after Tax" ? row.priceAfterTax : row.priceBeforeTax;
+                const detailPayload = {
+                    order_no: orderNo,
+                    trans_type: 30,
+                    stk_code: row.itemCode,
+                    description: row.description,
+                    qty_sent: row.quantity,
+                    unit_price: unitPrice,
+                    quantity: row.quantity,
+                    invoiced: 0,
+                    discount_percent: discount,
+                };
+                console.log("Posting sales order detail", detailPayload);
+                const existingDetail = existingDetails.find(d => d.stk_code === row.itemCode);
+                if (existingDetail) {
+                    await updateSalesOrderDetail(existingDetail.id, detailPayload);
+                } else {
+                    await createSalesOrderDetail(detailPayload);
+                }
+            }
+            // Delete removed items
+            if (isUpdate) {
+                const currentStkCodes = detailsToPost.map(r => r.itemCode);
+                for (const existing of existingDetails) {
+                    if (!currentStkCodes.includes(existing.stk_code)) {
+                        await deleteSalesOrderDetail(existing.id);
+                    }
+                }
+            }
+            // alert("Saved to sales_orders (order_no: " + orderNo + ")");
+             setOpen(true);
+            await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
+            // navigate("/sales/transactions/sales-order-entry/success", { state: { orderNo, reference, orderDate } });
+        } catch (e: any) {
+            console.error("Save error", e);
+            const detail = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'Unknown error');
+            alert("Failed to save: " + detail);
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const breadcrumbItems = [
@@ -181,7 +638,60 @@ export default function UpdateSalesOrderEntry() {
         { title: "Modifying Sales Order" },
     ];
 
-    const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
+    // Match SalesQuotationEntry subtotal behavior: exclude the last-edit row
+    const subTotal = rows.slice(0, -1).reduce((sum, r) => sum + r.total, 0);
+
+    // Calculate taxes if taxIncl is true
+    const selectedPriceList = useMemo(() => {
+        return priceLists.find((pl: any) => String(pl.id) === String(priceList));
+    }, [priceList, priceLists]);
+
+    const taxCalculations = useMemo(() => {
+        if (taxGroupItems.length === 0) {
+            return [];
+        }
+
+        // Calculate tax amounts for each tax type
+        return taxGroupItems.map((item: any) => {
+            const taxTypeData = taxTypes.find((t: any) => t.id === item.tax_type_id);
+            const taxRate = taxTypeData?.default_rate || 0;
+            const taxName = taxTypeData?.description || "Tax";
+
+            let taxAmount = 0;
+            if (selectedPriceList?.taxIncl) {
+                // For prices that include tax, we need to extract the tax amount
+                // Tax amount = subtotal - (subtotal / (1 + rate/100))
+                taxAmount = subTotal - (subTotal / (1 + taxRate / 100));
+            } else {
+                // For prices that don't include tax, calculate tax on subtotal
+                // Tax amount = subtotal * (rate/100)
+                taxAmount = subTotal * (taxRate / 100);
+            }
+
+            return {
+                name: taxName,
+                rate: taxRate,
+                amount: taxAmount,
+            };
+        });
+    }, [selectedPriceList, taxGroupItems, taxTypes, subTotal]);
+
+    const totalTaxAmount = taxCalculations.reduce((sum, tax) => sum + tax.amount, 0);
+
+    // Find currently selected payment term object so we can inspect its payment_type
+    const selectedPaymentTerm = useMemo(() => {
+        return paymentTerms.find((pt: any) => String(pt.terms_indicator) === String(payment));
+    }, [payment, paymentTerms]);
+
+    const selectedPaymentType = useMemo(() => {
+        const pt = selectedPaymentTerm?.payment_type;
+        if (pt == null) return null;
+        if (typeof pt === "number") return pt;
+        // try common id fields when payment_type is an object
+        return pt.id ?? pt.payment_type ?? null;
+    }, [selectedPaymentTerm]);
+
+    const showQuotationDeliveryDetails = selectedPaymentType === 3 || selectedPaymentType === 4;
 
     return (
         <Stack spacing={2}>
@@ -209,95 +719,96 @@ export default function UpdateSalesOrderEntry() {
             {/* Form fields */}
             <Paper sx={{ p: 2, borderRadius: 2 }}>
                 <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Customer"
-                            value={customer}
-                            onChange={(e) => setCustomer(e.target.value)}
-                            size="small"
-                        >
-                            {customers.map((c: any) => (
-                                <MenuItem key={c.debtor_no} value={c.debtor_no}>
-                                    {c.name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Branch"
-                            value={branch}
-                            onChange={(e) => setBranch(e.target.value)}
-                            size="small"
-                        >
-                            {branches
-                                .filter((b: any) => b.debtor_no === customer)
-                                .map((b: any) => (
-                                    <MenuItem key={b.branch_code} value={b.branch_code}>
-                                        {b.br_name}
+                    <Grid item xs={12} sm={3}>
+                        <Stack spacing={2}>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Customer"
+                                value={customer}
+                                onChange={(e) => setCustomer(e.target.value)}
+                                size="small"
+                            >
+                                {customers.map((c: any) => (
+                                    <MenuItem key={c.debtor_no} value={c.debtor_no}>
+                                        {c.name}
                                     </MenuItem>
                                 ))}
-                        </TextField>
+                            </TextField>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Branch"
+                                value={branch}
+                                onChange={(e) => setBranch(e.target.value)}
+                                size="small"
+                            >
+                                {branches
+                                    .filter((b: any) => b.debtor_no === customer)
+                                    .map((b: any) => (
+                                        <MenuItem key={b.branch_code} value={b.branch_code}>
+                                            {b.br_name}
+                                        </MenuItem>
+                                    ))}
+                            </TextField>
+                            <TextField
+                                label="Reference"
+                                fullWidth
+                                size="small"
+                                value={reference}
+                                InputProps={{ readOnly: true }}
+                            />
+                        </Stack>
                     </Grid>
 
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            label="Reference"
-                            fullWidth
-                            size="small"
-                            value={reference}
-                            InputProps={{ readOnly: true }}
-                        />
+                    <Grid item xs={12} sm={3}>
+                        <Stack spacing={2}>
+                            <TextField label="Current Credit" fullWidth size="small" value={credit} InputProps={{ readOnly: true }} />
+                            <TextField label="Customer Discount (%)" fullWidth size="small" value={discount} InputProps={{ readOnly: true }} />
+                        </Stack>
                     </Grid>
 
-                    <Grid item xs={12} sm={4}>
-                        <TextField label="Current Credit" fullWidth size="small" value={credit} InputProps={{ readOnly: true }} />
+                    <Grid item xs={12} sm={3}>
+                        <Stack spacing={2}>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Payment Type"
+                                value={payment}
+                                onChange={(e) => setPayment(e.target.value)}
+                                size="small"
+                                // Ensure the selected value shows the human-friendly `description`
+                                SelectProps={{
+                                    renderValue: (selected) => {
+                                        const sel = paymentTerms.find((pt: any) => String(pt.terms_indicator) === String(selected));
+                                        return sel ? sel.description : (selected as string);
+                                    },
+                                }}
+                            >
+                                {paymentTerms.map((p: any) => (
+                                    <MenuItem key={p.terms_indicator} value={p.terms_indicator}>
+                                        {p.description}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                            <TextField
+                                select
+                                fullWidth
+                                label="Price List"
+                                value={priceList}
+                                onChange={(e) => setPriceList(e.target.value)}
+                                size="small"
+                            >
+                                {priceLists.map((pl: any) => (
+                                    <MenuItem key={pl.id} value={pl.id}>
+                                        {pl.typeName}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                        </Stack>
                     </Grid>
 
-                    <Grid item xs={12} sm={4}>
-                        <TextField label="Customer Discount (%)" fullWidth size="small" value={discount} InputProps={{ readOnly: true }} />
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Payment Type"
-                            value={payment}
-                            onChange={(e) => setPayment(e.target.value)}
-                            size="small"
-                        >
-                            {paymentTerms.map((p: any) => (
-                                <MenuItem key={p.terms_indicator} value={p.terms_indicator}>
-                                    {p.description}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Price List"
-                            value={priceList}
-                            onChange={(e) => setPriceList(e.target.value)}
-                            size="small"
-                        >
-                            {priceLists.map((pl: any) => (
-                                <MenuItem key={pl.id} value={pl.id}>
-                                    {pl.typeName}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
-
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={3}>
                         <TextField
                             label="Order Date"
                             type="date"
@@ -322,7 +833,7 @@ export default function UpdateSalesOrderEntry() {
                             <TableCell>Description</TableCell>
                             <TableCell>Quantity</TableCell>
                             <TableCell>Unit</TableCell>
-                            <TableCell>Price After Tax</TableCell>
+                            <TableCell>{priceColumnLabel}</TableCell>
                             <TableCell>Discount (%)</TableCell>
                             <TableCell>Total</TableCell>
                             <TableCell>Action</TableCell>
@@ -345,18 +856,10 @@ export default function UpdateSalesOrderEntry() {
                                         select
                                         size="small"
                                         value={row.description}
-                                        onChange={async (e) => {
+                                        onChange={(e) => {
                                             const selected = items.find((item: any) => item.description === e.target.value);
-                                            handleChange(row.id, "description", e.target.value);
                                             if (selected) {
-                                                handleChange(row.id, "itemCode", selected.stock_id);
-                                                handleChange(row.id, "selectedItemId", selected.stock_id);
-                                                const itemData = await getItemById(selected.stock_id);
-                                                if (itemData) {
-                                                    const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
-                                                    handleChange(row.id, "unit", unitName);
-                                                    handleChange(row.id, "priceAfterTax", itemData.material_cost || 0);
-                                                }
+                                                handleItemChange(row.id, selected);
                                             }
                                         }}
                                     >
@@ -388,12 +891,18 @@ export default function UpdateSalesOrderEntry() {
                                 <TableCell>
                                     <TextField size="small" value={row.unit} InputProps={{ readOnly: true }} />
                                 </TableCell>
-                                <TableCell>
+                                <TableCell align="right">
                                     <TextField
                                         size="small"
                                         type="number"
-                                        value={row.priceAfterTax}
-                                        onChange={(e) => handleChange(row.id, "priceAfterTax", Number(e.target.value))}
+                                        value={priceColumnLabel === "Price before Tax" ? row.priceBeforeTax : row.priceAfterTax}
+                                        onChange={(e) => {
+                                            if (priceColumnLabel === "Price before Tax") {
+                                                handleChange(row.id, "priceBeforeTax", Number(e.target.value));
+                                            } else {
+                                                handleChange(row.id, "priceAfterTax", Number(e.target.value));
+                                            }
+                                        }}
                                     />
                                 </TableCell>
                                 <TableCell>
@@ -416,32 +925,32 @@ export default function UpdateSalesOrderEntry() {
                                             Add
                                         </Button>
                                     ) : (
-                                       <Stack direction="row" spacing={1} justifyContent="center">
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<EditIcon />}
-                        onClick={() => {
-                          // Focus on the first editable field (item code)
-                          const rowElement = document.querySelector(`[data-row-id="${row.id}"]`);
-                          if (rowElement) {
-                            const firstInput = rowElement.querySelector('input') as HTMLInputElement;
-                            if (firstInput) firstInput.focus();
-                          }
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        color="error"
-                        size="small"
-                        startIcon={<DeleteIcon />}
-                        onClick={() => handleRemoveRow(row.id)}
-                      >
-                        Delete
-                      </Button>
-                    </Stack>
+                                        <Stack direction="row" spacing={1} justifyContent="center">
+                                            <Button
+                                                variant="outlined"
+                                                size="small"
+                                                startIcon={<EditIcon />}
+                                                onClick={() => {
+                                                    // Focus on the first editable field (item code)
+                                                    const rowElement = document.querySelector(`[data-row-id="${row.id}"]`);
+                                                    if (rowElement) {
+                                                        const firstInput = rowElement.querySelector('input') as HTMLInputElement;
+                                                        if (firstInput) firstInput.focus();
+                                                    }
+                                                }}
+                                            >
+                                                Edit
+                                            </Button>
+                                            <Button
+                                                variant="outlined"
+                                                color="error"
+                                                size="small"
+                                                startIcon={<DeleteIcon />}
+                                                onClick={() => handleRemoveRow(row.id)}
+                                            >
+                                                Delete
+                                            </Button>
+                                        </Stack>
                                     )}
                                 </TableCell>
                             </TableRow>
@@ -449,7 +958,7 @@ export default function UpdateSalesOrderEntry() {
                     </TableBody>
 
                     <TableFooter>
-                         <TableRow>
+                        <TableRow>
                             <TableCell colSpan={7}>Shipping Charge</TableCell>
                             <TableCell>
                                 <TextField
@@ -461,19 +970,41 @@ export default function UpdateSalesOrderEntry() {
                             </TableCell>
                             <TableCell></TableCell>
                         </TableRow>
-                        
+
                         <TableRow>
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>Sub-total</TableCell>
                             <TableCell sx={{ fontWeight: 600 }}>{subTotal.toFixed(2)}</TableCell>
                             <TableCell></TableCell>
                         </TableRow>
-                       
+
+                        {/* Show tax breakdown */}
+                        {taxCalculations.length > 0 && (
+                            <>
+                                <TableRow>
+                                    <TableCell colSpan={9} sx={{ fontWeight: 600, fontStyle: 'italic', color: 'text.secondary' }}>
+                                        {selectedPriceList?.taxIncl ? "Taxes Included:" : "Taxes:"}
+                                    </TableCell>
+                                </TableRow>
+                                {taxCalculations.map((tax, idx) => (
+                                    <TableRow key={idx}>
+                                        <TableCell colSpan={7} sx={{ pl: 4 }}>
+                                            {tax.name} ({tax.rate}%)
+                                        </TableCell>
+                                        <TableCell>{tax.amount.toFixed(2)}</TableCell>
+                                        <TableCell></TableCell>
+                                    </TableRow>
+                                ))}
+                            </>
+                        )}
+
                         <TableRow>
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>Amount Total</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>{(subTotal + shippingCharge).toFixed(2)}</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>
+                                {(subTotal + shippingCharge + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount)).toFixed(2)}
+                            </TableCell>
                             <TableCell>
                                 <Button variant="contained" size="small">
-                                    Update
+                                    {isUpdate ? "Update Order" : "Place Order"}
                                 </Button>
                             </TableCell>
                         </TableRow>
@@ -483,54 +1014,137 @@ export default function UpdateSalesOrderEntry() {
 
             {/* Cash Payment Section */}
             <Paper sx={{ p: 2, borderRadius: 2 }}>
-               <Typography variant="subtitle1" sx={{ mb: 2, textAlign: 'center' }}>
-                    Cash Payment
+                <Typography variant="subtitle1" sx={{ mb: 2, textAlign: 'center' }}>
+                    {showQuotationDeliveryDetails ? "Quotation Delivery Details" : "Cash Payment"}
                 </Typography>
                 <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Deliver From Location"
-                            value={deliverFrom}
-                            onChange={(e) => setDeliverFrom(e.target.value)}
-                            size="small"
-                        >
-                            {locations.map((loc: any) => (
-                                <MenuItem key={loc.loc_code} value={loc.loc_code}>
-                                    {loc.location_name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
-                    </Grid>
+                    {showQuotationDeliveryDetails ? (
+                        <>
+                            <Grid item xs={12} sm={6}>
+                                <Stack spacing={2}>
+                                    <TextField
+                                        select
+                                        fullWidth
+                                        label="Deliver From Location"
+                                        value={deliverFrom}
+                                        onChange={(e) => setDeliverFrom(e.target.value)}
+                                        size="small"
+                                    >
+                                        {locations.map((loc: any) => (
+                                            <MenuItem key={loc.loc_code} value={loc.loc_code}>
+                                                {loc.location_name}
+                                            </MenuItem>
+                                        ))}
+                                    </TextField>
+                                    <TextField
+                                        label="Valid Until"
+                                        type="date"
+                                        fullWidth
+                                        size="small"
+                                        value={validUntil}
+                                        onChange={(e) => setValidUntil(e.target.value)}
+                                        InputLabelProps={{ shrink: true }}
+                                    />
+                                    <TextField
+                                        label="Deliver To"
+                                        fullWidth
+                                        size="small"
+                                        value={deliverTo}
+                                        onChange={(e) => setDeliverTo(e.target.value)}
+                                    />
+                                    <TextField
+                                        label="Address"
+                                        fullWidth
+                                        multiline
+                                        rows={2}
+                                        size="small"
+                                        value={address}
+                                        onChange={(e) => setAddress(e.target.value)}
+                                    />
+                                </Stack>
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <Stack spacing={2}>
+                                    <TextField
+                                        label="Contact Phone Number"
+                                        fullWidth
+                                        size="small"
+                                        value={contactPhoneNumber}
+                                        onChange={(e) => setContactPhoneNumber(e.target.value)}
+                                    />
+                                    <TextField
+                                        label="Customer Reference"
+                                        fullWidth
+                                        size="small"
+                                        value={customerReference}
+                                        onChange={(e) => setCustomerReference(e.target.value)}
+                                    />
+                                    <TextField
+                                        select
+                                        fullWidth
+                                        label="Shipping Company"
+                                        value={shippingCompany}
+                                        onChange={(e) => setShippingCompany(e.target.value)}
+                                        size="small"
+                                    >
+                                        {shippingCompanies.map((sc: any) => (
+                                            <MenuItem key={sc.shipper_id} value={sc.shipper_id}>
+                                                {sc.shipper_name}
+                                            </MenuItem>
+                                        ))}
+                                    </TextField>
+                                    <TextField
+                                        fullWidth
+                                        multiline
+                                        rows={2}
+                                        label="Comments"
+                                        value={comments}
+                                        onChange={(e) => setComments(e.target.value)}
+                                    />
+                                </Stack>
+                            </Grid>
+                        </>
+                    ) : (
+                        <>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    select
+                                    fullWidth
+                                    label="Deliver From Location"
+                                    value={deliverFrom}
+                                    onChange={(e) => setDeliverFrom(e.target.value)}
+                                    size="small"
+                                >
+                                    {locations.map((loc: any) => (
+                                        <MenuItem key={loc.loc_code} value={loc.loc_code}>
+                                            {loc.location_name}
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
+                            </Grid>
 
-                    <Grid item xs={12} sm={6}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Cash Account"
-                            value={cashAccount}
-                            onChange={(e) => setCashAccount(e.target.value)}
-                            size="small"
-                        >
-                            {/* {cashAccounts.map((acc: any) => (
-                <MenuItem key={acc.id} value={acc.id}>
-                  {acc.name}
-                </MenuItem>
-              ))} */}
-                        </TextField>
-                    </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    fullWidth
+                                    label="Cash Account"
+                                    value={cashAccount}
+                                    size="small"
+                                    InputProps={{ readOnly: true }}
+                                />
+                            </Grid>
 
-                    <Grid item xs={12}>
-                        <TextField
-                            fullWidth
-                            multiline
-                            rows={2}
-                            label="Comments"
-                            value={comments}
-                            onChange={(e) => setComments(e.target.value)}
-                        />
-                    </Grid>
+                            <Grid item xs={12}>
+                                <TextField
+                                    fullWidth
+                                    multiline
+                                    rows={2}
+                                    label="Comments"
+                                    value={comments}
+                                    onChange={(e) => setComments(e.target.value)}
+                                />
+                            </Grid>
+                        </>
+                    )}
                 </Grid>
 
                 <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, gap: 2 }}>
@@ -538,10 +1152,21 @@ export default function UpdateSalesOrderEntry() {
                         Cancel Order
                     </Button>
                     <Button variant="contained" color="primary" onClick={handlePlaceQuotation}>
-                        Commit Order Changes
+                       {isUpdate ? "Update Order" : "Commit Order Changes"}
                     </Button>
                 </Box>
             </Paper>
+            <AddedConfirmationModal
+                open={open}
+                title="Success"
+                content={isUpdate ? "Sales Order has been updated successfully!" : "Sales Order Entry has been added successfully!"}
+                addFunc={async () => { }}
+                handleClose={() => setOpen(false)}
+                onSuccess={() => {
+                    // Form was already cleared on successful submission
+                   navigate(isUpdate ? "/sales/transactions/update-sales-order-entry/success" : "/sales/transactions/sales-order-entry/success", { state: { orderNo, reference, orderDate } });
+                }}
+            />
         </Stack>
     );
 }

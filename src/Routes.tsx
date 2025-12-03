@@ -350,6 +350,8 @@ import ModifySalesInvoice from "./views/BankindAndGeneralLedger/InquiriesAndRepo
 import EditDimensionEntry from "./views/Dimensions/Transactions/DimensionEntry/EditDimensionEntry";
 import CustomerPaymentEntry from "./views/BankindAndGeneralLedger/InquiriesAndReports/JournalInquiry/CustomerPaymentEntry";
 import ModifyPurchaseInvoice from "./views/BankindAndGeneralLedger/InquiriesAndReports/JournalInquiry/ModifyPurchaseInvoice";
+import UpdateSalesOrderEntrySuccess from "./views/Sales/Transactions/SalesOrderEntry/UpdateSalesOrderEntrySuccess";
+import ViewCustomerDelivery from "./views/Sales/Transactions/CustomerDelivery/ViewCustomerDelivery";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1114,6 +1116,14 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/sales/transactions/update-sales-order-entry/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales orders']}>
+              {withLayout(MainLayout, UpdateSalesOrderEntrySuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/sales/transactions/customer-delivery"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales orders']}>
@@ -1126,6 +1136,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales orders']}>
               {withLayout(MainLayout, CustomerDeliverySuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/customer-delivery/view"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales orders']}>
+              {withLayout(MainLayout, ViewCustomerDelivery)}
             </ProtectedRoute>
           }
         />

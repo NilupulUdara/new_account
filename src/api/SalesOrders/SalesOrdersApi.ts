@@ -33,6 +33,11 @@ export const createSalesOrder = async (payload: SalesOrderPayload) => {
   return response.data; // Expect response to include generated/accepted order_no
 };
 
+export const updateSalesOrder = async (orderNo: number, payload: SalesOrderPayload) => {
+  const response = await axios.put(`${SALES_ORDERS_URL}/${orderNo}`, payload);
+  return response.data;
+};
+
 export const generateProvisionalOrderNo = (): number => {
   // Simple timestamp-based fallback; replace with backend sequence endpoint if available.
   return Date.now();

@@ -20,6 +20,7 @@ import {
   Select,
   TableFooter,
   TablePagination,
+  Checkbox,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SearchIcon from "@mui/icons-material/Search";
@@ -28,6 +29,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
+import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
+import { getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -52,6 +55,7 @@ export default function InvoiceAgainstSalesDelivery() {
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [selectedRows, setSelectedRows] = useState<number[]>([]);
 
   // lookups
   const { data: locations = [] } = useQuery({ queryKey: ["inventoryLocations"], queryFn: getInventoryLocations });
@@ -67,6 +71,8 @@ export default function InvoiceAgainstSalesDelivery() {
   const [selectedCustomer, setSelectedCustomer] = useState("ALL_CUSTOMERS");
 
   const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
+  const { data: branches = [] } = useQuery({ queryKey: ["branches"], queryFn: () => getBranches() });
+  const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
 
   useEffect(() => {
     if (!selectedItem) {
@@ -77,12 +83,34 @@ export default function InvoiceAgainstSalesDelivery() {
     setItemCode(it ? String(it.stock_id ?? it.id ?? "") : "");
   }, [selectedItem, items]);
 
-  // dummy rows
-  const today = new Date().toISOString().split("T")[0];
-  const rows: Row[] = [
-    { id: 1, deliveryNo: "D-1001", customer: "Acme Corp", branch: "Main", contact: "John Doe", reference: "SO-001", custRef: "CREF-001", deliveryDate: today, dueBy: "2025-12-14", deliveryTotal: "150.00", currency: "USD" },
-    { id: 2, deliveryNo: "D-1002", customer: "Beta Ltd", branch: "Branch A", contact: "Jane Smith", reference: "SO-002", custRef: "CREF-002", deliveryDate: today, dueBy: "2025-12-15", deliveryTotal: "320.00", currency: "LKR" },
-  ];
+  // rows from search or API
+  const [rows, setRows] = useState<Row[]>([]);
+
+  // Set rows from debtor_trans with trans_type 13
+  useEffect(() => {
+    if (debtorTrans.length > 0 && customers.length > 0 && branches.length > 0) {
+      const deliveryRows = debtorTrans
+        .filter((dt: any) => dt.trans_type === 13 && dt.reference !== "auto")
+        .map((dt: any, index: number) => {
+          const customer = customers.find((c: any) => String(c.debtor_no) === String(dt.debtor_no));
+          const branch = branches.find((b: any) => String(b.branch_code) === String(dt.branch_code));
+          return {
+            id: dt.trans_no,
+            deliveryNo: dt.trans_no,
+            customer: customer?.name || dt.debtor_no,
+            branch: branch?.br_name || dt.branch_code,
+            contact: customer?.phone || customer?.contact_phone || "",
+            reference: dt.reference || "",
+            custRef: dt.customer_ref || "",
+            deliveryDate: dt.tran_date ? dt.tran_date.split(" ")[0] : "",
+            dueBy: dt.due_date ? dt.due_date.split(" ")[0] : "",
+            deliveryTotal: dt.ov_amount || 0,
+            currency: customer?.curr_code || "USD",
+          };
+        });
+      setRows(deliveryRows);
+    }
+  }, [debtorTrans, customers, branches]);
 
   const paginatedRows = React.useMemo(() => {
     if (rowsPerPage === -1) return rows;
@@ -93,6 +121,20 @@ export default function InvoiceAgainstSalesDelivery() {
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
+  };
+
+  const handleSelectRow = (id: number) => {
+    setSelectedRows((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedRows.length === paginatedRows.length) {
+      setSelectedRows([]);
+    } else {
+      setSelectedRows(paginatedRows.map((r) => r.id));
+    }
   };
 
   return (
@@ -182,7 +224,9 @@ export default function InvoiceAgainstSalesDelivery() {
               <TableCell>Due by</TableCell>
               <TableCell>Delivery Total</TableCell>
               <TableCell>Currency</TableCell>
-              <TableCell align="center">Batch</TableCell>
+              <TableCell align="center">
+                <Button variant="outlined" size="small" onClick={() => console.log("Batch invoice for selected:", selectedRows)}>Batch</Button>
+              </TableCell>
               <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -201,12 +245,15 @@ export default function InvoiceAgainstSalesDelivery() {
                 <TableCell>{r.deliveryTotal}</TableCell>
                 <TableCell>{r.currency}</TableCell>
                 <TableCell align="center">
-                  <Button variant="outlined" size="small" onClick={() => console.log("Batch for", r.deliveryNo)}>Batch</Button>
+                  <Checkbox
+                    checked={selectedRows.includes(r.id)}
+                    onChange={() => handleSelectRow(r.id)}
+                  />
                 </TableCell>
                 <TableCell align="center">
                   <Stack direction="row" spacing={1} justifyContent="center">
-                    <Button variant="outlined" size="small" onClick={() => navigate("/sales/transactions/update-customer-delivery/" + r.deliveryNo)}>Edit</Button>
-                    <Button variant="outlined" size="small" onClick={() => navigate("/sales/transactions/direct-delivery/customer-invoice", { state: { id: r.id } })}>Invoice</Button>
+                    <Button variant="outlined" size="small" onClick={() => navigate("/sales/transactions/update-customer-delivery/" , { state: { id: r.id } })}>Edit</Button>
+                    <Button variant="outlined" size="small" onClick={() => navigate("/sales/transactions/direct-delivery/customer-invoice", { state: { reference: r.reference, date: r.deliveryDate } })}>Invoice</Button>
                     <Button variant="outlined" size="small" onClick={() => console.log("Print for", r.deliveryNo)}>Print</Button>
                   </Stack>
                 </TableCell>

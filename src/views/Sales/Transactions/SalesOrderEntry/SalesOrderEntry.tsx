@@ -381,7 +381,7 @@ export default function SalesOrderEntry() {
     // Set order number based on existing sales orders
     useEffect(() => {
         if (salesOrders.length > 0) {
-            const maxOrderNo = Math.max(...salesOrders.map((o: any) => o.order_no));
+            const maxOrderNo = Math.max(...salesOrders.filter((o: any) => Number(o.trans_type) === 30).map((o: any) => o.order_no)) || 0;
             setOrderNo(maxOrderNo + 1);
         }
     }, [salesOrders]);

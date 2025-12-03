@@ -283,7 +283,7 @@ export default function DeliveryAgainstSalesOrders() {
                 <TableCell align="center">
                   <Stack direction="row" spacing={1} justifyContent="center">
                     <Button variant="contained" size="small" startIcon={<EditIcon />} onClick={() => navigate("/sales/transactions/update-sales-order-entry", { state: { id: row.id } })}>Edit</Button>
-                    <Button variant="contained" color="secondary" size="small" startIcon={<LocalShippingIcon />} onClick={() => navigate("/sales/transactions/customer-delivery", { state: { id: row.id } })}>Dispatch</Button>
+                    <Button variant="contained" color="secondary" size="small" startIcon={<LocalShippingIcon />} onClick={() => navigate("/sales/transactions/customer-delivery", { state: { orderNo: row.id } })}>Dispatch</Button>
                     <Button variant="outlined" size="small" startIcon={<PrintIcon />} onClick={() => console.log("Print", row.orderNo)}>Print</Button>
                   </Stack>
                 </TableCell>

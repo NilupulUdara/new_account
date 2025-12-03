@@ -8,7 +8,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 export default function UpdateSalesOrderEntrySuccess() {
   const navigate = useNavigate();
   const { state } = useLocation();
-  const { location: loc, reference, date } = state || {};
+  const { orderNo, reference, orderDate } = state || {};
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
@@ -43,8 +43,8 @@ export default function UpdateSalesOrderEntrySuccess() {
       </Box>
 
       <Paper sx={{ p: 2 }}>
-        <Typography sx={{ mb: 2 }}>
-          Order # has been updated.
+        <Typography sx={{ mb: 2, textAlign: 'center' }}>
+          Order # {orderNo} has been updated.
         </Typography>
 
         <Stack spacing={3} direction="column" alignItems="center">
