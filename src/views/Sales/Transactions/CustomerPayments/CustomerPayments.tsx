@@ -23,6 +23,9 @@ import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi";
 // import { getDimensions } from "../../../../api/Dimension/DimensionApi"; // hypothetical API
+import { getDebtorTrans, createDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { createBankTrans } from "../../../../api/BankTrans/BankTransApi";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
@@ -83,20 +86,54 @@ export default function CustomerPayments() {
     queryFn: getCustomers,
     refetchOnWindowFocus: true,
   });
-    const { data: branches = [] } = useQuery({ queryKey: ["branches"], queryFn: () => getBranches(), refetchOnWindowFocus: true });
+  const { data: branches = [] } = useQuery({ queryKey: ["branches"], queryFn: () => getBranches(), refetchOnWindowFocus: true });
   const { data: bankAccounts = [] } = useQuery({
     queryKey: ["bankAccounts"],
     queryFn: getBankAccounts,
     refetchOnWindowFocus: true,
   });
+  const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+  const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
 
   useEffect(() => {
-    const year = new Date().getFullYear();
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, "0");
-    setReference(`${random}/${year}`);
-  }, []);
+    if (!depositDate || fiscalYears.length === 0) return;
+    const dateObj = new Date(depositDate);
+    if (isNaN(dateObj.getTime())) return;
+
+    const matching = fiscalYears.find((fy: any) => {
+      if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+      const from = new Date(fy.fiscal_year_from);
+      const to = new Date(fy.fiscal_year_to);
+      if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+      return dateObj >= from && dateObj <= to; // inclusive
+    });
+
+    // If not found, choose the one whose from date is closest but not after the depositDate.
+    const chosen = matching || [...fiscalYears]
+      .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
+      .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
+      .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
+
+    if (chosen) {
+      // Preferred label: explicit fiscal_year field if exists, else derive from from/to years.
+      const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
+      const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
+      const yearLabel = chosen.fiscal_year || (fromYear === toYear ? fromYear : `${fromYear}-${toYear}`);
+
+      // Find existing references for this fiscal year and for customer payments only (trans_type = 12)
+      const relevantRefs = debtorTrans.filter((dt: any) =>
+        Number(dt.trans_type) === 12 && dt.reference && dt.reference.endsWith(`/${yearLabel}`)
+      );
+      const numbers = relevantRefs.map((dt: any) => {
+        const match = dt.reference.match(/^(\d{3})\/.+$/);
+        return match ? parseInt(match[1], 10) : 0;
+      });
+      const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
+      const nextNum = maxNum + 1;
+      const nextRef = `${nextNum.toString().padStart(3, '0')}/${yearLabel}`;
+      setReference(nextRef);
+    }
+  }, [depositDate, fiscalYears, debtorTrans]);
 
   // Reset branch when customer changes
   useEffect(() => {
@@ -123,26 +160,65 @@ export default function CustomerPayments() {
   };
 
   // ====== Handle Add Payment ======
-  const handleAddPayment = () => {
+  const handleAddPayment = async () => {
     if (!customer || !amount) return alert("Please fill required fields!");
 
-    console.log({
-      customer,
-      branch,
-      bankAccount,
-      depositDate,
-      reference,
-      bankCharge,
-      dimension,
-      promptDiscount,
-      amountOfDiscount,
-      amount,
-      memo,
-      allocations: allocationRows,
-    });
+    try {
+      // Calculate next trans_no for trans_type 12
+      const relevantTrans = debtorTrans.filter((dt: any) => Number(dt.trans_type) === 12);
+      const maxTransNo = relevantTrans.length > 0 ? Math.max(...relevantTrans.map((dt: any) => dt.trans_no)) : 0;
+      const nextTransNo = maxTransNo + 1;
 
-    alert("Customer payment added successfully!");
-    navigate(-1);
+      const payload = {
+        trans_no: nextTransNo,
+        trans_type: 12, // Customer payment
+        version: 0,
+        debtor_no: Number(customer),
+        branch_code: branch ? Number(branch) : 0,
+        tran_date: depositDate,
+        due_date: depositDate, // Assuming due date is same as transaction date
+        reference,
+        tpe: 0, // Assuming type is 0
+        order_no: 0,
+        ov_amount: amount,
+        ov_gst: 0,
+        ov_freight: 0,
+        ov_freight_tax: 0,
+        ov_discount: amountOfDiscount,
+        alloc: 0,
+        prep_amount: 0,
+        rate: 1,
+        ship_via: null,
+        dimension_id: 0,
+        dimension2_id: 0,
+        payment_terms: null,
+        tax_included: 0,
+      };
+
+      await createDebtorTran(payload);
+
+      // Insert into bank_trans
+      const bankTransPayload = {
+        bank_act: bankAccount,
+        trans_no: nextTransNo,
+        type: 12,
+        ref: reference,
+        trans_date: depositDate,
+        amount: amount - bankCharge,
+        dimension_id: 0,
+        dimension2_id: 0,
+        person_type_id: 2, // Debtor
+        person_id: Number(customer),
+        reconciled: null,
+      };
+      await createBankTrans(bankTransPayload);
+
+      alert("Customer payment added successfully!");
+      navigate(-1);
+    } catch (error: any) {
+      console.error("Error adding payment:", error);
+      alert("Failed to add payment. Please try again.");
+    }
   };
 
   // ====== Breadcrumb ======
@@ -262,7 +338,6 @@ export default function CustomerPayments() {
                 onChange={(e) => setBankCharge(Number(e.target.value))}
               />
               <TextField
-                select
                 label="Dimension"
                 fullWidth
                 size="small"
@@ -400,7 +475,7 @@ export default function CustomerPayments() {
             variant="contained"
             onClick={handleAddPayment}
           >
-            Update Payment
+            Add Payment
           </Button>
         </Box>
       </Paper>
