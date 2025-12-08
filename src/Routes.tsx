@@ -818,108 +818,6 @@ const AppRoutes = () => {
 
         <Route path="miscellaneous" element={withLayout(MainLayout, Miscellaneous)} />
 
-        <Route path="maintenance" element={<ProtectedRoute required={PERMISSION_ID_MAP['Special Maintenance']} />}>
-          <Route
-            path="install-chart-of-accounts"
-            element={withLayout(MainLayout, InstallChartOfAccounts)}
-          />
-          <Route
-            path="void-a-transaction"
-            element={
-              <ProtectedRoute required={PERMISSION_ID_MAP['Voiding transactions']}>
-                {withLayout(MainLayout, VoidTransactionTable)}
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="add-void-a-transaction"
-            element={
-              <ProtectedRoute required={PERMISSION_ID_MAP['Voiding transactions']}>
-                {withLayout(MainLayout, VoidTransaction)}
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="view-or-print-transaction"
-            element={
-              <ProtectedRoute required={PERMISSION_ID_MAP['Common view/print transactions interface']}>
-                {withLayout(MainLayout, ViewPrintTransactions)}
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="attach-documents"
-            element={
-              <ProtectedRoute required={PERMISSION_ID_MAP['Attaching documents']}>
-                {withLayout(MainLayout, DocumentsTable)}
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="add-document"
-            element={
-              <ProtectedRoute required={PERMISSION_ID_MAP['Attaching documents']}>
-                {withLayout(MainLayout, AddDocumentsForm)}
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="update-document"
-            element={
-              <ProtectedRoute required={PERMISSION_ID_MAP['Attaching documents']}>
-                {withLayout(MainLayout, UpdateDocumentsForm)}
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="backup-and-restore"
-            element={
-              <ProtectedRoute required={PERMISSION_ID_MAP['Database backup/restore']}>
-                {withLayout(MainLayout, BackupRestore)}
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="create-update-companies"
-            element={withLayout(MainLayout, CompanyTable)}
-          />
-          <Route
-            path="add-company"
-            element={withLayout(MainLayout, AddCompanyForm)}
-          />
-          <Route
-            path="update-company"
-            element={withLayout(MainLayout, UpdateCompanyForm)}
-          />
-          <Route
-            path="install-languages"
-            element={withLayout(MainLayout, LanguagesTable)}
-          />
-          <Route
-            path="add-language"
-            element={withLayout(MainLayout, AddLanguagesForm)}
-          />
-          <Route
-            path="update-language"
-            element={withLayout(MainLayout, UpdateLanguagesForm)}
-          />
-          <Route
-            path="install-extensions"
-            element={withLayout(MainLayout, InstallExtensions)}
-          />
-          <Route
-            path="install-themes"
-            element={withLayout(MainLayout, InstallThemes)}
-          />
-          <Route
-            path="software-upgrade"
-            element={withLayout(MainLayout, SoftwareUpdateTable)}
-          />
-          <Route
-            path="system-diagnostics"
-            element={withLayout(MainLayout, SystemDiagnostics)}
-          />
-        </Route>
         <Route
           path="miscellaneous/payment-terms"
           element={
@@ -1040,7 +938,110 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-      </Route>
+
+        <Route path="maintenance" element={withLayout(MainLayout, SetupMaintenance)}/>
+          <Route
+            path="maintenance/install-chart-of-accounts"
+            element={withLayout(MainLayout, InstallChartOfAccounts)}
+          />
+          <Route
+            path="maintenance/void-a-transaction"
+            element={
+              <ProtectedRoute required={PERMISSION_ID_MAP['Voiding transactions']}>
+                {withLayout(MainLayout, VoidTransactionTable)}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="maintenance/add-void-a-transaction"
+            element={
+              <ProtectedRoute required={PERMISSION_ID_MAP['Voiding transactions']}>
+                {withLayout(MainLayout, VoidTransaction)}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="maintenance/view-or-print-transaction"
+            element={
+              <ProtectedRoute required={PERMISSION_ID_MAP['Common view/print transactions interface']}>
+                {withLayout(MainLayout, ViewPrintTransactions)}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="maintenance/attach-documents"
+            element={
+              <ProtectedRoute required={PERMISSION_ID_MAP['Attaching documents']}>
+                {withLayout(MainLayout, DocumentsTable)}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="maintenance/add-document"
+            element={
+              <ProtectedRoute required={PERMISSION_ID_MAP['Attaching documents']}>
+                {withLayout(MainLayout, AddDocumentsForm)}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="maintenance/update-document"
+            element={
+              <ProtectedRoute required={PERMISSION_ID_MAP['Attaching documents']}>
+                {withLayout(MainLayout, UpdateDocumentsForm)}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="maintenance/backup-and-restore"
+            element={
+              <ProtectedRoute required={PERMISSION_ID_MAP['Database backup/restore']}>
+                {withLayout(MainLayout, BackupRestore)}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="create-update-companies"
+            element={withLayout(MainLayout, CompanyTable)}
+          />
+          <Route
+            path="add-company"
+            element={withLayout(MainLayout, AddCompanyForm)}
+          />
+          <Route
+            path="update-company"
+            element={withLayout(MainLayout, UpdateCompanyForm)}
+          />
+          <Route
+            path="install-languages"
+            element={withLayout(MainLayout, LanguagesTable)}
+          />
+          <Route
+            path="add-language"
+            element={withLayout(MainLayout, AddLanguagesForm)}
+          />
+          <Route
+            path="update-language"
+            element={withLayout(MainLayout, UpdateLanguagesForm)}
+          />
+          <Route
+            path="install-extensions"
+            element={withLayout(MainLayout, InstallExtensions)}
+          />
+          <Route
+            path="install-themes"
+            element={withLayout(MainLayout, InstallThemes)}
+          />
+          <Route
+            path="software-upgrade"
+            element={withLayout(MainLayout, SoftwareUpdateTable)}
+          />
+          <Route
+            path="system-diagnostics"
+            element={withLayout(MainLayout, SystemDiagnostics)}
+          />
+        </Route>
+        
 
       <Route element={<ProtectedRoute />}>
         <Route
