@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Button,
@@ -10,9 +10,19 @@ import {
   useMediaQuery,
   Theme,
   Divider,
+  MenuItem,
+  ListSubheader,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from '@tanstack/react-query';
 import theme from "../../../../theme";
+import { getChartMasters } from "../../../../api/GLAccounts/ChartMasterApi";
+import { getTaxAlgorithms } from "../../../../api/TaxAlgorithm/TaxAlgorithmApi";
+import { getGlTypes } from "../../../../api/GlType/GlTypeApi";
+import { getInvoiceIdentifications } from "../../../../api/InvoiceIdentification/InvoiceIdentificationApi";
+import { getDepreciationPeriods } from "../../../../api/DepreciationPeriod/DepreciationPeriodApi";
 
 interface SystemGLSetupFormData {
   [key: string]: string;
@@ -33,8 +43,8 @@ export default function SystemGLSetupForm() {
     dimensionRequiredByAfter: "",
     defaultCreditLimit: "",
     invoiceIdentification: "",
-    accumulateBatchShipping: "",
-    printItemImageOnQuote: "",
+    accumulateBatchShipping: "false",
+    printItemImageOnQuote: "false",
     legalTextOnInvoice: "",
     shippingChargedAccount: "",
     deferredIncomeAccount: "",
@@ -50,11 +60,11 @@ export default function SystemGLSetupForm() {
     purchaseDiscountAccount: "",
     grnClearingAccount: "",
     receivalRequiredBy: "",
-    showPOItemCodes: "",
-    allowNegativeInventory: "",
-    noZeroAmountsService: "",
-    locationNotification: "",
-    allowNegativePrices: "",
+    showPOItemCodes: "false",
+    allowNegativeInventory: "false",
+    noZeroAmountsService: "false",
+    locationNotification: "false",
+    allowNegativePrices: "false",
     itemSalesAccount: "",
     inventoryAccount: "",
     cogsAccount: "",
@@ -65,7 +75,575 @@ export default function SystemGLSetupForm() {
     workOrderRequiredByAfter: "",
   });
 
+  const accountTypeMap: { [key: number]: string } = {
+    "1": "Current Assets",
+    "2": "Inventory Assets",
+    "3": "Capital Assets",
+    "4": "Current Liabilities",
+    "5": "Long Term Liabilities",
+    "6": "Share Capital",
+    "7": "Retained Earnings",
+    "8": "Sales Revenue",
+    "9": "Other Revenue",
+    "10": "Cost of Good Sold",
+    "11": "Payroll Expenses",
+    "12": "General and Adminitrative Expenses",
+  };
+
   const [errors, setErrors] = useState<Partial<SystemGLSetupFormData>>({});
+  const [chartMasters, setChartMasters] = useState<any[]>([]);
+  const { data: taxAlgorithms = [] } = useQuery({ queryKey: ['taxAlgorithms'], queryFn: async () => (await getTaxAlgorithms()).data });
+  const { data: invoiceIdentifications = [] } = useQuery({ queryKey: ['invoiceIdentifications'], queryFn: async () => (await getInvoiceIdentifications()).data });
+  const { data: depreciationPeriods = [] } = useQuery({ queryKey: ['depreciationPeriods'], queryFn: async () => (await getDepreciationPeriods()).data });
+  const { data: glTypes = [] } = useQuery({ queryKey: ['glTypes'], queryFn: async () => (await getGlTypes()).data });
+
+  useEffect(() => {
+      const fetchChartMasters = async () => {
+        try {
+          const res = await getChartMasters();
+          setChartMasters(res || []);
+        } catch (err) {
+          console.error("Failed to fetch chart masters", err);
+        }
+      };
+      fetchChartMasters();
+    }, []);
+
+  const sectionPairs = [
+    {
+      left: {
+        title: "General GL",
+        fields: [
+          { name: "pastDueDaysInterval", label: "Past Due Days Interval" },
+          { name: "accountType", label: "Account Type", select: true, options: glTypes.map((gt: any) => ({ value: gt.id.toString(), label: gt.type })) },
+          { name: "retainedEarnings", label: "Retained Earnings", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "profitLossYear", label: "Profit/Loss Year", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code} - {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "exchangeVariancesAccount", label: "Exchange Variances Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code} - {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "bankChargesAccount", label: "Bank Charges Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "taxAlgorithm", label: "Tax Algorithm", select: true, options: taxAlgorithms.map((alg: any) => ({ value: alg.id.toString(), label: alg.name })) },
+        ],
+      },
+      right: {
+        title: "Dimension Defaults",
+        fields: [{ name: "dimensionRequiredByAfter", label: "Dimension Required By After" }],
+      },
+    },
+    {
+      left: {
+        title: "Customers & Sales",
+        fields: [
+          { name: "defaultCreditLimit", label: "Default Credit Limit" },
+          { name: "invoiceIdentification", label: "Invoice Identification", select: true, options: invoiceIdentifications.map((id: any) => ({ value: id.id.toString(), label: id.name })) },
+          { name: "accumulateBatchShipping", label: "Accumulate Batch Shipping", type: 'checkbox' },
+          { name: "printItemImageOnQuote", label: "Print Item Image on Quote", type: 'checkbox' },
+          { name: "legalTextOnInvoice", label: "Legal Text on Invoice" },
+          { name: "shippingChargedAccount", label: "Shipping Charged Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "deferredIncomeAccount", label: "Deferred Income Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+        ],
+      },
+      right: {
+        title: "Customers & Sales Defaults",
+        fields: [
+          { name: "receivableAccount", label: "Receivable Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "salesAccount", label: "Sales Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "salesDiscountAccount", label: "Sales Discount Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "promptPaymentDiscountAccount", label: "Prompt Payment Discount Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "quoteValidDays", label: "Quote Valid Days" },
+          { name: "deliveryRequiredBy", label: "Delivery Required By" },
+        ],
+      },
+    },
+    {
+      left: {
+        title: "Suppliers & Purchasing",
+        fields: [
+          { name: "deliveryOverReceiveAllowance", label: "Delivery Over Receive Allowance" },
+          { name: "invoiceOverChangeAllowance", label: "Invoice Over Change Allowance" },
+        ],
+      },
+      right: {
+        title: "Suppliers & Purchasing Defaults",
+        fields: [
+          { name: "payableAccount", label: "Payable Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "purchaseDiscountAccount", label: "Purchase Discount Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "grnClearingAccount", label: "GRN Clearing Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "receivalRequiredBy", label: "Receival Required By" },
+          { name: "showPOItemCodes", label: "Show PO Item Codes", type: 'checkbox' },
+        ],
+      },
+    },
+    {
+      left: {
+        title: "Inventory",
+        fields: [
+          { name: "allowNegativeInventory", label: "Allow Negative Inventory", type: 'checkbox' },
+          { name: "noZeroAmountsService", label: "No Zero Amounts (Service)", type: 'checkbox' },
+          { name: "locationNotification", label: "Location Notification", type: 'checkbox' },
+          { name: "allowNegativePrices", label: "Allow Negative Prices", type: 'checkbox' },
+        ],
+      },
+      right: {
+        title: "Item Defaults",
+        fields: [
+          { name: "itemSalesAccount", label: "Sales Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "inventoryAccount", label: "Inventory Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "cogsAccount", label: "C.O.G.S. Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "inventoryAdjustmentsAccount", label: "Inventory Adjustments Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "wipAccount", label: "WIP Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+        ],
+      },
+    },
+    {
+      left: {
+        title: "Fixed Assets Defaults",
+        fields: [
+          { name: "lossOnAssetDisposalAccount", label: "Loss on Asset Disposal Account", select: true, options: (() => {
+            // Group chart masters by account_type
+            const groupedAccounts: { [key: string]: any[] } = {};
+            chartMasters.forEach((acc) => {
+              const type = acc.account_type || "Unknown";
+              if (!groupedAccounts[type]) groupedAccounts[type] = [];
+              groupedAccounts[type].push(acc);
+            });
+
+            // Create grouped menu items with headers
+            return Object.entries(groupedAccounts).flatMap(([typeKey, accounts]) => {
+              const typeText = accountTypeMap[Number(typeKey)] || "Unknown";
+              return [
+                <ListSubheader key={`header-${typeKey}`}>{typeText}</ListSubheader>,
+                ...accounts.map((acc) => (
+                  <MenuItem key={acc.account_code} value={acc.account_code}>
+                    <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
+                      {acc.account_code}- {acc.account_name}
+                    </Stack>
+                  </MenuItem>
+                )),
+              ];
+            });
+          }) },
+          { name: "depreciationPeriod", label: "Depreciation Period", select: true, options: depreciationPeriods.map((dp: any) => ({ value: dp.id.toString(), label: dp.name })) },
+        ],
+      },
+      right: {
+        title: "Manufacturing Defaults",
+        fields: [{ name: "workOrderRequiredByAfter", label: "Work Order Required By After" }],
+      },
+    },
+  ];
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -93,126 +671,50 @@ export default function SystemGLSetupForm() {
     }
   };
 
-  const renderSection = (title: string, fields: { name: string; label: string }[]) => (
+  const renderSection = (title: string, fields: { name: string; label: string; type?: string; select?: boolean; options?: { value: string; label: string }[] | (() => JSX.Element[]) }[]) => (
     <Box sx={{ mb: 4 }}>
       <Typography variant="subtitle1">{title}</Typography>
       <Divider sx={{ mb: 2 }} />
       <Stack spacing={2}>
         {fields.map((field) => (
-          <TextField
-            key={field.name}
-            fullWidth
-            size="small"
-            label={field.label}
-            name={field.name}
-            value={formData[field.name]}
-            onChange={handleChange}
-            error={!!errors[field.name]}
-            helperText={errors[field.name] || ""}
-          />
+          field.type === 'checkbox' ? (
+            <FormControlLabel
+              key={field.name}
+              control={
+                <Checkbox
+                  checked={formData[field.name] === 'true'}
+                  onChange={(e) => setFormData({ ...formData, [field.name]: e.target.checked ? 'true' : 'false' })}
+                  name={field.name}
+                />
+              }
+              label={field.label}
+            />
+          ) : (
+            <TextField
+              key={field.name}
+              fullWidth
+              size="small"
+              label={field.label}
+              name={field.name}
+              value={formData[field.name]}
+              onChange={handleChange}
+              error={!!errors[field.name]}
+              helperText={errors[field.name] || ""}
+              select={field.select}
+            >
+              {field.select && (
+                typeof field.options === 'function' ? (field.options as () => JSX.Element[])() : field.options?.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))
+              )}
+            </TextField>
+          )
         ))}
       </Stack>
     </Box>
   );
-
-  const sectionPairs = [
-    {
-      left: {
-        title: "General GL",
-        fields: [
-          { name: "pastDueDaysInterval", label: "Past Due Days Interval" },
-          { name: "accountType", label: "Account Type" },
-          { name: "retainedEarnings", label: "Retained Earnings" },
-          { name: "profitLossYear", label: "Profit/Loss Year" },
-          { name: "exchangeVariancesAccount", label: "Exchange Variances Account" },
-          { name: "bankChargesAccount", label: "Bank Charges Account" },
-          { name: "taxAlgorithm", label: "Tax Algorithm" },
-        ],
-      },
-      right: {
-        title: "Dimension Defaults",
-        fields: [{ name: "dimensionRequiredByAfter", label: "Dimension Required By After" }],
-      },
-    },
-    {
-      left: {
-        title: "Customers & Sales",
-        fields: [
-          { name: "defaultCreditLimit", label: "Default Credit Limit" },
-          { name: "invoiceIdentification", label: "Invoice Identification" },
-          { name: "accumulateBatchShipping", label: "Accumulate Batch Shipping" },
-          { name: "printItemImageOnQuote", label: "Print Item Image on Quote" },
-          { name: "legalTextOnInvoice", label: "Legal Text on Invoice" },
-          { name: "shippingChargedAccount", label: "Shipping Charged Account" },
-          { name: "deferredIncomeAccount", label: "Deferred Income Account" },
-        ],
-      },
-      right: {
-        title: "Customers & Sales Defaults",
-        fields: [
-          { name: "receivableAccount", label: "Receivable Account" },
-          { name: "salesAccount", label: "Sales Account" },
-          { name: "salesDiscountAccount", label: "Sales Discount Account" },
-          { name: "promptPaymentDiscountAccount", label: "Prompt Payment Discount Account" },
-          { name: "quoteValidDays", label: "Quote Valid Days" },
-          { name: "deliveryRequiredBy", label: "Delivery Required By" },
-        ],
-      },
-    },
-    {
-      left: {
-        title: "Suppliers & Purchasing",
-        fields: [
-          { name: "deliveryOverReceiveAllowance", label: "Delivery Over Receive Allowance" },
-          { name: "invoiceOverChangeAllowance", label: "Invoice Over Change Allowance" },
-        ],
-      },
-      right: {
-        title: "Suppliers & Purchasing Defaults",
-        fields: [
-          { name: "payableAccount", label: "Payable Account" },
-          { name: "purchaseDiscountAccount", label: "Purchase Discount Account" },
-          { name: "grnClearingAccount", label: "GRN Clearing Account" },
-          { name: "receivalRequiredBy", label: "Receival Required By" },
-          { name: "showPOItemCodes", label: "Show PO Item Codes" },
-        ],
-      },
-    },
-    {
-      left: {
-        title: "Inventory",
-        fields: [
-          { name: "allowNegativeInventory", label: "Allow Negative Inventory" },
-          { name: "noZeroAmountsService", label: "No Zero Amounts (Service)" },
-          { name: "locationNotification", label: "Location Notification" },
-          { name: "allowNegativePrices", label: "Allow Negative Prices" },
-        ],
-      },
-      right: {
-        title: "Item Defaults",
-        fields: [
-          { name: "itemSalesAccount", label: "Sales Account" },
-          { name: "inventoryAccount", label: "Inventory Account" },
-          { name: "cogsAccount", label: "C.O.G.S. Account" },
-          { name: "inventoryAdjustmentsAccount", label: "Inventory Adjustments Account" },
-          { name: "wipAccount", label: "WIP Account" },
-        ],
-      },
-    },
-    {
-      left: {
-        title: "Fixed Assets Defaults",
-        fields: [
-          { name: "lossOnAssetDisposalAccount", label: "Loss on Asset Disposal Account" },
-          { name: "depreciationPeriod", label: "Depreciation Period" },
-        ],
-      },
-      right: {
-        title: "Manufacturing Defaults",
-        fields: [{ name: "workOrderRequiredByAfter", label: "Work Order Required By After" }],
-      },
-    },
-  ];
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: 2 }}>

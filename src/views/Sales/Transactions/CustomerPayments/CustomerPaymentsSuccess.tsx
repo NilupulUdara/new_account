@@ -43,8 +43,8 @@ export default function CustomerPaymentsSuccess() {
             </Box>
 
             <Paper sx={{ p: 2 }}>
-                <Typography sx={{ mb: 2 }}>
-                    Delivery # has been entered.
+                <Typography sx={{ mb: 2, textAlign: 'center' }}>
+                   The customer payment has been successfully entered.
                 </Typography>
 
                 <Stack spacing={3} direction="column" alignItems="center">
