@@ -51,7 +51,7 @@ function PurchaseTransactions() {
       path: "/purchase/transactions/direct-supplier-invoice",
     },
     {
-      text: "PAYMENT to SUPPLIERS",
+      text: "PAYMENT TO SUPPLIERS",
       change: -14,
       icon: <AssignmentTurnedInIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
       path: "/purchase/transactions/payment-to-suppliers",
