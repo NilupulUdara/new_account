@@ -214,7 +214,7 @@ export default function CustomerPayments() {
       await createBankTrans(bankTransPayload);
 
       alert("Customer payment added successfully!");
-      navigate(-1);
+      navigate("/sales/transactions/customer-payments/success", { state: { reference, amount, depositDate } });
     } catch (error: any) {
       console.error("Error adding payment:", error);
       alert("Failed to add payment. Please try again.");
