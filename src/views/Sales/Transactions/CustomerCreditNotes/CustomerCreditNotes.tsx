@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
     Box,
     Button,
@@ -21,7 +21,7 @@ import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 // ===== API Imports =====
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
@@ -33,13 +33,18 @@ import { getItems, getItemById } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
-
+import { getSalesPricing } from "../../../../api/SalesPricing/SalesPricingApi";
+import { getTaxTypes } from "../../../../api/Tax/taxServices";
+import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
+import { getDebtorTrans, createDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 
 export default function CustomerCreditNotes() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
 
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
@@ -66,8 +71,12 @@ export default function CustomerCreditNotes() {
     const { data: itemUnits = [] } = useQuery({ queryKey: ["itemUnits"], queryFn: getItemUnits });
     const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
     const { data: locations = [] } = useQuery({ queryKey: ["locations"], queryFn: getInventoryLocations });
+    const { data: salesPricing = [] } = useQuery({ queryKey: ["salesPricing"], queryFn: getSalesPricing });
+    const { data: taxTypes = [] } = useQuery({ queryKey: ["taxTypes"], queryFn: getTaxTypes });
+    const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
 
-    // ===== Table rows =====
+    // ===== Tax-related state =====
+    const [taxGroupItems, setTaxGroupItems] = useState<any[]>([]);
     const [rows, setRows] = useState([
         {
             id: 1,
@@ -79,6 +88,7 @@ export default function CustomerCreditNotes() {
             discount: 0,
             total: 0,
             selectedItemId: null as string | number | null,
+            material_cost: 0,
         },
     ]);
 
@@ -95,6 +105,7 @@ export default function CustomerCreditNotes() {
                 discount: 0,
                 total: 0,
                 selectedItemId: null,
+                material_cost: 0,
             },
         ]);
     };
@@ -126,12 +137,27 @@ export default function CustomerCreditNotes() {
 
     // ===== Auto-generate reference =====
     useEffect(() => {
-        const year = new Date().getFullYear();
-        const random = Math.floor(Math.random() * 1000)
-            .toString()
-            .padStart(3, "0");
-        setReference(`${random}/${year}`);
-    }, []);
+        const fiscalYear = new Date().getFullYear();
+        if (debtorTrans.length === 0) {
+            setReference(`001/${fiscalYear}`);
+            return;
+        }
+        const refsForType = debtorTrans
+            .filter((d: any) => d.trans_type === 11)
+            .map((d: any) => d.reference)
+            .filter((ref: string) => ref && typeof ref === 'string');
+        const numbers = refsForType.map((ref: string) => {
+            const parts = ref.split('/');
+            if (parts.length === 2 && parts[1] === fiscalYear.toString()) {
+                const num = parseInt(parts[0], 10);
+                return isNaN(num) ? 0 : num;
+            }
+            return 0;
+        });
+        const maxNum = Math.max(...numbers, 0);
+        const nextNum = maxNum + 1;
+        setReference(`${nextNum.toString().padStart(3, '0')}/${fiscalYear}`);
+    }, [debtorTrans]);
 
     // Reset branch when customer changes
     useEffect(() => {
@@ -152,25 +178,169 @@ export default function CustomerCreditNotes() {
         }
     }, [customer, customers]);
 
+    // Update prices when sales type changes
+    useEffect(() => {
+        if (salesType && salesPricing.length > 0) {
+            setRows((prev) =>
+                prev.map((r) => {
+                    if (r.selectedItemId) {
+                        const pricing = salesPricing.find(
+                            (p: any) => p.stock_id === r.selectedItemId && p.sales_type_id === salesType
+                        );
+                        const newPrice = pricing ? pricing.price : r.price; // Keep current if not found
+                        return {
+                            ...r,
+                            price: newPrice,
+                            total: r.quantity * newPrice * (1 - r.discount / 100),
+                        };
+                    }
+                    return r;
+                })
+            );
+        }
+    }, [salesType, salesPricing]);
+
+    // Update tax group items when branch changes
+    useEffect(() => {
+        if (branch) {
+            const selectedBranch = branches.find((b: any) => b.branch_code === branch);
+            if (selectedBranch && selectedBranch.tax_group) {
+                getTaxGroupItemsByGroupId(selectedBranch.tax_group)
+                    .then((items) => setTaxGroupItems(items))
+                    .catch((err) => console.error(err));
+            } else {
+                setTaxGroupItems([]);
+            }
+        } else {
+            setTaxGroupItems([]);
+        }
+    }, [branch, branches]);
+
     const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
 
-    const handleProcessCreditNote = () => {
-        if (!customer || rows.length === 0) return;
-        console.log({
-            customer,
-            branch,
-            reference,
-            salesType,
-            shippingCompany,
-            creditNoteDate,
-            dimension,
-            creditNoteType,
-            returnLocation,
-            memo,
-            rows,
+    // Calculate taxes if taxIncl is true
+    const selectedPriceList = useMemo(() => {
+        return salesTypes.find((st: any) => String(st.id) === String(salesType));
+    }, [salesType, salesTypes]);
+
+    const taxCalculations = useMemo(() => {
+        if (taxGroupItems.length === 0) {
+            return [];
+        }
+
+        // Calculate tax amounts for each tax type
+        return taxGroupItems.map((item: any) => {
+            const taxTypeData = taxTypes.find((t: any) => t.id === item.tax_type_id);
+            const taxRate = taxTypeData?.default_rate || 0;
+            const taxName = taxTypeData?.description || "Tax";
+
+            let taxAmount = 0;
+            if (selectedPriceList?.taxIncl) {
+                // For prices that include tax, we need to extract the tax amount
+                // Tax amount = subtotal - (subtotal / (1 + rate/100))
+                taxAmount = subTotal - (subTotal / (1 + taxRate / 100));
+            } else {
+                // For prices that don't include tax, calculate tax on subtotal
+                // Tax amount = subtotal * (rate/100)
+                taxAmount = subTotal * (taxRate / 100);
+            }
+
+            return {
+                name: taxName,
+                rate: taxRate,
+                amount: taxAmount,
+            };
         });
+    }, [selectedPriceList, taxGroupItems, taxTypes, subTotal]);
+
+    const totalTaxAmount = taxCalculations.reduce((sum, tax) => sum + tax.amount, 0);
+
+    const hasValidRows = rows.some(r => r.selectedItemId && r.quantity > 0);
+
+    const handleProcessCreditNote = async () => {
+        if (!customer) {
+            alert("Please select a customer.");
+            return;
+        }
+        if (!branch) {
+            alert("Please select a branch.");
+            return;
+        }
+        if (!hasValidRows) {
+            alert("Please add items with quantity greater than 0.");
+            return;
+        }
+        // Compute next trans_no for trans_type 11 (credit note)
+        const existingDebtorTrans = (debtorTrans || []) as any[];
+        const maxTrans = existingDebtorTrans
+            .filter((d: any) => Number(d.trans_type) === 11 && d.trans_no != null)
+            .reduce((m: number, d: any) => Math.max(m, Number(d.trans_no)), 0);
+        const nextTransNo = maxTrans + 1;
+
+        const selectedCustomer = customers.find((c: any) => c.debtor_no === customer);
+
+        const total = subTotal + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount);
+
+        const debtorPayload = {
+            trans_no: nextTransNo,
+            trans_type: 11,
+            version: 0,
+            debtor_no: Number(customer),
+            branch_code: Number(branch),
+            tran_date: creditNoteDate,
+            due_date: creditNoteDate,
+            reference,
+            tpe: salesType,
+            order_no: 0,
+            ov_amount: total,
+            ov_gst: 0,
+            ov_freight: 0,
+            ov_freight_tax: 0,
+            ov_discount: 0,
+            alloc: 0,
+            prep_amount: 0,
+            rate: 1,
+            ship_via:  Number(shippingCompany),
+            dimension_id: 0,
+            dimension2_id: 0,
+            payment_terms: selectedCustomer?.payment_terms || null,
+            tax_included: selectedPriceList?.taxIncl ? 1 : 0,
+        };
+      //  console.log("Posting debtor_trans payload", debtorPayload);
+        const debtorResp = await createDebtorTran(debtorPayload as any);
+        const debtorTransNo = debtorResp?.trans_no ?? debtorResp?.id ?? null;
+       // console.log("Debtor trans created:", debtorResp, "debtorTransNo:", debtorTransNo);
+
+        // Create debtor_trans_details
+        const detailsToPost = rows.filter(r => r.selectedItemId);
+       // console.log("Number of details to post:", detailsToPost.length);
+        for (const row of detailsToPost) {
+            const debtorDetailPayload = {
+                debtor_trans_no: debtorTransNo,
+                debtor_trans_type: 11,
+                stock_id: row.itemCode,
+                description: row.description,
+                unit_price: row.price,
+                unit_tax: 0,
+                quantity: row.quantity,
+                discount_percent: row.discount,
+                standard_cost: row.material_cost,
+                qty_done: 0,
+                src_id: 1,
+            };
+            console.log("Posting debtor_trans_detail", debtorDetailPayload);
+            try {
+                const response = await createDebtorTransDetail(debtorDetailPayload);
+                console.log("Debtor trans detail posted successfully:", response);
+            } catch (error) {
+                console.error("Failed to post debtor trans detail:", error);
+            }
+        }
+
         alert("Credit Note processed successfully!");
-        navigate(-1);
+        queryClient.invalidateQueries({ queryKey: ["debtorTrans"] });
+        queryClient.invalidateQueries({ queryKey: ["debtorTransDetails"] });
+        navigate("/sales/transactions/customer-credit-notes/success", { state: { trans_no: debtorTransNo, reference } });
     };
 
     const breadcrumbItems = [
@@ -293,6 +463,9 @@ export default function CustomerCreditNotes() {
                                 onChange={(e) => setDimension(e.target.value)}
                                 size="small"
                             >
+                                <MenuItem value="">
+                                    <em>None</em>
+                                </MenuItem>
                                 {/* {dimensions.map((d: any) => (
                     <MenuItem key={d.id} value={d.id}>
                       {d.name}
@@ -351,7 +524,8 @@ export default function CustomerCreditNotes() {
                                                 if (itemData) {
                                                     const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
                                                     handleChange(row.id, "unit", unitName);
-                                                    handleChange(row.id, "price", itemData.material_cost || 0);
+                                                    handleChange(row.id, "price", 0); // Will be updated when sales type is selected
+                                                    handleChange(row.id, "material_cost", itemData.material_cost || 0);
                                                 }
                                             }
                                         }}
@@ -425,6 +599,22 @@ export default function CustomerCreditNotes() {
                             <TableCell sx={{ fontWeight: 600 }}>{subTotal.toFixed(2)}</TableCell>
                             <TableCell></TableCell>
                         </TableRow>
+                        {taxCalculations.map((tax, index) => (
+                            <TableRow key={index}>
+                                <TableCell colSpan={7} sx={{ fontWeight: 600 }}>
+                                    {tax.name} ({tax.rate}%)
+                                </TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>{tax.amount.toFixed(2)}</TableCell>
+                                <TableCell></TableCell>
+                            </TableRow>
+                        ))}
+                        <TableRow>
+                            <TableCell colSpan={7} sx={{ fontWeight: 600 }}>
+                                Total
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>{(subTotal + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount)).toFixed(2)}</TableCell>
+                            <TableCell></TableCell>
+                        </TableRow>
                     </TableFooter>
                 </Table>
             </TableContainer>
@@ -441,9 +631,8 @@ export default function CustomerCreditNotes() {
                             onChange={(e) => setCreditNoteType(e.target.value)}
                             size="small"
                         >
-                            <MenuItem value="">Select Type</MenuItem>
-                            <MenuItem value="Return">Return</MenuItem>
-                            <MenuItem value="Allowance">Allowance</MenuItem>
+                            <MenuItem value="Return">Items Returned to Inventory Location</MenuItem>
+                            <MenuItem value="Allowance">Items Written Off</MenuItem>
                         </TextField>
                     </Grid>
 
