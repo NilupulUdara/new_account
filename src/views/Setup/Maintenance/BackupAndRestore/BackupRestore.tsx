@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+// src/components/BackupRestore/BackupRestore.tsx
+
+import React, { useState, useEffect } from "react";
 import {
     Box,
     Stack,
@@ -20,207 +22,590 @@ import {
     TableRow,
     Paper,
     IconButton,
+    Snackbar,
+    Alert,
+    CircularProgress,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Tooltip,
 } from "@mui/material";
+import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import RestoreIcon from '@mui/icons-material/Restore';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import UploadIcon from '@mui/icons-material/Upload';
+import AddIcon from '@mui/icons-material/Add';
 import theme from "../../../../theme";
+import { backupApiService, CreateBackupRequest, Backup } from "../../../../api/backup/BackupApi";
 
 export default function BackupRestore() {
-    const [formData, setFormData] = useState({
+    // State management
+    const [loading, setLoading] = useState<boolean>(false);
+    const [error, setError] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    
+    // Data state
+    const [backups, setBackups] = useState<Backup[]>([]);
+    const [formData, setFormData] = useState<CreateBackupRequest>({
         comments: "",
-        compression: "No",
-        file: null as File | null,
+        compression: "none",
+        include_data: true,
+        include_schema: true,
+    });
+    
+    // UI state
+    const [selectedBackupId, setSelectedBackupId] = useState<number | null>(null);
+    const [securitySetting, setSecuritySetting] = useState<string>("Protect Security Settings");
+    const [fileToUpload, setFileToUpload] = useState<File | null>(null);
+    
+    // Dialog state
+    const [confirmDialog, setConfirmDialog] = useState<{
+        open: boolean;
+        title: string;
+        message: string;
+        action: () => Promise<void>;
+    }>({
+        open: false,
+        title: "",
+        message: "",
+        action: async () => {},
     });
 
-    const handleChange = (field: string, value: string | File | null) => {
-        setFormData({ ...formData, [field]: value });
+    // Load backups on component mount
+    useEffect(() => {
+        fetchBackups();
+    }, []);
+
+    // Auto-hide messages after 5 seconds
+    useEffect(() => {
+        if (successMessage || error) {
+            const timer = setTimeout(() => {
+                clearMessages();
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [successMessage, error]);
+
+    // API wrapper with loading and error handling
+    const executeApiCall = async <T,>(apiCall: () => Promise<T>): Promise<T | null> => {
+        setLoading(true);
+        clearMessages();
+        
+        try {
+            const result = await apiCall();
+            setLoading(false);
+            return result;
+        } catch (err: any) {
+            console.error('API Error:', err);
+            setError(err.message || 'An error occurred');
+            setLoading(false);
+            return null;
+        }
     };
 
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const clearMessages = () => {
+        setError(null);
+        setSuccessMessage(null);
+    };
+
+    const fetchBackups = async () => {
+        const result = await executeApiCall(() => backupApiService.getBackups());
+        if (result) {
+            setBackups(result);
+        }
+    };
+
+    const handleCreateBackup = async () => {
+        const result = await executeApiCall(() => backupApiService.createBackup(formData));
+        if (result) {
+            setSuccessMessage(result.message);
+            await fetchBackups();
+            // Reset form
+            setFormData({
+                ...formData,
+                comments: "",
+            });
+        }
+    };
+
+    const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (event.target.files && event.target.files.length > 0) {
-            handleChange("file", event.target.files[0]);
+            const file = event.target.files[0];
+            
+            // Validate file type
+            const validExtensions = ['.sql', '.zip', '.gz'];
+            const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+            
+            if (!validExtensions.includes(fileExtension)) {
+                setError('Please select a valid file (.sql, .zip, .gz)');
+                return;
+            }
+            
+            // Validate file size (100MB max)
+            if (file.size > 100 * 1024 * 1024) {
+                setError('File size must be less than 100MB');
+                return;
+            }
+            
+            setFileToUpload(file);
+            setSuccessMessage(`Selected file: ${file.name}`);
         }
     };
 
-    const handleCreateBackup = () => {
-        console.log(`Create backup requested`, { comments: formData.comments, compression: formData.compression });
-    };
-
-    const handleAction = (action: string, id?: number | null) => {
-        console.log(`Action: ${action}`, { id });
-        if (action === "Delete Backup" && id != null) {
-            setBackups((prev) => prev.filter((b) => b.id !== id));
+    const handleUploadBackup = async () => {
+        if (!fileToUpload) {
+            setError('Please select a file to upload');
+            return;
         }
-        // other actions can be implemented here (view/download/restore)
+
+        const result = await executeApiCall(() => 
+            backupApiService.uploadBackup(fileToUpload)
+        );
+        
+        if (result) {
+            setSuccessMessage(result.message);
+            setFileToUpload(null);
+            await fetchBackups();
+        }
     };
 
-    const [securitySetting, setSecuritySetting] = useState("Protect Security Settings");
-    const [backups, setBackups] = useState<Array<any>>([
-        { id: 1, name: "backup_2025-12-08.sql", size: "2.1 MB", createdAt: "2025-12-08 10:12" },
-        { id: 2, name: "backup_2025-12-01.sql.gz", size: "800 KB", createdAt: "2025-12-01 09:05" },
-    ]);
-    const [selectedBackupId, setSelectedBackupId] = useState<number | null>(null);
+    const handleViewBackup = async (id: number) => {
+        try {
+            setLoading(true);
+            clearMessages();
+            await backupApiService.viewBackupContent(id);
+            setLoading(false);
+        } catch (err: any) {
+            setError(err.message || 'Failed to view backup');
+            setLoading(false);
+        }
+    };
+
+    const handleDownloadBackup = async (id: number) => {
+        try {
+            setLoading(true);
+            clearMessages();
+            await backupApiService.downloadBackupFile(id);
+            setLoading(false);
+        } catch (err: any) {
+            setError(err.message || 'Failed to download backup');
+            setLoading(false);
+        }
+    };
+
+    const handleRestoreBackup = async (id: number) => {
+        setConfirmDialog({
+            open: true,
+            title: "Confirm Database Restore",
+            message: "WARNING: This will overwrite your current database with the selected backup. This action cannot be undone. Are you sure you want to proceed?",
+            action: async () => {
+                const result = await executeApiCall(() => backupApiService.restoreBackup(id));
+                if (result) {
+                    setSuccessMessage(result.message);
+                }
+                setConfirmDialog({ ...confirmDialog, open: false });
+            }
+        });
+    };
+
+    const handleDeleteBackup = async (id: number) => {
+        setConfirmDialog({
+            open: true,
+            title: "Confirm Delete",
+            message: "Are you sure you want to delete this backup? This action cannot be undone.",
+            action: async () => {
+                const result = await executeApiCall(() => backupApiService.deleteBackup(id));
+                if (result) {
+                    setSuccessMessage(result.message);
+                    await fetchBackups();
+                    if (selectedBackupId === id) {
+                        setSelectedBackupId(null);
+                    }
+                }
+                setConfirmDialog({ ...confirmDialog, open: false });
+            }
+        });
+    };
+
+    const handleCloseConfirmDialog = () => {
+        setConfirmDialog({ ...confirmDialog, open: false });
+    };
+
+    const getCompressionIcon = (compression: string) => {
+        switch (compression) {
+            case 'zip': return '🗜️';
+            case 'gzip': return '🗜️';
+            default: return '📄';
+        }
+    };
+
+    const getCompressionColor = (compression: string) => {
+        switch (compression) {
+            case 'zip': return theme.palette.info.main;
+            case 'gzip': return theme.palette.info.main;
+            default: return theme.palette.grey[600];
+        }
+    };
 
     return (
         <Stack alignItems="center" sx={{ p: { xs: 2, md: 3 } }}>
+            {/* Success/Error Messages */}
+            <Snackbar 
+                open={!!successMessage} 
+                autoHideDuration={5000}
+                onClose={clearMessages}
+                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+            >
+                <Alert severity="success" onClose={clearMessages}>
+                    {successMessage}
+                </Alert>
+            </Snackbar>
+            
+            <Snackbar 
+                open={!!error} 
+                autoHideDuration={10000}
+                onClose={clearMessages}
+                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+            >
+                <Alert severity="error" onClose={clearMessages}>
+                    {error}
+                </Alert>
+            </Snackbar>
+
+            {/* Confirmation Dialog */}
+            <Dialog
+                open={confirmDialog.open}
+                onClose={handleCloseConfirmDialog}
+            >
+                <DialogTitle>{confirmDialog.title}</DialogTitle>
+                <DialogContent>
+                    <Typography>{confirmDialog.message}</Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseConfirmDialog} color="primary">
+                        Cancel
+                    </Button>
+                    <Button 
+                        onClick={confirmDialog.action} 
+                        color="primary" 
+                        variant="contained"
+                        disabled={loading}
+                    >
+                        {loading ? <CircularProgress size={24} /> : 'Confirm'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
             <Box
                 sx={{
                     width: "100%",
-                    maxWidth: "900px",
+                    maxWidth: "1200px",
                     p: theme.spacing(3),
                     boxShadow: theme.shadows[2],
                     borderRadius: theme.shape.borderRadius,
                     backgroundColor: theme.palette.background.paper,
                 }}
             >
-                <Typography
-                    variant="h5"
-                    sx={{ mb: theme.spacing(3), textAlign: "center" }}
-                >
-                    Backup & Restore Database
+                {/* Header */}
+                <Typography variant="h5" sx={{ mb: 3 }}>
+                    Database Backup & Restore
                 </Typography>
 
+                {/* Loading Indicator */}
+                {loading && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+                        <CircularProgress />
+                        <Typography variant="body2" sx={{ ml: 2, alignSelf: 'center' }}>
+                            Processing...
+                        </Typography>
+                    </Box>
+                )}
+
                 <Grid container spacing={4}>
-                    {/* Create Backup Section */}
-                    <Grid item xs={12}>
-                        <Stack spacing={2}>
-                            <Typography variant="subtitle1">Create Backup</Typography>
-                            <Divider />
+                    {/* Left Column - Create Backup */}
+                    <Grid item xs={12} md={6}>
+                        <Stack spacing={3}>
+                            <Box>
+                                <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>
+                                    Create New Backup
+                                </Typography>
+                                <Divider />
+                                
+                                <Stack spacing={2} sx={{ mt: 2 }}>
+                                    <TextField
+                                        label="Backup Comments (Optional)"
+                                        value={formData.comments}
+                                        onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
+                                        size="small"
+                                        fullWidth
+                                        multiline
+                                        rows={2}
+                                        placeholder="Add a description for this backup..."
+                                    />
 
-                            <TextField
-                                label="Comments"
-                                value={formData.comments}
-                                onChange={(e) => handleChange("comments", e.target.value)}
-                                size="small"
-                                fullWidth
-                            />
+                                    <TextField
+                                        select
+                                        label="Compression Type"
+                                        value={formData.compression}
+                                        onChange={(e) => setFormData({ ...formData, compression: e.target.value as any })}
+                                        size="small"
+                                        fullWidth
+                                    >
+                                        <MenuItem value={"none"}>
+                                            <Stack direction="row" alignItems="center" spacing={1}>
+                                                <span>📄</span>
+                                                <span>No Compression (SQL)</span>
+                                            </Stack>
+                                        </MenuItem>
+                                        <MenuItem value={"zip"}>
+                                            <Stack direction="row" alignItems="center" spacing={1}>
+                                                <span>🗜️</span>
+                                                <span>ZIP Compression</span>
+                                            </Stack>
+                                        </MenuItem>
+                                        <MenuItem value={"gzip"}>
+                                            <Stack direction="row" alignItems="center" spacing={1}>
+                                                <span>🗜️</span>
+                                                <span>GZIP Compression</span>
+                                            </Stack>
+                                        </MenuItem>
+                                    </TextField>
 
-                            <TextField
-                                select
-                                label="Compression"
-                                value={formData.compression}
-                                onChange={(e) => handleChange("compression", e.target.value)}
-                                size="small"
-                                fullWidth
-                            >
-                                <MenuItem value={"No"}>No</MenuItem>
-                                <MenuItem value={"zip"}>zip</MenuItem>
-                                <MenuItem value={"gzip"}>gzip</MenuItem>
-                            </TextField>
+                                    <Button
+                                        variant="contained"
+                                        onClick={handleCreateBackup}
+                                        disabled={loading}
+                                        startIcon={<AddIcon />}
+                                        sx={{ 
+                                            backgroundColor: theme.palette.primary.main,
+                                            '&:hover': {
+                                                backgroundColor: theme.palette.primary.dark,
+                                            }
+                                        }}
+                                    >
+                                        Create Backup
+                                    </Button>
+                                </Stack>
+                            </Box>
 
-                            <Button
-                                variant="contained"
-                                sx={{ backgroundColor: theme.palette.primary.main }}
-                                onClick={handleCreateBackup}
-                            >
-                                Create Backup
-                            </Button>
+                            {/* Upload Backup */}
+                            <Box>
+                                <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>
+                                    Upload Existing Backup
+                                </Typography>
+                                <Divider />
+                                
+                                <Stack spacing={2} sx={{ mt: 2 }}>
+                                    <Stack direction="row" spacing={2} alignItems="center">
+                                        <Button 
+                                            variant="outlined" 
+                                            component="label"
+                                            disabled={loading}
+                                            startIcon={<UploadIcon />}
+                                        >
+                                            Choose Backup File
+                                            <input
+                                                type="file"
+                                                hidden
+                                                onChange={handleFileSelect}
+                                                accept=".sql,.zip,.gz"
+                                            />
+                                        </Button>
+                                        {fileToUpload && (
+                                            <Typography variant="body2" color="textSecondary">
+                                                Selected: {fileToUpload.name}
+                                            </Typography>
+                                        )}
+                                    </Stack>
+                                    
+                                    <Button
+                                        variant="outlined"
+                                        onClick={handleUploadBackup}
+                                        disabled={!fileToUpload || loading}
+                                        color="secondary"
+                                    >
+                                        Upload Backup
+                                    </Button>
+                                    
+                                    <Typography variant="caption" color="textSecondary">
+                                        Supported formats: .sql, .zip, .gz (Max 100MB)
+                                    </Typography>
+                                </Stack>
+                            </Box>
                         </Stack>
                     </Grid>
 
-                    {/* Backup Scripts Maintenance Section */}
-                    <Grid item xs={12}>
-                        <Stack spacing={2}>
-                            <Typography variant="subtitle1">Backup Scripts Maintenance</Typography>
-                            <Divider /> 
-
-                            <TableContainer component={Paper} sx={{ mt: 1 }}>
-                                <Table size="small">
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell>File Name</TableCell>
-                                            <TableCell>Size</TableCell>
-                                            <TableCell>Created At</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {backups.map((b) => {
-                                            const selected = selectedBackupId === b.id;
-                                            return (
-                                                <TableRow
-                                                    key={b.id}
-                                                    onClick={() => setSelectedBackupId(b.id)}
-                                                    sx={{ cursor: 'pointer', backgroundColor: selected ? theme.palette.action.selected : 'inherit' }}
-                                                >
-                                                    <TableCell>{b.name}</TableCell>
-                                                    <TableCell>{b.size}</TableCell>
-                                                    <TableCell>{b.createdAt}</TableCell>
+                    {/* Right Column - Backup List */}
+                    <Grid item xs={12} md={6}>
+                        <Stack spacing={3}>
+                            <Box>
+                                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                                        Existing Backups ({backups.length})
+                                    </Typography>
+                                    <Typography variant="caption" color="textSecondary">
+                                        Select a backup to perform actions
+                                    </Typography>
+                                </Stack>
+                                <Divider />
+                                
+                                {backups.length === 0 ? (
+                                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                                        <Typography color="textSecondary">
+                                            No backups found. Create your first backup!
+                                        </Typography>
+                                    </Box>
+                                ) : (
+                                    <TableContainer component={Paper} sx={{ mt: 2, maxHeight: 400 }}>
+                                        <Table size="small" stickyHeader>
+                                            <TableHead>
+                                                <TableRow>
+                                                    <TableCell>Backup Name</TableCell>
+                                                    <TableCell align="right">Size</TableCell>
+                                                    <TableCell align="center">Actions</TableCell>
                                                 </TableRow>
-                                            );
-                                        })}
-                                        {backups.length === 0 && (
-                                            <TableRow>
-                                                <TableCell colSpan={3} align="center">No backups found</TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
+                                            </TableHead>
+                                            <TableBody>
+                                                {backups.map((backup) => (
+                                                    <TableRow
+                                                        key={backup.id}
+                                                        hover
+                                                        selected={selectedBackupId === backup.id}
+                                                        onClick={() => setSelectedBackupId(backup.id)}
+                                                        sx={{ cursor: 'pointer' }}
+                                                    >
+                                                        <TableCell>
+                                                            <Stack spacing={0.5}>
+                                                                <Stack direction="row" alignItems="center" spacing={1}>
+                                                                    <span>{getCompressionIcon(backup.compression)}</span>
+                                                                    <Typography variant="body2" noWrap>
+                                                                        {backup.name}
+                                                                    </Typography>
+                                                                </Stack>
+                                                                <Stack direction="row" spacing={2}>
+                                                                    <Typography 
+                                                                        variant="caption" 
+                                                                        sx={{ 
+                                                                            px: 1, 
+                                                                            borderRadius: 1,
+                                                                            backgroundColor: getCompressionColor(backup.compression),
+                                                                            color: 'white',
+                                                                        }}
+                                                                    >
+                                                                        {backup.compression === 'none' ? 'SQL' : backup.compression.toUpperCase()}
+                                                                    </Typography>
+                                                                    <Typography variant="caption" color="textSecondary">
+                                                                        {backup.createdAt}
+                                                                    </Typography>
+                                                                </Stack>
+                                                                {backup.comments && (
+                                                                    <Typography variant="caption" color="textSecondary" noWrap>
+                                                                        {backup.comments}
+                                                                    </Typography>
+                                                                )}
+                                                            </Stack>
+                                                        </TableCell>
+                                                        <TableCell align="right">
+                                                            <Typography variant="body2">
+                                                                {backup.size}
+                                                            </Typography>
+                                                        </TableCell>
+                                                        <TableCell align="center">
+                                                            <Stack direction="row" spacing={0.5} justifyContent="center">
+                                                                <Tooltip title="View Backup">
+                                                                    <IconButton 
+                                                                        size="small" 
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleViewBackup(backup.id);
+                                                                        }}
+                                                                        disabled={loading}
+                                                                    >
+                                                                        <VisibilityIcon fontSize="small" />
+                                                                    </IconButton>
+                                                                </Tooltip>
+                                                                <Tooltip title="Download Backup">
+                                                                    <IconButton 
+                                                                        size="small" 
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleDownloadBackup(backup.id);
+                                                                        }}
+                                                                        disabled={loading}
+                                                                    >
+                                                                        <DownloadIcon fontSize="small" />
+                                                                    </IconButton>
+                                                                </Tooltip>
+                                                                <Tooltip title="Restore Database">
+                                                                    <IconButton 
+                                                                        size="small" 
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleRestoreBackup(backup.id);
+                                                                        }}
+                                                                        disabled={loading}
+                                                                        sx={{ color: theme.palette.warning.main }}
+                                                                    >
+                                                                        <RestoreIcon fontSize="small" />
+                                                                    </IconButton>
+                                                                </Tooltip>
+                                                                <Tooltip title="Delete Backup">
+                                                                    <IconButton 
+                                                                        size="small" 
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleDeleteBackup(backup.id);
+                                                                        }}
+                                                                        disabled={loading}
+                                                                        sx={{ color: theme.palette.error.main }}
+                                                                    >
+                                                                        <DeleteIcon fontSize="small" />
+                                                                    </IconButton>
+                                                                </Tooltip>
+                                                            </Stack>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </TableContainer>
+                                )}
+                            </Box>
 
-                            <Stack spacing={1}>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: theme.spacing(1), flexWrap: 'wrap' }}>
-                                    <Button
-                                        variant="outlined"
-                                        onClick={() => handleAction("View Backup", selectedBackupId)}
-                                        disabled={selectedBackupId == null}
-                                    >
-                                        View Backup
-                                    </Button>
-                                    <Button
-                                        variant="outlined"
-                                        onClick={() => handleAction("Download Backup", selectedBackupId)}
-                                        disabled={selectedBackupId == null}
-                                    >
-                                        Download Backup
-                                    </Button>
-                                    <Button
-                                        variant="outlined"
-                                        onClick={() => handleAction("Restore Backup", selectedBackupId)}
-                                        disabled={selectedBackupId == null}
-                                    >
-                                        Restore Backup
-                                    </Button>
-                                    <Button
-                                        variant="outlined"
-                                        color="error"
-                                        onClick={() => handleAction("Delete Backup", selectedBackupId)}
-                                        disabled={selectedBackupId == null}
-                                    >
-                                        Delete Backup
-                                    </Button>
-                                </Box>
-
-                                <Box>
-                                    <FormControl component="fieldset">
-                                        <RadioGroup
-                                            value={securitySetting}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                setSecuritySetting(val);
-                                                handleAction(val);
-                                            }}
-                                        >
-                                            <FormControlLabel value="Update Security Settings" control={<Radio />} label="Update Security Settings" />
-                                            <FormControlLabel value="Protect Security Settings" control={<Radio />} label="Protect Security Settings" />
-                                        </RadioGroup>
-                                    </FormControl>
-                                </Box>
-                            </Stack>
-
-                            {/* File upload */}
-                            <Stack direction="row" spacing={2} alignItems="center">
-                                <Button variant="outlined" component="label">
-                                    Choose File
-                                    <input
-                                        type="file"
-                                        hidden
-                                        onChange={handleFileChange}
-                                    />
-                                </Button>
-                                <Typography variant="body2">
-                                    {formData.file ? formData.file.name : "No file chosen"}
+                            {/* Security Settings */}
+                            <Box>
+                                <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>
+                                    Security Settings
                                 </Typography>
-                            </Stack>
+                                <Divider />
+                                
+                                <FormControl component="fieldset" sx={{ mt: 2 }}>
+                                    <RadioGroup
+                                        value={securitySetting}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setSecuritySetting(val);
+                                            setSuccessMessage(`Security settings updated to: ${val}`);
+                                        }}
+                                    >
+                                        <FormControlLabel 
+                                            value="Update Security Settings" 
+                                            control={<Radio size="small" />} 
+                                            label="Update Security Settings" 
+                                        />
+                                        <FormControlLabel 
+                                            value="Protect Security Settings" 
+                                            control={<Radio size="small" />} 
+                                            label="Protect Security Settings" 
+                                        />
+                                    </RadioGroup>
+                                </FormControl>
+                            </Box>
 
-                            {/* Action Buttons */}
+                            {/* Footer Actions */}
                             <Box
                                 sx={{
                                     display: "flex",
@@ -237,14 +622,15 @@ export default function BackupRestore() {
                                 >
                                     Back
                                 </Button>
-
+                                
                                 <Button
-                                    variant="contained"
-                                    sx={{ backgroundColor: theme.palette.primary.main }}
+                                    variant="outlined"
                                     fullWidth
-                                    onClick={() => handleAction("Upload File")}
+                                    onClick={fetchBackups}
+                                    disabled={loading}
+                                    startIcon={<RefreshIcon />}
                                 >
-                                    Upload File
+                                    Refresh List
                                 </Button>
                             </Box>
                         </Stack>
