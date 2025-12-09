@@ -8,7 +8,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 export default function CustomerCreditNotesSuccess() {
     const navigate = useNavigate();
     const { state } = useLocation();
-    const { location: loc, reference, date } = state || {};
+    const { location: loc, reference, date, trans_no } = state || {};
 
     const breadcrumbItems = [
         { title: "Home", href: "/home" },
@@ -43,8 +43,8 @@ export default function CustomerCreditNotesSuccess() {
             </Box>
 
             <Paper sx={{ p: 2 }}>
-                <Typography sx={{ mb: 2 }}>
-                    Credit Note # has been processed
+                <Typography sx={{ mb: 2, textAlign: 'center' }}>
+                    Credit Note # {trans_no} has been processed
                 </Typography>
 
                 <Stack spacing={3} direction="column" alignItems="center">

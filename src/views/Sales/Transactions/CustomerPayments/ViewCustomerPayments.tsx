@@ -20,6 +20,8 @@ import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi";
+import { getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { getBankTrans } from "../../../../api/BankTrans/BankTransApi";
 
 export default function ViewCustomerPayments() {
   const { state } = useLocation();
@@ -27,11 +29,8 @@ export default function ViewCustomerPayments() {
 
   const {
     fromCustomer,
-    customerCurrency,
-    intoBankAccount,
     reference,
     amount,
-    bankAmount,
     dateOfDeposit,
     discount,
     paymentType,
@@ -51,23 +50,54 @@ export default function ViewCustomerPayments() {
     queryFn: getBankAccounts,
   });
 
+  // Fetch debtor transactions
+  const { data: debtorTransList = [] } = useQuery({
+    queryKey: ["debtorTrans"],
+    queryFn: getDebtorTrans,
+  });
+
+  // Fetch bank transactions
+  const { data: bankTransList = [] } = useQuery({
+    queryKey: ["bankTrans"],
+    queryFn: getBankTrans,
+  });
+
+  // Find the debtor transaction with trans_type = 12 and matching reference
+  const debtorTrans = debtorTransList.find(
+    (dt: any) => dt.trans_type === 12 && dt.reference === reference
+  );
+
+  // Find the corresponding bank transaction
+  const bankTrans = bankTransList.find(
+    (bt: any) => bt.type === 12 && bt.trans_no === debtorTrans?.trans_no
+  );
+
   // Resolve customer name
   const customerName = useMemo(() => {
-    if (!fromCustomer) return "-";
+    if (!debtorTrans?.debtor_no) return "-";
     const found = (customers || []).find(
-      (c: any) => String(c.id) === String(fromCustomer)
+      (c: any) => String(c.debtor_no) === String(debtorTrans.debtor_no)
     );
-    return found ? found.name : fromCustomer;
-  }, [customers, fromCustomer]);
+    return found ? found.name : debtorTrans.debtor_no;
+  }, [customers, debtorTrans]);
+
+  // Resolve customer currency
+  const customerCurrency = useMemo(() => {
+    if (!debtorTrans?.debtor_no) return "-";
+    const found = (customers || []).find(
+      (c: any) => String(c.debtor_no) === String(debtorTrans.debtor_no)
+    );
+    return found ? found.curr_code || found.currency || "-" : "-";
+  }, [customers, debtorTrans]);
 
   // Resolve bank account name
   const bankAccountName = useMemo(() => {
-    if (!intoBankAccount) return "-";
+    if (!bankTrans?.bank_act) return "-";
     const found = (bankAccounts || []).find(
-      (b: any) => String(b.id) === String(intoBankAccount)
+      (b: any) => String(b.id) === String(bankTrans.bank_act)
     );
-    return found ? found.bank_account_name || found.account_name : intoBankAccount;
-  }, [bankAccounts, intoBankAccount]);
+    return found ? found.bank_account_name || found.account_name : bankTrans.bank_act;
+  }, [bankAccounts, bankTrans]);
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
@@ -89,7 +119,7 @@ export default function ViewCustomerPayments() {
         }}
       >
         <Box>
-          <PageTitle title={`Customer Payment - ${reference || "-"}`} />
+          <PageTitle title={`Customer Payment - ${debtorTrans?.trans_no || reference || "-"}`} />
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
         <Button
@@ -107,7 +137,7 @@ export default function ViewCustomerPayments() {
           variant="h6"
           sx={{ mb: 2, fontWeight: 600, color: "var(--pallet-dark-blue)" }}
         >
-          Customer Payment #
+          Customer Payment #{debtorTrans?.trans_no }
         </Typography>
 
         <Grid container spacing={2}>
@@ -128,27 +158,27 @@ export default function ViewCustomerPayments() {
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography>
-              <b>Reference:</b> {reference || "-"}
+              <b>Reference:</b> {debtorTrans?.reference || reference || "-"}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography>
-              <b>Amount:</b> {amount || "-"}
+              <b>Amount:</b> {debtorTrans?.ov_amount?.toFixed(2) || amount || "-"}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography>
-              <b>Bank Amount:</b> {bankAmount || "-"}
+              <b>Bank Amount:</b> {bankTrans?.amount?.toFixed(2) || "-"}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography>
-              <b>Date of Deposit:</b> {dateOfDeposit || "-"}
+              <b>Date of Deposit:</b> {debtorTrans?.tran_date || dateOfDeposit || "-"}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography>
-              <b>Discount:</b> {discount || "-"}
+              <b>Discount:</b> {debtorTrans?.ov_discount?.toFixed(2) || discount || "-"}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
