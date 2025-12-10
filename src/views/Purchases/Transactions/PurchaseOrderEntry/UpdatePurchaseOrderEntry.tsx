@@ -21,6 +21,7 @@ import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { useLocation } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
@@ -31,12 +32,24 @@ import { getTags } from "../../../../api/DimensionTag/DimensionTagApi";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import {
+  getPurchOrderByOrderNo,
+  updatePurchOrder,
+} from "../../../../api/PurchOrders/PurchOrderApi";
+import {
+  getPurchOrderDetailsByOrderNo,
+  createPurchOrderDetail,
+  updatePurchOrderDetail,
+  deletePurchOrderDetail,
+} from "../../../../api/PurchOrders/PurchOrderDetailsApi";
 
 export default function UpdatePurchaseOrderEntry() {
   const navigate = useNavigate();
+  const locationRouter = useLocation();
+  const orderNoFromState = locationRouter.state?.id ?? null;
 
   // ========= Form Fields =========
-  const [supplier, setSupplier] = useState(0);
+  const [supplier, setSupplier] = useState("");
   const [supplierRef, setSupplierRef] = useState("");
   const [deliverTo, setDeliverTo] = useState("");
   const [orderDate, setOrderDate] = useState(
@@ -56,6 +69,7 @@ export default function UpdatePurchaseOrderEntry() {
   const [items, setItems] = useState([]);
   const [itemUnits, setItemUnits] = useState([]);
   const [categories, setCategories] = useState<{ category_id: number; description: string }[]>([]);
+  const [deletedDetailIds, setDeletedDetailIds] = useState<any[]>([]);
 
   // ========= Generate Reference =========
   useEffect(() => {
@@ -63,19 +77,20 @@ export default function UpdatePurchaseOrderEntry() {
     const random = Math.floor(Math.random() * 1000)
       .toString()
       .padStart(3, "0");
-    setReference(`PO-${random}/${year}`);
+    setReference(`${random}/${year}`);
   }, []);
 
   // ========= Update Credit When Supplier Changes =========
   useEffect(() => {
-    const selected = suppliers.find((s) => s.id === supplier);
-    setCredit(selected ? selected.credit_limit || selected.credit : 0);
+    const selected = (suppliers || []).find((s: any) => String(s.supplier_id ?? s.id ?? s.debtor_no) === String(supplier));
+    setCredit(selected ? Number(selected.credit_limit ?? selected.credit ?? 0) : 0);
   }, [supplier, suppliers]);
 
   // ========= Fetch API Data =========
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // fetch lookups first
         const [suppliersData, locationsData, dimensionsData, itemsData, itemUnitsData, categoriesData] = await Promise.all([
           getSuppliers(),
           getInventoryLocations(),
@@ -90,6 +105,55 @@ export default function UpdatePurchaseOrderEntry() {
         setItems(itemsData);
         setItemUnits(itemUnitsData);
         setCategories(categoriesData);
+
+        // if navigated with an order number, fetch that order and its details
+        if (orderNoFromState) {
+          try {
+            const order = await getPurchOrderByOrderNo(orderNoFromState);
+              if (order) {
+                // Map order fields to form state
+                setSupplier(String(order.supplier_id ?? order.supplier ?? order.supp_id ?? ""));
+              setSupplierRef(order.requisition_no ?? order.requisitionNo ?? order.supplier_ref ?? "");
+              setDeliverTo(order.delivery_address ?? order.deliveryAddress ?? "");
+              // normalize order date to YYYY-MM-DD (strip time if present)
+              const rawOrd = order.ord_date ?? order.ordDate ?? new Date().toISOString();
+              setOrderDate(String(rawOrd).split("T")[0]);
+              setReference(order.reference ?? "");
+              setMemo(order.comments ?? order.memo ?? "");
+
+              // resolve receiveInto: convert loc_code to id if necessary
+              const intoLoc = order.into_stock_location ?? order.intoStockLocation ?? order.into_location;
+              const matchedLoc = (locationsData || []).find((l: any) => String(l.loc_code) === String(intoLoc) || String(l.id) === String(intoLoc));
+              setReceiveInto(matchedLoc ? matchedLoc.id : 0);
+            }
+
+            const details = await getPurchOrderDetailsByOrderNo(orderNoFromState);
+            if (Array.isArray(details) && details.length > 0) {
+              const mapped = details.map((d: any, idx: number) => ({
+                id: idx + 1,
+                detailId: d.id ?? d.purch_order_detail_id ?? d.po_detail_id ?? null,
+                stockId: d.item_code ?? d.stock_id ?? d.item ?? d.item_id ?? "",
+                itemCode: d.item_code ?? d.stock_id ?? d.item ?? d.item_id ?? "",
+                description: d.description ?? d.desc ?? "",
+                quantity: Number(d.quantity_ordered ?? d.quantity ?? d.qty ?? 0),
+                unit: ((): string => {
+                  const rawUnit = d.unit ?? d.uom ?? d.unit_code ?? d.unit_id ?? d.uom_code ?? "";
+                  // if unit is numeric id, resolve to abbreviation from itemUnitsData
+                  if (rawUnit && typeof rawUnit !== "string" && typeof rawUnit !== "number") return String(rawUnit);
+                  const rawStr = String(rawUnit ?? "");
+                  const found = (itemUnitsData || []).find((u: any) => String(u.id) === rawStr || String(u.unit_code ?? u.code ?? u.abbr) === rawStr || String(u.abbr) === rawStr);
+                  return found ? (found.abbr ?? String(found.unit_code ?? found.code ?? rawStr)) : rawStr;
+                })(),
+                deliveryDate: String((d.delivery_date ?? d.required_date ?? new Date().toISOString())).split("T")[0],
+                price: Number(d.unit_price ?? d.unitPrice ?? d.act_price ?? d.price ?? 0),
+                total: Number((d.unit_price ?? d.unitPrice ?? d.act_price ?? d.price ?? 0) * (d.quantity_ordered ?? d.quantity ?? d.qty ?? 0)),
+              }));
+              setRows(mapped);
+            }
+          } catch (err) {
+            console.error("Error fetching order or details:", err);
+          }
+        }
       } catch (error) {
         console.error("Error fetching data:", error);
       }
@@ -97,7 +161,6 @@ export default function UpdatePurchaseOrderEntry() {
     fetchData();
   }, []);
 
-  // ========= Table Rows =========
   const [rows, setRows] = useState([
     {
       id: 1,
@@ -130,7 +193,13 @@ export default function UpdatePurchaseOrderEntry() {
   };
 
   const handleRemoveRow = (id) => {
-    setRows((prev) => prev.filter((r) => r.id !== id));
+    setRows((prev) => {
+      const toRemove = prev.find((r) => r.id === id);
+      if (toRemove && (toRemove as any).detailId) {
+        setDeletedDetailIds((prevDel) => [...prevDel, (toRemove as any).detailId]);
+      }
+      return prev.filter((r) => r.id !== id);
+    });
   };
 
   const handleChange = (id, field, value) => {
@@ -151,13 +220,107 @@ export default function UpdatePurchaseOrderEntry() {
     );
   };
 
+  const resolveUnitAbbr = (rawUnit: any) => {
+    const raw = rawUnit ?? "";
+    const s = String(raw);
+    const found = (itemUnits || []).find((u: any) => String(u.id) === s || String(u.abbr) === s || String(u.unit_code ?? u.code ?? "") === s);
+    return found ? (found.abbr ?? String(found.unit_code ?? found.code ?? s)) : s;
+  };
+
   // ========= Subtotal =========
   const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
 
   // ========= Place Order =========
-  const handlePlaceOrder = () => {
-    alert("Purchase Order Placed!");
-    navigate(-1);
+  const handlePlaceOrder = async () => {
+    // Update header and details
+    try {
+      const orderNo = orderNoFromState;
+      if (!orderNo) {
+        alert("No order selected to update.");
+        return;
+      }
+
+      const locObj = (locations || []).find((l: any) => Number(l.id) === Number(receiveInto));
+      const intoStockLocation = locObj ? locObj.loc_code ?? locObj.id : receiveInto;
+
+      const payload = {
+        order_no: Number(orderNo),
+        supplier_id: Number(supplier),
+        comments: memo ?? null,
+        ord_date: orderDate,
+        reference: reference ?? "",
+        requisition_no: supplierRef ?? null,
+        into_stock_location: intoStockLocation,
+        delivery_address: deliverTo ?? "",
+        total: subTotal,
+        prep_amount: 0,
+        alloc: 0,
+        tax_included: false,
+      };
+
+      await updatePurchOrder(Number(orderNo), payload);
+
+      // handle deleted details
+      for (const delId of deletedDetailIds) {
+        try {
+          await deletePurchOrderDetail(delId);
+        } catch (err) {
+          console.warn(`Failed to delete detail ${delId}:`, err);
+        }
+      }
+
+      // update or create details — only for rows that have an item and quantity > 0
+      const detailsToSave = (rows || []).filter((r: any) => (r.itemCode || r.stockId || r.description) && Number(r.quantity) > 0);
+      for (let idx = 0; idx < detailsToSave.length; idx++) {
+        const r = detailsToSave[idx];
+
+        // determine item_code: prefer itemCode, then stockId, then lookup by description
+        let itemCodeValue = r.itemCode ?? r.stockId ?? "";
+        if (!itemCodeValue && r.description) {
+          const foundItem = (items || []).find((it: any) => String(it.description ?? it.item_name ?? it.name) === String(r.description));
+          if (foundItem) itemCodeValue = String(foundItem.stock_id ?? foundItem.id ?? "");
+        }
+
+        if (!itemCodeValue) {
+          console.warn("Skipping detail without item_code:", r);
+          continue;
+        }
+
+        const detailPayload: any = {
+          po_detail_item: idx + 1,
+          order_no: Number(orderNo),
+          item_code: itemCodeValue,
+          description: r.description ?? null,
+          delivery_date: r.deliveryDate,
+          qty_invoiced: Number((r as any).qty_invoiced ?? 0),
+          unit_price: Number(r.price ?? 0),
+          act_price: Number((r as any).act_price ?? r.price ?? 0),
+          std_cost_unit: Number((r as any).std_cost_unit ?? 0),
+          quantity_ordered: Number(r.quantity ?? 0),
+          quantity_received: Number((r as any).quantity_received ?? 0),
+        };
+
+        if ((r as any).detailId) {
+          try {
+            await updatePurchOrderDetail((r as any).detailId, detailPayload);
+          } catch (err) {
+            console.warn(`Failed to update detail ${(r as any).detailId}:`, err);
+          }
+        } else {
+          try {
+            await createPurchOrderDetail(detailPayload);
+          } catch (err) {
+            console.warn("Failed to create detail:", err);
+          }
+        }
+      }
+
+      alert("Purchase order updated successfully.");
+      navigate(-1);
+    } catch (error) {
+      console.error("Error updating purchase order:", error);
+      alert("Failed to update purchase order. See console for details.");
+    }
   };
 
   const breadcrumbItems = [
@@ -193,7 +356,16 @@ export default function UpdatePurchaseOrderEntry() {
         <Grid container spacing={2}>
           <Grid item xs={12} md={4}>
             <Stack spacing={2}>
-              <TextField fullWidth label="Supplier" size="small" value={suppliers.find(s => s.id === supplier)?.supp_name || suppliers.find(s => s.id === supplier)?.name || ''} InputProps={{ readOnly: true }} />
+              <TextField
+                fullWidth
+                label="Supplier"
+                size="small"
+                value={(() => {
+                  const s = (suppliers || []).find((x: any) => String(x.supplier_id ?? x.id ?? x.debtor_no) === String(supplier));
+                  return s ? (s.supp_name ?? s.name ?? s.supplier_name ?? "") : "";
+                })()}
+                InputProps={{ readOnly: true }}
+              />
 
               <TextField label="Order Date" type="date" fullWidth size="small" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} InputLabelProps={{ shrink: true }} />
 
@@ -266,13 +438,13 @@ export default function UpdatePurchaseOrderEntry() {
                     value={row.stockId}
                     onChange={(e) => {
                       const selectedStockId = e.target.value;
-                      const selected = items.find((it) => it.stock_id === selectedStockId);
-                      handleChange(row.id, "stockId", selectedStockId);
+                      const selected = (items || []).find((it) => String(it.stock_id ?? it.id) === String(selectedStockId));
+                      handleChange(row.id, "stockId", String(selectedStockId));
                       if (selected) {
-                        const unitObj = itemUnits.find((u) => u.id === selected.units);
+                        const unitObj = (itemUnits || []).find((u) => String(u.id) === String(selected.units) || String(u.abbr) === String(selected.units));
                         handleChange(row.id, "description", selected.description);
-                        handleChange(row.id, "itemCode", selected.stock_id);
-                        handleChange(row.id, "unit", unitObj ? unitObj.abbr : selected.units);
+                        handleChange(row.id, "itemCode", String(selected.stock_id ?? selected.id));
+                        handleChange(row.id, "unit", unitObj ? (unitObj.abbr ?? String(unitObj.unit_code ?? unitObj.code ?? "")) : String(selected.units ?? ""));
                         handleChange(row.id, "price", selected.material_cost);
                       }
                     }}
@@ -311,7 +483,7 @@ export default function UpdatePurchaseOrderEntry() {
 
                 {/* Unit */}
                 <TableCell>
-                  <TextField size="small" value={row.unit} InputProps={{ readOnly: true }} />
+                  <TextField size="small" value={row.unit || resolveUnitAbbr(row.unit)} InputProps={{ readOnly: true }} />
                 </TableCell>
 
                 {/* Delivery Date */}
