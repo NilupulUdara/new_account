@@ -30,6 +30,10 @@ import { getInventoryLocations } from "../../../../api/InventoryLocation/Invento
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
+import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
+import { getSalesOrderDetails } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -50,6 +54,7 @@ interface Row {
   orderNo?: string;
   orderTotal?: string | number;
   currency: string;
+  isInvoiced?: boolean;
 }
 
 export default function InvoicePrepaidOrders() {
@@ -66,6 +71,11 @@ export default function InvoicePrepaidOrders() {
   const { data: locations = [] } = useQuery({ queryKey: ["inventoryLocations"], queryFn: getInventoryLocations });
   const { data: items = [] } = useQuery({ queryKey: ["items"], queryFn: getItems });
   const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
+  const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
+  const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
+  const { data: branches = [] } = useQuery({ queryKey: ["branches"], queryFn: () => getBranches() });
+  const { data: paymentTerms = [] } = useQuery({ queryKey: ["paymentTerms"], queryFn: getPaymentTerms });
+  const { data: salesOrderDetails = [] } = useQuery({ queryKey: ["salesOrderDetails"], queryFn: getSalesOrderDetails });
 
   // header/state
   const [numberText, setNumberText] = useState("");
@@ -77,8 +87,6 @@ export default function InvoicePrepaidOrders() {
   const [selectedItem, setSelectedItem] = useState("ALL_ITEMS");
   const [selectedCustomer, setSelectedCustomer] = useState("ALL_CUSTOMERS");
 
-  const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
-
   useEffect(() => {
     if (!selectedItem) {
       setItemCode("");
@@ -88,12 +96,45 @@ export default function InvoicePrepaidOrders() {
     setItemCode(it ? String(it.stock_id ?? it.id ?? "") : "");
   }, [selectedItem, items]);
 
+  // Get valid payment terms indicators where payment_type == 1
+  const validPaymentTerms = paymentTerms
+    .filter((pt: any) => pt.payment_type?.id === 1)
+    .map((pt: any) => pt.terms_indicator);
+
   // dummy rows
-  const today = new Date().toISOString().split("T")[0];
-  const rows: Row[] = [
-    { id: 1, deliveryNo: "SO-1001", customer: "Acme Corp", branch: "Main", contact: "John Doe", reference: "REF-001", custRef: "CREF-001", deliveryDate: today, dueBy: "2025-12-14", deliveryTotal: "150.00", currency: "USD" , deliveryTo: "Main Warehouse", orderNo: "ORD-001", orderTotal: "150.00"},
-    { id: 2, deliveryNo: "SO-1002", customer: "Beta Ltd", branch: "Branch A", contact: "Jane Smith", reference: "REF-002", custRef: "CREF-002", deliveryDate: today, dueBy: "2025-12-15", deliveryTotal: "320.00", currency: "LKR", deliveryTo: "Branch Warehouse", orderNo: "ORD-002", orderTotal: "320.00" },
-  ];
+  const rows: Row[] = salesOrders
+    .filter((so: any) => 
+      validPaymentTerms.includes(so.payment_terms) && 
+      so.reference !== "auto" &&
+      (selectedCustomer === "ALL_CUSTOMERS" || so.debtor_no === parseInt(selectedCustomer)) &&
+      (selectedItem === "ALL_ITEMS" || salesOrderDetails.some((detail: any) => detail.order_no === so.order_no && String(detail.stk_code) === selectedItem)) &&
+      (numberText === "" || so.order_no.toString().includes(numberText)) &&
+      (referenceText === "" || so.reference.toLowerCase().includes(referenceText.toLowerCase())) &&
+      (fromDate === "" || so.ord_date >= fromDate) &&
+      (toDate === "" || so.ord_date <= toDate) &&
+      (location === "ALL_LOCATIONS" || so.from_stk_loc === location)
+    )
+    .map((so: any) => {
+      const customer = customers.find((c: any) => c.debtor_no === so.debtor_no);
+      const branch = branches.find((b: any) => b.branch_code === so.branch_code);
+      return {
+        id: so.order_no,
+        deliveryNo: so.order_no,
+        customer: customer?.name || so.debtor_no,
+        branch: branch?.br_name || so.branch_code,
+        contact: "", // Not available
+        reference: so.reference,
+        custRef: so.customer_ref || "",
+        deliveryDate: so.ord_date,
+        dueBy: so.delivery_date,
+        deliveryTotal: so.total,
+        currency: customer?.curr_code || "USD",
+        deliveryTo: so.deliver_to || "",
+        orderNo: so.order_no,
+        orderTotal: so.total,
+        isInvoiced: salesOrderDetails.filter((d: any) => d.order_no === so.order_no).every((d: any) => d.invoiced === 1),
+      };
+    });
 
   const paginatedRows = React.useMemo(() => {
     if (rowsPerPage === -1) return rows;
@@ -208,6 +249,7 @@ export default function InvoicePrepaidOrders() {
               <TableCell>Order Total</TableCell>
               <TableCell>Currency</TableCell>
               <TableCell>New Payment</TableCell>
+              <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
 
@@ -225,6 +267,11 @@ export default function InvoicePrepaidOrders() {
                 <TableCell>{r.orderTotal ?? r.deliveryTotal}</TableCell>
                 <TableCell>{r.currency}</TableCell>
                 <TableCell>{payments[r.id] ?? ""}</TableCell>
+                <TableCell>
+                  { !r.isInvoiced && <Button variant="outlined" size="small" onClick={() => navigate("/sales/transactions/invoice-prepaid-orders/final-invoice-entry", { state: { orderNo: r.orderNo } })}>
+                    Final Invoice
+                  </Button> }
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -233,7 +280,7 @@ export default function InvoicePrepaidOrders() {
             <TableRow>
               <TablePagination
                 rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                colSpan={11}
+                colSpan={12}
                 count={rows.length}
                 rowsPerPage={rowsPerPage}
                 page={page}

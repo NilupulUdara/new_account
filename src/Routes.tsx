@@ -352,6 +352,7 @@ import CustomerPaymentEntry from "./views/BankindAndGeneralLedger/InquiriesAndRe
 import ModifyPurchaseInvoice from "./views/BankindAndGeneralLedger/InquiriesAndReports/JournalInquiry/ModifyPurchaseInvoice";
 import UpdateSalesOrderEntrySuccess from "./views/Sales/Transactions/SalesOrderEntry/UpdateSalesOrderEntrySuccess";
 import ViewCustomerDelivery from "./views/Sales/Transactions/CustomerDelivery/ViewCustomerDelivery";
+import FinalInvoiceEntry from "./views/Sales/Transactions/InvoicePrepaidOrders/FinalInvoiceEntry";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1321,6 +1322,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales invoices edition']}>
               {withLayout(MainLayout, InvoicePrepaidOrders)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/invoice-prepaid-orders/final-invoice-entry"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales invoices edition']}>
+              {withLayout(MainLayout, FinalInvoiceEntry)}
             </ProtectedRoute>
           }
         />
