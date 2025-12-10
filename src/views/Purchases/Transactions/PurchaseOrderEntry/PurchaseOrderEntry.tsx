@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Box,
   Button,
@@ -26,28 +27,33 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import { getSuppliers } from "../../../../api/Supplier/SupplierApi";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 import { getTags } from "../../../../api/DimensionTag/DimensionTagApi";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { createPurchOrder, getPurchOrders } from '../../../../api/PurchOrders/PurchOrderApi';
+import { createPurchOrderDetail } from '../../../../api/PurchOrders/PurchOrderDetailsApi';
 
 export default function PurchaseOrderEntry() {
   const navigate = useNavigate();
 
   // ========= Form Fields =========
-  const [supplier, setSupplier] = useState(0);
+  const [supplier, setSupplier] = useState("");
   const [supplierRef, setSupplierRef] = useState("");
   const [deliverTo, setDeliverTo] = useState("");
   const [orderDate, setOrderDate] = useState(
     new Date().toISOString().split("T")[0]
   );
-  const [dimension, setDimension] = useState(0);
+  const [dimension, setDimension] = useState("");
   const [credit, setCredit] = useState(0);
-  const [receiveInto, setReceiveInto] = useState(0);
+  const [receiveInto, setReceiveInto] = useState("");
   const [reference, setReference] = useState("");
 
   const [memo, setMemo] = useState("");
+
+  // order number will be generated from server-side sequence (client will request max+1)
 
   // API data states
   const [suppliers, setSuppliers] = useState([]);
@@ -57,20 +63,93 @@ export default function PurchaseOrderEntry() {
   const [itemUnits, setItemUnits] = useState([]);
   const [categories, setCategories] = useState<{ category_id: number; description: string }[]>([]);
 
+  // Group items by category for rendering selects; typed as Record<string, any[]>
+  const groupedItemsByCategory: Record<string, any[]> = (items || []).reduce((groups: Record<string, any[]>, item: any) => {
+    const catId = item.category_id || "Uncategorized";
+    if (!groups[catId]) groups[catId] = [];
+    groups[catId].push(item);
+    return groups;
+  }, {} as Record<string, any[]>);
+
+  // Helper to resolve supplier identifier (handles different backend shapes)
+  const resolveSupplierId = (s: any) => s?.id ?? s?.supplier_id ?? s?.supp_id ?? s?.supplierId ?? s?.debtor_no ?? s?.code ?? s?.supp_code ?? null;
+
   // ========= Generate Reference =========
+  // Fetch fiscal years to build fiscal-year-aware reference
+  const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+
   useEffect(() => {
-    const year = new Date().getFullYear();
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, "0");
-    setReference(`PO-${random}/${year}`);
-  }, []);
+    if (!orderDate || fiscalYears.length === 0) {
+      // fallback to calendar year if fiscal years not loaded yet
+      const year = new Date().getFullYear();
+      const random = Math.floor(Math.random() * 1000)
+        .toString()
+        .padStart(3, "0");
+      setReference(`${random}/${year}`);
+      return;
+    }
+
+    const dateObj = new Date(orderDate);
+    if (isNaN(dateObj.getTime())) return;
+
+    // Find fiscal year that contains the orderDate
+    const matching = fiscalYears.find((fy: any) => {
+      if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+      const from = new Date(fy.fiscal_year_from);
+      const to = new Date(fy.fiscal_year_to);
+      if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+      return dateObj >= from && dateObj <= to; // inclusive
+    });
+
+    const chosen = matching || [...fiscalYears]
+      .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
+      .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
+      .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
+
+    if (chosen) {
+      const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
+      const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
+      const yearLabel = chosen.fiscal_year || (fromYear === toYear ? String(fromYear) : `${fromYear}-${toYear}`);
+
+      // Use localStorage to maintain a per-year counter when server-side sequence is not available
+      const storageKey = `po_ref_counter_${yearLabel}`;
+      const stored = localStorage.getItem(storageKey);
+      const nextNum = stored ? Number(stored) + 1 : 1;
+
+      setReference(`${nextNum.toString().padStart(3, '0')}/${yearLabel}`);
+    }
+  }, [orderDate, fiscalYears]);
 
   // ========= Update Credit When Supplier Changes =========
   useEffect(() => {
-    const selected = suppliers.find((s) => s.id === supplier);
-    setCredit(selected ? selected.credit_limit || selected.credit : 0);
+    const selected = suppliers.find((s) => String(resolveSupplierId(s)) === String(supplier));
+    const creditLimit = selected ? Number(selected.credit_limit ?? selected.credit ?? selected.creditLimit ?? 0) : 0;
+    setCredit(creditLimit);
   }, [supplier, suppliers]);
+
+  // Auto-fill Deliver To with selected Receive Into location name (but keep editable).
+  // If deliverTo was previously auto-filled from a location, changing the receiveInto
+  // will update deliverTo to the new location name. If the user edited deliverTo
+  // to a custom value, we won't overwrite it.
+  const prevAutoDeliverRef = React.useRef<string>("");
+  useEffect(() => {
+    try {
+      const selectedLoc = locations.find((l) => String(l.id) === String(receiveInto));
+      const locName = selectedLoc ? (selectedLoc.location_name ?? selectedLoc.name ?? "") : "";
+      if (!locName) return;
+
+      const current = deliverTo ?? "";
+      const isEmpty = current.toString().trim() === "";
+      const wasAuto = current === prevAutoDeliverRef.current;
+
+      if (isEmpty || wasAuto) {
+        setDeliverTo(locName);
+        prevAutoDeliverRef.current = locName;
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [receiveInto, locations]);
 
   // ========= Fetch API Data =========
   useEffect(() => {
@@ -85,7 +164,18 @@ export default function PurchaseOrderEntry() {
           getItemCategories(),
         ]);
         setSuppliers(suppliersData);
+        // if supplier not selected yet, default to first supplier (resolve id field)
+        if ((!supplier || supplier === "") && Array.isArray(suppliersData) && suppliersData.length > 0) {
+          const first = suppliersData[0];
+          const firstId = resolveSupplierId(first);
+          if (firstId != null) setSupplier(String(firstId));
+        }
+
         setLocations(locationsData);
+        // if receiveInto not selected yet, default to first location
+        if ((!receiveInto || receiveInto === "") && Array.isArray(locationsData) && locationsData.length > 0) {
+          setReceiveInto(String(locationsData[0].id));
+        }
         setDimensions(dimensionsData);
         setItems(itemsData);
         setItemUnits(itemUnitsData);
@@ -156,8 +246,125 @@ export default function PurchaseOrderEntry() {
 
   // ========= Place Order =========
   const handlePlaceOrder = () => {
-    alert("Purchase Order Placed!");
-    navigate(-1);
+    // Persist reference counter for fiscal year and submit order + details
+    (async () => {
+      try {
+        // basic validations
+        if (!supplier) { alert('Select supplier first'); return; }
+        const detailsToPost = rows.filter(r => r.itemCode && r.quantity > 0);
+        if (detailsToPost.length === 0) { alert('Add at least one item with quantity > 0'); return; }
+
+        // persist reference counter for fiscal year
+        try {
+          if (orderDate && fiscalYears.length > 0) {
+            const dateObj = new Date(orderDate);
+            if (!isNaN(dateObj.getTime())) {
+              const matching = fiscalYears.find((fy: any) => {
+                if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+                const from = new Date(fy.fiscal_year_from);
+                const to = new Date(fy.fiscal_year_to);
+                if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+                return dateObj >= from && dateObj <= to; // inclusive
+              });
+
+              const chosen = matching || [...fiscalYears]
+                .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
+                .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
+                .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
+
+              if (chosen) {
+                const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
+                const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
+                const yearLabel = chosen.fiscal_year || (fromYear === toYear ? String(fromYear) : `${fromYear}-${toYear}`);
+
+                const storageKey = `po_ref_counter_${yearLabel}`;
+                const stored = localStorage.getItem(storageKey);
+                const current = stored ? Number(stored) + 1 : 1;
+                localStorage.setItem(storageKey, String(current));
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to persist PO reference counter', e);
+        }
+
+        // resolve supplier id and location code
+        const selectedSupplierObj = suppliers.find((s: any) => String(resolveSupplierId(s)) === String(supplier));
+        const supplierIdToSend = selectedSupplierObj ? Number(resolveSupplierId(selectedSupplierObj)) : null;
+        if (!supplierIdToSend) { throw new Error('Missing supplier id'); }
+
+        const selectedLocationObj = locations.find((l: any) => String(l.id) === String(receiveInto));
+        const intoLocationCode = selectedLocationObj ? (selectedLocationObj.loc_code || selectedLocationObj.location_name || String(receiveInto)) : String(receiveInto || "");
+
+        // determine next order_no by querying existing purchase orders (safe small int)
+        let nextOrderNo: number | null = null;
+        try {
+          const allOrders = await getPurchOrders();
+          if (Array.isArray(allOrders) && allOrders.length > 0) {
+            const nums = allOrders.map((o: any) => Number(o.order_no ?? o.id ?? 0)).filter((n: number) => !isNaN(n) && n > 0);
+            const maxNum = nums.length > 0 ? Math.max(...nums) : 0;
+            nextOrderNo = maxNum + 1;
+          } else {
+            nextOrderNo = 1;
+          }
+        } catch (e) {
+          console.warn('Failed to fetch existing purchase orders, falling back to 1', e);
+          nextOrderNo = 1;
+        }
+
+        const payload: any = {
+          order_no: nextOrderNo,
+          supplier_id: supplierIdToSend,
+          comments: memo || null,
+          ord_date: orderDate,
+          reference: reference,
+          requisition_no: supplierRef || null,
+          into_stock_location: intoLocationCode,
+          delivery_address: deliverTo || "",
+          total: Number(subTotal) || 0,
+          prep_amount: 0,
+          alloc: 0,
+          tax_included: false,
+        };
+
+        const created = await createPurchOrder(payload);
+        const usedOrderNo = (created && (created.order_no ?? created.id)) || nextOrderNo;
+
+        // create each purchase order detail
+        for (let idx = 0; idx < detailsToPost.length; idx++) {
+          const r = detailsToPost[idx];
+          // use incremental positive placeholders for po_detail_item: 1,2,3...
+          const detail: any = {
+            po_detail_item: idx + 1,
+            order_no: usedOrderNo,
+            item_code: r.itemCode,
+            description: r.description || null,
+            delivery_date: r.deliveryDate || orderDate,
+            qty_invoiced: 0,
+            unit_price: Number(r.price) || 0,
+            act_price: Number(r.price) || 0,
+            std_cost_unit: 0,
+            quantity_ordered: Number(r.quantity) || 0,
+            quantity_received: 0,
+          };
+          await createPurchOrderDetail(detail);
+        }
+
+        // Redirect to success page with relevant state
+        navigate("/purchase/transactions/purchase-order-entry/success", {
+          state: {
+            location: intoLocationCode,
+            reference: reference,
+            date: orderDate,
+            orderNo: usedOrderNo,
+          },
+        });
+      } catch (err: any) {
+        console.error('Failed to create purchase order', err);
+        const detail = err?.response?.data ? JSON.stringify(err.response.data) : err?.message || String(err);
+        alert('Failed to save purchase order: ' + detail);
+      }
+    })();
   };
 
   const breadcrumbItems = [
@@ -193,10 +400,16 @@ export default function PurchaseOrderEntry() {
         <Grid container spacing={2}>
           <Grid item xs={12} md={4}>
             <Stack spacing={2}>
-              <TextField select fullWidth label="Supplier" size="small" value={supplier} onChange={(e) => setSupplier(Number(e.target.value))}>
-                {suppliers.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>{s.supp_name || s.name}</MenuItem>
-                ))}
+              <TextField select fullWidth label="Supplier" size="small" value={supplier} onChange={(e) => setSupplier(String(e.target.value))}>
+                <MenuItem key="select-supplier" value="">Select supplier</MenuItem>
+                {suppliers.map((s) => {
+                  const sid = resolveSupplierId(s);
+                  return (
+                    <MenuItem key={String(sid ?? Math.random())} value={String(sid ?? "")}>
+                      {s.supp_name ?? s.name ?? s.supplier_name}
+                    </MenuItem>
+                  );
+                })}
               </TextField>
 
               <TextField label="Order Date" type="date" fullWidth size="small" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} InputLabelProps={{ shrink: true }} />
@@ -211,15 +424,15 @@ export default function PurchaseOrderEntry() {
             <Stack spacing={2}>
               <TextField label="Supplier's Reference" fullWidth size="small" value={supplierRef} onChange={(e) => setSupplierRef(e.target.value)} />
 
-              <TextField select fullWidth label="Dimension" size="small" value={dimension} onChange={(e) => setDimension(Number(e.target.value))}>
+              <TextField select fullWidth label="Dimension" size="small" value={dimension} onChange={(e) => setDimension(String(e.target.value))}>
                 {dimensions.map((d) => (
-                  <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
+                  <MenuItem key={d.id} value={String(d.id)}>{d.name}</MenuItem>
                 ))}
               </TextField>
 
-              <TextField select fullWidth label="Receive Into" size="small" value={receiveInto} onChange={(e) => setReceiveInto(Number(e.target.value))}>
+              <TextField select fullWidth label="Receive Into" size="small" value={receiveInto} onChange={(e) => setReceiveInto(String(e.target.value))}>
                 {locations.map((l) => (
-                  <MenuItem key={l.id} value={l.id}>{l.location_name}</MenuItem>
+                  <MenuItem key={l.id} value={String(l.id)}>{l.location_name}</MenuItem>
                 ))}
               </TextField>
             </Stack>
@@ -267,44 +480,29 @@ export default function PurchaseOrderEntry() {
                   <TextField
                     select
                     size="small"
-                    value={row.stockId}
+                    value={row.description}
                     onChange={(e) => {
-                      const selectedStockId = e.target.value;
-                      const selected = items.find((it) => it.stock_id === selectedStockId);
-                      handleChange(row.id, "stockId", selectedStockId);
+                      const selected = items.find((item) => item.description === e.target.value);
                       if (selected) {
-                        const unitObj = itemUnits.find((u) => u.id === selected.units);
+                        const unitObj = itemUnits.find((u) => String(u.id) === String(selected.units));
                         handleChange(row.id, "description", selected.description);
-                        handleChange(row.id, "itemCode", selected.stock_id);
-                        handleChange(row.id, "unit", unitObj ? unitObj.abbr : selected.units);
+                        handleChange(row.id, "itemCode", String(selected.stock_id));
+                        handleChange(row.id, "stockId", String(selected.stock_id));
+                        handleChange(row.id, "unit", unitObj ? unitObj.abbr : String(selected.units));
                         handleChange(row.id, "price", selected.material_cost);
                       }
                     }}
                   >
-                    {(() => {
-                      const filteredItems = items;
-                      return (Object.entries(
-                        filteredItems.reduce((groups: Record<string, any[]>, item) => {
-                          const catId = item.category_id || "Uncategorized";
-                          if (!groups[catId]) groups[catId] = [];
-                          groups[catId].push(item);
-                          return groups;
-                        }, {})
-                      ) as [string, any][]).map(([categoryId, groupedItems]) => {
-                        const category = categories.find(cat => cat.category_id === Number(categoryId));
-                        const categoryLabel = category ? category.description : `Category ${categoryId}`;
-                        return [
-                          <ListSubheader key={`cat-${categoryId}`}>
-                            {categoryLabel}
-                          </ListSubheader>,
-                          groupedItems.map((item) => (
-                            <MenuItem key={item.stock_id} value={item.stock_id}>
-                              {item.description}
-                            </MenuItem>
-                          ))
-                        ];
-                      });
-                    })()}
+                    {(Object.entries(groupedItemsByCategory) as [string, any[]][]).map(([categoryId, groupedItems]) => (
+                      [
+                        <ListSubheader key={`cat-${categoryId}`}>{categories.find(cat => cat.category_id === Number(categoryId))?.description ?? `Category ${categoryId}`}</ListSubheader>,
+                        ...groupedItems.map((item: any) => (
+                          <MenuItem key={item.stock_id} value={item.description}>
+                            {item.description}
+                          </MenuItem>
+                        )),
+                      ]
+                    ))}
                   </TextField>
                 </TableCell>
 

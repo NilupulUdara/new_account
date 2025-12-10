@@ -30,6 +30,8 @@ import { getInventoryLocations } from "../../../../api/InventoryLocation/Invento
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getSuppliers } from "../../../../api/Supplier/SupplierApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getPurchOrders } from "../../../../api/PurchOrders/PurchOrderApi";
+import { getPurchOrderDetails } from "../../../../api/PurchOrders/PurchOrderDetailsApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -81,16 +83,108 @@ export default function OutstandingPurchaseOrdersMaintenance() {
   }, [selectedItem, items]);
 
   // dummy rows
-  const today = new Date().toISOString().split("T")[0];
-  const rows: Row[] = [
-    { id: 1, deliveryNo: "D-1001", supplier: "ABC Suppliers", branch: "Main", contact: "John Doe", reference: "SO-001", custRef: "CREF-001", deliveryDate: today, dueBy: "2025-12-14", deliveryTotal: "150.00", currency: "USD" },
-    { id: 2, deliveryNo: "D-1002", supplier: "XYZ Traders", branch: "Branch A", contact: "Jane Smith", reference: "SO-002", custRef: "CREF-002", deliveryDate: today, dueBy: "2025-12-15", deliveryTotal: "320.00", currency: "LKR" },
-  ];
+  // fetch purchase orders
+  const { data: purchOrders = [] } = useQuery({ queryKey: ["purchOrders"], queryFn: getPurchOrders });
+  // fetch purchase order details (used for item-based filtering)
+  const { data: purchOrderDetails = [] } = useQuery({ queryKey: ["purchOrderDetails"], queryFn: getPurchOrderDetails });
+
+  // map purchase orders into table rows
+  const mappedRows: Row[] = React.useMemo(() => {
+    const today = new Date().toISOString().split("T")[0];
+    if (!Array.isArray(purchOrders) || purchOrders.length === 0) return [];
+
+    // apply filters from the UI
+    const filtered = (purchOrders as any[]).filter((p: any) => {
+      // filter by numberText (# / reference)
+      if (numberText) {
+        const search = String(numberText).toLowerCase();
+        const orderNoStr = String(p.order_no ?? p.id ?? "");
+        const referenceStr = String(p.reference ?? "").toLowerCase();
+        if (!orderNoStr.includes(search) && !referenceStr.includes(search)) return false;
+      }
+
+      // filter by date range
+      if (fromDate) {
+        if (!p.ord_date || String(p.ord_date) < fromDate) return false;
+      }
+      if (toDate) {
+        if (!p.ord_date || String(p.ord_date) > toDate) return false;
+      }
+
+      // filter by location
+      if (location && location !== "ALL_LOCATIONS") {
+        if (String(p.into_stock_location) !== String(location) && String(p.into_stock_location) !== String(location)) return false;
+      }
+
+      // filter by supplier
+      if (selectedSupplier && selectedSupplier !== "ALL_SUPPLIERS") {
+        const supId = String(p.supplier_id ?? p.supp_id ?? p.supplier ?? "");
+        if (supId !== String(selectedSupplier)) return false;
+      }
+
+      // filter by item: check purch_order_details for a matching order_no + item
+      if (selectedItem && selectedItem !== "ALL_ITEMS") {
+        // itemCode is set from selectedItem in useEffect above
+        const orderNoStr = String(p.order_no ?? p.id ?? "");
+        const found = (purchOrderDetails || []).some((d: any) => {
+          const detailOrderNo = String(d.order_no ?? d.purch_order_no ?? d.order ?? d.order_no ?? "");
+          if (detailOrderNo !== orderNoStr) return false;
+          const detailItem = String(d.item_code ?? d.stock_id ?? d.item ?? d.item_id ?? "");
+          // match either by the item code shown in the UI or by the selectedItem id
+          return detailItem === String(itemCode) || detailItem === String(selectedItem);
+        });
+        if (!found) return false;
+      }
+
+      return true;
+    });
+
+      const normalizeDate = (val: any) => {
+        const todayVal = new Date().toISOString().split("T")[0];
+        if (!val && val !== 0) return todayVal;
+        const s = String(val);
+        if (s.includes("T")) return s.split("T")[0];
+        if (s.includes(" ")) return s.split(" ")[0];
+        try {
+          const d = new Date(s);
+          if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+        } catch (e) {
+          /* ignore */
+        }
+        return s;
+      };
+
+      return filtered.map((p: any) => {
+      // resolve supplier
+      const sup = (suppliers || []).find((s: any) => String(s.supplier_id ?? s.id ?? s.debtor_no) === String(p.supplier_id ?? p.supp_id ?? p.supplier));
+      const supplierName = sup ? (sup.supp_name ?? sup.name ?? sup.supplier_name) : String(p.supplier_id ?? "");
+      const currency = sup ? (sup.curr_code ?? sup.currency ?? sup.currCode ?? "") : "";
+
+      // resolve location
+      const loc = (locations || []).find((l: any) => String(l.loc_code) === String(p.into_stock_location) || String(l.id) === String(p.into_stock_location));
+      const locationName = loc ? (loc.location_name ?? String(p.into_stock_location)) : String(p.into_stock_location ?? "");
+
+      return {
+        id: Number(p.order_no ?? p.id ?? 0),
+        deliveryNo: String(p.order_no ?? p.id ?? ""),
+        supplier: supplierName,
+        branch: locationName,
+        contact: "",
+        reference: p.reference ?? "",
+        custRef: null,
+        deliveryDate: normalizeDate(p.ord_date ?? today),
+        dueBy: "",
+        deliveryTotal: p.total ?? 0,
+        currency: currency ?? "",
+      } as Row;
+    });
+  }, [purchOrders, suppliers, locations, purchOrderDetails, numberText, fromDate, toDate, location, selectedItem, itemCode]);
 
   const paginatedRows = React.useMemo(() => {
-    if (rowsPerPage === -1) return rows;
-    return rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  }, [rows, page, rowsPerPage]);
+    const source = mappedRows;
+    if (rowsPerPage === -1) return source;
+    return source.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [mappedRows, page, rowsPerPage]);
 
   const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -111,19 +205,19 @@ export default function OutstandingPurchaseOrdersMaintenance() {
 
       <Paper sx={{ p: 2, borderRadius: 2 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={2} md={1}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField fullWidth size="small" label="#" value={numberText} onChange={(e) => setNumberText(e.target.value)} />
           </Grid>
 
-          <Grid item xs={12} sm={5} md={3}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField fullWidth size="small" label="From" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} InputLabelProps={{ shrink: true }} />
           </Grid>
 
-          <Grid item xs={12} sm={5} md={3}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField fullWidth size="small" label="To" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} InputLabelProps={{ shrink: true }} />
           </Grid>
 
-          <Grid item xs={12} sm={3} md={2}>
+          <Grid item xs={12} sm={6} md={3}>
             <FormControl fullWidth size="small">
               <InputLabel id="iasd-location-label">Location</InputLabel>
               <Select labelId="iasd-location-label" value={location} label="Location" onChange={(e) => setLocation(String(e.target.value))}>
@@ -135,11 +229,11 @@ export default function OutstandingPurchaseOrdersMaintenance() {
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} sm={3} md={2}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField fullWidth size="small" label="Item Code" value={itemCode} InputProps={{ readOnly: true }} />
           </Grid>
 
-          <Grid item xs={12} sm={4} md={3}>
+          <Grid item xs={12} sm={6} md={3}>
             <FormControl fullWidth size="small">
               <InputLabel id="iasd-item-label">Select Item</InputLabel>
               <Select labelId="iasd-item-label" value={selectedItem ?? ""} label="Select Item" onChange={(e) => setSelectedItem(String(e.target.value))}>
@@ -172,7 +266,7 @@ export default function OutstandingPurchaseOrdersMaintenance() {
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} sm={4} md={3}>
+          <Grid item xs={12} sm={6} md={3}>
             <FormControl fullWidth size="small">
               <InputLabel id="iasd-supplier-label">Select Supplier</InputLabel>
               <Select labelId="iasd-supplier-label" value={selectedSupplier ?? ""} label="Select Supplier" onChange={(e) => setSelectedSupplier(String(e.target.value))}>
@@ -184,7 +278,7 @@ export default function OutstandingPurchaseOrdersMaintenance() {
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} sm={2} md={1}>
+          <Grid item xs={12} sm={6} md={3} sx={{ display: 'flex' }}>
             <Button variant="contained" startIcon={<SearchIcon />} onClick={() => console.log("InvoiceAgainstSalesDelivery search", { numberText, fromDate, toDate, location, selectedItem })}>
               Search
             </Button>
@@ -235,7 +329,7 @@ export default function OutstandingPurchaseOrdersMaintenance() {
               <TablePagination
                 rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
                 colSpan={9}
-                count={rows.length}
+                count={mappedRows.length}
                 rowsPerPage={rowsPerPage}
                 page={page}
                 onPageChange={handleChangePage}
