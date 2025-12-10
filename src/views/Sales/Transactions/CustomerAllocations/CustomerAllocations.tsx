@@ -23,6 +23,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
+import { getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -31,11 +32,32 @@ export default function CustomerAllocations() {
   const navigate = useNavigate();
 
   const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
+  const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
   const [selectedCustomer, setSelectedCustomer] = useState("ALL_CUSTOMERS");
   const [showSettled, setShowSettled] = useState(false);
 
-  // no data initially - show placeholder row
-  const rows: any[] = [];
+  // Filter and map debtor transactions
+  const rows = debtorTrans
+    .filter((dt: any) => {
+      const customerMatch = selectedCustomer === "ALL_CUSTOMERS" || String(dt.debtor_no) === selectedCustomer;
+      const settledMatch = showSettled || (dt.alloc || 0) < (dt.ov_amount || 0);
+      const typeMatch = dt.trans_type === 11 || dt.trans_type === 12;
+      return customerMatch && settledMatch && typeMatch;
+    })
+    .map((dt: any) => {
+      const customer = customers.find((c: any) => c.debtor_no === dt.debtor_no);
+      return {
+        id: dt.trans_no,
+        type: dt.trans_type === 11 ? "Customer Credit Note" : "Customer Payment",
+        number: dt.trans_no,
+        reference: dt.reference,
+        date: dt.tran_date,
+        customer: customer?.name || dt.debtor_no,
+        currency: "USD", // Assuming default
+        total: dt.ov_amount,
+        left: (dt.ov_amount || 0) - (dt.alloc || 0),
+      };
+    });
 
   return (
     <Stack spacing={2}>

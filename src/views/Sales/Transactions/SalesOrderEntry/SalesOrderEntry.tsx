@@ -514,7 +514,7 @@ export default function SalesOrderEntry() {
                 customer_ref: customerReference || null,
                 comments: comments || null,
                 total: subTotal + shippingCharge + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount),
-                prep_amount: 0,
+                prep_amount: selectedPaymentType === 1 ? subTotal + shippingCharge + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount) : 0,
                 alloc: 0,
             };
             console.log("Posting sales order payload", payload);
@@ -607,7 +607,7 @@ export default function SalesOrderEntry() {
         return pt.id ?? pt.payment_type ?? null;
     }, [selectedPaymentTerm]);
 
-    const showQuotationDeliveryDetails = selectedPaymentType === 3 || selectedPaymentType === 4;
+    const showQuotationDeliveryDetails = selectedPaymentType === 1 || selectedPaymentType === 3 || selectedPaymentType === 4;
 
     return (
         <Stack spacing={2}>
