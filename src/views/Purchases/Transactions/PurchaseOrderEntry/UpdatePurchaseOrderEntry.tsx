@@ -32,6 +32,7 @@ import { getTags } from "../../../../api/DimensionTag/DimensionTagApi";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getPurchDataById } from "../../../../api/PurchasingPricing/PurchasingPricingApi";
 import {
   getPurchOrderByOrderNo,
   updatePurchOrder,
@@ -42,9 +43,11 @@ import {
   updatePurchOrderDetail,
   deletePurchOrderDetail,
 } from "../../../../api/PurchOrders/PurchOrderDetailsApi";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function UpdatePurchaseOrderEntry() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const locationRouter = useLocation();
   const orderNoFromState = locationRouter.state?.id ?? null;
 
@@ -132,6 +135,7 @@ export default function UpdatePurchaseOrderEntry() {
               const mapped = details.map((d: any, idx: number) => ({
                 id: idx + 1,
                 detailId: d.id ?? d.purch_order_detail_id ?? d.po_detail_id ?? null,
+                po_detail_item: Number(d.po_detail_item ?? d.po_detail_id ?? d.po_detail_item ?? d.po_detail_item ?? idx + 1),
                 stockId: d.item_code ?? d.stock_id ?? d.item ?? d.item_id ?? "",
                 itemCode: d.item_code ?? d.stock_id ?? d.item ?? d.item_id ?? "",
                 description: d.description ?? d.desc ?? "",
@@ -147,6 +151,11 @@ export default function UpdatePurchaseOrderEntry() {
                 deliveryDate: String((d.delivery_date ?? d.required_date ?? new Date().toISOString())).split("T")[0],
                 price: Number(d.unit_price ?? d.unitPrice ?? d.act_price ?? d.price ?? 0),
                 total: Number((d.unit_price ?? d.unitPrice ?? d.act_price ?? d.price ?? 0) * (d.quantity_ordered ?? d.quantity ?? d.qty ?? 0)),
+                // ensure these fields exist so the rows shape matches the state type
+                qty_invoiced: Number(d.qty_invoiced ?? d.qtyInvoiced ?? d.qty ?? 0),
+                act_price: Number(d.act_price ?? d.actPrice ?? d.unit_price ?? 0),
+                std_cost_unit: Number(d.std_cost_unit ?? d.stdCostUnit ?? 0),
+                quantity_received: Number(d.quantity_received ?? d.qty_received ?? 0),
               }));
               setRows(mapped);
             }
@@ -172,6 +181,12 @@ export default function UpdatePurchaseOrderEntry() {
       deliveryDate: new Date().toISOString().split("T")[0],
       price: 0,
       total: 0,
+      detailId: null,
+      po_detail_item: 0,
+      qty_invoiced: 0,
+      act_price: 0,
+      std_cost_unit: 0,
+      quantity_received: 0,
     },
   ]);
 
@@ -188,6 +203,12 @@ export default function UpdatePurchaseOrderEntry() {
         deliveryDate: new Date().toISOString().split("T")[0],
         price: 0,
         total: 0,
+        detailId: null,
+        po_detail_item: 0,
+        qty_invoiced: 0,
+        act_price: 0,
+        std_cost_unit: 0,
+        quantity_received: 0,
       },
     ]);
   };
@@ -195,8 +216,10 @@ export default function UpdatePurchaseOrderEntry() {
   const handleRemoveRow = (id) => {
     setRows((prev) => {
       const toRemove = prev.find((r) => r.id === id);
-      if (toRemove && (toRemove as any).detailId) {
-        setDeletedDetailIds((prevDel) => [...prevDel, (toRemove as any).detailId]);
+      // If this row corresponds to an existing purch_order_detail, track its po_detail_item
+      if (toRemove && (toRemove as any).po_detail_item) {
+        const item = Number((toRemove as any).po_detail_item);
+        if (!isNaN(item) && item > 0) setDeletedDetailIds((prevDel) => [...prevDel, item]);
       }
       return prev.filter((r) => r.id !== id);
     });
@@ -271,6 +294,28 @@ export default function UpdatePurchaseOrderEntry() {
 
       // update or create details — only for rows that have an item and quantity > 0
       const detailsToSave = (rows || []).filter((r: any) => (r.itemCode || r.stockId || r.description) && Number(r.quantity) > 0);
+
+      // fetch existing details to determine used po_detail_item values (avoid duplicates)
+      let existingDetails: any[] = [];
+      try {
+        existingDetails = await getPurchOrderDetailsByOrderNo(orderNo);
+      } catch (err) {
+        console.warn("Failed to fetch existing details for order", orderNo, err);
+      }
+
+      const usedNumbers = new Set<number>();
+      (existingDetails || []).forEach((d: any) => {
+        const n = Number(d.po_detail_item ?? d.po_detail_id ?? d.po_detailItem ?? d.po_detail_item ?? 0);
+        if (!isNaN(n) && n > 0) usedNumbers.add(n);
+      });
+
+      const nextAvailable = () => {
+        let i = 1;
+        while (usedNumbers.has(i)) i += 1;
+        usedNumbers.add(i);
+        return i;
+      };
+
       for (let idx = 0; idx < detailsToSave.length; idx++) {
         const r = detailsToSave[idx];
 
@@ -286,8 +331,19 @@ export default function UpdatePurchaseOrderEntry() {
           continue;
         }
 
+        // decide po_detail_item: preserve existing if available, otherwise pick next available
+        // prefer existing po_detail_item if present; otherwise try to resolve from existingDetails or assign next available
+        let poDetailItem = Number(r.po_detail_item ?? 0);
+        if (!poDetailItem && (r as any).detailId) {
+          const found = (existingDetails || []).find((d: any) => String(d.id ?? d.purch_order_detail_id ?? d.po_detail_id ?? d.po_detail_item) === String((r as any).detailId));
+          poDetailItem = found ? Number(found.po_detail_item ?? found.po_detail_id ?? 0) : 0;
+        }
+        if (!poDetailItem) {
+          poDetailItem = nextAvailable();
+        }
+
         const detailPayload: any = {
-          po_detail_item: idx + 1,
+          po_detail_item: poDetailItem,
           order_no: Number(orderNo),
           item_code: itemCodeValue,
           description: r.description ?? null,
@@ -300,11 +356,12 @@ export default function UpdatePurchaseOrderEntry() {
           quantity_received: Number((r as any).quantity_received ?? 0),
         };
 
-        if ((r as any).detailId) {
+        // use po_detail_item as the identifier for update/delete (backend primary key)
+        if (poDetailItem && poDetailItem > 0) {
           try {
-            await updatePurchOrderDetail((r as any).detailId, detailPayload);
+            await updatePurchOrderDetail(poDetailItem, detailPayload);
           } catch (err) {
-            console.warn(`Failed to update detail ${(r as any).detailId}:`, err);
+            console.warn(`Failed to update detail ${poDetailItem}:`, err);
           }
         } else {
           try {
@@ -313,6 +370,18 @@ export default function UpdatePurchaseOrderEntry() {
             console.warn("Failed to create detail:", err);
           }
         }
+      }
+
+      // invalidate purch order caches so maintenance list refreshes
+      try {
+        // Invalidate and refetch both active and inactive queries to ensure other pages get fresh data
+        await queryClient.invalidateQueries({ queryKey: ["purchOrders"], refetchType: 'all' });
+        await queryClient.invalidateQueries({ queryKey: ["purchOrderDetails"], refetchType: 'all' });
+        // Additionally request an immediate refetch to be extra sure
+        await queryClient.refetchQueries({ queryKey: ["purchOrders"], exact: false });
+        await queryClient.refetchQueries({ queryKey: ["purchOrderDetails"], exact: false });
+      } catch (e) {
+        console.warn("Failed to invalidate/refetch queries:", e);
       }
 
       alert("Purchase order updated successfully.");
@@ -445,7 +514,22 @@ export default function UpdatePurchaseOrderEntry() {
                         handleChange(row.id, "description", selected.description);
                         handleChange(row.id, "itemCode", String(selected.stock_id ?? selected.id));
                         handleChange(row.id, "unit", unitObj ? (unitObj.abbr ?? String(unitObj.unit_code ?? unitObj.code ?? "")) : String(selected.units ?? ""));
-                        handleChange(row.id, "price", selected.material_cost);
+                        // fetch supplier-specific purchase price if available, fallback to material_cost
+                        (async () => {
+                          try {
+                            const supplierIdNum = Number(supplier) || null;
+                            if (supplierIdNum) {
+                              const purch = await getPurchDataById(supplierIdNum, String(selected.stock_id ?? selected.id ?? ""));
+                              if (purch && typeof purch.price !== 'undefined' && purch.price !== null) {
+                                handleChange(row.id, "price", Number(purch.price));
+                                return;
+                              }
+                            }
+                          } catch (err) {
+                            // ignore and fallback
+                          }
+                          handleChange(row.id, "price", selected.material_cost);
+                        })();
                       }
                     }}
                   >

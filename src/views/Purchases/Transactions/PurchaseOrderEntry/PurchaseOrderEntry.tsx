@@ -35,6 +35,7 @@ import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import { createPurchOrder, getPurchOrders } from '../../../../api/PurchOrders/PurchOrderApi';
 import { createPurchOrderDetail } from '../../../../api/PurchOrders/PurchOrderDetailsApi';
+import { getPurchDataById } from '../../../../api/PurchasingPricing/PurchasingPricingApi';
 
 export default function PurchaseOrderEntry() {
   const navigate = useNavigate();
@@ -489,7 +490,23 @@ export default function PurchaseOrderEntry() {
                         handleChange(row.id, "itemCode", String(selected.stock_id));
                         handleChange(row.id, "stockId", String(selected.stock_id));
                         handleChange(row.id, "unit", unitObj ? unitObj.abbr : String(selected.units));
-                        handleChange(row.id, "price", selected.material_cost);
+                        // Fetch supplier-specific purchase price if available
+                        (async () => {
+                          try {
+                            const supplierIdNum = Number(supplier) || null;
+                            if (supplierIdNum) {
+                              const purch = await getPurchDataById(supplierIdNum, String(selected.stock_id));
+                              if (purch && typeof purch.price !== 'undefined' && purch.price !== null) {
+                                handleChange(row.id, "price", Number(purch.price));
+                                return;
+                              }
+                            }
+                          } catch (err) {
+                            // ignore and fallback
+                          }
+                          // fallback to material_cost
+                          handleChange(row.id, "price", selected.material_cost);
+                        })();
                       }
                     }}
                   >
