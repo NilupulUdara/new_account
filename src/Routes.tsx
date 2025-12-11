@@ -353,6 +353,8 @@ import ModifyPurchaseInvoice from "./views/BankindAndGeneralLedger/InquiriesAndR
 import UpdateSalesOrderEntrySuccess from "./views/Sales/Transactions/SalesOrderEntry/UpdateSalesOrderEntrySuccess";
 import ViewCustomerDelivery from "./views/Sales/Transactions/CustomerDelivery/ViewCustomerDelivery";
 import FinalInvoiceEntry from "./views/Sales/Transactions/InvoicePrepaidOrders/FinalInvoiceEntry";
+import ViewFinalInvoice from "./views/Sales/Transactions/InvoicePrepaidOrders/ViewFinalInvoice";
+import FinalInvoiceSuccess from "./views/Sales/Transactions/InvoicePrepaidOrders/FinalInvoiceSuccess";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1330,6 +1332,22 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales invoices edition']}>
               {withLayout(MainLayout, FinalInvoiceEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/invoice-prepaid-orders/final-invoice-entry/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales invoices edition']}>
+              {withLayout(MainLayout, FinalInvoiceSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/invoice-prepaid-orders/view-final-invoice"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales invoices edition']}>
+              {withLayout(MainLayout, ViewFinalInvoice)}
             </ProtectedRoute>
           }
         />

@@ -51,6 +51,7 @@ export default function SalesOrderEntry() {
     const queryClient = useQueryClient();
 
     const [open, setOpen] = useState(false);
+    const [actualOrderNo, setActualOrderNo] = useState<number | null>(null);
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
     const [branch, setBranch] = useState("");
@@ -518,12 +519,14 @@ export default function SalesOrderEntry() {
                 alloc: 0,
             };
             console.log("Posting sales order payload", payload);
-            await createSalesOrder(payload as any);
+            const response = await createSalesOrder(payload as any);
+            const actualOrderNo = response.order_no || orderNo;
+            setActualOrderNo(actualOrderNo);
             const detailsToPost = rows.filter(r => r.selectedItemId);
             for (const row of detailsToPost) {
                 const unitPrice = priceColumnLabel === "Price after Tax" ? row.priceAfterTax : row.priceBeforeTax;
                 const detailPayload = {
-                    order_no: orderNo,
+                    order_no: actualOrderNo,
                     trans_type: 30,
                     stk_code: row.itemCode,
                     description: row.description,
@@ -536,10 +539,10 @@ export default function SalesOrderEntry() {
                 console.log("Posting sales order detail", detailPayload);
                 await createSalesOrderDetail(detailPayload);
             }
-            // alert("Saved to sales_orders (order_no: " + orderNo + ")");
+            // alert("Saved to sales_orders (order_no: " + actualOrderNo + ")");
              setOpen(true);
             await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
-            // navigate("/sales/transactions/sales-order-entry/success", { state: { orderNo, reference, orderDate } });
+            // navigate("/sales/transactions/sales-order-entry/success", { state: { orderNo: actualOrderNo, reference, orderDate } });
         } catch (e: any) {
             console.error("Save error", e);
             const detail = e?.response?.data ? JSON.stringify(e.response.data) : (e?.message || 'Unknown error');
@@ -1080,7 +1083,7 @@ export default function SalesOrderEntry() {
                 handleClose={() => setOpen(false)}
                 onSuccess={() => {
                     // Form was already cleared on successful submission
-                   navigate("/sales/transactions/sales-order-entry/success", { state: { orderNo, reference, orderDate } });
+                   navigate("/sales/transactions/sales-order-entry/success", { state: { orderNo: actualOrderNo, reference, orderDate } });
                 }}
             />
         </Stack>

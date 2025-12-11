@@ -15,14 +15,29 @@ import {
   TextField,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
+import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
+import { getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
 
 
 export default function ViewCustomerAllocations() {
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const { transNo, transType } = state || {};
+
+  const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers, refetchOnMount: true });
+  const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans, refetchOnMount: true });
+
+  const transaction = debtorTrans.find((dt: any) => String(dt.trans_no) === String(transNo) && dt.trans_type === transType);
+  const customer = customers.find((c: any) => c.debtor_no === transaction?.debtor_no);
+
+  if (!transaction) {
+    return <Typography>Transaction not found for transNo: {transNo}, transType: {transType}</Typography>;
+  }
 
   // Placeholder empty rows
   const rows: any[] = [];
@@ -43,12 +58,11 @@ export default function ViewCustomerAllocations() {
         }}
       >
         <Box>
-          <PageTitle title="View Customer Allocations" />
+          <PageTitle title="Allocate Customer Payment or Credit Note" />
           <Breadcrumb
             breadcrumbs={[
               { title: "Home", href: "/home" },
-              { title: "Customer Allocations" },
-              { title: "View" },
+              { title: "Allocate Customer Payment or Credit Note" },
             ]}
           />
         </Box>
@@ -61,6 +75,32 @@ export default function ViewCustomerAllocations() {
           Back
         </Button>
       </Box>
+
+      {/* Transaction Details */}
+      <Paper sx={{ p: 3 }}>
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={12}>
+            <Typography sx={{ textAlign: 'center' }}>
+              <b>Type:</b> {transaction.trans_type === 11 ? "Customer Credit Note" : "Customer Payment"}
+            </Typography>
+          </Grid>
+          <Grid item xs={12} sm={12}>
+            <Typography sx={{ textAlign: 'center' }}>
+              <b>Customer:</b> {customer?.name || "-"}
+            </Typography>
+          </Grid>
+          <Grid item xs={12} sm={12}>
+            <Typography sx={{ textAlign: 'center' }}>
+              <b>Date:</b> {transaction?.tran_date || "-"}
+            </Typography>
+          </Grid>
+          <Grid item xs={12} sm={12}>
+            <Typography sx={{ textAlign: 'center' }}>
+              <b>Total:</b> {transaction?.ov_amount || "-"}
+            </Typography>
+          </Grid>
+        </Grid>
+      </Paper>
 
       {/* TABLE */}
       <TableContainer component={Paper} sx={{ p: 1 }}>
