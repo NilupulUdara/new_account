@@ -178,13 +178,18 @@ export default function OutstandingPurchaseOrdersMaintenance() {
         currency: currency ?? "",
       } as Row;
     });
-  }, [purchOrders, suppliers, locations, purchOrderDetails, numberText, fromDate, toDate, location, selectedItem, itemCode]);
+  }, [purchOrders, suppliers, locations, purchOrderDetails, numberText, fromDate, toDate, location, selectedItem, itemCode, selectedSupplier]);
 
   const paginatedRows = React.useMemo(() => {
     const source = mappedRows;
     if (rowsPerPage === -1) return source;
     return source.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [mappedRows, page, rowsPerPage]);
+
+  // reset to first page when filters change so new filtered results are visible
+  useEffect(() => {
+    setPage(0);
+  }, [numberText, fromDate, toDate, location, selectedItem, selectedSupplier]);
 
   const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

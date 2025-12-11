@@ -50,7 +50,7 @@ export default function DirectGRNSuccess() {
         <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/direct-grn/view-direct-grn", { state })}
           >
             View this GRN
@@ -58,7 +58,7 @@ export default function DirectGRNSuccess() {
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => {
               // Navigate to GL postings view - pass reference so GL view can filter
               navigate("", { state: { reference } });
@@ -69,21 +69,21 @@ export default function DirectGRNSuccess() {
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/supplier-invoice", { state })}
           >
             Entry purchase invoice for this receival
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/direct-grn", { state })}
           >
            Enter Another GRN
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/", { state })}
           >
            Add an Attachment

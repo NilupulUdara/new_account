@@ -50,7 +50,7 @@ export default function PurchaseOrderEntrySuccess() {
         <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/purchase-order-entry/view-purchase-order", { state })}
           >
             View This Order
@@ -58,7 +58,7 @@ export default function PurchaseOrderEntrySuccess() {
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => {
               // Navigate to GL postings view - pass reference so GL view can filter
               navigate("", { state: { reference } });
@@ -70,7 +70,7 @@ export default function PurchaseOrderEntrySuccess() {
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/")}
           >
             Email This Order
@@ -78,28 +78,28 @@ export default function PurchaseOrderEntrySuccess() {
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/receive-purchase-order-items", { state })}
           >
            Receive Items on this Purchase Order
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/purchase-order-entry", { state })}
           >
            Enter Another Purchase Order
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/outstanding-purchase-orders-maintenance", { state })}
           >
             Select An Outstanding Purchase Order
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/", { state })}
           >
            Add an Attachment
