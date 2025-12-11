@@ -17,56 +17,37 @@ import {
     Theme,
     Button,
     Grid,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import PrintIcon from "@mui/icons-material/Print";
 import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../../components/BreadCrumb";
 import PageTitle from "../../../../../components/PageTitle";
 import theme from "../../../../../theme";
 import DatePickerComponent from "../../../../../components/DatePickerComponent";
+import { getSalesOrders } from "../../../../../api/SalesOrders/SalesOrdersApi";
+import { getCustomers } from "../../../../../api/Customer/AddCustomerApi";
+import { getBranches } from "../../../../../api/CustomerBranch/CustomerBranchApi";
+import { getInventoryLocations } from "../../../../../api/InventoryLocation/InventoryLocationApi";
+import { getItems } from "../../../../../api/Item/ItemApi";
+import { getSalesOrderDetails } from "../../../../../api/SalesOrders/SalesOrderDetailsApi";
+import { useQuery } from "@tanstack/react-query";
 
 interface SalesOrdersProps {
     customerId?: string | number;
 }
 
-// Mock API
-const getSalesOrders = async () => [
-    {
-        id: 1,
-        ref: "REF001",
-        order: "SO001",
-        customer: "Customer A",
-        branch: "Colombo",
-        custOrderRef: "CREF001",
-        orderDate: "2025-09-01",
-        requiredBy: "2025-09-10",
-        deliveryTo: "Colombo Warehouse",
-        orderTotal: "5000",
-        currency: "LKR",
-        tmpl: "Template A",
-    },
-    {
-        id: 2,
-        ref: "REF002",
-        order: "SO002",
-        customer: "Customer B",
-        branch: "Kandy",
-        custOrderRef: "CREF002",
-        orderDate: "2025-09-05",
-        requiredBy: "2025-09-12",
-        deliveryTo: "Kandy Warehouse",
-        orderTotal: "12000",
-        currency: "USD",
-        tmpl: "Template B",
-    },
-];
+
 
 export default function SalesOrdersTable({ customerId }: SalesOrdersProps) {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(5);
-    const [salesOrders, setSalesOrders] = useState<any[]>([]);
     const [searchFilters, setSearchFilters] = useState({
         order: "",
         ref: "",
@@ -79,10 +60,12 @@ export default function SalesOrdersTable({ customerId }: SalesOrdersProps) {
     const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
     const navigate = useNavigate();
 
-    // Fetch data
-    useEffect(() => {
-        getSalesOrders().then((data) => setSalesOrders(data));
-    }, []);
+    const { data: salesOrders = [], isLoading, error } = useQuery({ queryKey: ["salesOrders"], queryFn: () => getSalesOrders() });
+    const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: () => getCustomers() });
+    const { data: branches = [] } = useQuery({ queryKey: ["branches"], queryFn: () => getBranches() });
+    const { data: locations = [] } = useQuery({ queryKey: ["inventoryLocations"], queryFn: () => getInventoryLocations() });
+    const { data: items = [] } = useQuery({ queryKey: ["items"], queryFn: () => getItems() });
+    const { data: salesOrderDetails = [] } = useQuery({ queryKey: ["salesOrderDetails"], queryFn: () => getSalesOrderDetails() });
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -96,25 +79,27 @@ export default function SalesOrdersTable({ customerId }: SalesOrdersProps) {
     // Filtered data
     const filteredData = useMemo(() => {
         return salesOrders.filter((so) => {
+            // Match customer
+            const matchesCustomer = !customerId || so.debtor_no == customerId;
+
             // Match order #
             const matchesOrder = searchFilters.order
-                ? so.order.toLowerCase().includes(searchFilters.order.toLowerCase())
+                ? so.order_no.toString().toLowerCase().includes(searchFilters.order.toLowerCase())
                 : true;
 
             // Match customer order ref
             const matchesRef = searchFilters.ref
-                ? so.custOrderRef.toLowerCase().includes(searchFilters.ref.toLowerCase())
+                ? so.reference.toLowerCase().includes(searchFilters.ref.toLowerCase())
                 : true;
 
-            // Match location (branch or deliveryTo)
+            // Match location (inventory location)
             const matchesLocation = searchFilters.location
-                ? so.branch.toLowerCase().includes(searchFilters.location.toLowerCase()) ||
-                so.deliveryTo.toLowerCase().includes(searchFilters.location.toLowerCase())
+                ? so.from_stk_loc === searchFilters.location
                 : true;
 
             // Match item/template
             const matchesItem = searchFilters.item
-                ? so.tmpl.toLowerCase().includes(searchFilters.item.toLowerCase())
+                ? salesOrderDetails.some(d => d.order_no == so.order_no && d.stk_code == searchFilters.item)
                 : true;
 
             // Match dates
@@ -122,16 +107,20 @@ export default function SalesOrdersTable({ customerId }: SalesOrdersProps) {
 
             if (searchFilters.fromDate) {
                 matchesDate =
-                    new Date(so.orderDate).getTime() >= searchFilters.fromDate.getTime();
+                    new Date(so.ord_date).getTime() >= searchFilters.fromDate.getTime();
             }
 
             if (matchesDate && searchFilters.toDate) {
                 matchesDate =
-                    new Date(so.orderDate).getTime() <= searchFilters.toDate.getTime();
+                    new Date(so.delivery_date).getTime() <= searchFilters.toDate.getTime();
             }
-            return matchesOrder && matchesRef && matchesLocation && matchesItem && matchesDate;
+
+            // Match trans_type = 30
+            const matchesType = so.trans_type == 30;
+
+            return matchesOrder && matchesRef && matchesLocation && matchesItem && matchesDate && matchesType && matchesCustomer;
         });
-    }, [salesOrders, searchFilters]);
+    }, [salesOrders, searchFilters, customerId, salesOrderDetails]);
 
 
     const paginatedData = useMemo(() => {
@@ -224,26 +213,53 @@ export default function SalesOrdersTable({ customerId }: SalesOrdersProps) {
 
                 {/* Location */}
                 <Grid item xs={12} sm={2}>
-                    <TextField
-                        fullWidth
-                        label="Location"
-                        name="location"
-                        size="small"
-                        value={searchFilters.location}
-                        onChange={handleFilterChange}
-                    />
+                    <FormControl fullWidth size="small">
+                        <InputLabel>Location</InputLabel>
+                        <Select
+                            value={searchFilters.location}
+                            label="Location"
+                            onChange={(e) => setSearchFilters({ ...searchFilters, location: e.target.value })}
+                        >
+                            <MenuItem value="">
+                                <em>All</em>
+                            </MenuItem>
+                            {locations.map((loc) => (
+                                <MenuItem key={loc.loc_code} value={loc.loc_code}>
+                                    {loc.location_name}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
                 </Grid>
 
                 {/* Item / Template */}
-                <Grid item xs={12} sm={2}>
-                    <TextField
-                        fullWidth
-                        label="Item / Template"
-                        name="item"
-                        size="small"
-                        value={searchFilters.item}
-                        onChange={handleFilterChange}
-                    />
+                <Grid item xs={12} sm={4}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <TextField
+                            label="Item Code"
+                            size="small"
+                            value={searchFilters.item}
+                            onChange={(e) => setSearchFilters({ ...searchFilters, item: e.target.value })}
+                            sx={{ minWidth: 100 }}
+                        />
+                        <FormControl size="small" sx={{ minWidth: 150 }}>
+                            <InputLabel>Item</InputLabel>
+                            <Select
+                                value={searchFilters.item}
+                                label="Item"
+                                onChange={(e) => setSearchFilters({ ...searchFilters, item: e.target.value })}
+                            >
+                                <MenuItem value="">
+                                    <em>All</em>
+                                </MenuItem>
+                                {items.map((item) => (
+                                    <MenuItem key={item.stock_id} value={item.stock_id}>
+                                        {item.description}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Box>
                 </Grid>
             </Grid>
 
@@ -264,27 +280,50 @@ export default function SalesOrdersTable({ customerId }: SalesOrdersProps) {
                                 <TableCell>Order Total</TableCell>
                                 <TableCell>Currency</TableCell>
                                 <TableCell>Tmpl</TableCell>
-                                {/* <TableCell align="center">Actions</TableCell> */}
+                                <TableCell align="center">Actions</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {paginatedData.length > 0 ? (
-                                paginatedData.map((so) => (
-                                    <TableRow key={so.id} hover>
-                                        <TableCell>{so.order}</TableCell>
-                                        <TableCell>{so.ref}</TableCell>
-                                        <TableCell>{so.customer}</TableCell>
-                                        <TableCell>{so.branch}</TableCell>
+                            {isLoading ? (
+                                <TableRow>
+                                    <TableCell colSpan={12} align="center">
+                                        <Typography variant="body2">Loading...</Typography>
+                                    </TableCell>
+                                </TableRow>
+                            ) : error ? (
+                                <TableRow>
+                                    <TableCell colSpan={12} align="center">
+                                        <Typography variant="body2" color="error">Error loading data</Typography>
+                                    </TableCell>
+                                </TableRow>
+                            ) : paginatedData.length > 0 ? (
+                                paginatedData.map((so) => {
+                                    const customer = customers.find(c => c.debtor_no === so.debtor_no);
+                                    const branch = branches.find(b => b.branch_code === so.branch_code);
+                                    return (
+                                    <TableRow key={so.order_no || so.id} hover>
+                                        <TableCell>{so.order_no || so.order}</TableCell>
+                                        <TableCell>{so.reference}</TableCell>
+                                        <TableCell>{customer?.name || so.debtor_no}</TableCell>
+                                        <TableCell>{branch?.br_name || so.branch_code}</TableCell>
                                         <TableCell>{so.custOrderRef}</TableCell>
-                                        <TableCell>{so.orderDate}</TableCell>
-                                        <TableCell>{so.requiredBy}</TableCell>
-                                        <TableCell>{so.deliveryTo}</TableCell>
-                                        <TableCell>{so.orderTotal}</TableCell>
-                                        <TableCell>{so.currency}</TableCell>
+                                        <TableCell>{so.ord_date}</TableCell>
+                                        <TableCell>{so.delivery_date}</TableCell>
+                                        <TableCell>{so.deliver_to}</TableCell>
+                                        <TableCell>{so.total}</TableCell>
+                                        <TableCell>{customer?.curr_code}</TableCell>
                                         <TableCell>{so.tmpl}</TableCell>
-                                        {/* <TableCell align="center">
+                                        <TableCell align="center">
                                             <Stack direction="row" spacing={1} justifyContent="center">
                                                 <Button
+                                                    variant="outlined"
+                                                    size="small"
+                                                    startIcon={<PrintIcon />}
+                                                    onClick={() => window.print()}
+                                                >
+                                                    Print
+                                                </Button>
+                                                {/* <Button
                                                     variant="contained"
                                                     size="small"
                                                     startIcon={<EditIcon />}
@@ -300,14 +339,15 @@ export default function SalesOrdersTable({ customerId }: SalesOrdersProps) {
                                                     onClick={() => handleDelete(so.id)}
                                                 >
                                                     Delete
-                                                </Button>
+                                                </Button> */}
                                             </Stack>
-                                        </TableCell> */}
+                                        </TableCell>
                                     </TableRow>
-                                ))
+                                );
+                                })
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={11} align="center">
+                                    <TableCell colSpan={12} align="center">
                                         <Typography variant="body2">No Records Found</Typography>
                                     </TableCell>
                                 </TableRow>
@@ -317,7 +357,7 @@ export default function SalesOrdersTable({ customerId }: SalesOrdersProps) {
                             <TableRow>
                                 <TablePagination
                                     rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                                    colSpan={11}
+                                    colSpan={12}
                                     count={filteredData.length}
                                     rowsPerPage={rowsPerPage}
                                     page={page}

@@ -18,6 +18,8 @@ import {
   Typography,
   Checkbox,
   FormControlLabel,
+  TableFooter,
+  TablePagination,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
@@ -32,9 +34,11 @@ export default function CustomerAllocations() {
   const navigate = useNavigate();
 
   const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
-  const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
+  const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans, refetchOnMount: true });
   const [selectedCustomer, setSelectedCustomer] = useState("ALL_CUSTOMERS");
   const [showSettled, setShowSettled] = useState(false);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
 
   // Filter and map debtor transactions
   const rows = debtorTrans
@@ -53,11 +57,23 @@ export default function CustomerAllocations() {
         reference: dt.reference,
         date: dt.tran_date,
         customer: customer?.name || dt.debtor_no,
-        currency: "USD", // Assuming default
+        currency: customer?.curr_code || "USD",
         total: dt.ov_amount,
         left: (dt.ov_amount || 0) - (dt.alloc || 0),
+        trans_type: dt.trans_type,
       };
     });
+
+  const paginatedRows = React.useMemo(() => {
+    if (rowsPerPage === -1) return rows;
+    return rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [rows, page, rowsPerPage]);
+
+  const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
 
   return (
     <Stack spacing={2}>
@@ -80,7 +96,7 @@ export default function CustomerAllocations() {
 
           <FormControlLabel
             control={<Checkbox checked={showSettled} onChange={(e) => setShowSettled(e.target.checked)} />}
-            label="Show Settled Items:"
+            label="Show Settled Items"
           />
         </Stack>
 
@@ -117,8 +133,8 @@ export default function CustomerAllocations() {
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((r, idx) => (
-                <TableRow key={r.id ?? idx} hover>
+              paginatedRows.map((r, idx) => (
+                <TableRow key={idx} hover>
                   <TableCell>{r.type}</TableCell>
                   <TableCell>{r.number}</TableCell>
                   <TableCell>{r.reference}</TableCell>
@@ -128,7 +144,7 @@ export default function CustomerAllocations() {
                   <TableCell>{r.total}</TableCell>
                   <TableCell>{r.left}</TableCell>
                   <TableCell align="center">
-                    <Button variant="outlined" size="small" onClick={() => console.log("Allocate for", r.number)}>
+                    <Button variant="outlined" size="small" onClick={() => navigate("/sales/transactions/allocate-customer-payments-credit-notes/view-allocations", { state: { transNo: r.number, transType: r.trans_type } })}>
                       Allocate
                     </Button>
                   </TableCell>
@@ -136,6 +152,22 @@ export default function CustomerAllocations() {
               ))
             )}
           </TableBody>
+
+          <TableFooter>
+            <TableRow>
+              <TablePagination
+                rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
+                colSpan={9}
+                count={rows.length}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+                showFirstButton
+                showLastButton
+              />
+            </TableRow>
+          </TableFooter>
         </Table>
       </TableContainer>
     </Stack>

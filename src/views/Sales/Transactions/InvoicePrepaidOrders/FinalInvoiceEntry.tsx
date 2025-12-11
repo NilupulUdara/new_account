@@ -282,7 +282,7 @@ export default function FinalInvoiceEntry() {
       reference: newReference,
       trans_type: 10,
       ship_via: salesOrder.ship_via,
-      tpe: salesOrder.tpe,
+      tpe: salesOrder.order_type,
       tran_date: date,
       due_date: dueDate || date,
       payment_terms: paymentTerm,
@@ -324,7 +324,7 @@ export default function FinalInvoiceEntry() {
       await Promise.all(updatePromises);
       queryClient.invalidateQueries({ queryKey: ['debtorTransDetails'] });
       alert("Invoice processed successfully!");
-      navigate("/sales/transactions/direct-delivery/customer-invoice/success", { state: { transNo: newTransNo, reference: newReference, date } });
+      navigate("/sales/transactions/invoice-prepaid-orders/final-invoice-entry/success", { state: { transNo: newTransNo, reference: newReference, invoiceDate: date } });
     } catch (error: any) {
       console.error("Error:", error);
       alert("Error processing invoice: " + (error.response?.data?.message || error.message));
