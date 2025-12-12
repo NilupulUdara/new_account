@@ -59,7 +59,7 @@ export default function DirectSupplierInvoiceSuccess() {
           <Button
             variant="outlined"
             sx={{ width: '300px' }}
-            onClick={() => navigate("/")}
+            // onClick={() => navigate("/")}
           >
             View the GL Journal Entries for this Invoice
           </Button>
