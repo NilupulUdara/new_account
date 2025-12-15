@@ -50,7 +50,7 @@ export default function DirectSupplierInvoiceSuccess() {
         <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/direct-supplier-invoice/view-direct-supplier-invoice", { state })}
           >
             View this Invoice
@@ -58,7 +58,7 @@ export default function DirectSupplierInvoiceSuccess() {
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             // onClick={() => navigate("/")}
           >
             View the GL Journal Entries for this Invoice
@@ -66,21 +66,21 @@ export default function DirectSupplierInvoiceSuccess() {
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/payment-to-suppliers", { state })}
           >
            Entry supplier payment for this invoice
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/direct-supplier-invoice", { state })}
           >
            Enter Another Direct Invoice
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/", { state })}
           >
            Add an Attachment
