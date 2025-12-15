@@ -411,7 +411,7 @@ export default function FixedAssetsGeneralSettingsForm({ itemId }: ItemGeneralSe
                           ...accounts.map((acc) => (
                             <MenuItem key={acc.account_code} value={acc.account_code}>
                               <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                                {acc.account_code}- {acc.account_name}
+                                {acc.account_code} - {acc.account_name}
                               </Stack>
                             </MenuItem>
                           )),

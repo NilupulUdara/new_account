@@ -355,6 +355,9 @@ import ViewCustomerDelivery from "./views/Sales/Transactions/CustomerDelivery/Vi
 import FinalInvoiceEntry from "./views/Sales/Transactions/InvoicePrepaidOrders/FinalInvoiceEntry";
 import ViewFinalInvoice from "./views/Sales/Transactions/InvoicePrepaidOrders/ViewFinalInvoice";
 import FinalInvoiceSuccess from "./views/Sales/Transactions/InvoicePrepaidOrders/FinalInvoiceSuccess";
+import UpdateSalesQuotationEntry from "./views/Sales/Transactions/SalesQuotationEntry/UpdateSalesQuotationEntry";
+import UpdateFixedAssetClasses from "./views/FixedAssets/Maintenance/FixedAssetClasses/UpdateFixedAssetClasses";
+import UpdateFixedAssetsCategories from "./views/FixedAssets/Maintenance/FixedAssetsCategories/UpdateFixedAssetsCategories";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1068,6 +1071,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales quotations']}>
               {withLayout(MainLayout, SalesQuotationEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/update-sales-quotation-entry/:id"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales quotations']}>
+              {withLayout(MainLayout, UpdateSalesQuotationEntry)}
             </ProtectedRoute>
           }
         />
@@ -2794,6 +2805,14 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/fixedassets/maintenance/update-fixed-asset-categories/:category_id"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Asset items add/edit']}>
+              {withLayout(MainLayout, UpdateFixedAssetsCategories)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/fixedassets/maintenance/fixed-asset-classes"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Asset items add/edit']}>
@@ -2806,6 +2825,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Asset items add/edit']}>
               {withLayout(MainLayout, AddFixedAssetClasses)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/fixedassets/maintenance/update-fixed-asset-classes/:fa_class_id"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Fixed Asset items add/edit']}>
+              {withLayout(MainLayout, UpdateFixedAssetClasses)}
             </ProtectedRoute>
           }
         />

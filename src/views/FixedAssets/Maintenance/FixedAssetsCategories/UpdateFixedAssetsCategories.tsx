@@ -21,10 +21,14 @@ import theme from "../../../../theme";
 import { getChartMasters } from "../../../../api/GLAccounts/ChartMasterApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemTaxTypes } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
-import { createItemCategory } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { updateItemCategory } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getItemCategoryById } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { useParams } from "react-router-dom";
 import { getTags } from "../../../../api/DimensionTag/DimensionTagApi";
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface ItemCategoriesFormData {
   categoryName: string;
@@ -38,10 +42,14 @@ interface ItemCategoriesFormData {
   dimension: string;
 }
 
-export default function UpdateAddFixedAssetsCategories() {
+export default function UpdateFixedAssetsCategories() {
+  const { category_id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const [formData, setFormData] = useState<ItemCategoriesFormData>({
     categoryName: "",
@@ -99,22 +107,38 @@ export default function UpdateAddFixedAssetsCategories() {
         setUnitsOfMeasure(filteredUnits);
         setDimensions(dimensionsRes || []);
 
-        // Set default values for dropdowns
-        setFormData((prev) => ({
-          ...prev,
-          itemTaxType: filteredTaxTypes.length > 0 ? String(filteredTaxTypes[0].id) : "",
-          unitOfMeasure: filteredUnits.length > 0 ? String(filteredUnits[0].id) : "",
-          salesAccount: chartMastersRes.find((acc) => acc.account_code === "4010")?.account_code || "",
-          inventoryAccount: chartMastersRes.find((acc) => acc.account_code === "1510")?.account_code || "",
-          cogsAccount: chartMastersRes.find((acc) => acc.account_code === "5010")?.account_code || "",
-          inventoryAdjustmentAccount: chartMastersRes.find((acc) => acc.account_code === "5040")?.account_code || "",
-        }));
+        // If editing, fetch the category and populate form
+        if (category_id) {
+          const cat = await getItemCategoryById(Number(category_id));
+          setFormData({
+            categoryName: cat.description || "",
+            itemTaxType: cat.dflt_tax_type ? String(cat.dflt_tax_type) : "",
+            unitOfMeasure: cat.dflt_units ? String(cat.dflt_units) : "",
+            excludeFromPurchases: cat.dflt_no_purchase === 1,
+            salesAccount: cat.dflt_sales_act || "",
+            inventoryAccount: cat.dflt_inventory_act || "",
+            cogsAccount: cat.dflt_cogs_act || "",
+            inventoryAdjustmentAccount: cat.dflt_adjustment_act || "",
+            dimension: cat.dflt_dim1 ? String(cat.dflt_dim1) : "",
+          });
+        } else {
+          // Set default values for dropdowns
+          setFormData((prev) => ({
+            ...prev,
+            itemTaxType: filteredTaxTypes.length > 0 ? String(filteredTaxTypes[0].id) : "",
+            unitOfMeasure: filteredUnits.length > 0 ? String(filteredUnits[0].id) : "",
+            salesAccount: chartMastersRes.find((acc) => acc.account_code === "4010")?.account_code || "",
+            inventoryAccount: chartMastersRes.find((acc) => acc.account_code === "1510")?.account_code || "",
+            cogsAccount: chartMastersRes.find((acc) => acc.account_code === "5010")?.account_code || "",
+            inventoryAdjustmentAccount: chartMastersRes.find((acc) => acc.account_code === "5040")?.account_code || "",
+          }));
+        }
       } catch (err) {
         console.error("Failed to fetch data:", err);
       }
     };
     fetchData();
-  }, []);
+  }, [category_id]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -155,10 +179,12 @@ export default function UpdateAddFixedAssetsCategories() {
       description: formData.categoryName,
       dflt_tax_type: parseInt(formData.itemTaxType),
       dflt_units: parseInt(formData.unitOfMeasure),
+      dflt_mb_flag: 4,
       dflt_sales_act: formData.salesAccount,
       dflt_inventory_act: formData.inventoryAccount,
       dflt_cogs_act: formData.cogsAccount,
       dflt_adjustment_act: formData.inventoryAdjustmentAccount,
+      dflt_wip_act: '1530',
       dflt_dim1: formData.dimension ? parseInt(formData.dimension) : null,
       dflt_dim2: null,
       inactive: 0,
@@ -167,14 +193,21 @@ export default function UpdateAddFixedAssetsCategories() {
     };
 
     try {
-      const res = await createItemCategory(payload);
-      alert("Fixed Assets Category added successfully!");
-      console.log("Created:", res);
+      let res;
+      if (category_id) {
+        res = await updateItemCategory(Number(category_id), payload);
+        // alert("Fixed Assets Category updated successfully!");
+        setOpen(true);
+      } else {
+        // Handle the case when category_id is not present (e.g., show an error or redirect)
+      }
+      console.log("Saved:", res);
       queryClient.invalidateQueries({ queryKey: ["itemCategories"], exact: false });
-      navigate("/itemsandinventory/maintenance/item-categories");
+
     } catch (err) {
-      console.error("Failed to create item category:", err);
-      alert("Failed to add Fixed Assets Category.");
+      console.error("Failed to save item category:", err);
+      // alert("Failed to save Fixed Assets Category.");
+      setErrorOpen(true);
     }
   };
 
@@ -239,6 +272,17 @@ export default function UpdateAddFixedAssetsCategories() {
             <FormHelperText>{errors.unitOfMeasure || " "}</FormHelperText>
           </FormControl>
 
+          <FormControlLabel
+            control={
+              <Checkbox
+                name="excludeFromPurchases"
+                checked={formData.excludeFromPurchases}
+                onChange={handleCheckboxChange}
+              />
+            }
+            label="Exclude from purchases"
+          />
+
           <FormControl size="small" fullWidth>
             <InputLabel>Dimension</InputLabel>
             <Select
@@ -281,7 +325,7 @@ export default function UpdateAddFixedAssetsCategories() {
                     ...accounts.map((acc) => (
                       <MenuItem key={acc.account_code} value={acc.account_code}>
                         <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                          {acc.account_code}- {acc.account_name}
+                          {acc.account_code} - {acc.account_name}
                         </Stack>
                       </MenuItem>
                     )),
@@ -315,7 +359,7 @@ export default function UpdateAddFixedAssetsCategories() {
                     ...accounts.map((acc) => (
                       <MenuItem key={acc.account_code} value={acc.account_code}>
                         <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                          {acc.account_code}- {acc.account_name}
+                          {acc.account_code} - {acc.account_name}
                         </Stack>
                       </MenuItem>
                     )),
@@ -349,7 +393,7 @@ export default function UpdateAddFixedAssetsCategories() {
                     ...accounts.map((acc) => (
                       <MenuItem key={acc.account_code} value={acc.account_code}>
                         <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                          {acc.account_code}- {acc.account_name}
+                          {acc.account_code} - {acc.account_name}
                         </Stack>
                       </MenuItem>
                     )),
@@ -383,7 +427,7 @@ export default function UpdateAddFixedAssetsCategories() {
                     ...accounts.map((acc) => (
                       <MenuItem key={acc.account_code} value={acc.account_code}>
                         <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                          {acc.account_code}- {acc.account_name}
+                          {acc.account_code} - {acc.account_name}
                         </Stack>
                       </MenuItem>
                     )),
@@ -412,10 +456,25 @@ export default function UpdateAddFixedAssetsCategories() {
             sx={{ backgroundColor: "var(--pallet-blue)" }}
             onClick={handleSubmit}
           >
-            Add Fixed Assets Category
+            Update
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Fixed Asset Category has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => {
+          // Form was already cleared on successful update
+          window.history.back();
+        }}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

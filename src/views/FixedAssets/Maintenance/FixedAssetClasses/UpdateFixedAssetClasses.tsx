@@ -4,23 +4,17 @@ import {
   Stack,
   Typography,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  FormHelperText,
   Button,
   Paper,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
 import theme from "../../../../theme";
-import { useNavigate } from "react-router";
+import { useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-
-// API imports
-// import { getFixedAssetClasses, createFixedAssetClass } from "../../../../api/FixedAssetClasses/FixedAssetClassesApi";
-
+import { getStockFaClass, updateStockFaClass } from "../../../../api/StockFaClass/StockFaClassesApi";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 interface FixedAssetClassForm {
   parentClass: string;
   assetClass: string;
@@ -31,9 +25,14 @@ interface FixedAssetClassForm {
 
 export default function UpdateFixedAssetClasses() {
   const navigate = useNavigate();
+  const { fa_class_id: faClassId } = useParams();
   const queryClient = useQueryClient();
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const [formData, setFormData] = useState<FixedAssetClassForm>({
     parentClass: "",
@@ -44,20 +43,27 @@ export default function UpdateFixedAssetClasses() {
   });
 
   const [errors, setErrors] = useState<Partial<FixedAssetClassForm>>({});
-  const [parentClasses, setParentClasses] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!faClassId) return;
       try {
-        // const res = await getFixedAssetClasses();
-        // setParentClasses(res || []);
+        const response = await getStockFaClass(faClassId);
+        const data = Array.isArray(response) ? response.find(d => d.fa_class_id === faClassId) || response[0] : response;
+        setFormData({
+          parentClass: data.parent_id || "",
+          assetClass: data.fa_class_id,
+          description: data.description,
+          longDescription: data.long_description || "",
+          depreciationRate: data.depreciation_rate?.toString() || "",
+        });
       } catch (err) {
-        console.error("Failed to load parent classes", err);
+        console.error("Failed to load asset class", err);
       }
     };
 
     fetchData();
-  }, []);
+  }, [faClassId]);
 
   const handleInputChange = (e: any) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -76,26 +82,28 @@ export default function UpdateFixedAssetClasses() {
   };
 
   const handleSubmit = async () => {
-    if (!validate()) return;
+    if (!validate() || !faClassId) return;
 
     const payload = {
-      parent: formData.parentClass ? Number(formData.parentClass) : null,
-      asset_class: formData.assetClass,
+      fa_class_id: formData.assetClass,
+      parent_id: formData.parentClass || null,
       description: formData.description,
       long_description: formData.longDescription,
       depreciation_rate: Number(formData.depreciationRate),
-      inactive: 0,
+      inactive: false, // Assuming not updating inactive here
     };
 
     try {
-      // const res = await createFixedAssetClass(payload);
-      alert("Fixed Asset Class added successfully!");
+      await updateStockFaClass(faClassId, payload);
+      // alert("Fixed Asset Class updated successfully!");
 
-      queryClient.invalidateQueries({ queryKey: ["fixedAssetClasses"], exact: false });
-      navigate("/fixedassets/maintenance/fixed-asset-classes");
+      queryClient.invalidateQueries({ queryKey: ["stockFaClasses"], exact: false });
+      setOpen(true);
+      // navigate("/fixedassets/maintenance/fixed-asset-classes");
     } catch (err) {
-      console.error("Creation failed", err);
-      alert("Failed to create Fixed Asset Class.");
+      console.error("Update failed", err);
+      //  alert("Failed to update Fixed Asset Class.");
+      setErrorOpen(true);
     }
   };
 
@@ -111,29 +119,24 @@ export default function UpdateFixedAssetClasses() {
         }}
       >
         <Typography variant="h6" sx={{ mb: 3, textAlign: isMobile ? "center" : "left" }}>
-          Add Fixed Asset Class
+          Update Fixed Asset Class
         </Typography>
 
         <Stack spacing={2}>
           {/* Parent Class */}
-          <FormControl size="small" fullWidth>
-            <InputLabel>Parent Class</InputLabel>
-            <Select
-              name="parentClass"
-              value={formData.parentClass}
-              label="Parent Class"
-              onChange={handleInputChange}
-            >
-              <MenuItem value="">
-                <em>None</em>
-              </MenuItem>
-              {parentClasses.map((cls: any) => (
-                <MenuItem key={cls.id} value={String(cls.id)}>
-                  {cls.asset_class}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <TextField
+            label="Parent Class"
+            name="parentClass"
+            value={formData.parentClass}
+            onChange={handleInputChange}
+            error={!!errors.parentClass}
+            helperText={errors.parentClass}
+            size="small"
+            fullWidth
+            InputProps={{
+              readOnly: true,
+            }}
+          />
 
           {/* Fixed Asset Class */}
           <TextField
@@ -145,6 +148,9 @@ export default function UpdateFixedAssetClasses() {
             onChange={handleInputChange}
             error={!!errors.assetClass}
             helperText={errors.assetClass || " "}
+            InputProps={{
+              readOnly: true,
+            }}
           />
 
           {/* Description */}
@@ -202,10 +208,25 @@ export default function UpdateFixedAssetClasses() {
             sx={{ backgroundColor: "var(--pallet-blue)" }}
             onClick={handleSubmit}
           >
-            Add Fixed Asset Class
+            Update Fixed Asset Class
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Fixed Asset Class has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => {
+          // Form was already cleared on successful update
+          window.history.back();
+        }}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

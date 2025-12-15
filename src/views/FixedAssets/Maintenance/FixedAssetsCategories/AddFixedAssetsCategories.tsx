@@ -25,6 +25,8 @@ import { createItemCategory } from "../../../../api/ItemCategories/ItemCategorie
 import { getTags } from "../../../../api/DimensionTag/DimensionTagApi";
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface ItemCategoriesFormData {
   categoryName: string;
@@ -42,6 +44,9 @@ export default function AddFixedAssetsCategories() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const [formData, setFormData] = useState<ItemCategoriesFormData>({
     categoryName: "",
@@ -154,12 +159,14 @@ export default function AddFixedAssetsCategories() {
     const payload = {
       description: formData.categoryName,
       dflt_tax_type: parseInt(formData.itemTaxType),
+      dflt_mb_flag: 4, // Fixed Assets
       dflt_units: parseInt(formData.unitOfMeasure),
       dflt_sales_act: formData.salesAccount,
       dflt_inventory_act: formData.inventoryAccount,
       dflt_cogs_act: formData.cogsAccount,
       dflt_adjustment_act: formData.inventoryAdjustmentAccount,
-      dflt_dim1: formData.dimension ? parseInt(formData.dimension) : null,
+      dflt_wip_act: '1530',
+      dflt_dim1: null,
       dflt_dim2: null,
       inactive: 0,
       dflt_no_sale: 0,
@@ -168,13 +175,14 @@ export default function AddFixedAssetsCategories() {
 
     try {
       const res = await createItemCategory(payload);
-      alert("Fixed Assets Category added successfully!");
+      // alert("Fixed Assets Category added successfully!");
+      setOpen(true);
       console.log("Created:", res);
       queryClient.invalidateQueries({ queryKey: ["itemCategories"], exact: false });
-      navigate("/itemsandinventory/maintenance/item-categories");
     } catch (err) {
       console.error("Failed to create item category:", err);
-      alert("Failed to add Fixed Assets Category.");
+      //  alert("Failed to add Fixed Assets Category.");
+      setErrorOpen(true);
     }
   };
 
@@ -239,6 +247,17 @@ export default function AddFixedAssetsCategories() {
             <FormHelperText>{errors.unitOfMeasure || " "}</FormHelperText>
           </FormControl>
 
+          <FormControlLabel
+            control={
+              <Checkbox
+                name="excludeFromPurchases"
+                checked={formData.excludeFromPurchases}
+                onChange={handleCheckboxChange}
+              />
+            }
+            label="Exclude from purchases"
+          />
+
           <FormControl size="small" fullWidth>
             <InputLabel>Dimension</InputLabel>
             <Select
@@ -281,7 +300,7 @@ export default function AddFixedAssetsCategories() {
                     ...accounts.map((acc) => (
                       <MenuItem key={acc.account_code} value={acc.account_code}>
                         <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                          {acc.account_code}- {acc.account_name}
+                          {acc.account_code} - {acc.account_name}
                         </Stack>
                       </MenuItem>
                     )),
@@ -315,7 +334,7 @@ export default function AddFixedAssetsCategories() {
                     ...accounts.map((acc) => (
                       <MenuItem key={acc.account_code} value={acc.account_code}>
                         <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                          {acc.account_code}- {acc.account_name}
+                          {acc.account_code} - {acc.account_name}
                         </Stack>
                       </MenuItem>
                     )),
@@ -349,7 +368,7 @@ export default function AddFixedAssetsCategories() {
                     ...accounts.map((acc) => (
                       <MenuItem key={acc.account_code} value={acc.account_code}>
                         <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                          {acc.account_code}- {acc.account_name}
+                          {acc.account_code} - {acc.account_name}
                         </Stack>
                       </MenuItem>
                     )),
@@ -383,7 +402,7 @@ export default function AddFixedAssetsCategories() {
                     ...accounts.map((acc) => (
                       <MenuItem key={acc.account_code} value={acc.account_code}>
                         <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                          {acc.account_code}- {acc.account_name}
+                          {acc.account_code} - {acc.account_name}
                         </Stack>
                       </MenuItem>
                     )),
@@ -412,10 +431,27 @@ export default function AddFixedAssetsCategories() {
             sx={{ backgroundColor: "var(--pallet-blue)" }}
             onClick={handleSubmit}
           >
-            Add Fixed Assets Category
+            Add
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Fixed Assets Category has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => {
+          // Form was already cleared on successful submission
+          window.history.back();
+        }}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }
