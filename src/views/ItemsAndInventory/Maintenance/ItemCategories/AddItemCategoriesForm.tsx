@@ -105,13 +105,19 @@ export default function AddItemCategoriesForm() {
         setChartMasters(chartMastersRes || []);
         setItemTaxTypes(filteredTaxTypes);
         setUnitsOfMeasure(filteredUnits);
-        setItemTypes(itemTypesRes || []);
+
+        // Exclude item type id=4 from dropdown
+        const visibleItemTypes = (itemTypesRes || []).filter((item: any) => item.id !== 4);
+        setItemTypes(visibleItemTypes || []);
+
+        // Choose first visible item type (exclude id === 4)
+        const firstVisibleItemType = visibleItemTypes.length > 0 ? visibleItemTypes[0].id : (itemTypesRes.length > 0 ? itemTypesRes[0].id : null);
 
         // Set default values for dropdowns
         setFormData((prev) => ({
           ...prev,
           itemTaxType: filteredTaxTypes.length > 0 ? String(filteredTaxTypes[0].id) : "",
-          itemType: itemTypesRes.length > 0 ? String(itemTypesRes[0].id) : "",
+          itemType: firstVisibleItemType ? String(firstVisibleItemType) : "",
           unitOfMeasure: filteredUnits.length > 0 ? String(filteredUnits[0].id) : "",
           salesAccount: chartMastersRes.find((acc) => acc.account_code === "4010")?.account_code || "",
           inventoryAccount: chartMastersRes.find((acc) => acc.account_code === "1510")?.account_code || "",
@@ -316,7 +322,7 @@ export default function AddItemCategoriesForm() {
                     ...accounts.map((acc) => (
                       <MenuItem key={acc.account_code} value={acc.account_code}>
                         <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                          {acc.account_code}- {acc.account_name}
+                          {acc.account_code} - {acc.account_name}
                         </Stack>
                       </MenuItem>
                     )),
@@ -351,7 +357,7 @@ export default function AddItemCategoriesForm() {
                       ...accounts.map((acc) => (
                         <MenuItem key={acc.account_code} value={acc.account_code}>
                           <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                            {acc.account_code}- {acc.account_name}
+                            {acc.account_code} - {acc.account_name}
                           </Stack>
                         </MenuItem>
                       )),
@@ -386,7 +392,7 @@ export default function AddItemCategoriesForm() {
                     ...accounts.map((acc) => (
                       <MenuItem key={acc.account_code} value={acc.account_code}>
                         <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                          {acc.account_code}- {acc.account_name}
+                          {acc.account_code} - {acc.account_name}
                         </Stack>
                       </MenuItem>
                     )),
@@ -421,7 +427,7 @@ export default function AddItemCategoriesForm() {
                       ...accounts.map((acc) => (
                         <MenuItem key={acc.account_code} value={acc.account_code}>
                           <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                            {acc.account_code}- {acc.account_name}
+                            {acc.account_code} - {acc.account_name}
                           </Stack>
                         </MenuItem>
                       )),
@@ -457,7 +463,7 @@ export default function AddItemCategoriesForm() {
                       ...accounts.map((acc) => (
                         <MenuItem key={acc.account_code} value={acc.account_code}>
                           <Stack direction="row" justifyContent="space-between" sx={{ width: "100%" }}>
-                            {acc.account_code}- {acc.account_name}
+                            {acc.account_code} - {acc.account_name}
                           </Stack>
                         </MenuItem>
                       )),

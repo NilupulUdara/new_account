@@ -80,6 +80,9 @@ function ItemCategoriesTable() {
     if (!categoriesData) return [];
     let filtered = categoriesData;
 
+    // Exclude categories with dflt_mb_flag === 4 (fixed assets categories)
+    filtered = filtered.filter(item => item.dflt_mb_flag !== 4);
+
     if (searchQuery.trim()) {
       const lowerQuery = searchQuery.toLowerCase();
       filtered = filtered.filter(

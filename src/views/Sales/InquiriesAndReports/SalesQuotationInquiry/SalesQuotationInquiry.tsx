@@ -30,6 +30,9 @@ import { getInventoryLocations } from "../../../../api/InventoryLocation/Invento
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
+import { getSalesOrderDetails } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -79,6 +82,12 @@ export default function SalesQuotationInquiry() {
 
   const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
 
+  const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
+
+  const { data: branches = [] } = useQuery({ queryKey: ["branches"], queryFn: () => getBranches() });
+
+  const { data: orderDetails = [] } = useQuery({ queryKey: ["orderDetails"], queryFn: getSalesOrderDetails });
+
   useEffect(() => {
     if (!selectedItem) {
       setItemCode("");
@@ -88,12 +97,61 @@ export default function SalesQuotationInquiry() {
     setItemCode(it ? String(it.stock_id ?? it.id ?? "") : "");
   }, [selectedItem, items]);
 
-  // dummy rows
-  const today = new Date().toISOString().split("T")[0];
-  const rows: Row[] = [
-    { id: 1, deliveryNo: "SO-1001", customer: "Acme Corp", branch: "Main", contact: "John Doe", reference: "REF-001", custRef: "CREF-001", quoteDate: today, dueBy: "2025-12-14", deliveryTotal: "150.00", currency: "USD" , deliveryTo: "Main Warehouse", orderNo: "ORD-001", quoteTotal: "150.00"},
-    { id: 2, deliveryNo: "SO-1002", customer: "Beta Ltd", branch: "Branch A", contact: "Jane Smith", reference: "REF-002", custRef: "CREF-002", quoteDate: today, dueBy: "2025-12-15", deliveryTotal: "320.00", currency: "LKR", deliveryTo: "Branch Warehouse", orderNo: "ORD-002", quoteTotal: "320.00" },
-  ];
+  const filteredRows = React.useMemo(() => {
+    let filtered = salesOrders.filter((order: any) => order.trans_type === 32);
+
+    if (selectedCustomer !== "ALL_CUSTOMERS") {
+      filtered = filtered.filter((order: any) => String(order.debtor_no) === selectedCustomer);
+    }
+
+    if (numberText) {
+      filtered = filtered.filter((order: any) => order.order_no.toString().includes(numberText));
+    }
+
+    if (referenceText) {
+      filtered = filtered.filter((order: any) => order.reference.toLowerCase().includes(referenceText.toLowerCase()));
+    }
+
+    if (fromDate) {
+      filtered = filtered.filter((order: any) => order.ord_date >= fromDate);
+    }
+
+    if (toDate) {
+      filtered = filtered.filter((order: any) => order.ord_date <= toDate);
+    }
+
+    if (location !== "ALL_LOCATIONS") {
+      filtered = filtered.filter((order: any) => order.from_stk_loc === location);
+    }
+
+    if (selectedItem !== "ALL_ITEMS") {
+      const matchingOrderNos = new Set(orderDetails.filter((d: any) => d.stk_code === selectedItem).map((d: any) => d.order_no));
+      filtered = filtered.filter((order: any) => matchingOrderNos.has(order.order_no));
+    }
+
+    return filtered.map((order: any) => {
+      const customer = customers.find((c: any) => c.debtor_no === order.debtor_no);
+      const branch = branches.find((b: any) => b.branch_code === order.branch_code);
+      return {
+        id: order.order_no,
+        deliveryNo: order.order_no.toString(),
+        customer: customer?.name ?? customer?.customer_name ?? customer?.debtor_name ?? order.debtor_no.toString(),
+        branch: branch?.br_name ?? order.branch_code.toString(),
+        contact: "",
+        reference: order.reference,
+        custRef: order.customer_ref || "",
+        quoteDate: order.ord_date,
+        dueBy: order.delivery_date || "",
+        deliveryTotal: order.total.toString(),
+        currency: customer?.curr_code ?? "USD",
+        deliveryTo: order.deliver_to || "",
+        orderNo: order.order_no.toString(),
+        quoteTotal: order.total.toString(),
+      };
+    });
+  }, [salesOrders, selectedCustomer, numberText, referenceText, fromDate, toDate, location, selectedItem, customers, branches, orderDetails]);
+
+  const rows: Row[] = filteredRows;
 
   const paginatedRows = React.useMemo(() => {
     if (rowsPerPage === -1) return rows;
@@ -209,6 +267,7 @@ export default function SalesQuotationInquiry() {
               <TableCell>Delivery To</TableCell>
               <TableCell>Quote Total</TableCell>
               <TableCell>Currency</TableCell>
+              <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
 
@@ -225,6 +284,13 @@ export default function SalesQuotationInquiry() {
                 <TableCell>{r.deliveryTo}</TableCell>
                 <TableCell>{r.quoteTotal ?? r.deliveryTotal}</TableCell>
                 <TableCell>{r.currency}</TableCell>
+                <TableCell align="center">
+                  <Stack direction="row" spacing={1} justifyContent="center">
+                    <Button variant="outlined" size="small" onClick={() => navigate(`/sales/transactions/update-sales-quotation-entry/${r.id}`)}>Edit</Button>
+                    <Button variant="outlined" size="small">Sales Order</Button>
+                    <Button variant="outlined" size="small">Print</Button>
+                  </Stack>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

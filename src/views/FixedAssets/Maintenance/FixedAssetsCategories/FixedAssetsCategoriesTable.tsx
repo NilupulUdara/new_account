@@ -28,22 +28,22 @@ import theme from "../../../../theme";
 import SearchBar from "../../../../components/SearchBar";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
-
-// import {
-//   getAssetCategories,
-//   deleteAssetCategory,
-//   updateAssetCategory,
-//} from "../../../../api/FixedAssetsCategories/FixedAssetsCategoriesApi";
+import { getItemCategories, deleteItemCategory, updateItemCategory } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getItemTaxTypes } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
+import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 
 export default function FixedAssetsCategoriesTable() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [categories, setCategories] = useState<any[]>([]);
+  const [itemTaxTypes, setItemTaxTypes] = useState<any[]>([]);
+  const [itemUnits, setItemUnits] = useState<any[]>([]);
   const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [updatingIds, setUpdatingIds] = useState<number[]>([]);
 
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -51,18 +51,28 @@ export default function FixedAssetsCategoriesTable() {
   const navigate = useNavigate();
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
 
-//   useEffect(() => {
-//     loadCategories();
-//   }, []);
 
-//   const loadCategories = async () => {
-//     try {
-//       const data = await getAssetCategories();
-//       setCategories(data);
-//     } catch (error) {
-//       console.error("Failed to fetch categories", error);
-//     }
-//   };
+
+  const loadCategories = async (includeInactive = false) => {
+    try {
+      const [categoriesData, taxTypesData, unitsData] = await Promise.all([
+        getItemCategories(includeInactive),
+        getItemTaxTypes(),
+        getItemUnits(),
+      ]);
+      const filteredCategories = categoriesData.filter((cat: any) => cat.dflt_mb_flag === 4);
+      setCategories(filteredCategories);
+      setItemTaxTypes(taxTypesData);
+      setItemUnits(unitsData);
+    } catch (error) {
+      console.error("Failed to fetch data", error);
+    }
+  };
+
+  // Refetch when showInactive changes so backend can return inactive items when needed
+  useEffect(() => {
+    loadCategories(showInactive);
+  }, [showInactive]);
 
   const filteredData = useMemo(() => {
     let list = showInactive ? categories : categories.filter((c) => !c.inactive);
@@ -70,14 +80,19 @@ export default function FixedAssetsCategoriesTable() {
     if (searchQuery.trim() !== "") {
       const lower = searchQuery.toLowerCase();
       list = list.filter(
-        (c) =>
-          c.name.toLowerCase().includes(lower) ||
-          c.taxType.toLowerCase().includes(lower) ||
-          c.units.toString().includes(lower)
+        (c) => {
+          const taxName = itemTaxTypes.find((tax: any) => tax.id === c.dflt_tax_type)?.name || "";
+          const unitAbbr = itemUnits.find((unit: any) => unit.id === c.dflt_units)?.abbr || "";
+          return (
+            c.description.toLowerCase().includes(lower) ||
+            taxName.toLowerCase().includes(lower) ||
+            unitAbbr.toLowerCase().includes(lower)
+          );
+        }
       );
     }
     return list;
-  }, [categories, showInactive, searchQuery]);
+  }, [categories, showInactive, searchQuery, itemTaxTypes, itemUnits]);
 
   const paginatedData = useMemo(() => {
     if (rowsPerPage === -1) return filteredData;
@@ -91,19 +106,35 @@ export default function FixedAssetsCategoriesTable() {
     setPage(0);
   };
 
-//   const handleDelete = async () => {
-//     if (!selectedId) return;
+  const handleDelete = async () => {
+    if (!selectedId) return;
 
-//     try {
-//       await deleteAssetCategory(selectedId);
-//       setOpenDeleteModal(false);
-//       setSelectedId(null);
-//       loadCategories();
-//     } catch (error) {
-//       setErrorMessage("Failed to delete asset category");
-//       setErrorOpen(true);
-//     }
-//   };
+    try {
+      await deleteItemCategory(selectedId);
+      setOpenDeleteModal(false);
+      setSelectedId(null);
+      loadCategories();
+    } catch (error) {
+      setErrorMessage("Failed to delete asset category");
+      setErrorOpen(true);
+    }
+  };
+
+  // Handler to update inactive status (updates backend)
+  const handleToggleInactive = async (cat: any, checked: boolean) => {
+    if (!cat || !cat.category_id) return;
+    const id = cat.category_id;
+    try {
+      setUpdatingIds(prev => [...prev, id]);
+      await updateItemCategory(id, { ...cat, inactive: checked });
+      await loadCategories();
+    } catch (error: any) {
+      setErrorMessage(error?.response?.data?.message || "Failed to update inactive status");
+      setErrorOpen(true);
+    } finally {
+      setUpdatingIds(prev => prev.filter(i => i !== id));
+    }
+  };
 
   return (
     <Stack>
@@ -198,18 +229,22 @@ export default function FixedAssetsCategoriesTable() {
             <TableBody>
               {paginatedData.length > 0 ? (
                 paginatedData.map((cat) => (
-                  <TableRow key={cat.id} hover>
-                    <TableCell>{cat.name}</TableCell>
-                    <TableCell>{cat.taxType}</TableCell>
-                    <TableCell>{cat.units}</TableCell>
-                    <TableCell>{cat.salesAccount}</TableCell>
-                    <TableCell>{cat.assetAccount}</TableCell>
-                    <TableCell>{cat.depreciationCostAccount}</TableCell>
-                    <TableCell>{cat.disposalAccount}</TableCell>
+                  <TableRow key={cat.category_id} hover>
+                    <TableCell>{cat.description}</TableCell>
+                    <TableCell>{itemTaxTypes.find((tax: any) => tax.id === cat.dflt_tax_type)?.name || cat.dflt_tax_type}</TableCell>
+                    <TableCell>{itemUnits.find((unit: any) => unit.id === cat.dflt_units)?.abbr || cat.dflt_units}</TableCell>
+                    <TableCell>{cat.dflt_sales_act}</TableCell>
+                    <TableCell>{cat.dflt_inventory_act}</TableCell>
+                    <TableCell>{cat.dflt_cogs_act}</TableCell>
+                    <TableCell>{cat.dflt_adjustment_act}</TableCell>
 
                     {showInactive && (
                       <TableCell align="center">
-                        <Checkbox checked={!!cat.inactive} disabled />
+                        <Checkbox
+                          checked={!!cat.inactive}
+                          disabled={updatingIds.includes(cat.category_id)}
+                          onChange={(e) => handleToggleInactive(cat, e.target.checked)}
+                        />
                       </TableCell>
                     )}
 
@@ -221,7 +256,7 @@ export default function FixedAssetsCategoriesTable() {
                           startIcon={<EditIcon />}
                           onClick={() =>
                             navigate(
-                              `/fixedassets/maintenance/update-fixed-asset-category/${cat.id}`
+                              `/fixedassets/maintenance/update-fixed-asset-categories/${cat.category_id}`
                             )
                           }
                         >
@@ -234,7 +269,7 @@ export default function FixedAssetsCategoriesTable() {
                           color="error"
                           startIcon={<DeleteIcon />}
                           onClick={() => {
-                            setSelectedId(cat.id);
+                            setSelectedId(cat.category_id);
                             setOpenDeleteModal(true);
                           }}
                         >
@@ -269,15 +304,16 @@ export default function FixedAssetsCategoriesTable() {
         </TableContainer>
       </Stack>
 
+
       {/* Confirmation + Error Modals */}
-      {/* <DeleteConfirmationModal
+      <DeleteConfirmationModal
         open={openDeleteModal}
         title="Delete Category"
         content="Are you sure you want to delete this category?"
         handleClose={() => setOpenDeleteModal(false)}
         handleReject={() => setSelectedId(null)}
         deleteFunc={handleDelete}
-      /> */}
+      />
 
       <ErrorModal
         open={errorOpen}

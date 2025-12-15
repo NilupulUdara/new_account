@@ -199,7 +199,7 @@ export default function UpdateSalesQuotationEntry() {
 
     const breadcrumbItems = [
         { title: "Transactions", href: "/sales/transactions/" },
-        { title: "New Sales Quotation Entry" },
+        { title: "Modifying Sales Quotation" },
     ];
 
     const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
@@ -231,7 +231,7 @@ export default function UpdateSalesQuotationEntry() {
                 }}
             >
                 <Box>
-                    <PageTitle title="New Sales Quotation Entry" />
+                    <PageTitle title="Modifying Sales Quotation" />
                     <Breadcrumb breadcrumbs={breadcrumbItems} />
                 </Box>
 
@@ -573,7 +573,7 @@ export default function UpdateSalesQuotationEntry() {
                         Cancel Quotation
                     </Button>
                     <Button variant="contained" color="primary" onClick={handlePlaceQuotation}>
-                        Place Quotation
+                        Commit Quotation Changes
                     </Button>
                 </Box>
             </Paper>

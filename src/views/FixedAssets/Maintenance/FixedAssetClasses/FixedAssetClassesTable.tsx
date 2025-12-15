@@ -29,11 +29,12 @@ import PageTitle from "../../../../components/PageTitle";
 import SearchBar from "../../../../components/SearchBar";
 import theme from "../../../../theme";
 import ErrorModal from "../../../../components/ErrorModal";
-
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 // import {
 //   getAssetClasses,
 //   deleteAssetClass,
 // } from "../../../../api/FixedAssetClasses/FixedAssetClassesApi";
+import { getStockFaClasses, deleteStockFaClass } from "../../../../api/StockFaClass/StockFaClassesApi";
 
 export default function FixedAssetClassesTable() {
   const [page, setPage] = useState(0);
@@ -42,26 +43,63 @@ export default function FixedAssetClassesTable() {
   const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Helper to determine if a class is inactive (copied from SalesPersonTable logic)
+  const isClassInactive = (item: any) => {
+    if (item == null) return false;
+    if (typeof item.inactive === "boolean") return Boolean(item.inactive);
+    if (item.inactive !== undefined && item.inactive !== null) {
+      const val = String(item.inactive).toLowerCase();
+      if (val === "1" || val === "true") return true;
+      if (val === "0" || val === "false") return false;
+    }
+    if (typeof item.isActive === "boolean") return !item.isActive;
+    if (typeof item.status === "string") return item.status.toLowerCase() !== "active";
+    return false;
+  };
+
+  // Track which rows are being updated
+  const [updatingIds, setUpdatingIds] = useState<string[]>([]);
+
+  // Handler to toggle inactive
+  const handleToggleInactive = async (cls: any, checked: boolean) => {
+    if (!cls || !cls.fa_class_id) return;
+    const id = cls.fa_class_id;
+    try {
+      setUpdatingIds((prev) => [...prev, id]);
+      const payload = { ...cls, inactive: checked };
+      const api = await import("../../../../api/StockFaClass/StockFaClassesApi");
+      await api.updateStockFaClass(id, payload);
+      await loadAssetClasses();
+    } catch (error: any) {
+      setErrorMessage(error?.response?.data?.message || "Failed to update. Please try again.");
+      setErrorOpen(true);
+    } finally {
+      setUpdatingIds((prev) => prev.filter((i) => i !== id));
+    }
+  };
+
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
 
   const navigate = useNavigate();
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
 
   /** API Loading (Uncomment when backend ready) */
-  // useEffect(() => {
-  //   loadAssetClasses();
-  // }, []);
+  useEffect(() => {
+    loadAssetClasses();
+  }, []);
 
-  // const loadAssetClasses = async () => {
-  //   try {
-  //     const data = await getAssetClasses();
-  //     setAssetClasses(data);
-  //   } catch (error) {
-  //     setErrorMessage("Failed to fetch asset classes");
-  //     setErrorOpen(true);
-  //   }
-  // };
+  const loadAssetClasses = async () => {
+    try {
+      const data = await getStockFaClasses();
+      setAssetClasses(data);
+    } catch (error) {
+      setErrorMessage("Failed to fetch asset classes");
+      setErrorOpen(true);
+    }
+  };
 
   /** Filter + Search Logic */
   const filteredData = useMemo(() => {
@@ -73,9 +111,9 @@ export default function FixedAssetClassesTable() {
       const lower = searchQuery.toLowerCase();
       list = list.filter(
         (c) =>
-          c.assetClass.toLowerCase().includes(lower) ||
+          c.fa_class_id.toLowerCase().includes(lower) ||
           c.description.toLowerCase().includes(lower) ||
-          c.depreciationRate.toString().includes(lower)
+          c.depreciation_rate.toString().includes(lower)
       );
     }
 
@@ -101,15 +139,18 @@ export default function FixedAssetClassesTable() {
   };
 
   /** Delete Handler */
-  // const handleDelete = async (id: number) => {
-  //   try {
-  //     await deleteAssetClass(id);
-  //     loadAssetClasses();
-  //   } catch (error) {
-  //     setErrorMessage("Failed to delete asset class");
-  //     setErrorOpen(true);
-  //   }
-  // };
+  const handleDelete = async (faClassId: string) => {
+    try {
+      await deleteStockFaClass(faClassId);
+      loadAssetClasses();
+    } catch (error) {
+      setErrorMessage("Failed to delete asset class");
+      setErrorOpen(true);
+    }finally {
+      setOpenDeleteModal(false);
+      setSelectedTypeId(null);
+    }
+  };
 
   return (
     <Stack>
@@ -205,14 +246,19 @@ export default function FixedAssetClassesTable() {
             <TableBody>
               {paginatedData.length > 0 ? (
                 paginatedData.map((cls) => (
-                  <TableRow key={cls.id} hover>
-                    <TableCell>{cls.assetClass}</TableCell>
+                  <TableRow key={cls.fa_class_id} hover>
+                    <TableCell>{cls.fa_class_id}</TableCell>
                     <TableCell>{cls.description}</TableCell>
-                    <TableCell>{cls.depreciationRate}%</TableCell>
+                    <TableCell>{cls.depreciation_rate}%</TableCell>
 
                     {showInactive && (
                       <TableCell align="center">
-                        <Checkbox checked={!!cls.inactive} disabled />
+                        <Checkbox
+                          checked={isClassInactive(cls)}
+                          disabled={updatingIds.includes(cls.fa_class_id)}
+                          onChange={(e) => handleToggleInactive(cls, e.target.checked)}
+                          inputProps={{ 'aria-label': 'inactive-checkbox' }}
+                        />
                       </TableCell>
                     )}
 
@@ -228,7 +274,7 @@ export default function FixedAssetClassesTable() {
                           startIcon={<EditIcon />}
                           onClick={() =>
                             navigate(
-                              `/fixedassets/maintenance/update-fixed-asset-class/${cls.id}`
+                              `/fixedassets/maintenance/update-fixed-asset-classes/${cls.fa_class_id}`
                             )
                           }
                         >
@@ -242,7 +288,8 @@ export default function FixedAssetClassesTable() {
                           color="error"
                           startIcon={<DeleteIcon />}
                           onClick={() => {
-                            // handleDelete(cls.id);
+                            setSelectedTypeId(cls.fa_class_id);
+                            setOpenDeleteModal(true);
                           }}
                         >
                           Delete
@@ -284,6 +331,15 @@ export default function FixedAssetClassesTable() {
         open={errorOpen}
         onClose={() => setErrorOpen(false)}
         message={errorMessage}
+      />
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Sales Type"
+        content="Are you sure you want to delete this Sales Type? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setSelectedTypeId(null)}
+        deleteFunc={() => selectedTypeId !== null && handleDelete(selectedTypeId)}
+        onSuccess={() => console.log("Sales Type deleted successfully!")}
       />
     </Stack>
   );

@@ -17,9 +17,9 @@ import {
 import theme from "../../../../theme";
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-
-// API imports
-// import { getFixedAssetClasses, createFixedAssetClass } from "../../../../api/FixedAssetClasses/FixedAssetClassesApi";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
+import { createStockFaClass } from "../../../../api/StockFaClass/StockFaClassesApi";
 
 interface FixedAssetClassForm {
   parentClass: string;
@@ -35,6 +35,10 @@ export default function AddFixedAssetClasses() {
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const [formData, setFormData] = useState<FixedAssetClassForm>({
     parentClass: "",
     assetClass: "",
@@ -44,19 +48,9 @@ export default function AddFixedAssetClasses() {
   });
 
   const [errors, setErrors] = useState<Partial<FixedAssetClassForm>>({});
-  const [parentClasses, setParentClasses] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // const res = await getFixedAssetClasses();
-        // setParentClasses(res || []);
-      } catch (err) {
-        console.error("Failed to load parent classes", err);
-      }
-    };
-
-    fetchData();
+    // No data to fetch
   }, []);
 
   const handleInputChange = (e: any) => {
@@ -79,23 +73,23 @@ export default function AddFixedAssetClasses() {
     if (!validate()) return;
 
     const payload = {
-      parent: formData.parentClass ? Number(formData.parentClass) : null,
-      asset_class: formData.assetClass,
+      fa_class_id: formData.assetClass,
+      parent_id: formData.parentClass,
       description: formData.description,
       long_description: formData.longDescription,
       depreciation_rate: Number(formData.depreciationRate),
-      inactive: 0,
+      inactive: false,
     };
 
     try {
-      // const res = await createFixedAssetClass(payload);
-      alert("Fixed Asset Class added successfully!");
+      const res = await createStockFaClass(payload);
+      setOpen(true);
 
-      queryClient.invalidateQueries({ queryKey: ["fixedAssetClasses"], exact: false });
-      navigate("/fixedassets/maintenance/fixed-asset-classes");
+      queryClient.invalidateQueries({ queryKey: ["stockFaClasses"], exact: false });
+    //  navigate("/fixedassets/maintenance/fixed-asset-classes");
     } catch (err) {
       console.error("Creation failed", err);
-      alert("Failed to create Fixed Asset Class.");
+      setErrorOpen(true);
     }
   };
 
@@ -116,24 +110,14 @@ export default function AddFixedAssetClasses() {
 
         <Stack spacing={2}>
           {/* Parent Class */}
-          <FormControl size="small" fullWidth>
-            <InputLabel>Parent Class</InputLabel>
-            <Select
-              name="parentClass"
-              value={formData.parentClass}
-              label="Parent Class"
-              onChange={handleInputChange}
-            >
-              <MenuItem value="">
-                <em>None</em>
-              </MenuItem>
-              {parentClasses.map((cls: any) => (
-                <MenuItem key={cls.id} value={String(cls.id)}>
-                  {cls.asset_class}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <TextField
+            label="Parent Class"
+            name="parentClass"
+            size="small"
+            fullWidth
+            value={formData.parentClass}
+            onChange={handleInputChange}
+          />
 
           {/* Fixed Asset Class */}
           <TextField
@@ -206,6 +190,23 @@ export default function AddFixedAssetClasses() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Fixed Assets Class has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => {
+          // Form was already cleared on successful submission
+          window.history.back();
+        }}
+      />
+
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }
