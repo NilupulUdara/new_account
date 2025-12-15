@@ -24,7 +24,7 @@ import { getItems } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
-import { getSuppliers } from "../../../../api/Supplier/SupplierApi";
+import { getSuppliers, getSupplierById } from "../../../../api/Supplier/SupplierApi";
 
 export default function ViewPurchaseOrderEntry() {
   const { state } = useLocation();
@@ -128,11 +128,40 @@ export default function ViewPurchaseOrderEntry() {
   }, [initialState]);
 
   // Supplier name resolve
-  const supplierName = useMemo(() => {
-    const supplierId = order?.supplier ?? order?.supplier_id ?? order?.supplierId ?? initialState?.supplier;
-    if (!supplierId) return "-";
-    const found = suppliers?.find((s) => String(s.supplier_id) === String(supplierId));
-    return found ? found.supp_name : String(supplierId);
+  const resolveSupplierId = (s: any) => s?.supplier_id ?? s?.id ?? s?.supp_id ?? s?.supplier ?? s?.supplierId ?? s?.debtor_no ?? s?.code ?? s?.supp_code ?? null;
+
+  const [supplierName, setSupplierName] = React.useState<string>("-");
+
+  React.useEffect(() => {
+    const loadName = async () => {
+      const supplierId = order?.supplier ?? order?.supplier_id ?? order?.supplierId ?? initialState?.supplier;
+      if (!supplierId) {
+        setSupplierName("-");
+        return;
+      }
+
+      // try to resolve from loaded suppliers list first
+      const found = suppliers?.find((s) => String(resolveSupplierId(s)) === String(supplierId));
+      if (found) {
+        setSupplierName(found.supp_name ?? found.supp_short_name ?? found.name ?? String(resolveSupplierId(found)));
+        return;
+      }
+
+      // fallback to API fetch by id
+      try {
+        const fetched = await getSupplierById(supplierId);
+        if (fetched) {
+          const name = fetched.supp_name ?? fetched.name ?? fetched.supp_short_name ?? fetched.supplier_name ?? String(resolveSupplierId(fetched) ?? supplierId);
+          setSupplierName(name);
+          return;
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      setSupplierName(String(supplierId));
+    };
+    loadName();
   }, [order, suppliers, initialState]);
 
   const breadcrumbItems = [

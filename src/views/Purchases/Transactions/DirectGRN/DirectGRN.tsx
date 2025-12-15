@@ -205,6 +205,8 @@ export default function DirectGRN() {
         // resolve supplier id (supplier holds supplier_id numeric)
         const supplierIdToSend = Number(supplier) || null;
         if (!supplierIdToSend) { throw new Error('Missing supplier id'); }
+        const selectedSupplierObj = (suppliers || []).find((s: any) => String(resolveSupplierId(s)) === String(supplier));
+        const taxIncludedForSupplier = Boolean(selectedSupplierObj?.tax_included ?? selectedSupplierObj?.taxIncluded ?? false);
 
         // resolve location code
         const selectedLocationObj = (locations || []).find((l: any) => Number(l.id) === Number(receiveInto));
@@ -239,7 +241,7 @@ export default function DirectGRN() {
           total: Number(subTotal) || 0,
           prep_amount: 0,
           alloc: 0,
-          tax_included: false,
+          tax_included: taxIncludedForSupplier,
         };
 
         const createdPo = await createPurchOrder(poPayload);

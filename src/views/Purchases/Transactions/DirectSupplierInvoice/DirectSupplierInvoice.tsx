@@ -37,7 +37,7 @@ import { getPurchDataById } from "../../../../api/PurchasingPricing/PurchasingPr
 import { createPurchOrder, getPurchOrders } from "../../../../api/PurchOrders/PurchOrderApi";
 import { createPurchOrderDetail } from "../../../../api/PurchOrders/PurchOrderDetailsApi";
 import { createGrnBatch, getGrnBatches } from "../../../../api/GRN/GrnBatchApi";
-import { createGrnItem } from "../../../../api/GRN/GrnItemsApi";
+import { createGrnItem, getGrnItems } from "../../../../api/GRN/GrnItemsApi";
 import { createSuppTrans, getSuppTrans } from "../../../../api/SuppTrans/SuppTransApi";
 import { createSuppInvoiceItem } from "../../../../api/SuppInvoiceItems/SuppInvoiceItemsApi";
 
@@ -222,6 +222,8 @@ export default function DirectSupplierInvoice() {
 
         const supplierIdToSend = Number(supplier) || null;
         if (!supplierIdToSend) { throw new Error('Missing supplier id'); }
+        const selectedSupplierObj = (suppliers || []).find((s: any) => String(resolveSupplierId(s)) === String(supplier));
+        const taxIncludedForSupplier = Boolean(selectedSupplierObj?.tax_included ?? selectedSupplierObj?.taxIncluded ?? false);
 
         const selectedLocationObj = (locations || []).find((l: any) => Number(l.id) === Number(receiveInto));
         const intoLocationCode = selectedLocationObj ? (selectedLocationObj.loc_code || selectedLocationObj.location_name || String(receiveInto)) : String(receiveInto || "");
@@ -255,7 +257,7 @@ export default function DirectSupplierInvoice() {
           total: Number(subTotal) || 0,
           prep_amount: 0,
           alloc: 0,
-          tax_included: false,
+          tax_included: taxIncludedForSupplier,
         };
 
         const createdPo = await createPurchOrder(poPayload);
@@ -322,7 +324,7 @@ export default function DirectSupplierInvoice() {
         }
         if (!grnBatchId) throw new Error('Failed to obtain grn_batch id');
 
-        // create GRN items and collect created items
+        // create GRN items and collect created items (store extracted id)
         const createdGrnItems: any[] = [];
         for (let idx = 0; idx < detailsToPost.length; idx++) {
           const r = detailsToPost[idx];
@@ -338,10 +340,32 @@ export default function DirectSupplierInvoice() {
           };
           try {
             const created = await createGrnItem(grnItemPayload);
-            createdGrnItems.push(created ?? grnItemPayload);
+            let extractedId = created?.id ?? created?.grn_item_id ?? created?.grn_item?.id ?? created?.data?.id ?? created?.data?.grn_item_id ?? null;
+
+            // fallback: if no id returned, try to find the created GRN item by matching attributes
+            if (!extractedId) {
+              try {
+                const allItems = await getGrnItems();
+                if (Array.isArray(allItems) && allItems.length > 0) {
+                  const candidates = allItems
+                    .filter((it: any) => Number(it.grn_batch_id ?? it.batch_id ?? it.grn_batch ?? 0) === Number(grnBatchId))
+                    .filter((it: any) => Number(it.po_detail_item ?? it.po_item ?? 0) === Number(poItem))
+                    .filter((it: any) => (String(it.item_code ?? it.stock_id ?? it.item) === String(grnItemPayload.item_code)))
+                    .filter((it: any) => Number(it.qty_recd ?? it.quantity ?? it.qty ?? 0) === Number(grnItemPayload.qty_recd));
+                  if (candidates.length > 0) {
+                    const found = candidates.sort((a: any, b: any) => Number(b.id ?? b.grn_item_id ?? 0) - Number(a.id ?? a.grn_item_id ?? 0))[0];
+                    extractedId = found.id ?? found.grn_item_id ?? found.grn_item_id ?? found.data?.id ?? null;
+                  }
+                }
+              } catch (e) {
+                console.warn('Fallback lookup for GRN item failed:', e);
+              }
+            }
+
+            createdGrnItems.push({ raw: created ?? grnItemPayload, id: extractedId });
           } catch (err) {
             console.warn('Failed to create GRN item:', err, 'payload:', grnItemPayload);
-            createdGrnItems.push(grnItemPayload);
+            createdGrnItems.push({ raw: grnItemPayload, id: null });
           }
         }
 
@@ -378,7 +402,7 @@ export default function DirectSupplierInvoice() {
           ov_gst: 0,
           rate: 1,
           alloc: 0,
-          tax_included: 0,
+          tax_included: taxIncludedForSupplier ? 1 : 0,
         };
         const createdSuppTrans = await createSuppTrans(suppTransPayload);
         const suppTransNo = createdSuppTrans?.trans_no ?? createdSuppTrans?.id ?? createdSuppTrans?.supp_trans_no ?? null;
@@ -387,12 +411,12 @@ export default function DirectSupplierInvoice() {
         for (let idx = 0; idx < detailsToPost.length; idx++) {
           const r = detailsToPost[idx];
           const createdDetail = createdDetails[idx] || {};
-          const createdGrnItem = createdGrnItems[idx] || {};
-          const suppInvItem: any = {
+            const createdGrnItem = createdGrnItems[idx] || { id: null, raw: null };
+            const suppInvItem: any = {
             supp_trans_no: suppTransNo,
             supp_trans_type: 20,
             gl_code: "0",
-            grn_item_id: createdGrnItem?.id ?? createdGrnItem?.grn_item_id ?? null,
+            grn_item_id: createdGrnItem?.id ?? createdGrnItem?.raw?.id ?? createdGrnItem?.raw?.grn_item_id ?? null,
             po_detail_item_id: createdDetail?.po_detail_item ?? createdDetail?.id ?? null,
             stock_id: r.itemCode ?? r.stockId ?? null,
             description: r.description || createdDetail?.description || null,

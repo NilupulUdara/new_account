@@ -26,12 +26,12 @@ import PageTitle from "../../../../components/PageTitle";
 import { getSuppliers } from "../../../../api/Supplier/SupplierApi";
 import { getTags } from "../../../../api/DimensionTag/DimensionTagApi";
 import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi";
+import { getSuppTrans } from "../../../../api/SuppTrans/SuppTransApi";
+import { getSuppInvoiceItems } from "../../../../api/SuppInvoiceItems/SuppInvoiceItemsApi";
+import { getPurchOrders } from "../../../../api/PurchOrders/PurchOrderApi";
+import { getPurchOrderDetails } from "../../../../api/PurchOrders/PurchOrderDetailsApi";
 
-// Mock function for bank balance - replace with actual API call
-const getBankBalance = async (bankId: number) => {
-  // Mock implementation - replace with actual API call
-  return Math.floor(Math.random() * 10000) + 1000; // Random balance between 1000-11000
-};
+// NOTE: bank balance logic removed — replace with real API call when available
 
 export default function SupplierPaymentEntry() {
   const navigate = useNavigate();
@@ -57,21 +57,10 @@ export default function SupplierPaymentEntry() {
   const [banks, setBanks] = useState([]);
 
   // ================== TABLE ROWS (Allocated amounts) ==================
-  const [rows, setRows] = useState([
-    // Example structure – will be populated from API later
-    {
-      id: 1,
-      type: "Invoice",
-      number: "INV-123",
-      supplierRef: "REF-777",
-      date: "2025-01-10",
-      dueDate: "2025-02-10",
-      amount: 500,
-      otherAlloc: 100,
-      left: 400,
-      allocation: 0,
-    },
-  ]);
+  const [rows, setRows] = useState<any[]>([]);
+  const [suppTrans, setSuppTrans] = useState<any[]>([]);
+  const [purchOrders, setPurchOrders] = useState<any[]>([]);
+  const [purchOrderDetails, setPurchOrderDetails] = useState<any[]>([]);
 
   // ================== GENERATE REFERENCE ==================
   useEffect(() => {
@@ -79,22 +68,60 @@ export default function SupplierPaymentEntry() {
     const rnd = Math.floor(Math.random() * 1000)
       .toString()
       .padStart(3, "0");
-    setReference(`SP-${rnd}/${year}`);
+    setReference(`${rnd}/${year}`);
   }, []);
+
+  // helper to normalize date strings to YYYY-MM-DD (top-level for reuse)
+  const formatDate = (val: any) => {
+    if (!val && val !== 0) return "";
+    try {
+      if (typeof val === "string") {
+        if (val.includes("T")) return val.split("T")[0];
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+        return val;
+      }
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+      return String(val);
+    } catch {
+      return String(val);
+    }
+  };
 
   // ================== FETCH API DATA ==================
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [suppliersData, dimensionsData, banksData] = await Promise.all([
+        const [suppliersData, dimensionsData, banksData, suppTransData, purchOrdersData, purchOrderDetailsData] = await Promise.all([
           getSuppliers(),
           getTags(),
           getBankAccounts(),
+          getSuppTrans(),
+          getPurchOrders(),
+          getPurchOrderDetails(),
         ]);
 
         setSuppliers(suppliersData);
         setDimensions(dimensionsData);
-        setBanks(banksData);
+        // normalize banksData which may be { data: [...] } or an array
+        const normalizedBanks = banksData?.data ?? banksData ?? [];
+        setBanks(Array.isArray(normalizedBanks) ? normalizedBanks : []);
+        setSuppTrans(Array.isArray(suppTransData) ? suppTransData : (suppTransData?.data ?? []));
+        setPurchOrders(Array.isArray(purchOrdersData) ? purchOrdersData : (purchOrdersData?.data ?? []));
+        setPurchOrderDetails(Array.isArray(purchOrderDetailsData) ? purchOrderDetailsData : (purchOrderDetailsData?.data ?? []));
+
+        // default-select first supplier and first bank account if none selected
+        if ((!supplier || supplier === 0) && Array.isArray(suppliersData) && suppliersData.length > 0) {
+          const firstSupplier = suppliersData[0];
+          const firstSupplierId = firstSupplier?.supplier_id ?? firstSupplier?.id ?? firstSupplier?.supplier ?? null;
+          if (firstSupplierId != null) setSupplier(Number(firstSupplierId));
+        }
+        if ((!bankAccount || bankAccount === 0) && Array.isArray(normalizedBanks) && normalizedBanks.length > 0) {
+          const firstBank = normalizedBanks[0];
+          const firstBankId = firstBank?.id ?? firstBank?.bank_account_id ?? null;
+          if (firstBankId != null) setBankAccount(Number(firstBankId));
+        }
       } catch (error) {
         console.error("Error loading payment page:", error);
       }
@@ -105,10 +132,106 @@ export default function SupplierPaymentEntry() {
 
   // ================== GET BANK BALANCE ==================
   useEffect(() => {
-    if (bankAccount) {
-      getBankBalance(bankAccount).then((bal) => setBankBalance(bal ?? 0));
-    }
+    // bank balance not available client-side yet; clear to 0 or implement API
+    setBankBalance(0);
   }, [bankAccount]);
+
+  // map supplier transactions and purchase orders to table rows when supplier or data changes
+  useEffect(() => {
+    // helper to normalize date strings to YYYY-MM-DD
+    const formatDate = (val: any) => {
+      if (!val && val !== 0) return "";
+      try {
+        if (typeof val === "string") {
+          if (val.includes("T")) return val.split("T")[0];
+          // handle plain date strings
+          const d = new Date(val);
+          if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+          return val;
+        }
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+        return String(val);
+      } catch {
+        return String(val);
+      }
+    };
+    try {
+      if (!supplier) {
+        setRows([]);
+        return;
+      }
+      const sid = Number(supplier);
+
+      // Map supplier transactions first
+      const filteredSupp = (suppTrans || []).filter((t: any) => Number(t.supplier_id ?? t.supplier ?? t.supp_id ?? 0) === sid);
+      const mappedSupp = filteredSupp.map((t: any, idx: number) => {
+        const ovAmount = Number(t.ov_amount ?? t.amount ?? 0) || 0;
+        const ovGst = Number(t.ov_gst ?? 0) || 0;
+        const amount = ovAmount + ovGst;
+        const otherAlloc = 0;
+        const left = amount + otherAlloc;
+        return {
+          id: `supp-${t.trans_no ?? t.id ?? idx + 1}`,
+          type: "Supplier Invoice",
+          number: t.trans_no ?? t.id ?? "-",
+          supplierRef: t.supp_reference ?? t.supplier_ref ?? "",
+          date: formatDate(t.trans_date ?? t.date ?? ""),
+          dueDate: formatDate(t.due_date ?? t.due ?? ""),
+          amount: amount,
+          otherAlloc: otherAlloc,
+          left: left,
+          allocation: 0,
+        };
+      });
+
+      // Map purchase orders (exclude reference === 'auto')
+      const filteredPo = (purchOrders || []).filter((p: any) => {
+        const pid = Number(p.supplier_id ?? p.supp_id ?? p.supplier ?? 0);
+        const ref = (p.reference ?? p.ref ?? "").toString();
+        return pid === sid && ref.toLowerCase() !== "auto";
+      });
+      const mappedPo = filteredPo.map((p: any, idx: number) => {
+        const orderNo = p.order_no ?? p.id ?? p.orderNo ?? p.order_no;
+        // find matching purch_order_details for this order
+        const details = (purchOrderDetails || []).filter((d: any) => {
+          return Number(d.order_no ?? d.purch_order_no ?? d.orderNo ?? 0) === Number(orderNo);
+        });
+        // pick latest delivery_date if available
+        let due = "";
+        if (details.length > 0) {
+          const dates = details
+            .map((d: any) => d.delivery_date ?? d.del_date ?? d.delivery_date ?? null)
+            .filter(Boolean)
+            .map((s: any) => new Date(s));
+          if (dates.length > 0) {
+            const latest = dates.sort((a: any, b: any) => b.getTime() - a.getTime())[0];
+            due = latest.toISOString().split('T')[0];
+          }
+        }
+        const amount = Number(p.total ?? p.ov_amount ?? p.amount ?? 0) || 0;
+        const otherAlloc = 0;
+        const left = amount + otherAlloc;
+        return {
+          id: `po-${orderNo ?? idx}`,
+          type: "Purchase Order",
+          number: orderNo ?? "-",
+          supplierRef: p.reference ?? p.ref ?? "",
+          date: formatDate(p.ord_date ?? p.ordDate ?? p.date ?? ""),
+          dueDate: due,
+          amount: amount,
+          otherAlloc: otherAlloc,
+          left: left,
+          allocation: 0,
+        };
+      });
+
+      setRows([...mappedSupp, ...mappedPo]);
+    } catch (e) {
+      console.error('Failed to map supplier transactions and purchase orders to rows', e);
+      setRows([]);
+    }
+  }, [supplier, suppTrans, purchOrders, purchOrderDetails]);
 
   // ================== HANDLE ROW UPDATE ==================
   const handleRowChange = (id, field, value) => {
@@ -124,7 +247,113 @@ export default function SupplierPaymentEntry() {
     );
   };
 
-  // ================== BUTTON: ALL ==================
+  // keep Amount of Payment in sync with sum of allocations
+  useEffect(() => {
+    const sum = (rows || []).reduce((s, r) => s + (Number(r.allocation) || 0), 0);
+    setAmountPayment(sum);
+  }, [rows]);
+
+  // view supplier invoice by trans_no
+  const handleViewSupplierInvoice = async (transNo: any) => {
+    try {
+      const tno = transNo;
+      let trans = (suppTrans || []).find((s: any) => String(s.trans_no ?? s.id ?? s.transno) === String(tno));
+      if (!trans) {
+        // try refetch
+        const fresh = await getSuppTrans();
+        trans = (Array.isArray(fresh) ? fresh : (fresh?.data ?? [])).find((s: any) => String(s.trans_no ?? s.id ?? s.transno) === String(tno));
+      }
+      if (!trans) {
+        alert('Supplier transaction not found');
+        return;
+      }
+
+      // fetch invoice items
+      const allItems = await getSuppInvoiceItems();
+      const itemsArr = Array.isArray(allItems) ? allItems : (allItems?.data ?? []);
+      const invoiceItems = itemsArr.filter((it: any) => String(it.supp_trans_no ?? it.supp_trans ?? it.trans_no) === String(trans.trans_no ?? trans.id ?? trans.transno));
+
+      const itemsForView = invoiceItems.map((it: any) => {
+        const qty = Number(it.quantity ?? it.qty ?? it.qty_recd ?? 0) || 0;
+        const price = Number(it.unit_price ?? it.unitPrice ?? it.price ?? 0) || 0;
+
+        // find purch order detail to get order_no (delivery)
+        const poDetailId = it.po_detail_item_id ?? it.po_detail_item ?? it.po_detail ?? it.po_item_id ?? null;
+        const matchedDetail = (purchOrderDetails || []).find((d: any) => String(d.po_detail_item ?? d.po_detail_id ?? d.id) === String(poDetailId));
+        const delivery = matchedDetail ? (matchedDetail.order_no ?? matchedDetail.purch_order_no ?? matchedDetail.orderNo ?? '') : '';
+
+        return {
+          delivery: delivery,
+          item: it.stock_id ?? it.item ?? it.stockId ?? '',
+          description: it.description ?? '',
+          quantity: qty,
+          price: price,
+          lineValue: qty * price,
+        };
+      });
+
+      const subtotal = itemsForView.reduce((s: number, it: any) => s + (Number(it.lineValue) || 0), 0);
+      const totalInvoice = Number(trans.ov_amount ?? trans.amount ?? 0) + Number(trans.ov_gst ?? 0);
+
+      const stateToSend = {
+        supplier: trans.supplier_id ?? trans.supp_id ?? trans.supplier ?? null,
+        reference: trans.reference ?? trans.ref ?? trans.trans_no ?? trans.id ?? '',
+        supplierRef: trans.supp_reference ?? trans.supplier_ref ?? '',
+        invoiceDate: formatDate(trans.trans_date ?? trans.date ?? ''),
+        dueDate: formatDate(trans.due_date ?? trans.due ?? ''),
+        items: itemsForView,
+        subtotal: subtotal,
+        totalInvoice: totalInvoice,
+      };
+
+      navigate('/purchase/transactions/direct-supplier-invoice/view-direct-supplier-invoice', { state: stateToSend });
+    } catch (e) {
+      console.error('Failed to load supplier invoice view', e);
+      alert('Failed to load supplier invoice details');
+    }
+  };
+
+  // view purchase order by order_no
+  const handleViewPurchaseOrder = async (orderNo: any) => {
+    try {
+      const ono = orderNo;
+      let order = (purchOrders || []).find((p: any) => String(p.order_no ?? p.id ?? p.orderNo) === String(ono));
+      if (!order) {
+        // try to refetch purch orders
+        const fresh = await getPurchOrders();
+        order = (Array.isArray(fresh) ? fresh : (fresh?.data ?? [])).find((p: any) => String(p.order_no ?? p.id ?? p.orderNo) === String(ono));
+      }
+      if (!order) {
+        alert('Purchase order not found');
+        return;
+      }
+
+      // get details
+      let details = (purchOrderDetails || []).filter((d: any) => String(d.order_no ?? d.purch_order_no ?? d.orderNo) === String(ono));
+      if ((!details || details.length === 0)) {
+        // try to refetch details
+        const freshDetails = await getPurchOrderDetails();
+        details = (Array.isArray(freshDetails) ? freshDetails : (freshDetails?.data ?? [])).filter((d: any) => String(d.order_no ?? d.purch_order_no ?? d.orderNo) === String(ono));
+      }
+
+      const stateToSend: any = {
+        orderNo: ono,
+        reference: order.reference ?? order.ref ?? '',
+        supplier: order.supplier_id ?? order.supplier ?? order.supp_id ?? null,
+        orderDate: order.ord_date ?? order.ordDate ?? order.date ?? '',
+        location: order.into_stock_location ?? order.into_stock ?? order.loc_code ?? '',
+        deliveryAddress: order.delivery_address ?? order.deliver_to ?? '',
+        total: order.total ?? order.ov_amount ?? 0,
+        items: details,
+      };
+
+      navigate('/purchase/transactions/purchase-order-entry/view-purchase-order', { state: stateToSend });
+    } catch (e) {
+      console.error('Failed to load purchase order view', e);
+      alert('Failed to load purchase order details');
+    }
+  };
+
   const allocateAll = (id) => {
     setRows((prev) =>
       prev.map((r) =>
@@ -135,7 +364,6 @@ export default function SupplierPaymentEntry() {
     );
   };
 
-  // ================== BUTTON: NONE ==================
   const allocateNone = (id) => {
     setRows((prev) =>
       prev.map((r) =>
@@ -144,7 +372,6 @@ export default function SupplierPaymentEntry() {
     );
   };
 
-  // ================== SUBMIT ==================
   const handleSubmit = () => {
     alert("Supplier Payment Saved!");
     navigate(-1);
@@ -198,7 +425,7 @@ export default function SupplierPaymentEntry() {
               >
                 {suppliers.map((s) => (
                   <MenuItem key={s.supplier_id} value={s.supplier_id}>
-                    {s.supp_short_name}
+                    {s.supp_name}
                   </MenuItem>
                 ))}
               </TextField>
@@ -294,13 +521,13 @@ export default function SupplierPaymentEntry() {
               <TableCell>Transaction Type</TableCell>
               <TableCell>#</TableCell>
               <TableCell>Supplier Ref</TableCell>
-              <TableCell>Date</TableCell>
-              <TableCell>Due Date</TableCell>
+              <TableCell sx={{ width: '120px' }}>Date</TableCell>
+              <TableCell sx={{ width: '120px' }}>Due Date</TableCell>
               <TableCell>Amount</TableCell>
               <TableCell>Other Allocations</TableCell>
               <TableCell>Left to Allocate</TableCell>
-              <TableCell>This Allocation</TableCell>
-              <TableCell>Action</TableCell>
+              <TableCell sx={{ width: '140px' }}>This Allocation</TableCell>
+              <TableCell sx={{ textAlign: 'center' }}>Action</TableCell>
             </TableRow>
           </TableHead>
 
@@ -308,16 +535,28 @@ export default function SupplierPaymentEntry() {
             {rows.map((row) => (
               <TableRow key={row.id}>
                 <TableCell>{row.type}</TableCell>
-                <TableCell>{row.number}</TableCell>
+                <TableCell>
+                  {row.type === "Supplier Invoice" ? (
+                    <Button size="small" onClick={() => handleViewSupplierInvoice(row.number)}>
+                      {row.number}
+                    </Button>
+                  ) : row.type === "Purchase Order" ? (
+                    <Button size="small" onClick={() => handleViewPurchaseOrder(row.number)}>
+                      {row.number}
+                    </Button>
+                  ) : (
+                    row.number
+                  )}
+                </TableCell>
                 <TableCell>{row.supplierRef}</TableCell>
-                <TableCell>{row.date}</TableCell>
-                <TableCell>{row.dueDate}</TableCell>
+                <TableCell sx={{ width: '120px' }}>{row.date}</TableCell>
+                <TableCell sx={{ width: '120px' }}>{row.dueDate}</TableCell>
                 <TableCell>{row.amount}</TableCell>
                 <TableCell>{row.otherAlloc}</TableCell>
                 <TableCell>{row.left}</TableCell>
 
                 {/* Allocation Input */}
-                <TableCell>
+                <TableCell sx={{ width: '120px' }}>
                   <TextField
                     size="small"
                     type="number"
@@ -349,7 +588,8 @@ export default function SupplierPaymentEntry() {
             <TextField
               label="Amount of Discount"
               size="small"
-              type="number"
+              type="text"
+              inputProps={{ inputMode: 'decimal' }}
               fullWidth
               value={amountDiscount}
               onChange={(e) => setAmountDiscount(Number(e.target.value))}
@@ -360,7 +600,8 @@ export default function SupplierPaymentEntry() {
             <TextField
               label="Amount of Payment"
               size="small"
-              type="number"
+              type="text"
+              inputProps={{ inputMode: 'decimal' }}
               fullWidth
               value={amountPayment}
               onChange={(e) => setAmountPayment(Number(e.target.value))}
@@ -386,7 +627,7 @@ export default function SupplierPaymentEntry() {
           </Button>
 
           <Button variant="contained" color="primary" onClick={handleSubmit}>
-            Save Payment
+            Enter Payment
           </Button>
         </Box>
       </Paper>

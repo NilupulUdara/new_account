@@ -293,6 +293,7 @@ export default function PurchaseOrderEntry() {
         const selectedSupplierObj = suppliers.find((s: any) => String(resolveSupplierId(s)) === String(supplier));
         const supplierIdToSend = selectedSupplierObj ? Number(resolveSupplierId(selectedSupplierObj)) : null;
         if (!supplierIdToSend) { throw new Error('Missing supplier id'); }
+        const taxIncludedForSupplier = Boolean(selectedSupplierObj?.tax_included ?? selectedSupplierObj?.taxIncluded ?? false);
 
         const selectedLocationObj = locations.find((l: any) => String(l.id) === String(receiveInto));
         const intoLocationCode = selectedLocationObj ? (selectedLocationObj.loc_code || selectedLocationObj.location_name || String(receiveInto)) : String(receiveInto || "");
@@ -325,7 +326,7 @@ export default function PurchaseOrderEntry() {
           total: Number(subTotal) || 0,
           prep_amount: 0,
           alloc: 0,
-          tax_included: false,
+          tax_included: taxIncludedForSupplier,
         };
 
         const created = await createPurchOrder(payload);
