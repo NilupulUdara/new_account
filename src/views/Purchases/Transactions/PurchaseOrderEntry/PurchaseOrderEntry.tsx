@@ -80,45 +80,68 @@ export default function PurchaseOrderEntry() {
   const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
 
   useEffect(() => {
-    if (!orderDate || fiscalYears.length === 0) {
-      // fallback to calendar year if fiscal years not loaded yet
-      const year = new Date().getFullYear();
-      const random = Math.floor(Math.random() * 1000)
-        .toString()
-        .padStart(3, "0");
-      setReference(`${random}/${year}`);
-      return;
-    }
+    (async () => {
+      if (!orderDate) return;
 
-    const dateObj = new Date(orderDate);
-    if (isNaN(dateObj.getTime())) return;
+      const dateObj = new Date(orderDate);
+      if (isNaN(dateObj.getTime())) return;
 
-    // Find fiscal year that contains the orderDate
-    const matching = fiscalYears.find((fy: any) => {
-      if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
-      const from = new Date(fy.fiscal_year_from);
-      const to = new Date(fy.fiscal_year_to);
-      if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
-      return dateObj >= from && dateObj <= to; // inclusive
-    });
+      // Determine fiscal year label
+      let yearLabel = String(dateObj.getFullYear());
+      
+      if (fiscalYears.length > 0) {
+        const matching = fiscalYears.find((fy: any) => {
+          if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+          const from = new Date(fy.fiscal_year_from);
+          const to = new Date(fy.fiscal_year_to);
+          if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+          return dateObj >= from && dateObj <= to;
+        });
 
-    const chosen = matching || [...fiscalYears]
-      .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
-      .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
-      .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
+        const chosen = matching || [...fiscalYears]
+          .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
+          .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
+          .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
 
-    if (chosen) {
-      const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
-      const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
-      const yearLabel = chosen.fiscal_year || (fromYear === toYear ? String(fromYear) : `${fromYear}-${toYear}`);
+        if (chosen) {
+          const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
+          const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
+          yearLabel = chosen.fiscal_year || (fromYear === toYear ? String(fromYear) : `${fromYear}-${toYear}`);
+        }
+      }
 
-      // Use localStorage to maintain a per-year counter when server-side sequence is not available
-      const storageKey = `po_ref_counter_${yearLabel}`;
-      const stored = localStorage.getItem(storageKey);
-      const nextNum = stored ? Number(stored) + 1 : 1;
+      // Query existing purchase orders to find the highest sequential number for this fiscal year
+      let nextNum = 1;
+      try {
+        const allOrders = await getPurchOrders();
+        if (Array.isArray(allOrders) && allOrders.length > 0) {
+          // Filter orders matching the current fiscal year pattern (e.g., "001/2025", "002/2025")
+          const yearPattern = `/${yearLabel}`;
+          const matchingRefs = allOrders
+            .map((o: any) => o.reference ?? '')
+            .filter((ref: string) => String(ref).endsWith(yearPattern))
+            .map((ref: string) => {
+              const parts = String(ref).split('/');
+              if (parts.length >= 2) {
+                const numPart = parts[0];
+                const parsed = parseInt(numPart, 10);
+                return isNaN(parsed) ? 0 : parsed;
+              }
+              return 0;
+            })
+            .filter((n: number) => n > 0);
+          
+          if (matchingRefs.length > 0) {
+            const maxRef = Math.max(...matchingRefs);
+            nextNum = maxRef + 1;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch existing purchase orders for reference generation', e);
+      }
 
       setReference(`${nextNum.toString().padStart(3, '0')}/${yearLabel}`);
-    }
+    })();
   }, [orderDate, fiscalYears]);
 
   // ========= Update Credit When Supplier Changes =========
@@ -247,47 +270,12 @@ export default function PurchaseOrderEntry() {
 
   // ========= Place Order =========
   const handlePlaceOrder = () => {
-    // Persist reference counter for fiscal year and submit order + details
     (async () => {
       try {
         // basic validations
         if (!supplier) { alert('Select supplier first'); return; }
         const detailsToPost = rows.filter(r => r.itemCode && r.quantity > 0);
         if (detailsToPost.length === 0) { alert('Add at least one item with quantity > 0'); return; }
-
-        // persist reference counter for fiscal year
-        try {
-          if (orderDate && fiscalYears.length > 0) {
-            const dateObj = new Date(orderDate);
-            if (!isNaN(dateObj.getTime())) {
-              const matching = fiscalYears.find((fy: any) => {
-                if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
-                const from = new Date(fy.fiscal_year_from);
-                const to = new Date(fy.fiscal_year_to);
-                if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
-                return dateObj >= from && dateObj <= to; // inclusive
-              });
-
-              const chosen = matching || [...fiscalYears]
-                .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
-                .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
-                .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
-
-              if (chosen) {
-                const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
-                const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
-                const yearLabel = chosen.fiscal_year || (fromYear === toYear ? String(fromYear) : `${fromYear}-${toYear}`);
-
-                const storageKey = `po_ref_counter_${yearLabel}`;
-                const stored = localStorage.getItem(storageKey);
-                const current = stored ? Number(stored) + 1 : 1;
-                localStorage.setItem(storageKey, String(current));
-              }
-            }
-          }
-        } catch (e) {
-          console.warn('Failed to persist PO reference counter', e);
-        }
 
         // resolve supplier id and location code
         const selectedSupplierObj = suppliers.find((s: any) => String(resolveSupplierId(s)) === String(supplier));
