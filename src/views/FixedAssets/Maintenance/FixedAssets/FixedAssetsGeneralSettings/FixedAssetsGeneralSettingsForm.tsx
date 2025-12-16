@@ -19,12 +19,16 @@ import { getItemTaxTypes } from "../../../../../api/ItemTaxType/ItemTaxTypeApi";
 import { getChartMasters } from "../../../../../api/GLAccounts/ChartMasterApi";
 import { getItemUnits } from "../../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../../api/ItemCategories/ItemCategoriesApi";
+import { getStockFaClasses } from "../../../../../api/StockFaClass/StockFaClassesApi";
+import { getDepreciationMethods } from "../../../../../api/DepreciationMethod/DepreciationMethodApi";
 import { createItem, getItemById, updateItem } from "../../../../../api/Item/ItemApi";
 import { getInventoryLocations } from "../../../../../api/InventoryLocation/InventoryLocationApi";
 import { createLocStock } from "../../../../../api/LocStock/LocStockApi";
 import DatePickerComponent from "../../../../../components/DatePickerComponent";
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../../components/ErrorModal";
 interface ItemGeneralSettingProps {
   itemId?: string | number;
 }
@@ -74,27 +78,48 @@ export default function FixedAssetsGeneralSettingsForm({ itemId }: ItemGeneralSe
   const [itemTaxTypes, setItemTaxTypes] = useState<any[]>([]);
   const [unitsOfMeasure, setUnitsOfMeasure] = useState<any[]>([]);
   const [itemCategories, setItemCategories] = useState<any[]>([]);
+  const [faClasses, setFaClasses] = useState<any[]>([]);
+  const [depreciationMethods, setDepreciationMethods] = useState<any[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  const [open, setOpen] = useState(false);
+    const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch all data in parallel
-        const [chartMastersRes, taxTypesRes, unitsRes, itemCategoriesRes] = await Promise.all([
+        // Fetch all data in parallel (include depreciation methods)
+        const [chartMastersRes, taxTypesRes, unitsRes, itemCategoriesRes, depreciationMethodsRes] = await Promise.all([
           getChartMasters(),
           getItemTaxTypes(),
           getItemUnits(),
           getItemCategories(),
+          getDepreciationMethods(),
         ]);
 
         const filteredTaxTypes = (taxTypesRes || []).filter((type) => !type.inactive);
         const filteredUnits = (unitsRes || []).filter((unit) => !unit.inactive);
-        const filteredItemCategories = (itemCategoriesRes || []).filter((cat) => !cat.inactive);
+        const filteredItemCategories = (itemCategoriesRes || [])
+          .filter((cat) => !cat.inactive)
+          .filter((cat) => Number(cat.dflt_mb_flag) === 4);
 
         setChartMasters(chartMastersRes || []);
         setItemTaxTypes(filteredTaxTypes);
         setUnitsOfMeasure(filteredUnits);
         setItemCategories(filteredItemCategories);
+
+        // load fixed asset classes
+        try {
+          const faRes = await getStockFaClasses();
+          setFaClasses((faRes || []).filter((c: any) => !c.inactive));
+        } catch (faErr) {
+          console.error("Failed to load FA classes:", faErr);
+        }
+
+        // depreciation methods may come as axios response (with .data) or plain array
+        const depMethods = (typeof depreciationMethodsRes !== "undefined") ? (depreciationMethodsRes && (depreciationMethodsRes.data ?? depreciationMethodsRes)) : [];
+        setDepreciationMethods(depMethods || []);
 
         // Set default values for dropdowns
         setFormData((prev) => ({
@@ -107,6 +132,8 @@ export default function FixedAssetsGeneralSettingsForm({ itemId }: ItemGeneralSe
           assetAccount: chartMastersRes.find((acc) => acc.account_code === "1510")?.account_code || "",
           depreciationCostAccount: chartMastersRes.find((acc) => acc.account_code === "5010")?.account_code || "",
           depreciationDisposalAccount: chartMastersRes.find((acc) => acc.account_code === "5040")?.account_code || "",
+          // default depreciationMethod to first method's id (if available)
+          depreciationMethod: (depMethods && depMethods.length > 0) ? String(depMethods[0].id ?? depMethods[0].depreciation_method_id ?? depMethods[0].method_id) : "",
         }));
       } catch (err) {
         console.error("Failed to fetch data:", err);
@@ -126,6 +153,100 @@ export default function FixedAssetsGeneralSettingsForm({ itemId }: ItemGeneralSe
     setErrors({ ...errors, [name]: "" });
   };
 
+  // Helper: determine if selected depreciation method is Straight Line
+  const isStraightLineMethod = (methodId?: string | number) => {
+    if (!methodId) return false;
+    const idStr = String(methodId).toLowerCase();
+    // If the dropdown contains simple keys like 'straight-line' or 's'
+    if (idStr === "straight-line" || idStr === "s" || idStr === "straight") return true;
+    // Try to find method by id in loaded methods
+    const m = depreciationMethods.find((dm: any) => {
+      const key = String(dm.id ?? dm.depreciation_method_id ?? dm.method_id ?? dm.code ?? dm.description ?? "").toLowerCase();
+      return key === idStr;
+    });
+    if (!m) return false;
+    const code = String(m.code ?? m.type ?? m.method_code ?? "").toLowerCase();
+    const desc = String(m.description ?? m.name ?? "").toLowerCase();
+    return code === "s" || desc.includes("straight");
+  };
+
+  // Helper: determine if selected depreciation method is Other (type 'O')
+  const isOtherMethod = (methodId?: string | number) => {
+    if (!methodId) return false;
+    const idStr = String(methodId).toLowerCase();
+    if (idStr === "o" || idStr === "other") return true;
+    const m = depreciationMethods.find((dm: any) => {
+      const key = String(dm.id ?? dm.depreciation_method_id ?? dm.method_id ?? dm.code ?? dm.description ?? "").toLowerCase();
+      return key === idStr;
+    });
+    if (!m) return false;
+    const code = String(m.code ?? m.type ?? m.method_code ?? "").toLowerCase();
+    const desc = String(m.description ?? m.name ?? "").toLowerCase();
+    return code === "o" || desc.includes("other") || desc.includes("One-time");
+  };
+
+  // Helper: determine if selected depreciation method is N (Sum of the Years' Digits)
+  const isNoneMethod = (methodId?: string | number) => {
+    if (!methodId) return false;
+    const idStr = String(methodId).toLowerCase();
+    // common identifiers: 'n', 'sum-of-years', 'sum', 'year-digits', 'sum of years'
+    if (idStr === "n" || idStr === "sum-of-years" || idStr === "sum" || idStr.includes("sum") || idStr.includes("year") && idStr.includes("digit")) return true;
+    const m = depreciationMethods.find((dm: any) => {
+      const key = String(dm.id ?? dm.depreciation_method_id ?? dm.method_id ?? dm.code ?? dm.description ?? "").toLowerCase();
+      return key === idStr;
+    });
+    if (!m) return false;
+    const code = String(m.code ?? m.type ?? m.method_code ?? "").toLowerCase();
+    const desc = String(m.description ?? m.name ?? "").toLowerCase();
+    return code === "n" || desc.includes("sum") || desc.includes("year") && desc.includes("digit");
+  };
+
+  // Helper: determine if selected depreciation method is Declining Balance (D)
+  const isDecliningMethod = (methodId?: string | number) => {
+    if (!methodId) return false;
+    const idStr = String(methodId).toLowerCase();
+    if (idStr === "d" || idStr === "declining" || idStr.includes("declin")) return true;
+    const m = depreciationMethods.find((dm: any) => {
+      const key = String(dm.id ?? dm.depreciation_method_id ?? dm.method_id ?? dm.code ?? dm.description ?? "").toLowerCase();
+      return key === idStr;
+    });
+    if (!m) return false;
+    const code = String(m.code ?? m.type ?? m.method_code ?? "").toLowerCase();
+    const desc = String(m.description ?? m.name ?? "").toLowerCase();
+    return code === "d" || desc.includes("declin") || desc.includes("declining");
+  };
+
+  // Helper: S or D
+  const isSOrDMethod = (methodId?: string | number) => {
+    return isStraightLineMethod(methodId) || isDecliningMethod(methodId);
+  };
+
+  // When fixedAssetClass or depreciation method changes, update Base Rate from selected FA class depreciation_rate
+  // but only when depreciation method is S (Straight-line) or D (Declining Balance); do not override when method is Other/Zero
+  useEffect(() => {
+    if (!formData.fixedAssetClass) return;
+    if (!isSOrDMethod(formData.depreciationMethod)) return;
+    if (isOtherMethod(formData.depreciationMethod)) return;
+    const selected = faClasses.find((f: any) => String(f.fa_class_id) === String(formData.fixedAssetClass));
+    if (selected && selected.depreciation_rate !== undefined && selected.depreciation_rate !== null) {
+      setFormData(prev => ({ ...prev, baseRate: String(selected.depreciation_rate) }));
+    }
+  }, [formData.fixedAssetClass, faClasses, formData.depreciationMethod, depreciationMethods]);
+
+  // Clear rateMultiplier when depreciation method is Straight Line (S) or Other (O)
+  useEffect(() => {
+    if ((isStraightLineMethod(formData.depreciationMethod) || isOtherMethod(formData.depreciationMethod)) && formData.rateMultiplier) {
+      setFormData(prev => ({ ...prev, rateMultiplier: "" }));
+    }
+  }, [formData.depreciationMethod, depreciationMethods]);
+
+  // When method type = 'O' (Other), force Depreciation Rate (baseRate) to 100 and disable editing
+  useEffect(() => {
+    if (isOtherMethod(formData.depreciationMethod)) {
+      if (formData.baseRate !== "100") setFormData(prev => ({ ...prev, baseRate: "100" }));
+    }
+  }, [formData.depreciationMethod, depreciationMethods]);
+
   const validate = () => {
     const tempErrors: { [key: string]: string } = {};
 
@@ -139,6 +260,11 @@ export default function FixedAssetsGeneralSettingsForm({ itemId }: ItemGeneralSe
     if (!formData.assetAccount) tempErrors.assetAccount = "Asset Account is required";
     if (!formData.depreciationCostAccount) tempErrors.depreciationCostAccount = "Depreciation Cost Account is required";
     if (!formData.depreciationDisposalAccount) tempErrors.depreciationDisposalAccount = "Depreciation/Disposal Account is required";
+
+    // Business rule: cannot add when depreciation method type = 'N'
+    if (isNoneMethod(formData.depreciationMethod)) {
+      tempErrors.depreciationMethod = "Depreciation method type 'N' is not allowed for adding fixed assets";
+    }
 
     setErrors(tempErrors);
     return Object.keys(tempErrors).length === 0;
@@ -154,10 +280,12 @@ export default function FixedAssetsGeneralSettingsForm({ itemId }: ItemGeneralSe
       description: formData.itemName,
       long_description: formData.description,
       units: parseInt(formData.unitOfMeasure),
+      mb_flag: 4,
       sales_account: formData.salesAccount,
       inventory_account: formData.assetAccount,
       cogs_account: formData.depreciationCostAccount,
       adjustment_account: formData.depreciationDisposalAccount,
+      wip_account: '1530',
       inactive: formData.itemStatus === "Inactive" ? 1 : 0,
       purchase_cost: 0,
       material_cost: 0,
@@ -166,8 +294,9 @@ export default function FixedAssetsGeneralSettingsForm({ itemId }: ItemGeneralSe
       depreciation_method: formData.depreciationMethod,
       depreciation_rate: parseFloat(formData.baseRate) || 0,
       depreciation_factor: parseFloat(formData.rateMultiplier) || 0,
-      depreciation_start: formData.depreciationStart ? formData.depreciationStart.toISOString().split('T')[0] : "2020-10-10",
-      depreciation_date: "2020-10-10",
+      depreciation_start: formData.depreciationStart ? formData.depreciationStart.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      // depreciation_date must be >= depreciation_start, default to same as depreciation_start
+      depreciation_date: formData.depreciationStart ? formData.depreciationStart.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       fa_class_id: formData.fixedAssetClass,
       imageFile: formData.imageFile
     };
@@ -187,8 +316,8 @@ export default function FixedAssetsGeneralSettingsForm({ itemId }: ItemGeneralSe
         })
       );
       await Promise.all(locStockPromises);
-
-      alert("Fixed Asset added successfully!");
+      setOpen(true);
+      //alert("Fixed Asset added successfully!");
       console.log("Created:", res);
       queryClient.invalidateQueries({ queryKey: ["items"], exact: false });
 
@@ -199,11 +328,18 @@ export default function FixedAssetsGeneralSettingsForm({ itemId }: ItemGeneralSe
         description: "",
         imageFile: null,
       }));
-
-      navigate("/itemsandinventory/maintenance/items");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to create item:", err);
-      alert("Failed to add Fixed Asset.");
+      const message = err?.response?.data?.message || err?.message || "Failed to add Fixed Asset.";
+      // Show server validation details if present
+      if (err?.response?.data?.errors) {
+        const errs = err.response.data.errors;
+        const details = Object.entries(errs).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join('; ') : v}`).join('\n');
+        //alert(`${message}\n${details}`);
+         setErrorOpen(true);
+      } else {
+        alert(message);
+      }
     }
   };
 
@@ -319,13 +455,15 @@ export default function FixedAssetsGeneralSettingsForm({ itemId }: ItemGeneralSe
                   onChange={handleSelectChange}
                   label="Fixed Asset Class"
                 >
-                  <MenuItem value="tangible">Tangible</MenuItem>
-                  <MenuItem value="intangible">Intangible</MenuItem>
-                  <MenuItem value="other">Other</MenuItem>
+                  {faClasses.map((f: any) => (
+                    <MenuItem key={f.fa_class_id} value={String(f.fa_class_id)}>
+                      {f.fa_class_id} - {f.description}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
 
-              <FormControl size="small" fullWidth>
+              <FormControl size="small" fullWidth error={!!errors.depreciationMethod}>
                 <InputLabel>Depreciation Method</InputLabel>
                 <Select
                   name="depreciationMethod"
@@ -333,29 +471,48 @@ export default function FixedAssetsGeneralSettingsForm({ itemId }: ItemGeneralSe
                   onChange={handleSelectChange}
                   label="Depreciation Method"
                 >
-                  <MenuItem value="straight-line">Straight Line</MenuItem>
-                  <MenuItem value="declining-balance">Declining Balance</MenuItem>
-                  <MenuItem value="units-of-production">Units of Production</MenuItem>
+                  {depreciationMethods && depreciationMethods.length > 0 ? (
+                    depreciationMethods.map((m: any) => {
+                      const id = m.id ?? m.depreciation_method_id ?? m.method_id;
+                      const label = m.description ?? m.name ?? m.method ?? String(id);
+                      const value = String(id ?? label);
+                      return (
+                        <MenuItem key={value} value={value}>
+                          {label}
+                        </MenuItem>
+                      );
+                    })
+                  ) : (
+                    <>
+                      <MenuItem value="straight-line">Straight Line</MenuItem>
+                      <MenuItem value="declining-balance">Declining Balance</MenuItem>
+                      <MenuItem value="units-of-production">Units of Production</MenuItem>
+                    </>
+                  )}
                 </Select>
+                <FormHelperText>{errors.depreciationMethod || " "}</FormHelperText>
               </FormControl>
 
               <TextField
-                label="Base Rate"
+                label={(isOtherMethod(formData.depreciationMethod) || isStraightLineMethod(formData.depreciationMethod)) ? "Depreciation Rate" : "Base Rate"}
                 value={formData.baseRate}
                 onChange={(e) => handleChange("baseRate", e.target.value)}
                 size="small"
                 fullWidth
                 type="number"
+                disabled={isOtherMethod(formData.depreciationMethod)}
               />
 
-              <TextField
-                label="Rate Multiplier"
-                value={formData.rateMultiplier}
-                onChange={(e) => handleChange("rateMultiplier", e.target.value)}
-                size="small"
-                fullWidth
-                type="number"
-              />
+              {!(isStraightLineMethod(formData.depreciationMethod) || isOtherMethod(formData.depreciationMethod)) && (
+                <TextField
+                  label="Rate Multiplier"
+                  value={formData.rateMultiplier}
+                  onChange={(e) => handleChange("rateMultiplier", e.target.value)}
+                  size="small"
+                  fullWidth
+                  type="number"
+                />
+              )}
 
               <DatePickerComponent
                 label="Depreciation Start"
@@ -580,6 +737,23 @@ export default function FixedAssetsGeneralSettingsForm({ itemId }: ItemGeneralSe
           </Button>
         </Box>
       </Box>
+        <AddedConfirmationModal
+              open={open}
+              title="Success"
+              content="Fixed Assets has been added successfully!"
+              addFunc={async () => { }}
+              handleClose={() => setOpen(false)}
+              onSuccess={() => {
+                // Form was already cleared on successful submission
+                setOpen(false);
+              }}
+            />
+      
+            <ErrorModal
+              open={errorOpen}
+              onClose={() => setErrorOpen(false)}
+              message={errorMessage}
+            />
     </Stack>
   );
 }

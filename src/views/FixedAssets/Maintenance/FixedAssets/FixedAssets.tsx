@@ -19,6 +19,8 @@ import { useNavigate } from "react-router";
 import { useLocation } from "react-router-dom";
 
 import { useQuery } from "@tanstack/react-query";
+import { getItems, getItemById } from "../../../../api/Item/ItemApi";
+import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 
 import FixedAssetsGeneralSettingsForm from "./FixedAssetsGeneralSettings/FixedAssetsGeneralSettingsForm";
 import UpdateFixedAssetsGeneralSettingsForm from "./FixedAssetsGeneralSettings/UpdateFixedAssetsGeneralSettingsForm";
@@ -39,24 +41,24 @@ const FixedAssets = () => {
   const [selectedItem, setSelectedItem] = useState<string | number>(location.state?.selectedItem || "new");
   const [showInactive, setShowInactive] = useState(false);
 
-  // Fetch items using React Query
-  // const { data: items = [] } = useQuery<{ stock_id: string | number; category_id: string | number; description: string; inactive: number }[]>({
-  //   queryKey: ["items"],
-  //   queryFn: () => getItems() as Promise<{ stock_id: string | number; category_id: string | number; description: string; inactive: number }[]>,
-  // });
+  //Fetch items using React Query
+  const { data: items = [] } = useQuery<{ stock_id: string | number; category_id: string | number; description: string; inactive: number }[]>({
+    queryKey: ["items"],
+    queryFn: () => getItems() as Promise<{ stock_id: string | number; category_id: string | number; description: string; inactive: number }[]>,
+  });
 
-  // Fetch categories using React Query
-  // const { data: categories = [] } = useQuery<{ category_id: number; description: string }[]>({
-  //   queryKey: ["itemCategories"],
-  //   queryFn: () => getItemCategories() as Promise<{ category_id: number; description: string }[]>,
-  // });
+ // Fetch categories using React Query
+  const { data: categories = [] } = useQuery<{ category_id: number; description: string }[]>({
+    queryKey: ["itemCategories"],
+    queryFn: () => getItemCategories() as Promise<{ category_id: number; description: string }[]>,
+  });
 
-  // Fetch selected item data
-  // const { data: selectedItemData } = useQuery({
-  //   queryKey: ["item", selectedItem],
-  //   queryFn: () => getItemById(selectedItem),
-  //   enabled: selectedItem !== "new",
-  // });
+ // Fetch selected item data
+  const { data: selectedItemData } = useQuery({
+    queryKey: ["item", selectedItem],
+    queryFn: () => getItemById(selectedItem),
+    enabled: selectedItem !== "new",
+  });
 
   // Tab change handler
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -98,7 +100,34 @@ const FixedAssets = () => {
                 + Add New Fixed Asset
               </MenuItem>
 
-              {/* TODO: Add fixed assets options here when API is ready */}
+              {/* Render fixed asset items grouped by category (dflt_mb_flag === 4) */}
+              {(() => {
+                const fixedCategories = (categories || [])
+                  .filter((c: any) => Number(c.dflt_mb_flag) === 4)
+                  .sort((a: any, b: any) => String(a.description || "").localeCompare(String(b.description || "")));
+
+                // Prepare visible items filtered by inactive flag AND only mb_flag === 4 (fixed assets in stock_master)
+                const visibleItems = (items || []).filter((it: any) => {
+                  const activeOk = showInactive ? true : !it.inactive;
+                  const isFixedAsset = Number(it.mb_flag) === 4;
+                  return activeOk && isFixedAsset;
+                });
+
+                return fixedCategories.flatMap((cat: any) => {
+                  const catId = String(cat.category_id ?? cat.id);
+                  const itemsInCat = visibleItems.filter((it: any) => String(it.category_id) === catId);
+                  if (!itemsInCat || itemsInCat.length === 0) return [];
+
+                  return [
+                    <ListSubheader key={`cat-${catId}`}>{cat.description}</ListSubheader>,
+                    ...itemsInCat.map((it: any) => (
+                      <MenuItem key={`${catId}-${String(it.stock_id)}`} value={String(it.stock_id)}>
+                        {String(it.description)} {it.inactive ? "(Inactive)" : ""}
+                      </MenuItem>
+                    )),
+                  ];
+                });
+              })()}
             </Select>
           </FormControl>
 
@@ -109,7 +138,7 @@ const FixedAssets = () => {
                 onChange={(e) => setShowInactive(e.target.checked)}
               />
             }
-            label="Show Inactive Fixed Assets"
+            label="Show Inactive"
           />
         </Stack>
 
