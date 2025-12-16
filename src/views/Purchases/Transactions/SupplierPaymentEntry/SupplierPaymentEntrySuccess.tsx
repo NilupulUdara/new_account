@@ -50,7 +50,7 @@ export default function SupplierPaymentEntrySuccess() {
         <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("", { state })}
           >
             Print This Remittance
@@ -58,7 +58,7 @@ export default function SupplierPaymentEntrySuccess() {
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => {
               // Navigate to GL postings view - pass reference so GL view can filter
               navigate("", { state: { reference } });
@@ -68,70 +68,70 @@ export default function SupplierPaymentEntrySuccess() {
           </Button>
            <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/payment-to-suppliers/view-supplier-payment", { state })}
           >
             View this Payment
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/receive-items", { state })}
           >
             View the GL Journal Entries for this Payment
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/payment-to-suppliers", { state })}
           >
             Enter another supplier payment
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/supplier-invoice", { state })}
           >
             Enter Supplier Invoice
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/direct-supplier-invoice", { state })}
           >
             Enter direct Invoice
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/bankingandgeneralledger/transactions/bankingandgeneralledger-quotation-entry", { state })}
           >
             Enter Other Payment
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/sales/transactions/customer-payments", { state })}
           >
             Enter Customer Payment
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/bankingandgeneralledger/transactions/bankingandgeneralledger-order-entry", { state })}
           >
             Enter Other Deposit
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/bankingandgeneralledger/transactions/bank-account-transfers", { state })}
           >
             Bank Account Transfer
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/", { state })}
           >
             Add an Attachment

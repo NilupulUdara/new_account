@@ -19,6 +19,7 @@ import {
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
 
+import { useQuery } from "@tanstack/react-query";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 
@@ -26,10 +27,12 @@ import PageTitle from "../../../../components/PageTitle";
 import { getSuppliers } from "../../../../api/Supplier/SupplierApi";
 import { getTags } from "../../../../api/DimensionTag/DimensionTagApi";
 import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi";
-import { getSuppTrans } from "../../../../api/SuppTrans/SuppTransApi";
+import { getSuppTrans, createSuppTrans, updateSuppTrans } from "../../../../api/SuppTrans/SuppTransApi";
 import { getSuppInvoiceItems } from "../../../../api/SuppInvoiceItems/SuppInvoiceItemsApi";
-import { getPurchOrders } from "../../../../api/PurchOrders/PurchOrderApi";
+import { getPurchOrders, getPurchOrderByOrderNo, updatePurchOrder } from "../../../../api/PurchOrders/PurchOrderApi";
 import { getPurchOrderDetails } from "../../../../api/PurchOrders/PurchOrderDetailsApi";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getBankTrans, createBankTrans } from "../../../../api/BankTrans/BankTransApi";
 
 // NOTE: bank balance logic removed — replace with real API call when available
 
@@ -63,13 +66,73 @@ export default function SupplierPaymentEntry() {
   const [purchOrderDetails, setPurchOrderDetails] = useState<any[]>([]);
 
   // ================== GENERATE REFERENCE ==================
+  const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+
   useEffect(() => {
-    const year = new Date().getFullYear();
-    const rnd = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, "0");
-    setReference(`${rnd}/${year}`);
-  }, []);
+    (async () => {
+      try {
+        if (!datePaid) return;
+        const dateObj = new Date(datePaid);
+        if (isNaN(dateObj.getTime())) return;
+
+        // Determine fiscal year label
+        let yearLabel = String(dateObj.getFullYear());
+        if (Array.isArray(fiscalYears) && fiscalYears.length > 0) {
+          const matching = fiscalYears.find((fy: any) => {
+            if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+            const from = new Date(fy.fiscal_year_from);
+            const to = new Date(fy.fiscal_year_to);
+            if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+            return dateObj >= from && dateObj <= to;
+          });
+
+          const chosen = matching || [...fiscalYears]
+            .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
+            .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
+            .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
+
+          if (chosen) {
+            const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
+            const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
+            yearLabel = chosen.fiscal_year || (fromYear === toYear ? String(fromYear) : `${fromYear}-${toYear}`);
+          }
+        }
+
+        // find next supp_trans reference number for trans_type 22
+        let nextNum = 1;
+        try {
+          const allSupp = await getSuppTrans();
+          if (Array.isArray(allSupp) && allSupp.length > 0) {
+            // only consider transactions of this page's type (22)
+            const relevant = allSupp.filter((s: any) => Number(s.trans_type ?? s.type ?? 0) === 22);
+            const yearPattern = `/${yearLabel}`;
+            const matchingRefs = relevant
+              .map((s: any) => s.reference ?? s.supp_reference ?? '')
+              .filter((ref: string) => String(ref).endsWith(yearPattern))
+              .map((ref: string) => {
+                const parts = String(ref).split('/');
+                if (parts.length >= 2) {
+                  const parsed = parseInt(parts[0], 10);
+                  return isNaN(parsed) ? 0 : parsed;
+                }
+                return 0;
+              })
+              .filter((n: number) => n > 0);
+
+            if (matchingRefs.length > 0) {
+              nextNum = Math.max(...matchingRefs) + 1;
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to fetch supp_trans for reference generation', e);
+        }
+
+        setReference(`${nextNum.toString().padStart(3, '0')}/${yearLabel}`);
+      } catch (err) {
+        console.warn('Failed to generate payment reference', err);
+      }
+    })();
+  }, [datePaid, fiscalYears]);
 
   // helper to normalize date strings to YYYY-MM-DD (top-level for reuse)
   const formatDate = (val: any) => {
@@ -163,14 +226,22 @@ export default function SupplierPaymentEntry() {
       }
       const sid = Number(supplier);
 
-      // Map supplier transactions first
-      const filteredSupp = (suppTrans || []).filter((t: any) => Number(t.supplier_id ?? t.supplier ?? t.supp_id ?? 0) === sid);
+      // Map supplier transactions first (only supplier invoices: trans_type === 20)
+      // Also exclude fully allocated invoices where ov_amount === alloc
+      const filteredSupp = (suppTrans || []).filter((t: any) => {
+        const isSupplier = Number(t.supplier_id ?? t.supplier ?? t.supp_id ?? 0) === sid;
+        const isType20 = Number(t.trans_type ?? t.type ?? 0) === 20;
+        const ovAmount = Number(t.ov_amount ?? t.amount ?? 0) || 0;
+        const allocVal = Number(t.alloc ?? 0) || 0;
+        const notFullyAllocated = ovAmount !== allocVal;
+        return isSupplier && isType20 && notFullyAllocated;
+      });
       const mappedSupp = filteredSupp.map((t: any, idx: number) => {
         const ovAmount = Number(t.ov_amount ?? t.amount ?? 0) || 0;
         const ovGst = Number(t.ov_gst ?? 0) || 0;
         const amount = ovAmount + ovGst;
-        const otherAlloc = 0;
-        const left = amount + otherAlloc;
+        const otherAlloc = Number(t.alloc ?? 0) || 0;
+        const left = amount - otherAlloc;
         return {
           id: `supp-${t.trans_no ?? t.id ?? idx + 1}`,
           type: "Supplier Invoice",
@@ -189,7 +260,10 @@ export default function SupplierPaymentEntry() {
       const filteredPo = (purchOrders || []).filter((p: any) => {
         const pid = Number(p.supplier_id ?? p.supp_id ?? p.supplier ?? 0);
         const ref = (p.reference ?? p.ref ?? "").toString();
-        return pid === sid && ref.toLowerCase() !== "auto";
+        const total = Number(p.total ?? p.ov_amount ?? p.amount ?? 0) || 0;
+        const allocVal = Number(p.alloc ?? 0) || 0;
+        // exclude auto-ref POs and fully allocated POs (total === alloc)
+        return pid === sid && ref.toLowerCase() !== "auto" && Math.abs(total - allocVal) > 0;
       });
       const mappedPo = filteredPo.map((p: any, idx: number) => {
         const orderNo = p.order_no ?? p.id ?? p.orderNo ?? p.order_no;
@@ -210,8 +284,8 @@ export default function SupplierPaymentEntry() {
           }
         }
         const amount = Number(p.total ?? p.ov_amount ?? p.amount ?? 0) || 0;
-        const otherAlloc = 0;
-        const left = amount + otherAlloc;
+        const otherAlloc = Number(p.alloc ?? 0) || 0;
+        const left = amount - otherAlloc;
         return {
           id: `po-${orderNo ?? idx}`,
           type: "Purchase Order",
@@ -247,11 +321,13 @@ export default function SupplierPaymentEntry() {
     );
   };
 
-  // keep Amount of Payment in sync with sum of allocations
+  // keep Amount of Payment in sync with sum of allocations minus discount
   useEffect(() => {
-    const sum = (rows || []).reduce((s, r) => s + (Number(r.allocation) || 0), 0);
-    setAmountPayment(sum);
-  }, [rows]);
+    const sumAlloc = (rows || []).reduce((s, r) => s + (Number(r.allocation) || 0), 0);
+    const discount = Number(amountDiscount) || 0;
+    const computed = sumAlloc - discount;
+    setAmountPayment(computed >= 0 ? computed : 0);
+  }, [rows, amountDiscount]);
 
   // view supplier invoice by trans_no
   const handleViewSupplierInvoice = async (transNo: any) => {
@@ -372,9 +448,167 @@ export default function SupplierPaymentEntry() {
     );
   };
 
-  const handleSubmit = () => {
-    alert("Supplier Payment Saved!");
-    navigate(-1);
+  const handleSubmit = async () => {
+    try {
+      if (!supplier) return alert('Select supplier');
+
+      const selectedSupplier = (suppliers || []).find((s: any) => String(s.supplier_id ?? s.id ?? s.supplier) === String(supplier));
+      const taxIncludedForSupplier = selectedSupplier ? (selectedSupplier.tax_included ?? selectedSupplier.taxIncluded ?? 0) : 0;
+
+      // compute totals
+      const discount = Number(amountDiscount) || 0;
+      const payment = Number(amountPayment) || 0; // already sumAlloc - discount
+      const bankChargeVal = Number(bankCharge) || 0;
+
+      // 1) create new supp_trans with trans_type=22
+      // compute next trans_no for type 22
+      let nextSuppTransNo = 1;
+      try {
+        const allSupp = await getSuppTrans();
+        const relevant = Array.isArray(allSupp) ? allSupp.filter((t: any) => Number(t.trans_type ?? t.type ?? 0) === 22) : [];
+        if (relevant.length > 0) {
+          const nums = relevant.map((t: any) => Number(t.trans_no ?? t.transno ?? t.id ?? 0)).filter((n: number) => !isNaN(n) && n > 0);
+          if (nums.length > 0) nextSuppTransNo = Math.max(...nums) + 1;
+        }
+      } catch (e) {
+        console.warn('Failed to compute next supp trans no for type 22', e);
+        nextSuppTransNo = 1;
+      }
+
+      const suppTransPayload: any = {
+        trans_no: nextSuppTransNo,
+        trans_type: 22,
+        supplier_id: Number(supplier),
+        reference: reference || '',
+        supp_reference: '',
+        trans_date: datePaid,
+        due_date: datePaid,
+        ov_amount: -Math.abs(payment),
+        ov_discount: -Math.abs(discount),
+        ov_gst: 0,
+        rate: 1,
+        alloc: Number(payment) + Number(discount),
+        tax_included: taxIncludedForSupplier ? 1 : 0,
+      };
+
+      const createdPaymentTrans = await createSuppTrans(suppTransPayload);
+
+      // 2) update existing supp_trans (type 20) allocs for supplier invoices that had allocations
+      const rowsToUpdate = (rows || []).filter(r => String(r.id).startsWith('supp-') && Number(r.allocation));
+      for (const r of rowsToUpdate) {
+        const origTransNo = r.number;
+        try {
+          // find existing trans (from local state or API)
+          let existing = (suppTrans || []).find((s: any) => String(s.trans_no ?? s.id ?? s.transno) === String(origTransNo) && Number(s.trans_type ?? s.type ?? 0) === 20);
+          if (!existing) {
+            const fresh = await getSuppTrans();
+            existing = (Array.isArray(fresh) ? fresh : (fresh?.data ?? [])).find((s: any) => String(s.trans_no ?? s.id ?? s.transno) === String(origTransNo) && Number(s.trans_type ?? s.type ?? 0) === 20);
+          }
+          if (existing) {
+            const newAlloc = (Number(existing.alloc ?? 0) || 0) + Number(r.allocation || 0);
+            const payload = { ...existing, alloc: newAlloc };
+            await updateSuppTrans(existing.id ?? existing.trans_no ?? existing.transno, payload);
+          }
+        } catch (e) {
+          console.warn('Failed to update supplier invoice alloc for', origTransNo, e);
+        }
+      }
+
+      // 3) create bank_trans record
+      // compute next bank trans no for type (we'll use type 22)
+      let nextBankTransNo = 1;
+      try {
+        const allBank = await getBankTrans();
+        if (Array.isArray(allBank) && allBank.length > 0) {
+          const nums = allBank.map((b: any) => Number(b.trans_no ?? b.transno ?? b.id ?? 0)).filter((n: number) => !isNaN(n) && n > 0);
+          if (nums.length > 0) nextBankTransNo = Math.max(...nums) + 1;
+        }
+      } catch (e) {
+        console.warn('Failed to compute next bank trans no', e);
+        nextBankTransNo = 1;
+      }
+
+      const bankPayload: any = {
+        bank_act: bankAccount,
+        trans_no: nextBankTransNo,
+        type: 22,
+        ref: reference || '',
+        trans_date: datePaid,
+        amount: -Math.abs(Number(payment) + Number(bankChargeVal)),
+        dimension_id: 0,
+        dimension2_id: 0,
+        person_type_id: 0,
+        person_id: 0,
+        reconciled: null,
+      };
+
+      try {
+        await createBankTrans(bankPayload);
+      } catch (e) {
+        console.warn('Failed to create bank trans', e);
+      }
+
+        // 4) For purchase order allocations, update purch_orders.alloc accordingly
+        const poRows = (rows || []).filter(r => String(r.id).startsWith('po-') && Number(r.allocation));
+        for (const r of poRows) {
+          const orderNo = r.number;
+          try {
+            // Try local cache first
+            let po = (purchOrders || []).find((p: any) => String(p.order_no ?? p.id ?? p.orderNo) === String(orderNo));
+            if (!po) {
+              const fresh = await getPurchOrderByOrderNo(orderNo);
+              po = fresh ?? null;
+            }
+            if (po) {
+              const existingAlloc = Number(po.alloc ?? 0) || 0;
+              const newAlloc = existingAlloc + Number(r.allocation || 0);
+              const payload: any = {
+                order_no: po.order_no ?? po.id,
+                supplier_id: po.supplier_id ?? po.supplier ?? po.supp_id ?? null,
+                comments: po.comments ?? null,
+                ord_date: po.ord_date ?? po.ordDate ?? po.date ?? null,
+                reference: po.reference ?? po.ref ?? '',
+                requisition_no: po.requisition_no ?? po.requisition_no ?? null,
+                into_stock_location: po.into_stock_location ?? po.into_stock ?? po.loc_code ?? '',
+                delivery_address: po.delivery_address ?? po.deliver_to ?? '',
+                total: Number(po.total ?? po.ov_amount ?? po.amount ?? 0) || 0,
+                prep_amount: Number(po.prep_amount ?? 0) || 0,
+                alloc: newAlloc,
+                tax_included: po.tax_included ?? po.taxIncluded ?? false,
+              };
+              await updatePurchOrder(Number(payload.order_no), payload);
+            }
+          } catch (e) {
+            console.warn('Failed to update purchase order alloc for', orderNo, e);
+          }
+        }
+
+          const bank = (banks || []).find((b: any) => String(b.id) === String(bankAccount));
+          const bankName = bank ? (bank.bank_account_name ?? bank.name ?? String(bankAccount)) : String(bankAccount);
+
+          const viewState = {
+            supplier: supplier,
+            bankAccount: bankName,
+            datePaid: datePaid,
+            amount: payment,
+            discount: discount,
+            reference: reference,
+            paymentType: bankName,
+            allocations: (rows || []).filter(r => Number(r.allocation) && Number(r.allocation) !== 0).map(r => ({
+              type: r.type,
+              number: r.number,
+              date: r.date,
+              totalAmount: r.amount,
+              leftToAllocate: r.left,
+              allocation: Number(r.allocation) || 0,
+            })),
+          };
+
+          navigate('/purchase/transactions/payment-to-suppliers/success', { state: viewState });
+    } catch (err) {
+      console.error('Failed to process supplier payment', err);
+      alert('Failed to process supplier payment. See console for details.');
+    }
   };
 
   const breadcrumbItems = [

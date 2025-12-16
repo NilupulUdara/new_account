@@ -95,6 +95,9 @@ export default function OutstandingPurchaseOrdersMaintenance() {
 
     // apply filters from the UI
     const filtered = (purchOrders as any[]).filter((p: any) => {
+      // hide auto-generated references
+      const refVal = String(p.reference ?? "").toLowerCase().trim();
+      if (refVal === 'auto') return false;
       // filter by numberText (# / reference)
       if (numberText) {
         const search = String(numberText).toLowerCase();

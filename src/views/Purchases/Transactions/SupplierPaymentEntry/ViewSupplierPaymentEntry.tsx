@@ -35,6 +35,7 @@ export default function ViewSupplierPaymentEntry() {
     reference,
     paymentType,
   } = state || {};
+  const allocations = (state && state.allocations) || [];
 
   // Fetch suppliers
   const { data: suppliers = [] } = useQuery({
@@ -154,23 +155,24 @@ export default function ViewSupplierPaymentEntry() {
             </TableHead>
 
             <TableBody>
-              {/* Sample data - replace with actual data */}
-              <TableRow>
-                <TableCell>Purchase Invoice</TableCell>
-                <TableCell>PI-001</TableCell>
-                <TableCell>2025-01-15</TableCell>
-                <TableCell>1500.00</TableCell>
-                <TableCell>500.00</TableCell>
-                <TableCell>1000.00</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>Credit Note</TableCell>
-                <TableCell>CN-002</TableCell>
-                <TableCell>2025-01-20</TableCell>
-                <TableCell>-200.00</TableCell>
-                <TableCell>0.00</TableCell>
-                <TableCell>-200.00</TableCell>
-              </TableRow>
+                {allocations.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center">
+                      No allocations
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  allocations.map((a: any, idx: number) => (
+                    <TableRow key={idx}>
+                      <TableCell>{a.type}</TableCell>
+                      <TableCell>{a.number}</TableCell>
+                      <TableCell>{a.date}</TableCell>
+                      <TableCell>{a.totalAmount}</TableCell>
+                      <TableCell>{Number(a.leftToAllocate || 0) - Number(a.allocation || 0)}</TableCell>
+                      <TableCell>{a.allocation}</TableCell>
+                    </TableRow>
+                  ))
+                )}
             </TableBody>
           </Table>
         </TableContainer>

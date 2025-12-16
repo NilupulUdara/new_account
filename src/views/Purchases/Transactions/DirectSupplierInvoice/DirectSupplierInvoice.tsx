@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Box,
   Button,
@@ -34,6 +35,7 @@ import { getPaymentTypes } from "../../../../api/PaymentType/PaymentTypeApi";
 import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import { getPurchDataById } from "../../../../api/PurchasingPricing/PurchasingPricingApi";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { createPurchOrder, getPurchOrders } from "../../../../api/PurchOrders/PurchOrderApi";
 import { createPurchOrderDetail } from "../../../../api/PurchOrders/PurchOrderDetailsApi";
 import { createGrnBatch, getGrnBatches } from "../../../../api/GRN/GrnBatchApi";
@@ -73,13 +75,73 @@ export default function DirectSupplierInvoice() {
   const [categories, setCategories] = useState<{ category_id: number; description: string }[]>([]);
 
   // ========= Generate Reference =========
+  const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+
   useEffect(() => {
-    const year = new Date().getFullYear();
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, "0");
-    setReference(`${random}/${year}`);
-  }, []);
+    (async () => {
+      try {
+        if (!orderDate) return;
+        const dateObj = new Date(orderDate);
+        if (isNaN(dateObj.getTime())) return;
+
+        // Determine fiscal year label
+        let yearLabel = String(dateObj.getFullYear());
+        if (Array.isArray(fiscalYears) && fiscalYears.length > 0) {
+          const matching = fiscalYears.find((fy: any) => {
+            if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+            const from = new Date(fy.fiscal_year_from);
+            const to = new Date(fy.fiscal_year_to);
+            if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+            return dateObj >= from && dateObj <= to;
+          });
+
+          const chosen = matching || [...fiscalYears]
+            .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
+            .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
+            .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
+
+          if (chosen) {
+            const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
+            const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
+            yearLabel = chosen.fiscal_year || (fromYear === toYear ? String(fromYear) : `${fromYear}-${toYear}`);
+          }
+        }
+
+        // Query existing supplier transactions to determine next sequential reference for this fiscal year
+        let nextNum = 1;
+        try {
+          const allSupp = await getSuppTrans();
+          if (Array.isArray(allSupp) && allSupp.length > 0) {
+            const yearPattern = `/${yearLabel}`;
+            const matchingRefs = allSupp
+              .map((s: any) => s.reference ?? s.supp_reference ?? '')
+              .filter((ref: string) => String(ref).endsWith(yearPattern))
+              .map((ref: string) => {
+                const parts = String(ref).split('/');
+                if (parts.length >= 2) {
+                  const numPart = parts[0];
+                  const parsed = parseInt(numPart, 10);
+                  return isNaN(parsed) ? 0 : parsed;
+                }
+                return 0;
+              })
+              .filter((n: number) => n > 0);
+
+            if (matchingRefs.length > 0) {
+              const maxRef = Math.max(...matchingRefs);
+              nextNum = maxRef + 1;
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to fetch supplier transactions for reference generation', e);
+        }
+
+        setReference(`${nextNum.toString().padStart(3, '0')}/${yearLabel}`);
+      } catch (err) {
+        console.warn('Failed to generate supplier invoice reference', err);
+      }
+    })();
+  }, [orderDate, fiscalYears]);
 
   // ========= Update Credit When Supplier Changes =========
   // Helper to resolve supplier identifier (handles different backend shapes)
