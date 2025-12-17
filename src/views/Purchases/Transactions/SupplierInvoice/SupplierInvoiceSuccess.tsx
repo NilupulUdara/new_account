@@ -36,7 +36,7 @@ export default function SupplierInvoiceSuccess() {
         <Button
           variant="outlined"
           startIcon={<CloseIcon />}
-          onClick={() => navigate("/sales/transactions")}
+          onClick={() => navigate("/purchase/transactions")}
         >
           Close
         </Button>
@@ -50,7 +50,7 @@ export default function SupplierInvoiceSuccess() {
         <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/supplier-invoice/view-supplier-invoice", { state })}
           >
             View this Invoice
@@ -58,7 +58,7 @@ export default function SupplierInvoiceSuccess() {
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => {
               // Navigate to GL postings view - pass reference so GL view can filter
               navigate("", { state: { reference } });
@@ -69,7 +69,7 @@ export default function SupplierInvoiceSuccess() {
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/payment-to-suppliers")}
           >
            Entry supplier payment for this invoice
@@ -77,14 +77,14 @@ export default function SupplierInvoiceSuccess() {
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/supplier-invoice", { state })}
           >
            Enter Another Invoice
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/", { state })}
           >
            Add an Attachment
