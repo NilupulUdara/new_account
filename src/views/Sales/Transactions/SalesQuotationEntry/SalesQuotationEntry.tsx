@@ -424,7 +424,7 @@ export default function SalesQuotationEntry() {
                     trans_type: 32,
                     stk_code: row.itemCode,
                     description: row.description,
-                    qty_sent: row.quantity,
+                    qty_sent: 0,
                     unit_price: row.priceAfterTax, // Use price after tax as main unit_price
                     price_before_tax: row.priceBeforeTax,
                     price_after_tax: row.priceAfterTax,

@@ -330,8 +330,21 @@ export default function DirectInvoice() {
             if (selectedCustomer) {
                 const newCredit = selectedCustomer.credit_limit || 0;
                 const newDiscount = selectedCustomer.discount || 0;
-                const newPayment = selectedCustomer.payment_terms ? String(selectedCustomer.payment_terms) : "";
+                let newPayment = selectedCustomer.payment_terms ? String(selectedCustomer.payment_terms) : "";
                 const newPriceList = selectedCustomer.sales_type ? String(selectedCustomer.sales_type) : "";
+
+                // If the customer's default payment term has payment_type === 1 then ignore it (don't auto-select)
+                if (newPayment) {
+                    const ptObj = paymentTerms.find((pt: any) => String(pt.terms_indicator) === String(newPayment));
+                    if (ptObj) {
+                        const pType = ptObj.payment_type;
+                        const id = typeof pType === 'number' ? pType : (pType?.id ?? pType?.payment_type ?? null);
+                        if (Number(id) === 1) {
+                            newPayment = "";
+                        }
+                    }
+                }
+
                 if (newCredit !== credit) setCredit(newCredit);
                 if (newDiscount !== discount) setDiscount(newDiscount);
                 if (newPayment !== payment) setPayment(newPayment);
@@ -361,7 +374,7 @@ export default function DirectInvoice() {
                 }
             });
         }
-    }, [customer, customers]);
+    }, [customer, customers, paymentTerms]);
 
     // === Save flow: create sales_order, sales_order_details and two debtor_trans + details
     const [submitting, setSubmitting] = useState(false);
@@ -617,6 +630,15 @@ export default function DirectInvoice() {
         return pt.id ?? pt.payment_type ?? null;
     }, [selectedPaymentTerm]);
 
+    // Only show payment terms where payment_type != 1
+    const visiblePaymentTerms = useMemo(() => {
+        return paymentTerms.filter((pt: any) => {
+            const pType = pt.payment_type;
+            const id = typeof pType === "number" ? pType : (pType?.id ?? pType?.payment_type ?? null);
+            return Number(id) !== 1;
+        });
+    }, [paymentTerms]);
+
     const showQuotationDeliveryDetails = selectedPaymentType === 3 || selectedPaymentType === 4;
 
     return (
@@ -706,12 +728,12 @@ export default function DirectInvoice() {
                                 // Ensure the selected value shows the human-friendly `description`
                                 SelectProps={{
                                     renderValue: (selected) => {
-                                        const sel = paymentTerms.find((pt: any) => String(pt.terms_indicator) === String(selected));
+                                        const sel = visiblePaymentTerms.find((pt: any) => String(pt.terms_indicator) === String(selected));
                                         return sel ? sel.description : (selected as string);
                                     },
                                 }}
                             >
-                                {paymentTerms.map((p: any) => (
+                                {visiblePaymentTerms.map((p: any) => (
                                     <MenuItem key={p.terms_indicator} value={p.terms_indicator}>
                                         {p.description}
                                     </MenuItem>

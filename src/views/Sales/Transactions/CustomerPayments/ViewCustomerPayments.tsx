@@ -22,6 +22,8 @@ import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi";
 import { getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { getBankTrans } from "../../../../api/BankTrans/BankTransApi";
+import { getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { getCustAllocations } from "../../../../api/CustAllocation/CustAllocationApi";
 
 export default function ViewCustomerPayments() {
   const { state } = useLocation();
@@ -61,6 +63,10 @@ export default function ViewCustomerPayments() {
     queryKey: ["bankTrans"],
     queryFn: getBankTrans,
   });
+
+  // Fetch sales orders and cust_allocations to derive allocations if needed
+  const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: () => getSalesOrders().then((r: any) => r.data) });
+  const { data: custAllocations = [] } = useQuery({ queryKey: ["custAllocations"], queryFn: () => getCustAllocations().then((r: any) => r.data) });
 
   // Find the debtor transaction with trans_type = 12 and matching reference
   const debtorTrans = debtorTransList.find(
@@ -191,6 +197,106 @@ export default function ViewCustomerPayments() {
 
       {/* Allocations Table */}
       <Paper sx={{ p: 2 }}>
+        {/* derive allocations to display: prefer passed-in `allocations`, else cust_allocations for this payment, else sales_orders for the customer */}
+        {/** Normalize allocations into fields: type, number, date, total_amount, left_to_allocate, this_allocation */}
+
+        {/* Render normalized rows */}
+        {(() => {
+          const derived = ((): any => {
+            const debtorNo = debtorTrans?.debtor_no ?? fromCustomer;
+            const custAllocsForPayment = (custAllocations || []).filter((ca: any) => Number(ca.trans_no_from) === Number(debtorTrans?.trans_no));
+            const salesOrdersForCustomer = (salesOrders || []).filter((so: any) =>
+              Number(so.trans_type) === 30 &&
+              String(so.debtor_no) === String(debtorNo) &&
+              Number(so.prep_amount || 0) > Number(so.alloc || 0)
+            );
+
+            if (allocations && allocations.length > 0) {
+              return allocations.map((a: any) => ({
+                type: a.type || 'Sales Order',
+                number: a.number ?? a.trans_no_to ?? a.trans_no_from ?? '-',
+                date: a.date || a.date_alloc || '-',
+                total_amount: Number(a.total_amount ?? a.amt ?? 0),
+                left_to_allocate: a.left_to_allocate != null ? Number(a.left_to_allocate) : (a.prep_amount ? Number(a.prep_amount) - Number(a.alloc || 0) : null),
+                this_allocation: Number(a.this_allocation ?? a.amt ?? 0),
+              }));
+            }
+
+            if (custAllocsForPayment.length > 0) {
+              return custAllocsForPayment.map((ca: any) => {
+                const so = (salesOrders || []).find((s: any) => Number(s.order_no) === Number(ca.trans_no_to));
+                return {
+                  type: 'Sales Order',
+                  number: ca.trans_no_to,
+                  date: ca.date_alloc || '-',
+                  total_amount: Number(so?.prep_amount ?? ca.amt ?? 0),
+                  left_to_allocate: so ? Math.max(0, Number(so.prep_amount || 0) - Number(so.alloc || 0)) : null,
+                  this_allocation: Number(ca.amt ?? 0),
+                };
+              });
+            }
+
+            if (salesOrdersForCustomer.length > 0) {
+              return salesOrdersForCustomer.map((so: any) => ({
+                type: 'Sales Order',
+                number: so.order_no,
+                date: so.ord_date || so.delivery_date || '-',
+                total_amount: Number(so.prep_amount ?? 0),
+                left_to_allocate: Math.max(0, Number(so.prep_amount ?? 0) - Number(so.alloc ?? 0)),
+                this_allocation: 0,
+              }));
+            }
+
+            return [];
+          })();
+
+          if (!derived || derived.length === 0) {
+            return (
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                No allocations for this payment.
+              </Typography>
+            );
+          }
+
+          return (
+            <>
+              <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 600 }}>
+                Allocations
+              </Typography>
+              <TableContainer sx={{ mb: 2 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Type</TableCell>
+                      <TableCell>#</TableCell>
+                      <TableCell>Date</TableCell>
+                      <TableCell align="right">Total Amount</TableCell>
+                      <TableCell align="right">Left to allocate</TableCell>
+                      <TableCell align="right">This allocation</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {derived.map((a: any, i: number) => (
+                      <TableRow key={i}>
+                        <TableCell>{a.type || '-'}</TableCell>
+                        <TableCell>{a.number ?? '-'}</TableCell>
+                        <TableCell>{a.date ?? '-'}</TableCell>
+                        <TableCell align="right">{(Number(a.total_amount ?? 0)).toFixed(2)}</TableCell>
+                        <TableCell align="right">{a.left_to_allocate != null ? Number(a.left_to_allocate).toFixed(2) : '-'}</TableCell>
+                        <TableCell align="right">{(Number(a.this_allocation ?? 0)).toFixed(2)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                <b>Total Allocated:</b> {Number(totalAllocated ?? derived.reduce((s: number, x: any) => s + (Number(x.this_allocation || 0)), 0)).toFixed(2)}
+              </Typography>
+            </>
+          );
+        })()}
+        
+
         {/* Buttons */}
         <Stack direction="row" spacing={2} justifyContent="flex-end" mt={3}>
           <Button variant="contained" color="primary">

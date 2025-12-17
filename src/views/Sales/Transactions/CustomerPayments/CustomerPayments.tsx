@@ -17,7 +17,7 @@ import {
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
@@ -26,6 +26,8 @@ import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi";
 import { getDebtorTrans, createDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { createBankTrans } from "../../../../api/BankTrans/BankTransApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getSalesOrders, getSalesOrderByOrderNo, updateSalesOrder } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { createCustAllocation } from "../../../../api/CustAllocation/CustAllocationApi";
 
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
@@ -64,21 +66,7 @@ export default function CustomerPayments() {
   const [memo, setMemo] = useState("");
 
   // ====== Allocation Table State ======
-  const [allocationRows, setAllocationRows] = useState<AllocationRow[]>([
-    {
-      transactionType: "Sales Invoice",
-      number: 5,
-      ref: "002/2025",
-      date: "01/01/2025",
-      dueDate: "01/01/2025",
-      amount: 1300.00,
-      otherAllocations: 0.00,
-      leftToAllocate: 1300.00,
-      thisAllocation: 0.00,
-      all: "All",
-      none: "None",
-    },
-  ]);
+  const [allocationRows, setAllocationRows] = useState<AllocationRow[]>([]);
 
   // ====== Fetch Data ======
   const { data: customers = [] } = useQuery({
@@ -94,6 +82,8 @@ export default function CustomerPayments() {
   });
   const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
   const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
+  const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!depositDate || fiscalYears.length === 0) return;
@@ -135,6 +125,41 @@ export default function CustomerPayments() {
     }
   }, [depositDate, fiscalYears, debtorTrans]);
 
+  useEffect(() => {
+    // Only populate allocations after a customer is selected
+    if (!customer) {
+      setAllocationRows([]);
+      return;
+    }
+
+    if (!salesOrders || salesOrders.length === 0) {
+      setAllocationRows([]);
+      return;
+    }
+
+    const rows = salesOrders
+      .filter((so: any) => Number(so.trans_type) === 30 && Number(so.prep_amount) !== Number(so.alloc) && Number(so.debtor_no) === Number(customer))
+      .map((so: any) => ({
+        transactionType: Number(so.trans_type) === 30 ? "Sales Order" : "Sales Invoice",
+        number: so.order_no,
+        ref: so.reference || "",
+        date: so.ord_date || depositDate,
+        dueDate: so.delivery_date || so.ord_date || depositDate,
+        amount: Number(so.prep_amount || 0),
+        otherAllocations: Number(so.alloc || 0),
+        leftToAllocate: Number((so.prep_amount || 0) - (so.alloc || 0)),
+        thisAllocation: Number(so.alloc || 0),
+        all: "All",
+        none: "None",
+      }));
+
+    setAllocationRows(rows);
+    const initialTotal = rows.reduce((s: number, r: any) => s + (Number(r.thisAllocation || 0)), 0);
+    setAmount(initialTotal);
+  }, [salesOrders, customer, depositDate]);
+
+
+
   // Reset branch when customer changes
   useEffect(() => {
     setBranch("");
@@ -155,8 +180,37 @@ export default function CustomerPayments() {
   // ====== Handle Table Changes ======
   const handleAllocationChange = (index: number, value: number) => {
     const updatedRows = [...allocationRows];
-    updatedRows[index].thisAllocation = value;
+    const left = updatedRows[index]?.leftToAllocate ?? 0;
+    // Clamp value between 0 and leftToAllocate
+    const clamped = Number.isNaN(Number(value)) ? 0 : Math.max(0, Math.min(Number(value), left));
+    updatedRows[index] = { ...updatedRows[index], thisAllocation: clamped };
     setAllocationRows(updatedRows);
+
+    const total = updatedRows.reduce((s, r) => s + (Number(r.thisAllocation) || 0), 0);
+    setAmount(total);
+  };
+
+  const handleSetAll = (index: number) => {
+    setAllocationRows((prev) => {
+      const updated = [...prev];
+      const left = updated[index]?.leftToAllocate ?? 0;
+      updated[index] = { ...updated[index], thisAllocation: left };
+
+      const total = updated.reduce((s, r) => s + (Number(r.thisAllocation) || 0), 0);
+      setAmount(total);
+      return updated;
+    });
+  };
+
+  const handleSetNone = (index: number) => {
+    setAllocationRows((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], thisAllocation: 0 };
+
+      const total = updated.reduce((s, r) => s + (Number(r.thisAllocation) || 0), 0);
+      setAmount(total);
+      return updated;
+    });
   };
 
   // ====== Handle Add Payment ======
@@ -168,6 +222,10 @@ export default function CustomerPayments() {
       const relevantTrans = debtorTrans.filter((dt: any) => Number(dt.trans_type) === 12);
       const maxTransNo = relevantTrans.length > 0 ? Math.max(...relevantTrans.map((dt: any) => dt.trans_no)) : 0;
       const nextTransNo = maxTransNo + 1;
+
+      // Sum allocated amounts from allocationRows
+      const totalAllocated = allocationRows.reduce((s, r) => s + (Number(r.thisAllocation) || 0), 0);
+      const allocValue = totalAllocated > 0 ? totalAllocated : 0;
 
       const payload = {
         trans_no: nextTransNo,
@@ -185,7 +243,7 @@ export default function CustomerPayments() {
         ov_freight: 0,
         ov_freight_tax: 0,
         ov_discount: amountOfDiscount,
-        alloc: 0,
+        alloc: allocValue,
         prep_amount: 0,
         rate: 1,
         ship_via: null,
@@ -212,6 +270,74 @@ export default function CustomerPayments() {
         reconciled: null,
       };
       await createBankTrans(bankTransPayload);
+
+      // Update alloc on related sales orders for each allocation row with an allocation
+      const allocationsToApply = allocationRows.filter((r) => Number(r.thisAllocation) > 0);
+      if (allocationsToApply.length > 0) {
+        await Promise.all(
+          allocationsToApply.map(async (r) => {
+            try {
+              const so = await getSalesOrderByOrderNo(r.number);
+              if (!so) return;
+
+              const updatedAlloc = Number(so.alloc || 0) + Number(r.thisAllocation || 0);
+
+              const payload = {
+                order_no: so.order_no,
+                trans_type: so.trans_type ?? 30,
+                version: so.version ?? 0,
+                type: so.type ?? 0,
+                debtor_no: so.debtor_no ?? 0,
+                branch_code: so.branch_code ?? 0,
+                reference: so.reference ?? "",
+                ord_date: so.ord_date ?? depositDate,
+                order_type: so.order_type ?? 0,
+                ship_via: so.ship_via ?? 0,
+                customer_ref: so.customer_ref ?? null,
+                delivery_address: so.delivery_address ?? null,
+                contact_phone: so.contact_phone ?? null,
+                contact_email: so.contact_email ?? null,
+                deliver_to: so.deliver_to ?? null,
+                freight_cost: so.freight_cost ?? 0,
+                from_stk_loc: so.from_stk_loc ?? "",
+                delivery_date: so.delivery_date ?? null,
+                payment_terms: so.payment_terms ?? null,
+                total: so.total ?? 0,
+                prep_amount: so.prep_amount ?? 0,
+                alloc: updatedAlloc,
+              };
+
+              await updateSalesOrder(so.order_no, payload);
+              // Create cust_allocations record linking this payment to the sales order
+              try {
+                const custAllocPayload = {
+                  person_id: Number(customer),
+                  amt: Number(r.thisAllocation || 0),
+                  date_alloc: depositDate,
+                  trans_no_from: nextTransNo,
+                  trans_type_from: 12, // customer payment
+                  trans_no_to: so.order_no,
+                  trans_type_to: Number(so.trans_type) || 30,
+                };
+                await createCustAllocation(custAllocPayload);
+              } catch (err) {
+                console.error("Failed to create cust_allocation for order", r.number, err);
+              }
+            } catch (err) {
+              console.error("Failed to update sales order alloc for order", r.number, err);
+            }
+          })
+        );
+
+        // Refresh sales orders and debtorTrans data
+        queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
+        queryClient.invalidateQueries({ queryKey: ["debtorTrans"] });
+        queryClient.invalidateQueries({ queryKey: ["custAllocations"] });
+
+        // clear allocations and amount
+        setAllocationRows([]);
+        setAmount(0);
+      }
 
       alert("Customer payment added successfully!");
       navigate("/sales/transactions/customer-payments/success", { state: { reference, amount, depositDate } });
@@ -355,60 +481,82 @@ export default function CustomerPayments() {
         </Grid>
       </Paper>
 
-      {/* Allocation Table */}
-      <Paper sx={{ p: 2, borderRadius: 2 }}>
-        <Typography
-          variant="subtitle1"
-          sx={{ mb: 2, textAlign: "center", fontWeight: 600 }}
-        >
-          Allocated amounts in USD
-        </Typography>
+      {customer === "" ? (
+        <Paper sx={{ p: 2, borderRadius: 2 }}>
+          <Typography variant="body2" sx={{ textAlign: "center" }}>
+            Please select a customer to view allocations.
+          </Typography>
+        </Paper>
+      ) : allocationRows.length > 0 ? (
+        <>
+          {/* Allocation Table */}
+          <Paper sx={{ p: 2, borderRadius: 2 }}>
+            <Typography
+              variant="subtitle1"
+              sx={{ mb: 2, textAlign: "center", fontWeight: 600 }}
+            >
+              Allocated amounts in USD
+            </Typography>
 
-        <TableContainer>
-          <Table size="small">
-            <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
-              <TableRow>
-                <TableCell>Transaction Type</TableCell>
-                <TableCell>#</TableCell>
-                <TableCell>Ref</TableCell>
-                <TableCell>Date</TableCell>
-                <TableCell>Due date</TableCell>
-                <TableCell>Amount</TableCell>
-                <TableCell>Other Allocations</TableCell>
-                <TableCell>Left to allocate</TableCell>
-                <TableCell>This allocation</TableCell>
-                <TableCell></TableCell>
-                <TableCell></TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {allocationRows.map((row, index) => (
-                <TableRow key={index}>
-                  <TableCell>{row.transactionType}</TableCell>
-                  <TableCell>{row.number}</TableCell>
-                  <TableCell>{row.ref}</TableCell>
-                  <TableCell>{row.date}</TableCell>
-                  <TableCell>{row.dueDate}</TableCell>
-                  <TableCell>{row.amount.toFixed(2)}</TableCell>
-                  <TableCell>{row.otherAllocations.toFixed(2)}</TableCell>
-                  <TableCell>{row.leftToAllocate.toFixed(2)}</TableCell>
-                  <TableCell>
-                    <TextField
-                      size="small"
-                      type="number"
-                      value={row.thisAllocation}
-                      onChange={(e) => handleAllocationChange(index, Number(e.target.value))}
-                      sx={{ width: "100px" }}
-                    />
-                  </TableCell>
-                  <TableCell>{row.all}</TableCell>
-                  <TableCell>{row.none}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
+            <TableContainer>
+              <Table size="small">
+                <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
+                  <TableRow>
+                    <TableCell>Transaction Type</TableCell>
+                    <TableCell>#</TableCell>
+                    <TableCell>Ref</TableCell>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Due date</TableCell>
+                    <TableCell>Amount</TableCell>
+                    <TableCell>Other Allocations</TableCell>
+                    <TableCell>Left to allocate</TableCell>
+                    <TableCell>This allocation</TableCell>
+                    <TableCell></TableCell>
+                    <TableCell></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {allocationRows.map((row, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{row.transactionType}</TableCell>
+                      <TableCell>{row.number}</TableCell>
+                      <TableCell>{row.ref}</TableCell>
+                      <TableCell>{row.date}</TableCell>
+                      <TableCell>{row.dueDate}</TableCell>
+                      <TableCell>{row.amount.toFixed(2)}</TableCell>
+                      <TableCell>{row.otherAllocations.toFixed(2)}</TableCell>
+                      <TableCell>{Math.max(0, (Number(row.amount || 0) - Number(row.otherAllocations || 0) - Number(row.thisAllocation || 0))).toFixed(2)}</TableCell>
+                      <TableCell>
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={row.thisAllocation}
+                          onChange={(e) => handleAllocationChange(index, Number(e.target.value))}
+                          sx={{ width: "100px" }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button size="small" onClick={() => handleSetAll(index)}>
+                          All
+                        </Button>
+                        <Button size="small" onClick={() => handleSetNone(index)} sx={{ ml: 1 }}>
+                          None
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </>
+      ) : (
+        <Paper sx={{ p: 2, borderRadius: 2 }}>
+          <Typography variant="body2" sx={{ textAlign: "center" }}>
+            No allocations to display for the selected customer.
+          </Typography>
+        </Paper>
+      )}
 
       {/* Payment Section */}
       <Paper sx={{ p: 2, borderRadius: 2 }}>

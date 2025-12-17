@@ -98,7 +98,14 @@ export default function SalesQuotationInquiry() {
   }, [selectedItem, items]);
 
   const filteredRows = React.useMemo(() => {
-    let filtered = salesOrders.filter((order: any) => order.trans_type === 32);
+    // Only include quotations that have at least one detail with trans_type=32 and qty_sent=0
+    const relevantOrderNos = new Set(
+      (orderDetails || [])
+        .filter((d: any) => Number(d.trans_type) === 32 && Number(d.qty_sent) === 0)
+        .map((d: any) => String(d.order_no))
+    );
+
+    let filtered = (salesOrders || []).filter((order: any) => relevantOrderNos.has(String(order.order_no)));
 
     if (selectedCustomer !== "ALL_CUSTOMERS") {
       filtered = filtered.filter((order: any) => String(order.debtor_no) === selectedCustomer);
@@ -287,7 +294,7 @@ export default function SalesQuotationInquiry() {
                 <TableCell align="center">
                   <Stack direction="row" spacing={1} justifyContent="center">
                     <Button variant="outlined" size="small" onClick={() => navigate(`/sales/transactions/update-sales-quotation-entry/${r.id}`)}>Edit</Button>
-                    <Button variant="outlined" size="small">Sales Order</Button>
+                    <Button variant="outlined" size="small" onClick={() => navigate("/sales/transactions/sales-order-entry", { state: { orderNo: r.id } })}>Sales Order</Button>
                     <Button variant="outlined" size="small">Print</Button>
                   </Stack>
                 </TableCell>
