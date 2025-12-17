@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import {
     Box,
     Button,
@@ -36,9 +37,12 @@ import { getItemCategories } from "../../../../api/ItemCategories/ItemCategories
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
+import { getSalesOrderByOrderNo, updateSalesOrder } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { getSalesOrderDetailsByOrderNo, createSalesOrderDetail, updateSalesOrderDetail, deleteSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 
 export default function UpdateSalesQuotationEntry() {
     const navigate = useNavigate();
+    const { id } = useParams();
 
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
@@ -78,6 +82,7 @@ export default function UpdateSalesQuotationEntry() {
             discount: 0,
             total: 0,
             selectedItemId: null as string | number | null,
+            src_id: null as string | number | null,
         },
     ]);
 
@@ -94,6 +99,7 @@ export default function UpdateSalesQuotationEntry() {
                 discount: 0,
                 total: 0,
                 selectedItemId: null,
+                src_id: null,
             },
         ]);
     };
@@ -129,6 +135,71 @@ export default function UpdateSalesQuotationEntry() {
             setCustomer(customers[0].debtor_no);
         }
     }, [customers, customer]);
+
+    // Load quotation when navigated to this edit route
+    useEffect(() => {
+        const loadQuotation = async () => {
+            if (!id) return;
+            try {
+                const order = await getSalesOrderByOrderNo(id);
+                if (!order) return;
+                // Only load if this is a quotation (trans_type 32)
+                if (Number(order.trans_type) !== 32) return;
+
+                setCustomer(order.debtor_no ?? "");
+                setBranch(order.branch_code ?? "");
+                setReference(order.reference ?? "");
+                setQuotationDate(order.ord_date ?? (new Date().toISOString().split("T")[0]));
+                setPayment(order.payment_terms ? String(order.payment_terms) : "");
+                setPriceList(order.order_type ? String(order.order_type) : "");
+                setDeliverFrom(order.from_stk_loc ?? "");
+                setComments(order.comments ?? "");
+                setShippingCharge(Number(order.freight_cost ?? 0));
+
+                // load details
+                const details = await getSalesOrderDetailsByOrderNo(id);
+                if (details && details.length > 0) {
+                    const newRows = details.map((detail: any, index: number) => {
+                        const item = items.find((it: any) => String(it.stock_id ?? it.id) === String(detail.stk_code));
+                        const unitName = item ? (item.units ? (itemUnits.find((u: any) => u.id === item.units)?.name || "") : "") : "";
+                        const qty = Number(detail.quantity ?? detail.qty_sent ?? 0);
+                        const price = Number(detail.unit_price ?? 0);
+                        const disc = Number(detail.discount_percent ?? 0);
+                        return {
+                            id: index + 1,
+                            itemCode: detail.stk_code,
+                            // preserve detail id for updates/deletes
+                            src_id: detail.id,
+                            description: detail.description || "",
+                            quantity: qty,
+                            unit: unitName,
+                            priceAfterTax: price,
+                            discount: disc,
+                            total: qty * price * (1 - disc / 100),
+                            selectedItemId: detail.stk_code,
+                        };
+                    });
+                    // append an empty row for editing
+                    newRows.push({
+                        id: newRows.length + 1,
+                        itemCode: "",
+                        description: "",
+                        quantity: 0,
+                        unit: "",
+                        priceAfterTax: 0,
+                        discount: 0,
+                        total: 0,
+                        selectedItemId: null,
+                    });
+                    setRows(newRows);
+                }
+            } catch (err) {
+                console.error("Failed to load quotation", err);
+            }
+        };
+
+        loadQuotation();
+    }, [id, items, itemUnits]);
 
     // Reset branch when customer changes and auto-select first branch
     useEffect(() => {
@@ -179,22 +250,98 @@ export default function UpdateSalesQuotationEntry() {
         }
     }, [priceList, priceLists]);
 
-    const handlePlaceQuotation = () => {
-        if (!customer || rows.length === 0) return;
-        console.log({
-            customer,
-            branch,
-            reference,
-            quotationDate,
-            payment,
-            priceList,
-            rows,
-            deliverFrom,
-            cashAccount,
-            comments,
-        });
-        alert("Quotation placed successfully!");
-        navigate(-1);
+    const handlePlaceQuotation = async () => {
+        if (!id) return alert("No quotation loaded");
+        if (!customer || rows.length === 0) return alert("Missing data");
+
+        try {
+            const existing = await getSalesOrderByOrderNo(id);
+            if (!existing) return alert("Quotation not found");
+
+            // Build payload and increment version
+            const payload: any = {
+                order_no: existing.order_no,
+                trans_type: 32,
+                version: (existing.version || 0) + 1,
+                type: 0,
+                debtor_no: Number(customer),
+                branch_code: Number(branch) || 0,
+                reference: reference || existing.reference || "",
+                ord_date: quotationDate,
+                order_type: payment ? Number(payment) : existing.order_type,
+                ship_via: 1,
+                comments: comments || existing.comments || "",
+                delivery_address: existing.delivery_address || null,
+                contact_phone: existing.contact_phone || null,
+                contact_email: existing.contact_email || null,
+                deliver_to: existing.deliver_to || null,
+                freight_cost: Number(shippingCharge || existing.freight_cost || 0),
+                from_stk_loc: deliverFrom || existing.from_stk_loc || "",
+                delivery_date: quotationDate,
+                payment_terms: payment ? Number(payment) : existing.payment_terms,
+                total: subTotal + Number(shippingCharge || 0),
+                prep_amount: existing.prep_amount || 0,
+                alloc: existing.alloc || 0,
+            };
+
+            await updateSalesOrder(existing.order_no, payload);
+
+            // Manage details: update existing, create new, delete removed
+            const existingDetails = await getSalesOrderDetailsByOrderNo(id);
+            const existingById: Record<string, any> = {};
+            existingDetails.forEach((d: any) => { existingById[String(d.id)] = d; });
+
+            // rows containing src_id are updates, others are creates
+            for (const r of rows) {
+                if (!r.selectedItemId) continue; // skip empty
+                const detailPayload: any = {
+                    order_no: existing.order_no,
+                    trans_type: 32,
+                    stk_code: r.itemCode,
+                    description: r.description,
+                    qty_sent: Number(r.quantity || 0),
+                    unit_price: Number(r.priceAfterTax || 0),
+                    price_before_tax: Number(r.priceAfterTax || 0),
+                    price_after_tax: Number(r.priceAfterTax || 0),
+                    quantity: Number(r.quantity || 0),
+                    invoiced: 0,
+                    discount_percent: Number(r.discount || 0),
+                };
+
+                if (r.src_id) {
+                    // update
+                    try {
+                        await updateSalesOrderDetail(r.src_id, detailPayload);
+                        delete existingById[String(r.src_id)];
+                    } catch (err) {
+                        console.error("Failed to update detail", r.src_id, err);
+                    }
+                } else {
+                    // create
+                    try {
+                        await createSalesOrderDetail(detailPayload);
+                    } catch (err) {
+                        console.error("Failed to create detail", err);
+                    }
+                }
+            }
+
+            // Any remaining in existingById were deleted in UI -> remove them
+            for (const leftoverId of Object.keys(existingById)) {
+                try {
+                    await deleteSalesOrderDetail(leftoverId);
+                } catch (err) {
+                    console.error("Failed to delete detail", leftoverId, err);
+                }
+            }
+
+            alert("Quotation updated successfully!");
+            await new Promise((r) => setTimeout(r, 200));
+            navigate("/sales/transactions/updated-sales-quotation-entry/success", { state: { orderNo: existing.order_no, reference, quotationDate } });
+        } catch (error) {
+            console.error("Failed to update quotation", error);
+            alert("Failed to update quotation. See console for details.");
+        }
     };
 
     const breadcrumbItems = [

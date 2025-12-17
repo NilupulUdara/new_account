@@ -358,6 +358,7 @@ import FinalInvoiceSuccess from "./views/Sales/Transactions/InvoicePrepaidOrders
 import UpdateSalesQuotationEntry from "./views/Sales/Transactions/SalesQuotationEntry/UpdateSalesQuotationEntry";
 import UpdateFixedAssetClasses from "./views/FixedAssets/Maintenance/FixedAssetClasses/UpdateFixedAssetClasses";
 import UpdateFixedAssetsCategories from "./views/FixedAssets/Maintenance/FixedAssetsCategories/UpdateFixedAssetsCategories";
+import UpdatedSalesQuotationEntrySuccess from "./views/Sales/Transactions/SalesQuotationEntry/UpdatedSalesQuotationEntrySuccess";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1087,6 +1088,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales quotations']}>
               {withLayout(MainLayout, SalesQuotationEntrySuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/updated-sales-quotation-entry/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales quotations']}>
+              {withLayout(MainLayout, UpdatedSalesQuotationEntrySuccess)}
             </ProtectedRoute>
           }
         />
