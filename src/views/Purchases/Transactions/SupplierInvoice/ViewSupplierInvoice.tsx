@@ -130,11 +130,12 @@ export default function ViewSupplierInvoice() {
           <Table size="small">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
-                <TableCell>Account</TableCell>
-                <TableCell>Name</TableCell>
-                <TableCell>Dimension</TableCell>
-                <TableCell>Amount</TableCell>
-                <TableCell>Memo</TableCell>
+                <TableCell>Delivery</TableCell>
+                <TableCell>Item</TableCell>
+                <TableCell>Description</TableCell>
+                <TableCell>Quantity</TableCell>
+                <TableCell>Price</TableCell>
+                <TableCell>Line Value</TableCell>
               </TableRow>
             </TableHead>
 
