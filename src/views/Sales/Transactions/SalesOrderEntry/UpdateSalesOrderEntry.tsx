@@ -366,6 +366,8 @@ export default function UpdateSalesOrderEntry() {
     // === Additional derived fields for backend mapping ===
     const [submitting, setSubmitting] = useState(false);
     const [orderNo, setOrderNo] = useState<number>(1);
+    // store the authoritative saved order number so refetches don't overwrite it
+    const [savedOrderNo, setSavedOrderNo] = useState<number | null>(null);
 
     // Helper to get selected customer object
     const selectedCustomer = useMemo(() => customers.find((c: any) => String(c.debtor_no) === String(customer)), [customers, customer]);
@@ -441,6 +443,7 @@ export default function UpdateSalesOrderEntry() {
                         setBranch(String(quotation.branch_code));
                         setPriceList(String(quotation.order_type));
                         setComments(`Sales Quotation # ${state.orderNo}`);
+                        setPayment(quotation.payment_terms ? String(quotation.payment_terms) : "");
                         // Fetch details
                         const details = await getSalesOrderDetailsByOrderNo(state.orderNo);
                         if (details.length > 0) {
@@ -499,6 +502,7 @@ export default function UpdateSalesOrderEntry() {
                         setAddress(order.delivery_address);
                         setContactPhoneNumber(order.contact_phone);
                         setCustomerReference(order.customer_ref);
+                        setPayment(order.payment_terms ? String(order.payment_terms) : "");
                         setComments(order.comments);
                         setShippingCharge(order.freight_cost || 0);
                         // Fetch details
@@ -580,10 +584,14 @@ export default function UpdateSalesOrderEntry() {
                 alloc: 0,
             };
             console.log("Posting sales order payload", payload);
+            let createdOrderNo: number | null = null;
             if (isUpdate) {
                 await updateSalesOrder(orderNo, payload as any);
+                createdOrderNo = orderNo;
             } else {
-                await createSalesOrder(payload as any);
+                const res: any = await createSalesOrder(payload as any);
+                // try to read returned order_no, otherwise fall back to client-side orderNo
+                createdOrderNo = res && res.order_no ? Number(res.order_no) : orderNo;
             }
             const detailsToPost = rows.filter(r => r.selectedItemId);
             let existingDetails: any[] = [];
@@ -597,7 +605,7 @@ export default function UpdateSalesOrderEntry() {
                     trans_type: 30,
                     stk_code: row.itemCode,
                     description: row.description,
-                    qty_sent: row.quantity,
+                    qty_sent: 0,
                     unit_price: unitPrice,
                     quantity: row.quantity,
                     invoiced: 0,
@@ -620,8 +628,9 @@ export default function UpdateSalesOrderEntry() {
                     }
                 }
             }
-            // alert("Saved to sales_orders (order_no: " + orderNo + ")");
-             setOpen(true);
+            // persist authoritative saved order number before triggering refetch
+            if (createdOrderNo) setSavedOrderNo(createdOrderNo);
+            setOpen(true);
             await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
             // navigate("/sales/transactions/sales-order-entry/success", { state: { orderNo, reference, orderDate } });
         } catch (e: any) {
@@ -691,7 +700,7 @@ export default function UpdateSalesOrderEntry() {
         return pt.id ?? pt.payment_type ?? null;
     }, [selectedPaymentTerm]);
 
-    const showQuotationDeliveryDetails = selectedPaymentType === 3 || selectedPaymentType === 4;
+    const showQuotationDeliveryDetails = selectedPaymentType === 1 || selectedPaymentType === 3 || selectedPaymentType === 4;
 
     return (
         <Stack spacing={2}>
@@ -1163,8 +1172,9 @@ export default function UpdateSalesOrderEntry() {
                 addFunc={async () => { }}
                 handleClose={() => setOpen(false)}
                 onSuccess={() => {
-                    // Form was already cleared on successful submission
-                   navigate(isUpdate ? "/sales/transactions/update-sales-order-entry/success" : "/sales/transactions/sales-order-entry/success", { state: { orderNo, reference, orderDate } });
+                    // Use savedOrderNo (authoritative) if available, otherwise fall back to current orderNo
+                    const displayOrderNo = savedOrderNo ?? orderNo;
+                    navigate(isUpdate ? "/sales/transactions/update-sales-order-entry/success" : "/sales/transactions/sales-order-entry/success", { state: { orderNo: displayOrderNo, reference, orderDate } });
                 }}
             />
         </Stack>

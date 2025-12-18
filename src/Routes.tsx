@@ -359,6 +359,7 @@ import UpdateSalesQuotationEntry from "./views/Sales/Transactions/SalesQuotation
 import UpdateFixedAssetClasses from "./views/FixedAssets/Maintenance/FixedAssetClasses/UpdateFixedAssetClasses";
 import UpdateFixedAssetsCategories from "./views/FixedAssets/Maintenance/FixedAssetsCategories/UpdateFixedAssetsCategories";
 import UpdatedSalesQuotationEntrySuccess from "./views/Sales/Transactions/SalesQuotationEntry/UpdatedSalesQuotationEntrySuccess";
+import SalesOrderEntryQuotation from "./views/Sales/Transactions/SalesOrderEntry/SalesOrderEntryQuotation";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1132,7 +1133,7 @@ const AppRoutes = () => {
           }
         />
         <Route
-          path="/sales/transactions/update-sales-order-entry"
+          path="/sales/transactions/update-sales-order-entry/"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales orders']}>
               {withLayout(MainLayout, UpdateSalesOrderEntry)}
@@ -1144,6 +1145,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales orders']}>
               {withLayout(MainLayout, UpdateSalesOrderEntrySuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/quotation-sales-order-entry/"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales orders']}>
+              {withLayout(MainLayout, SalesOrderEntryQuotation)}
             </ProtectedRoute>
           }
         />
