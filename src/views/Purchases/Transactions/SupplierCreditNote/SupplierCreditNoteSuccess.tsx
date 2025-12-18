@@ -36,7 +36,7 @@ export default function SupplierCreditNoteSuccess() {
         <Button
           variant="outlined"
           startIcon={<CloseIcon />}
-          onClick={() => navigate("/sales/transactions")}
+          onClick={() => navigate("/purchase/transactions")}
         >
           Close
         </Button>
@@ -50,7 +50,7 @@ export default function SupplierCreditNoteSuccess() {
         <Stack spacing={3} direction="column" alignItems="center">
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/supplier-credit-notes/view-supplier-credit-note", { state })}
           >
             View this Credit Note
@@ -58,7 +58,7 @@ export default function SupplierCreditNoteSuccess() {
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => {
               // Navigate to GL postings view - pass reference so GL view can filter
               navigate("", { state: { reference } });
@@ -69,14 +69,14 @@ export default function SupplierCreditNoteSuccess() {
 
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/purchase/transactions/supplier-credit-notes")}
           >
            Enter Another Credit Note
           </Button>
           <Button
             variant="outlined"
-            sx={{ width: '300px' }}
+            sx={{ width: '500px' }}
             onClick={() => navigate("/", { state })}
           >
            Add an Attachment

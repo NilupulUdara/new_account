@@ -340,7 +340,7 @@ export default function DirectSupplierInvoice() {
             act_price: Number(r.price) || 0,
             std_cost_unit: 0,
             quantity_ordered: Number(r.quantity) || 0,
-            quantity_received: 0,
+            quantity_received: Number(r.quantity) || 0,
           };
           try {
             const createdDetail = await createPurchOrderDetail(detail);
@@ -398,7 +398,7 @@ export default function DirectSupplierInvoice() {
             item_code: r.itemCode ?? r.stockId ?? null,
             description: r.description || null,
             qty_recd: Number(r.quantity) || 0,
-            quantity_inv: 0,
+            quantity_inv: Number(r.quantity) || 0,
           };
           try {
             const created = await createGrnItem(grnItemPayload);
