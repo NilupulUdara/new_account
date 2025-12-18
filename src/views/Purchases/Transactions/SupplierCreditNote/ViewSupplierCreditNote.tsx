@@ -28,7 +28,8 @@ export default function ViewSupplierCreditNote() {
     supplier,
     reference,
     supplierRef,
-    invoiceDate,
+    date: invoiceDate,
+    creditNoteDate,
     dueDate,
     items = [],
     subtotal,
@@ -48,6 +49,15 @@ export default function ViewSupplierCreditNote() {
       (s: any) => String(s.supplier_id) === String(supplier)
     );
     return found ? found.supp_name : supplier;
+  }, [suppliers, supplier]);
+
+  // Supplier currency resolve
+  const supplierCurrency = useMemo(() => {
+    if (!supplier) return "-";
+    const found = (suppliers || []).find(
+      (s: any) => String(s.supplier_id) === String(supplier)
+    );
+    return found ? (found.curr_code || "-") : "-";
   }, [suppliers, supplier]);
 
   const breadcrumbItems = [
@@ -117,24 +127,30 @@ export default function ViewSupplierCreditNote() {
               <b>Due Date:</b> {dueDate || "-"}
             </Typography>
           </Grid>
+          <Grid item xs={12} sm={6}>
+            <Typography>
+              <b>Currency:</b> {supplierCurrency}
+            </Typography>
+          </Grid>
         </Grid>
       </Paper>
 
       {/* Items Table */}
       <Paper sx={{ p: 2 }}>
         <Typography sx={{ mb: 1, fontWeight: 600 }}>
-          GL Items for this Invoice
+          Received Items Credited on this Note
         </Typography>
 
         <TableContainer component={Paper}>
           <Table size="small">
             <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
               <TableRow>
-                <TableCell>Account</TableCell>
-                <TableCell>Name</TableCell>
-                <TableCell>Dimension</TableCell>
-                <TableCell>Amount</TableCell>
-                <TableCell>Memo</TableCell>
+                <TableCell>Delivery</TableCell>
+                <TableCell>Item</TableCell>
+                <TableCell>Description</TableCell>
+                <TableCell>Quantity</TableCell>
+                <TableCell>Price</TableCell>
+                <TableCell>Line Value</TableCell>
               </TableRow>
             </TableHead>
 
@@ -159,7 +175,7 @@ export default function ViewSupplierCreditNote() {
           </Table>
         </TableContainer>
 
-        {/* Totals Section */}
+        {/* Totals Section for Items */}
         <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
           <Box sx={{ width: 260 }}>
             <Stack direction="row" justifyContent="space-between" mb={1}>
@@ -179,9 +195,54 @@ export default function ViewSupplierCreditNote() {
             </Stack>
           </Box>
         </Box>
+      </Paper>
 
-        {/* Action Buttons */}
-        <Stack direction="row" spacing={2} justifyContent="flex-end" mt={3}>
+      {/* Allocations Table */}
+      <Paper sx={{ p: 2 }}>
+        <Typography sx={{ mb: 1, fontWeight: 600 }}>
+          Allocations
+        </Typography>
+
+        <TableContainer component={Paper}>
+          <Table size="small">
+            <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
+              <TableRow>
+                <TableCell>Type</TableCell>
+                <TableCell>Number</TableCell>
+                <TableCell>Date</TableCell>
+                <TableCell>Total Amount</TableCell>
+                <TableCell>Left to Allocate</TableCell>
+                <TableCell>This Allocation</TableCell>
+              </TableRow>
+            </TableHead>
+
+            <TableBody>
+              <TableRow>
+                <TableCell colSpan={6}>No allocations available</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        {/* Allocation Totals */}
+        <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
+          <Box sx={{ width: 260 }}>
+            <Stack direction="row" justifyContent="space-between" mb={1}>
+              <Typography>Total Allocated:</Typography>
+              <Typography>0.00</Typography>
+            </Stack>
+
+            <Stack direction="row" justifyContent="space-between">
+              <Typography>Left to Allocate:</Typography>
+              <Typography>0.00</Typography>
+            </Stack>
+          </Box>
+        </Box>
+      </Paper>
+
+      {/* Action Buttons */}
+      <Paper sx={{ p: 2 }}>
+        <Stack direction="row" spacing={2} justifyContent="flex-end">
           <Button variant="contained" color="primary">
             Print
           </Button>

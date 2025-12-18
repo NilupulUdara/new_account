@@ -701,7 +701,7 @@ export default function SupplierInvoice() {
                             >
                                 {suppliers.map((s) => (
                                     <MenuItem key={s.supplier_id} value={s.supplier_id}>
-                                        {s.supp_short_name}
+                                        {s.supp_name}
                                     </MenuItem>
                                 ))}
                             </TextField>

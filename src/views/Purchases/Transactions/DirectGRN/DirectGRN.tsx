@@ -324,7 +324,7 @@ export default function DirectGRN() {
             act_price: Number(r.price) || 0,
             std_cost_unit: 0,
             quantity_ordered: Number(r.quantity) || 0,
-            quantity_received: 0,
+            quantity_received: Number(r.quantity) || 0,
           };
           try {
             const createdDetail = await createPurchOrderDetail(detail);
