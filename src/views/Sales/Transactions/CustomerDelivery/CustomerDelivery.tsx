@@ -25,7 +25,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCompanyApi";
 import { getSalesOrderByOrderNo } from "../../../../api/SalesOrders/SalesOrdersApi";
-import { getSalesOrderDetailsByOrderNo } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
+import { getSalesOrderDetailsByOrderNo, getSalesOrderDetailById, updateSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getSalesTypes } from "../../../../api/SalesMaintenance/salesService";
@@ -179,6 +179,8 @@ export default function CustomerDelivery() {
         const unitName = unitData?.abbr || detail.units || "";
         const price = parseFloat(detail.unit_price || 0);
         const qty = parseFloat(detail.quantity || 0);
+        const qtySent = parseFloat(detail.qty_sent || 0);
+        const remaining = Math.max(0, qty - qtySent);
         const discountPercent = parseFloat(detail.discount_percent || 0);
         const discountedPrice = price * (1 - discountPercent / 100);
         const total = discountedPrice * qty;
@@ -190,8 +192,10 @@ export default function CustomerDelivery() {
           itemCode: detail.stk_code || "",
           description: detail.description || "",
           ordered: qty,
+          delivered: qtySent,
           units: unitName,
-          deliveryQty: qty, // default to full ordered quantity
+          // default delivery quantity should be the remaining quantity (quantity - qty_sent)
+          deliveryQty: remaining,
           price: price,
           taxType: taxTypeData?.name || "VAT 15%",
           discount: discountPercent,
@@ -281,13 +285,34 @@ export default function CustomerDelivery() {
           quantity: row.deliveryQty,
           unit_price: discountedPrice,
           discount_percent: row.discount,
-          qty_done: row.deliveryQty,
+          qty_done: 0,
           src_id: row.detailId,
           standard_cost: row.price, // assuming standard cost is the price
           unit_tax: discountedPrice * 0.15,
           // Add other fields as needed
         };
         await createDebtorTransDetail(detailData);
+
+        // Increment sales_order_details.qty_sent: 0 -> 1, 1 -> 2, etc.
+        try {
+          // Fetch fresh details for this order and try to locate the matching detail record
+          const detailsForOrder = await getSalesOrderDetailsByOrderNo(orderNo);
+          const matched = detailsForOrder.find((d: any) => String(d.stk_code) === String(row.itemCode));
+          const detailIdToUse = matched?.id ?? matched?.detail_id ?? matched?.detailId ?? row.detailId;
+          if (detailIdToUse) {
+            const existing = await getSalesOrderDetailById(detailIdToUse);
+            const currentQtySent = existing && existing.qty_sent ? Number(existing.qty_sent) : 0;
+            const deliveredQty = row.deliveryQty ? Number(row.deliveryQty) : 0;
+            const newQtySent = currentQtySent + deliveredQty;
+            // merge existing object with updated qty_sent so PUT includes required fields
+            const payload = { ...(existing || {}), qty_sent: newQtySent } as any;
+            await updateSalesOrderDetail(detailIdToUse, payload);
+          } else {
+            console.warn("Could not find sales_order_detail id for item", row.itemCode, "order", orderNo);
+          }
+        } catch (err) {
+          console.error("Failed to increment qty_sent for sales order detail", row.detailId ?? row.itemCode, err);
+        }
       }
 
       alert("Dispatch processed successfully!");
@@ -439,17 +464,18 @@ export default function CustomerDelivery() {
         <Table size="small">
           <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
             <TableRow>
-              <TableCell>No</TableCell>
-              <TableCell>Item Code</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell>Ordered</TableCell>
-              <TableCell>Units</TableCell>
-              <TableCell>This Delivery</TableCell>
-              <TableCell>Price</TableCell>
-              <TableCell>Tax Type</TableCell>
-              <TableCell>Discount</TableCell>
-              <TableCell>Total</TableCell>
-            </TableRow>
+                <TableCell>No</TableCell>
+                <TableCell>Item Code</TableCell>
+                <TableCell>Description</TableCell>
+                <TableCell>Ordered</TableCell>
+                <TableCell>Delivered</TableCell>
+                <TableCell>Units</TableCell>
+                <TableCell>This Delivery</TableCell>
+                <TableCell>Price</TableCell>
+                <TableCell>Tax Type</TableCell>
+                <TableCell>Discount</TableCell>
+                <TableCell>Total</TableCell>
+              </TableRow>
           </TableHead>
 
           <TableBody>
@@ -459,6 +485,7 @@ export default function CustomerDelivery() {
                 <TableCell>{row.itemCode}</TableCell>
                 <TableCell>{row.description}</TableCell>
                 <TableCell>{row.ordered}</TableCell>
+                <TableCell>{row.delivered}</TableCell>
                 <TableCell>{row.units}</TableCell>
                 <TableCell>
                   <TextField
@@ -485,7 +512,7 @@ export default function CustomerDelivery() {
 
           <TableFooter>
             <TableRow>
-              <TableCell colSpan={9}>Shipping Cost</TableCell>
+              <TableCell colSpan={10}>Shipping Cost</TableCell>
               <TableCell>
                 <TextField
                   size="small"
@@ -497,21 +524,21 @@ export default function CustomerDelivery() {
             </TableRow>
 
             <TableRow>
-              <TableCell colSpan={9} sx={{ fontWeight: 600 }}>
+              <TableCell colSpan={10} sx={{ fontWeight: 600 }}>
                 Sub Total
               </TableCell>
               <TableCell sx={{ fontWeight: 600 }}>{subTotal.toFixed(2)}</TableCell>
             </TableRow>
 
             <TableRow>
-              <TableCell colSpan={9} sx={{ fontWeight: 600 }}>
+              <TableCell colSpan={10} sx={{ fontWeight: 600 }}>
                 Included Tax
               </TableCell>
               <TableCell sx={{ fontWeight: 600 }}>{includedTax.toFixed(2)}</TableCell>
             </TableRow>
 
             <TableRow>
-              <TableCell colSpan={9} sx={{ fontWeight: 600 }}>
+              <TableCell colSpan={10} sx={{ fontWeight: 600 }}>
                 Amount Total
               </TableCell>
               <TableCell sx={{ fontWeight: 600 }}>{amountTotal.toFixed(2)}</TableCell>

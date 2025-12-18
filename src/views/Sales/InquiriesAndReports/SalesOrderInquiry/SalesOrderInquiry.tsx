@@ -21,15 +21,22 @@ import {
   TableFooter,
   TablePagination,
   ListSubheader,
+  Checkbox,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import SearchIcon from "@mui/icons-material/Search";
+import EditIcon from "@mui/icons-material/Edit";
+import LocalShippingIcon from "@mui/icons-material/LocalShipping";
+import PrintIcon from "@mui/icons-material/Print";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
+import { getSalesOrders, updateSalesOrder } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { getSalesOrderDetails } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -50,6 +57,8 @@ interface Row {
   orderNo?: string;
   orderTotal?: string | number;
   currency: string;
+  trans_type?: number;
+  prep_amount?: number;
 }
 
 export default function SalesOrderInquiry() {
@@ -78,6 +87,7 @@ export default function SalesOrderInquiry() {
   const [selectedCustomer, setSelectedCustomer] = useState("ALL_CUSTOMERS");
 
   const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
+  const { data: branches = [] } = useQuery({ queryKey: ["branches"], queryFn: () => getBranches() });
 
   useEffect(() => {
     if (!selectedItem) {
@@ -88,17 +98,102 @@ export default function SalesOrderInquiry() {
     setItemCode(it ? String(it.stock_id ?? it.id ?? "") : "");
   }, [selectedItem, items]);
 
-  // dummy rows
-  const today = new Date().toISOString().split("T")[0];
-  const rows: Row[] = [
-    { id: 1, deliveryNo: "SO-1001", customer: "Acme Corp", branch: "Main", contact: "John Doe", reference: "REF-001", custRef: "CREF-001", orderDate: today, requiredBy: "2025-12-14", deliveryTotal: "150.00", currency: "USD" , deliveryTo: "Main Warehouse", orderNo: "ORD-001", orderTotal: "150.00"},
-    { id: 2, deliveryNo: "SO-1002", customer: "Beta Ltd", branch: "Branch A", contact: "Jane Smith", reference: "REF-002", custRef: "CREF-002", orderDate: today, requiredBy: "2025-12-15", deliveryTotal: "320.00", currency: "LKR", deliveryTo: "Branch Warehouse", orderNo: "ORD-002", orderTotal: "320.00" },
-  ];
+  const queryClient = useQueryClient();
+  const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
+  const { data: orderDetails = [] } = useQuery({ queryKey: ["orderDetails"], queryFn: getSalesOrderDetails });
+
+  // Apply filters then map to rows
+  let filteredOrders = (salesOrders || []).filter((order: any) => Number(order.trans_type) === 30);
+
+  if (selectedCustomer && selectedCustomer !== "ALL_CUSTOMERS") {
+    filteredOrders = filteredOrders.filter((order: any) => String(order.debtor_no) === String(selectedCustomer));
+  }
+
+  if (numberText) {
+    filteredOrders = filteredOrders.filter((order: any) => String(order.order_no).includes(numberText));
+  }
+
+  if (referenceText) {
+    filteredOrders = filteredOrders.filter((order: any) => (order.reference || "").toLowerCase().includes(referenceText.toLowerCase()));
+  }
+
+  if (fromDate) {
+    filteredOrders = filteredOrders.filter((order: any) => order.ord_date >= fromDate);
+  }
+
+  if (toDate) {
+    filteredOrders = filteredOrders.filter((order: any) => order.ord_date <= toDate);
+  }
+
+  if (location && location !== "ALL_LOCATIONS") {
+    filteredOrders = filteredOrders.filter((order: any) => order.from_stk_loc === location);
+  }
+
+  // If a specific item is selected, filter orders that have details with that item (stk_code)
+  if (selectedItem && selectedItem !== "ALL_ITEMS") {
+    const matchingOrderNos = new Set((orderDetails || [])
+      .filter((d: any) => String(d.stk_code) === String(selectedItem))
+      .map((d: any) => Number(d.order_no)));
+    filteredOrders = filteredOrders.filter((order: any) => matchingOrderNos.has(Number(order.order_no)));
+  }
+
+  const rows: Row[] = filteredOrders.map((order: any) => {
+    const customer = (customers || []).find((c: any) => c.debtor_no === order.debtor_no);
+    const branchObj = (branches || []).find((b: any) => String(b.branch_code) === String(order.branch_code));
+    return {
+      id: order.order_no,
+      deliveryNo: String(order.order_no),
+      customer: customer?.name ?? String(order.debtor_no),
+      branch: branchObj?.br_name ?? String(order.branch_code ?? ""),
+      contact: "",
+      reference: order.reference ?? "",
+      custRef: order.customer_ref || "",
+      orderDate: order.ord_date || "",
+      requiredBy: order.delivery_date || "",
+      deliveryTotal: order.total ?? 0,
+      currency: customer?.curr_code,
+      deliveryTo: order.deliver_to || "",
+      orderNo: String(order.order_no),
+      orderTotal: order.total ?? 0,
+      trans_type: Number(order.trans_type),
+      prep_amount: Number(order.prep_amount) || 0,
+    };
+  });
 
   const paginatedRows = React.useMemo(() => {
     if (rowsPerPage === -1) return rows;
     return rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
   }, [rows, page, rowsPerPage]);
+
+  const [tmplSelected, setTmplSelected] = React.useState<Record<number, boolean>>({});
+
+  const toggleTmpl = async (id: number) => {
+    const currently = !!tmplSelected[id];
+    // optimistic UI
+    setTmplSelected((prev) => ({ ...prev, [id]: !currently }));
+
+    // find the underlying sales order
+    const order = (salesOrders || []).find((o: any) => Number(o.order_no) === Number(id));
+    if (!order) {
+      // revert
+      setTmplSelected((prev) => ({ ...prev, [id]: currently }));
+      alert("Order not found to update template flag");
+      return;
+    }
+
+    const newType = currently ? 0 : 1;
+    const payload = { ...order, type: newType };
+
+    try {
+      await updateSalesOrder(Number(id), payload as any);
+      await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
+    } catch (err) {
+      console.error("Failed to update sales order type", err);
+      // revert
+      setTmplSelected((prev) => ({ ...prev, [id]: currently }));
+      alert("Failed to update order template flag. See console for details.");
+    }
+  };
 
   const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -106,12 +201,19 @@ export default function SalesOrderInquiry() {
     setPage(0);
   };
 
+  // returns true if every detail for the given order has qty_sent >= quantity
+  const isFullyDispatched = (orderId: number) => {
+    const detailsForOrder = (orderDetails || []).filter((d: any) => Number(d.order_no) === Number(orderId));
+    if (detailsForOrder.length === 0) return false;
+    return detailsForOrder.every((d: any) => Number(d.qty_sent || 0) >= Number(d.quantity || 0));
+  };
+
   return (
     <Stack spacing={2}>
       <Box sx={{ padding: theme.spacing(2), boxShadow: 2, borderRadius: 1, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
         <Box>
-          <PageTitle title="Invoicing Prepayment Orders" />
-          <Breadcrumb breadcrumbs={[{ title: "Inquiries and Reports", href: "/sales/inquiriesandreports" }, { title: "Invoicing Prepayment Orders" }]} />
+          <PageTitle title="Search All Sales Orders" />
+          <Breadcrumb breadcrumbs={[{ title: "Inquiries and Reports", href: "/sales/inquiriesandreports" }, { title: "Search All Sales Orders" }]} />
         </Box>
 
         <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>Back</Button>
@@ -227,12 +329,36 @@ export default function SalesOrderInquiry() {
                 <TableCell>{r.deliveryTo}</TableCell>
                 <TableCell>{r.orderTotal ?? r.deliveryTotal}</TableCell>
                 <TableCell>{r.currency}</TableCell>
-                <TableCell></TableCell>
+                <TableCell>
+                  {Number(r.trans_type) !== 32 && Number(r.prep_amount || 0) === 0 ? (
+                    <Checkbox
+                      checked={!!tmplSelected[r.id]}
+                      onChange={() => toggleTmpl(r.id)}
+                      inputProps={{ 'aria-label': `tmpl-${r.id}` }}
+                    />
+                  ) : null}
+                </TableCell>
                 <TableCell align="center">
-                  <Stack direction="row" spacing={1} justifyContent="center">
-                    <Button variant="outlined" size="small">Edit</Button>
-                    <Button variant="outlined" size="small">Dispatch</Button>
-                    <Button variant="outlined" size="small">Print</Button>
+                  <Stack direction="row" spacing={1} justifyContent="center" alignItems="center" sx={{ whiteSpace: "nowrap" }}>
+                    {Number(r.prep_amount || 0) === 0 && (
+                      <Button variant="contained" size="small" startIcon={<EditIcon />} onClick={() => navigate(`/sales/transactions/update-sales-order-entry`, { state: { id: r.id } })}>
+                        Edit
+                      </Button>
+                    )}
+
+                    {String(r.reference ?? "").toLowerCase() !== "auto" && !isFullyDispatched(r.id) && (
+                      <Button
+                        variant="contained"
+                        color="secondary"
+                        size="small"
+                        startIcon={<LocalShippingIcon />}
+                        onClick={() => navigate("/sales/transactions/customer-delivery", { state: { orderNo: r.id, reference: r.reference } })}
+                      >
+                        Dispatch
+                      </Button>
+                    )}
+
+                    <Button variant="outlined" size="small" startIcon={<PrintIcon />}>Print</Button>
                   </Stack>
                 </TableCell>
               </TableRow>

@@ -294,7 +294,7 @@ export default function SalesQuotationInquiry() {
                 <TableCell align="center">
                   <Stack direction="row" spacing={1} justifyContent="center">
                     <Button variant="outlined" size="small" onClick={() => navigate(`/sales/transactions/update-sales-quotation-entry/${r.id}`)}>Edit</Button>
-                    <Button variant="outlined" size="small" onClick={() => navigate("/sales/transactions/sales-order-entry", { state: { orderNo: r.id } })}>Sales Order</Button>
+                    <Button variant="outlined" size="small" onClick={() => navigate("/sales/transactions/quotation-sales-order-entry/", { state: { orderNo: r.id } })}>Sales Order</Button>
                     <Button variant="outlined" size="small">Print</Button>
                   </Stack>
                 </TableCell>

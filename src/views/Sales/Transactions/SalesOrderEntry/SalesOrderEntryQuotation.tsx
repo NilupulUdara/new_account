@@ -42,10 +42,10 @@ import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { createSalesOrder, generateProvisionalOrderNo, getSalesOrders, getSalesOrderByOrderNo } from "../../../../api/SalesOrders/SalesOrdersApi";
-import { createSalesOrderDetail, getSalesOrderDetailsByOrderNo } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
+import { createSalesOrderDetail, getSalesOrderDetailsByOrderNo, updateSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 
-export default function SalesOrderEntry() {
+export default function SalesOrderEntryQuotation() {
     const navigate = useNavigate();
     const location = useLocation();
     const queryClient = useQueryClient();
@@ -522,6 +522,26 @@ export default function SalesOrderEntry() {
             const response = await createSalesOrder(payload as any);
             const actualOrderNo = response.order_no || orderNo;
             setActualOrderNo(actualOrderNo);
+            // If this page was opened from a quotation, update the existing quotation details (trans_type === 32)
+            const state = location.state as any;
+            if (state && state.orderNo) {
+                try {
+                    const existingDetails = await getSalesOrderDetailsByOrderNo(state.orderNo);
+                    for (const ed of existingDetails) {
+                        if (Number(ed.trans_type) === 32) {
+                            try {
+                                const updated = { ...ed, qty_sent: 1 };
+                                await updateSalesOrderDetail(ed.id, updated);
+                            } catch (err) {
+                                console.warn("Failed to update quotation detail qty_sent=1", ed, err);
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn("Failed to fetch/update existing quotation details:", err);
+                }
+            }
+
             const detailsToPost = rows.filter(r => r.selectedItemId);
             for (const row of detailsToPost) {
                 const unitPrice = priceColumnLabel === "Price after Tax" ? row.priceAfterTax : row.priceBeforeTax;
@@ -554,7 +574,7 @@ export default function SalesOrderEntry() {
 
     const breadcrumbItems = [
         { title: "Transactions", href: "/sales/transactions/" },
-        { title: "New Sales Order Entry" },
+        { title: "Sales Order Entry" },
     ];
 
     // Match SalesQuotationEntry subtotal behavior: exclude the last-edit row
@@ -626,7 +646,7 @@ export default function SalesOrderEntry() {
                 }}
             >
                 <Box>
-                    <PageTitle title="New Sales Order Entry" />
+                    <PageTitle title="Sales Order Entry" />
                     <Breadcrumb breadcrumbs={breadcrumbItems} />
                 </Box>
 
