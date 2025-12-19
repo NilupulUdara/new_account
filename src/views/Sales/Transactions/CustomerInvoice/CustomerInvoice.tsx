@@ -206,6 +206,8 @@ export default function CustomerInvoice() {
       ship_via: delivery.ship_via,
       tpe: delivery.tpe,
       tran_date: date,
+      ov_amount: invoiceTotal,
+      alloc:invoiceTotal,
       due_date: dueDate || date,
       payment_terms: paymentTerm,
       shipping_company: shippingCompany,
@@ -229,7 +231,7 @@ export default function CustomerInvoice() {
           unit_tax: r.unitTax,
           discount_percent: r.discount,
           standard_cost: r.standardCost,
-          qty_done: 0,
+          qty_done: r.thisInvoice,
           src_id: r.src_id,
         })
       );

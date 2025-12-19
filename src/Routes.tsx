@@ -360,6 +360,8 @@ import UpdateFixedAssetClasses from "./views/FixedAssets/Maintenance/FixedAssetC
 import UpdateFixedAssetsCategories from "./views/FixedAssets/Maintenance/FixedAssetsCategories/UpdateFixedAssetsCategories";
 import UpdatedSalesQuotationEntrySuccess from "./views/Sales/Transactions/SalesQuotationEntry/UpdatedSalesQuotationEntrySuccess";
 import SalesOrderEntryQuotation from "./views/Sales/Transactions/SalesOrderEntry/SalesOrderEntryQuotation";
+import CreditInvoice from "./views/Sales/Transactions/CustomerCreditNotes/CreditInvoice";
+import UpdateCustomerCreditNotes from "./views/Sales/Transactions/CustomerCreditNotes/UpdateCustomerCreditNotes";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1245,6 +1247,14 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/sales/transactions/credit-invoice/"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
+              {withLayout(MainLayout, CreditInvoice)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/sales/transactions/template-delivery"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales templates']}>
@@ -1305,6 +1315,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
               {withLayout(MainLayout, CustomerCreditNotesSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/update-customer-credit-notes/"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
+              {withLayout(MainLayout, UpdateCustomerCreditNotes)}
             </ProtectedRoute>
           }
         />
