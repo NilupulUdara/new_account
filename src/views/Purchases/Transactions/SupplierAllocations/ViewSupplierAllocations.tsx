@@ -163,7 +163,7 @@ export default function ViewSupplierAllocations() {
       </Paper>
 
       {/* Action Buttons */}
-      <Stack direction="row" spacing={2} justifyContent="flex-end">
+      <Stack direction="row" spacing={2} pr={2} justifyContent="flex-end">
         <Button variant="outlined">Refresh</Button>
         <Button variant="contained" color="primary">Process</Button>
         <Button variant="outlined" color="secondary" onClick={() => navigate(-1)}>
