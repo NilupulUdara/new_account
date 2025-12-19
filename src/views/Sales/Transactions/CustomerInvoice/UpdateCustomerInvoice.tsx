@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -17,59 +17,58 @@ import {
   Grid,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
 import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCompanyApi";
+import { getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { getDebtorTransDetails } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
+import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
+import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
+import { getSalesTypes } from "../../../../api/SalesMaintenance/salesService";
+import { getItems } from "../../../../api/Item/ItemApi";
+import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
+import { getItemTaxTypes } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
 
 export default function UpdateCustomerInvoice() {
   const navigate = useNavigate();
 
   // === Fields ===
-  const [customer, setCustomer] = useState("John Traders Pvt Ltd");
-  const [branch, setBranch] = useState("Main Branch");
+  const { state } = useLocation();
+  const { trans_no, reference: navReference, date: navDate } = (state || {}) as any;
+
+  const [customer, setCustomer] = useState("");
+  const [branch, setBranch] = useState("");
   const [paymentTerm, setPaymentTerm] = useState("");
-  const [reference, setReference] = useState("INV/2025/001");
-  const [salesType, setSalesType] = useState("Cash");
-  const [currency, setCurrency] = useState("LKR");
+  const [reference, setReference] = useState(navReference || "");
+  const [salesType, setSalesType] = useState("");
+  const [currency, setCurrency] = useState("");
   const [shippingCompany, setShippingCompany] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(navDate || new Date().toISOString().split("T")[0]);
   const [dueDate, setDueDate] = useState("");
   const [memo, setMemo] = useState("");
   const [shippingCost, setShippingCost] = useState(0);
 
   // === Table Data ===
-  const [rows, setRows] = useState([
-    {
-      id: 1,
-      itemCode: "ITM-001",
-      description: "Cement Bag 50kg",
-      delivered: 100,
-      units: "Bags",
-      invoiced: 50,
-      thisInvoice: 0,
-      price: 1250,
-      taxType: "VAT 15%",
-      discount: 0,
-      total: 0,
-    },
-  ]);
+  const [rows, setRows] = useState<any[]>([]);
 
   // === API Queries ===
-  const { data: paymentTerms = [] } = useQuery({
-    queryKey: ["paymentTerms"],
-    queryFn: getPaymentTerms,
-  });
+  const { data: paymentTerms = [] } = useQuery({ queryKey: ["paymentTerms"], queryFn: getPaymentTerms });
+  const { data: shippingCompanies = [] } = useQuery({ queryKey: ["shippingCompanies"], queryFn: getShippingCompanies });
 
-  const { data: shippingCompanies = [] } = useQuery({
-    queryKey: ["shippingCompanies"],
-    queryFn: getShippingCompanies,
-  });
+  const { data: debtorTransList = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
+  const { data: debtorTransDetails = [] } = useQuery({ queryKey: ["debtorTransDetails"], queryFn: getDebtorTransDetails });
+  const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
+  const { data: branches = [] } = useQuery({ queryKey: ["branches"], queryFn: () => getBranches() });
+  const { data: salesTypes = [] } = useQuery({ queryKey: ["salesTypes"], queryFn: getSalesTypes });
+  const { data: items = [] } = useQuery({ queryKey: ["items"], queryFn: getItems });
+  const { data: itemUnits = [] } = useQuery({ queryKey: ["itemUnits"], queryFn: getItemUnits });
+  const { data: itemTaxTypes = [] } = useQuery({ queryKey: ["itemTaxTypes"], queryFn: getItemTaxTypes });
 
   // === Calculations ===
-  const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
+  const subTotal = rows.reduce((sum, r) => sum + Number(r.total || 0), 0);
   const invoiceTotal = subTotal + shippingCost;
 
   // === Actions ===
@@ -78,8 +77,63 @@ export default function UpdateCustomerInvoice() {
 
   const breadcrumbItems = [
     { title: "Transactions", href: "/sales/transactions" },
-    { title: "Modifying Sales Invoice # 1." },
+    { title: `Modifying Sales Invoice # ${trans_no || ""}` },
   ];
+
+  // Prefill form when debtor trans and details are available
+  useEffect(() => {
+    if (!trans_no || debtorTransList.length === 0 || customers.length === 0) return;
+
+    const invoice = debtorTransList.find((d: any) => String(d.trans_no) === String(trans_no) && d.trans_type === 10);
+    if (!invoice) return;
+
+    // basic fields
+    const customerData = customers.find((c: any) => String(c.debtor_no) === String(invoice.debtor_no));
+    const branchData = (branches || []).find((b: any) => String(b.branch_code) === String(invoice.branch_code));
+    const salesTypeData = (salesTypes || []).find((st: any) => String(st.id) === String(invoice.tpe));
+
+    setCustomer(customerData?.name || String(invoice.debtor_no || ""));
+    setBranch(branchData?.br_name || String(invoice.branch_code || ""));
+    setCurrency(customerData?.curr_code || invoice.curr_code || "");
+    setSalesType(salesTypeData?.typeName || "");
+    setReference(invoice.reference || navReference || "");
+    setDate(invoice.tran_date ? String(invoice.tran_date).split(" ")[0] : (navDate || new Date().toISOString().split("T")[0]));
+    setDueDate(invoice.due_date ? String(invoice.due_date).split(" ")[0] : "");
+    setPaymentTerm(invoice.payment_terms || "");
+    setShippingCompany(invoice.ship_via || "");
+    setMemo(invoice.memo_ || invoice.comments || "");
+
+    // rows from details
+    const details = (debtorTransDetails || []).filter((d: any) => String(d.debtor_trans_no) === String(invoice.trans_no));
+    if (details.length > 0) {
+      const newRows = details.map((detail: any, index: number) => {
+        const itemData = (items || []).find((i: any) => String(i.stock_id) === String(detail.stock_id));
+        const unitData = (itemUnits || []).find((u: any) => String(u.id) === String(itemData?.units));
+        const taxTypeData = (itemTaxTypes || []).find((t: any) => String(t.id) === String(itemData?.tax_type_id));
+        const price = Number(detail.unit_price || 0);
+        const qty = Number(detail.quantity || 0);
+        const discount = Number(detail.discount_percent || 0);
+        const total = qty * price * (1 - discount / 100);
+
+        return {
+          id: index + 1,
+          itemCode: detail.stock_id || "",
+          description: detail.description || "",
+          delivered: qty,
+          units: unitData?.abbr || detail.units || "",
+          invoiced: Number(detail.qty_invoiced || 0),
+          thisInvoice: qty,
+          price: price,
+          taxType: taxTypeData?.name || "",
+          discount: discount,
+          total: total,
+          src_id: detail.src_id,
+        };
+      });
+      setRows(newRows);
+      setShippingCost(Number(invoice.shipping_cost || 0));
+    }
+  }, [trans_no, debtorTransList, debtorTransDetails, customers, branches, salesTypes, items, itemUnits, itemTaxTypes, navReference, navDate]);
 
   return (
     <Stack spacing={2}>
@@ -95,7 +149,7 @@ export default function UpdateCustomerInvoice() {
         }}
       >
         <Box>
-          <PageTitle title="Modifying Sales Invoice # 1." />
+          <PageTitle title={`Modifying Sales Invoice # ${trans_no || ""}`} />
           <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
 

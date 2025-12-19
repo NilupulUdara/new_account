@@ -40,6 +40,8 @@ import { getItemCategories } from "../../../../api/ItemCategories/ItemCategories
 import { getSalesPricingByStockId } from "../../../../api/SalesPricing/SalesPricingApi";
 import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCompanyApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import auditTrailApi from "../../../../api/AuditTrail/AuditTrailApi";
+import useCurrentUser from "../../../../hooks/useCurrentUser";
 import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
 import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import Breadcrumb from "../../../../components/BreadCrumb";
@@ -88,6 +90,7 @@ export default function DirectInvoice() {
     const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
     const { data: shippingCompanies = [] } = useQuery({ queryKey: ["shippingCompanies"], queryFn: getShippingCompanies });
     const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+    const { user } = useCurrentUser();
     const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
     const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
     const { data: taxTypes = [] } = useQuery({ queryKey: ["taxTypes"], queryFn: getTaxTypes });
@@ -503,6 +506,42 @@ export default function DirectInvoice() {
 
             const debtorTransNo10 = debtorResp10?.trans_no ?? debtorResp10?.id ?? null;
             const debtorTransNo13 = debtorResp13?.trans_no ?? debtorResp13?.id ?? null;
+
+            // Create audit trail entry for the sales invoice (trans_type 10)
+            try {
+                const auditDateObj = new Date(invoiceDate || new Date());
+                let auditFiscalYearId = null;
+                if (Array.isArray(fiscalYears) && fiscalYears.length > 0) {
+                    const matching = fiscalYears.find((fy: any) => {
+                        if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+                        const from = new Date(fy.fiscal_year_from);
+                        const to = new Date(fy.fiscal_year_to);
+                        if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+                        return auditDateObj >= from && auditDateObj <= to;
+                    });
+                    const chosen = matching || [...fiscalYears]
+                        .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
+                        .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
+                        .find((fy: any) => new Date(fy.fiscal_year_from) <= auditDateObj) || fiscalYears[0];
+                    if (chosen) {
+                        auditFiscalYearId = chosen.id ?? chosen.fiscal_year_id ?? null;
+                    }
+                }
+
+                const auditPayload: any = {
+                    type: 10,
+                    trans_no: debtorTransNo10,
+                    user: user?.id ?? null,
+                    stamp: new Date().toISOString(),
+                    description: reference || comments || "Direct Invoice",
+                    fiscal_year: auditFiscalYearId,
+                    gl_date: invoiceDate || new Date().toISOString().split('T')[0],
+                    gl_seq: 0,
+                };
+                await auditTrailApi.create(auditPayload);
+            } catch (err) {
+                console.warn("Failed to create audit trail for direct invoice", err);
+            }
 
             // Now create sales order details and for each created detail create two debtor_trans_details
             const detailsToPost = rows.filter(r => r.selectedItemId);

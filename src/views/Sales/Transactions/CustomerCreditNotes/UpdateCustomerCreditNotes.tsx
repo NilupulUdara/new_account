@@ -45,7 +45,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 
-export default function CustomerCreditNotes() {
+export default function UpdateCustomerCreditNotes() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
 
@@ -385,7 +385,7 @@ export default function CustomerCreditNotes() {
 
     const breadcrumbItems = [
         { title: "Transactions", href: "/sales/transactions/" },
-        { title: "Customer Credit Notes" },
+        { title: "Modifying Customer Credit Note" },
     ];
 
     return (
@@ -402,7 +402,7 @@ export default function CustomerCreditNotes() {
                 }}
             >
                 <Box>
-                    <PageTitle title="Customer Credit Note" />
+                    <PageTitle title="Modifying Customer Credit Note" />
                     <Breadcrumb breadcrumbs={breadcrumbItems} />
                 </Box>
 

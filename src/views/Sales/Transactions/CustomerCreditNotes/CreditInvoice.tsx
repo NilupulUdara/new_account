@@ -45,7 +45,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 
-export default function CustomerCreditNotes() {
+export default function CreditInvoice() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
 
@@ -59,6 +59,8 @@ export default function CustomerCreditNotes() {
     const [creditNoteDate, setCreditNoteDate] = useState(
         new Date().toISOString().split("T")[0]
     );
+    const [creditingInvoice, setCreditingInvoice] = useState("");
+    const [invoiceDate, setInvoiceDate] = useState("");
     const [dimension, setDimension] = useState("");
     const [creditNoteType, setCreditNoteType] = useState("");
     const [returnLocation, setReturnLocation] = useState("");
@@ -90,6 +92,7 @@ export default function CustomerCreditNotes() {
             quantity: 0,
             unit: "",
             price: 0,
+            creditQuantity: 0,
             discount: 0,
             total: 0,
             selectedItemId: null as string | number | null,
@@ -107,6 +110,7 @@ export default function CustomerCreditNotes() {
                 quantity: 0,
                 unit: "",
                 price: 0,
+                creditQuantity: 0,
                 discount: 0,
                 total: 0,
                 selectedItemId: null,
@@ -129,8 +133,9 @@ export default function CustomerCreditNotes() {
                         total:
                             field === "quantity" ||
                                 field === "price" ||
-                                field === "discount"
-                                ? (field === "quantity" ? value : r.quantity) *
+                                field === "discount" ||
+                                field === "creditQuantity"
+                                ? (field === "creditQuantity" ? value : (field === "quantity" ? value : r.quantity)) *
                                 (field === "price" ? value : r.price) *
                                 (1 - (field === "discount" ? value : r.discount) / 100)
                                 : r.total,
@@ -222,6 +227,14 @@ export default function CustomerCreditNotes() {
     }, [branch, branches]);
 
     const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
+
+    const selectedCustomerObj = useMemo(() => customers.find((c: any) => String(c.debtor_no) === String(customer)), [customers, customer]);
+    const customerDisplayName = selectedCustomerObj ? selectedCustomerObj.name : (customer || "");
+    const currencyDisplay = selectedCustomerObj?.curr_code ?? "";
+    const selectedBranchObj = useMemo(() => branches.find((b: any) => String(b.branch_code) === String(branch)), [branches, branch]);
+    const branchDisplayName = selectedBranchObj
+        ? `${selectedBranchObj.br_name} - ${[selectedBranchObj.br_address, selectedBranchObj.city, selectedBranchObj.state, selectedBranchObj.postal_code].filter(Boolean).join(", ")}`
+        : (branch || "");
 
     // Calculate taxes if taxIncl is true
     const selectedPriceList = useMemo(() => {
@@ -385,7 +398,7 @@ export default function CustomerCreditNotes() {
 
     const breadcrumbItems = [
         { title: "Transactions", href: "/sales/transactions/" },
-        { title: "Customer Credit Notes" },
+        { title: "Credit all or part of an Invoice" },
     ];
 
     return (
@@ -402,7 +415,7 @@ export default function CustomerCreditNotes() {
                 }}
             >
                 <Box>
-                    <PageTitle title="Customer Credit Note" />
+                    <PageTitle title="Credit all or part of an Invoice" />
                     <Breadcrumb breadcrumbs={breadcrumbItems} />
                 </Box>
 
@@ -414,58 +427,41 @@ export default function CustomerCreditNotes() {
             {/* Form fields */}
             <Paper sx={{ p: 2, borderRadius: 2 }}>
                 <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={3}>
                         <Stack spacing={2}>
                             <TextField
-                                select
                                 fullWidth
                                 label="Customer"
-                                value={customer}
-                                onChange={(e) => setCustomer(e.target.value)}
+                                value={customerDisplayName}
                                 size="small"
-                            >
-                                {customers.map((c: any) => (
-                                    <MenuItem key={c.debtor_no} value={c.debtor_no}>
-                                        {c.name}
-                                    </MenuItem>
-                                ))}
-                            </TextField>
-                            <TextField
-                                select
-                                fullWidth
-                                label="Branch"
-                                value={branch}
-                                onChange={(e) => setBranch(e.target.value)}
-                                size="small"
-                            >
-                                {branches
-                                    .filter((b: any) => b.debtor_no === customer)
-                                    .map((b: any) => (
-                                        <MenuItem key={b.branch_code} value={b.branch_code}>
-                                            {b.br_name}
-                                        </MenuItem>
-                                    ))}
-                            </TextField>
+                                InputProps={{ readOnly: true }}
+                            />
                             <TextField label="Reference" fullWidth size="small" value={reference} InputProps={{ readOnly: true }} />
                         </Stack>
                     </Grid>
 
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={3}>
                         <Stack spacing={2}>
                             <TextField
-                                select
                                 fullWidth
-                                label="Sales Type"
-                                value={salesType}
-                                onChange={(e) => setSalesType(e.target.value)}
+                                label="Branch"
+                                value={branchDisplayName}
                                 size="small"
-                            >
-                                {salesTypes.map((st: any) => (
-                                    <MenuItem key={st.id} value={st.id}>
-                                        {st.typeName}
-                                    </MenuItem>
-                                ))}
-                            </TextField>
+                                InputProps={{ readOnly: true }}
+                            />
+                            <TextField
+                                fullWidth
+                                label="Crediting Invoice"
+                                value={creditingInvoice}
+                                size="small"
+                                onChange={(e) => setCreditingInvoice(e.target.value)}
+                            />
+                        </Stack>
+                    </Grid>
+
+                    <Grid item xs={12} sm={3}>
+                        <Stack spacing={2}>
+                            <TextField label="Currency" fullWidth size="small" value={currencyDisplay} InputProps={{ readOnly: true }} />
                             <TextField
                                 select
                                 fullWidth
@@ -480,12 +476,20 @@ export default function CustomerCreditNotes() {
                                     </MenuItem>
                                 ))}
                             </TextField>
-                            <TextField label="Customer Discount (%)" fullWidth size="small" value={discount} InputProps={{ readOnly: true }} />
                         </Stack>
                     </Grid>
 
-                    <Grid item xs={12} sm={4}>
+                    <Grid item xs={12} sm={3}>
                         <Stack spacing={2}>
+                            <TextField
+                                label="Invoice Date"
+                                type="date"
+                                fullWidth
+                                size="small"
+                                value={invoiceDate}
+                                onChange={(e) => setInvoiceDate(e.target.value)}
+                                InputLabelProps={{ shrink: true }}
+                            />
                             <TextField
                                 label="Credit Note Date"
                                 type="date"
@@ -495,23 +499,6 @@ export default function CustomerCreditNotes() {
                                 onChange={(e) => setCreditNoteDate(e.target.value)}
                                 InputLabelProps={{ shrink: true }}
                             />
-                            <TextField
-                                select
-                                fullWidth
-                                label="Dimension"
-                                value={dimension}
-                                onChange={(e) => setDimension(e.target.value)}
-                                size="small"
-                            >
-                                <MenuItem value="">
-                                    <em>None</em>
-                                </MenuItem>
-                                {/* {dimensions.map((d: any) => (
-                    <MenuItem key={d.id} value={d.id}>
-                      {d.name}
-                    </MenuItem>
-                  ))} */}
-                            </TextField>
                         </Stack>
                     </Grid>
                 </Grid>
@@ -529,9 +516,9 @@ export default function CustomerCreditNotes() {
                             <TableCell>No</TableCell>
                             <TableCell>Item Code</TableCell>
                             <TableCell>Description</TableCell>
-                            <TableCell>Quantity</TableCell>
+                            <TableCell>Invoiced Quantity</TableCell>
                             <TableCell>Unit</TableCell>
-                            <TableCell>Price</TableCell>
+                            <TableCell>Credit Quantity</TableCell>
                             <TableCell>Discount (%)</TableCell>
                             <TableCell>Total</TableCell>
                             <TableCell>Action</TableCell>
@@ -546,7 +533,7 @@ export default function CustomerCreditNotes() {
                                     <TextField
                                         size="small"
                                         value={row.itemCode}
-                                        onChange={(e) => handleChange(row.id, "itemCode", e.target.value)}
+                                        InputProps={{ readOnly: true }}
                                     />
                                 </TableCell>
                                 <TableCell>
@@ -592,7 +579,7 @@ export default function CustomerCreditNotes() {
                                         size="small"
                                         type="number"
                                         value={row.quantity}
-                                        onChange={(e) => handleChange(row.id, "quantity", Number(e.target.value))}
+                                        InputProps={{ readOnly: true }}
                                     />
                                 </TableCell>
                                 <TableCell>
@@ -602,31 +589,15 @@ export default function CustomerCreditNotes() {
                                     <TextField
                                         size="small"
                                         type="number"
-                                        value={row.price}
-                                        onChange={(e) => handleChange(row.id, "price", Number(e.target.value))}
+                                        value={row.creditQuantity ?? 0}
+                                        onChange={(e) => handleChange(row.id, "creditQuantity", Number(e.target.value))}
                                     />
                                 </TableCell>
                                 <TableCell>
                                     <TextField size="small" type="number" value={row.discount} InputProps={{ readOnly: true }} />
                                 </TableCell>
                                 <TableCell>{row.total.toFixed(2)}</TableCell>
-                                <TableCell>
-                                    {i === rows.length - 1 ? (
-                                        <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={handleAddRow}>
-                                            Add
-                                        </Button>
-                                    ) : (
-                                        <Button
-                                            size="small"
-                                            variant="outlined"
-                                            color="error"
-                                            startIcon={<DeleteIcon />}
-                                            onClick={() => handleRemoveRow(row.id)}
-                                        >
-                                            Delete
-                                        </Button>
-                                    )}
-                                </TableCell>
+                                <TableCell />
                             </TableRow>
                         ))}
                     </TableBody>

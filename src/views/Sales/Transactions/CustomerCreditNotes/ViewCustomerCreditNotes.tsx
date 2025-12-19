@@ -95,15 +95,18 @@ export default function ViewCustomerCreditNotes() {
 
   const [taxGroupItems, setTaxGroupItems] = useState<any[]>([]);
 
-  // Find the current debtor trans
+  // Find the current debtor trans (only credit notes: trans_type === 11)
   const currentTrans = useMemo(() => {
-    return debtorTrans.find((d: any) => Number(d.trans_no) === trans_no);
+    return debtorTrans.find((d: any) => Number(d.trans_no) === trans_no && Number(d.trans_type) === 11);
   }, [debtorTrans, trans_no]);
 
-  // Find the details for this trans
+  // Find the details for this trans (match debtor_trans.trans_no === debtor_trans_details.debtor_trans_no)
   const currentDetails = useMemo(() => {
-    return debtorTransDetails.filter((d: any) => Number(d.debtor_trans_no) === trans_no);
-  }, [debtorTransDetails, trans_no]);
+    // Only return details when the parent debtor_trans is a customer credit note (trans_type === 11)
+    if (!currentTrans || Number(currentTrans.trans_type) !== 11) return [];
+    const transNo = currentTrans.trans_no ?? trans_no;
+    return debtorTransDetails.filter((d: any) => Number(d.debtor_trans_no) === Number(transNo));
+  }, [debtorTransDetails, currentTrans, trans_no]);
 
   // Fetch tax group items when branch is available
   useEffect(() => {
