@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getWorkCentres } from "../../../../api/WorkCentre/WorkCentreApi";
+import { createBom, getBoms } from "../../../../api/Bom/BomApi";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Box,
@@ -21,7 +23,8 @@ import {
   ListSubheader,
 } from "@mui/material";
 import theme from "../../../../theme";
-
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 interface BillsOfMaterialFormData {
   componentCode: string;
   componentName: string;
@@ -36,15 +39,19 @@ export default function AddBillsOfMaterialForm() {
     componentName: "",
     location: "",
     workCentre: "",
-    quantity: "",
+    quantity: "1",
   });
 
   const [errors, setErrors] = useState<Partial<BillsOfMaterialFormData>>({});
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // Fetch items for component selection
   const { data: items = [] } = useQuery({
@@ -106,7 +113,11 @@ export default function AddBillsOfMaterialForm() {
     if (!formData.componentCode) newErrors.componentCode = "Component is required";
     if (!formData.location) newErrors.location = "Location is required";
     if (!formData.workCentre) newErrors.workCentre = "Work Centre is required";
-    if (!formData.quantity) newErrors.quantity = "Quantity is required";
+    if (!formData.quantity) {
+      newErrors.quantity = "Quantity is required";
+    } else if (isNaN(Number(formData.quantity)) || Number(formData.quantity) <= 0) {
+      newErrors.quantity = "Quantity must be a number greater than zero";
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -114,35 +125,64 @@ export default function AddBillsOfMaterialForm() {
 
   const handleSubmit = async () => {
     if (validate()) {
+      // Check for duplicate BOM
+      const selectedLoc = (inventoryLocations || []).find(
+        (l: any) => String(l.location_id ?? l.id) === String(formData.location)
+      );
+      const locCode =
+        selectedLoc?.loc_code ?? selectedLoc?.location_name ?? String(selectedLoc?.id ?? selectedLoc?.id ?? "");
+
+      const duplicate = boms.find((bom: any) =>
+        String(bom.parent ?? bom.parent_stock_id ?? bom.parent_id) === String(assignedStockId) &&
+        String(bom.component ?? bom.component_stock_id ?? bom.component_id) === String(formData.componentCode) &&
+        String(bom.loc_code) === String(locCode) &&
+        String(bom.work_centre ?? bom.work_centre_id) === String(formData.workCentre)
+      );
+
+      if (duplicate) {
+        setErrorMessage("The selected component is already on this bom. You can modify it's quantity but it cannot appear more than once on the same bom.");
+        setErrorOpen(true);
+        return;
+      }
+
       // Build payload for bills of material
-      const payload = {
-        component_code: formData.componentCode,
-        component_name: formData.componentName,
-        stock_id: assignedStockId,
-        location: formData.location,
-        work_centre: formData.workCentre,
-        quantity: formData.quantity,
+
+      const bomPayload = {
+        parent: assignedStockId ?? "",
+        component: formData.componentCode,
+        work_centre: Number(formData.workCentre) || 0,
+        loc_code: String(locCode),
+        quantity: Number(formData.quantity) || 0,
       };
 
       try {
-        console.log("Bills of Material payload:", payload);
-        alert("Bills of Material added successfully!");
-        setFormData({ componentCode: "", componentName: "", location: "", workCentre: "", quantity: "" });
+        console.log("Creating BOM with payload:", bomPayload);
+        await createBom(bomPayload);
+        queryClient.invalidateQueries({ queryKey: ["boms"] });
+        //  alert("Bills of Material added successfully!");
+        setOpen(true);
+        setFormData({ componentCode: "", componentName: "", location: "", workCentre: "", quantity: "1" });
         // go back to table
-        navigate(-1);
       } catch (err: any) {
         console.error("Failed to create bills of material:", err);
-        alert("Failed to add bills of material");
+        const msg = err?.message || err?.errors || JSON.stringify(err) || "Failed to add bills of material";
+        setErrorMessage(msg);
+        setErrorOpen(true);
       }
     }
   };
 
-  const workCentres = [
-    { id: 1, name: "Assembly Line 1" },
-    { id: 2, name: "Assembly Line 2" },
-    { id: 3, name: "Packaging Station" },
-    { id: 4, name: "Quality Check" },
-  ];
+  // Fetch work centres from backend
+  const { data: workCentres = [] } = useQuery({
+    queryKey: ["workCentres"],
+    queryFn: getWorkCentres,
+  });
+
+  // Fetch existing BOMs to check for duplicates
+  const { data: boms = [] } = useQuery({
+    queryKey: ["boms"],
+    queryFn: getBoms,
+  });
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
@@ -160,6 +200,18 @@ export default function AddBillsOfMaterialForm() {
         </Typography>
 
         <Stack spacing={2}>
+          {/* Parent item (preselected from BOM table) */}
+          <TextField
+            label="Parent Item"
+            size="small"
+            fullWidth
+            value={(() => {
+              if (!assignedStockId) return "";
+              const parentItem = (items || []).find((it: any) => String(it.stock_id ?? it.id) === String(assignedStockId));
+              return parentItem ? (parentItem.item_name ?? parentItem.description ?? parentItem.name ?? String(assignedStockId)) : String(assignedStockId);
+            })()}
+            InputProps={{ readOnly: true }}
+          />
           <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
             <FormControl size="small" sx={{ flex: 1 }} error={!!errors.componentCode}>
               <InputLabel>Component Name</InputLabel>
@@ -174,8 +226,9 @@ export default function AddBillsOfMaterialForm() {
                 </MenuItem>
                 {items && items.length > 0 ? (
                   (() => {
+                    const filteredItems = items.filter((item: any) => item.mb_flag == 2 || item.mb_flag == 3);
                     return Object.entries(
-                      items.reduce((groups: Record<string, any[]>, item) => {
+                      filteredItems.reduce((groups: Record<string, any[]>, item) => {
                         const catId = item.category_id || "Uncategorized";
                         if (!groups[catId]) groups[catId] = [];
                         groups[catId].push(item);
@@ -230,9 +283,6 @@ export default function AddBillsOfMaterialForm() {
               onChange={handleSelectChange}
               label="Location to Draw From"
             >
-              <MenuItem value="">
-                <em>Select Location</em>
-              </MenuItem>
               {inventoryLocations && inventoryLocations.length > 0 ? (
                 inventoryLocations.map((loc: any) => (
                   <MenuItem key={loc.location_id ?? loc.id} value={String(loc.location_id ?? loc.id)}>
@@ -299,6 +349,19 @@ export default function AddBillsOfMaterialForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="A new component part has been added to the bill of material for this item!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

@@ -2632,7 +2632,7 @@ const AppRoutes = () => {
           }
         />
         <Route
-          path="/manufacturing/maintenance/update-bills-of-material"
+          path="/manufacturing/maintenance/update-bills-of-material/:id"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Bill of Materials']}>
               {withLayout(MainLayout, UpdateBillsOfMaterialForm)}
