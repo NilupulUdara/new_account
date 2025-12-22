@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
-import { useLocation, useNavigate } from "react-router-dom";
+import { getWorkCentres } from "../../../../api/WorkCentre/WorkCentreApi";
+import { getBomById, updateBom, getBoms } from "../../../../api/Bom/BomApi";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Box,
   Stack,
@@ -21,7 +23,8 @@ import {
   ListSubheader,
 } from "@mui/material";
 import theme from "../../../../theme";
-
+import ErrorModal from "../../../../components/ErrorModal";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
 interface BillsOfMaterialFormData {
   componentCode: string;
   componentName: string;
@@ -40,11 +43,15 @@ export default function UpdateBillsOfMaterialForm() {
   });
 
   const [errors, setErrors] = useState<Partial<BillsOfMaterialFormData>>({});
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [open, setOpen] = useState(false);
 
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // Get the itemCode from location.state
   const itemCode = (location.state as any)?.itemCode;
@@ -72,36 +79,44 @@ export default function UpdateBillsOfMaterialForm() {
   const queryStockId = new URLSearchParams(location.search).get("stock_id");
   const [assignedStockId, setAssignedStockId] = useState<string | null>(stateStockId ?? queryStockId ?? null);
 
-  // Pre-populate form with existing data
-  useEffect(() => {
-    if (itemCode) {
-      setFormData({
-        componentCode: itemCode.stock_id ?? itemCode.item_id ?? "",
-        componentName: itemCode.description ?? "",
-        location: itemCode.location ?? "",
-        workCentre: itemCode.work_centre ?? "",
-        quantity: itemCode.quantity ?? "",
-      });
-    }
-  }, [itemCode]);
+  // BOM id from route params (supports :id or :bomId) or from location.state
+  const params = useParams();
+  const routeBomId = (params as any)?.id ?? (params as any)?.bomId ?? null;
+  const stateBom = (location.state as any)?.itemCode ?? null;
 
-  // Update component code and name when component is selected
+  // Fetch BOM by id when routeBomId exists
+  const { data: rawBom } = useQuery({
+    queryKey: routeBomId ? ["bom", routeBomId] : ["bom", "none"],
+    enabled: !!routeBomId,
+    queryFn: () => getBomById(Number(routeBomId)),
+  });
+  const bomRecord = rawBom?.data ?? rawBom ?? null;
+
+  // Pre-populate form with BOM data from navigation state or backend
+  useEffect(() => {
+    const source = itemCode ?? stateBom ?? bomRecord;
+    if (source) {
+      setFormData({
+        componentCode: source.component ?? source.component_stock_id ?? source.component_id ?? "",
+        componentName: source.component_name ?? source.description ?? "",
+        location: source.loc_code,
+        workCentre: String(source.work_centre ?? source.work_centre_id ?? ""),
+        quantity: String(source.quantity ?? ""),
+      });
+      if (!assignedStockId) setAssignedStockId(source.parent ?? source.parent_stock_id ?? source.parent_id ?? null);
+    }
+  }, [itemCode, stateBom, bomRecord]);
+
+  // Update component name when component code is set
   useEffect(() => {
     if (formData.componentCode && items && items.length > 0) {
       const selectedComponent = items.find((item: any) => String(item.stock_id ?? item.id) === String(formData.componentCode));
       if (selectedComponent) {
         setFormData(prev => ({
           ...prev,
-          componentCode: String(selectedComponent.stock_id ?? selectedComponent.id ?? formData.componentCode),
           componentName: selectedComponent.item_name ?? selectedComponent.name ?? selectedComponent.description ?? ""
         }));
       }
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        componentCode: "",
-        componentName: ""
-      }));
     }
   }, [formData.componentCode, items]);
 
@@ -122,7 +137,11 @@ export default function UpdateBillsOfMaterialForm() {
     if (!formData.componentCode) newErrors.componentCode = "Component is required";
     if (!formData.location) newErrors.location = "Location is required";
     if (!formData.workCentre) newErrors.workCentre = "Work Centre is required";
-    if (!formData.quantity) newErrors.quantity = "Quantity is required";
+    if (!formData.quantity) {
+      newErrors.quantity = "Quantity is required";
+    } else if (isNaN(Number(formData.quantity)) || Number(formData.quantity) <= 0) {
+      newErrors.quantity = "Quantity must be a number greater than zero";
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -130,37 +149,67 @@ export default function UpdateBillsOfMaterialForm() {
 
   const handleSubmit = async () => {
     if (validate()) {
+      // Check for duplicate BOM (excluding current one)
+      const duplicate = boms.find((bom: any) =>
+        bom.id !== (bomRecord?.id ?? Number(routeBomId)) &&
+        String(bom.parent ?? bom.parent_stock_id ?? bom.parent_id) === String(assignedStockId) &&
+        String(bom.component ?? bom.component_stock_id ?? bom.component_id) === String(formData.componentCode) &&
+        String(bom.loc_code) === String(formData.location) &&
+        String(bom.work_centre ?? bom.work_centre_id) === String(formData.workCentre)
+      );
+
+      if (duplicate) {
+        setErrorMessage("The selected component is already on this bom. You can modify it's quantity but it cannot appear more than once on the same bom.");
+        setErrorOpen(true);
+        return;
+      }
+
       // Build payload for updating bills of material
       const payload = {
-        id: itemCode?.id, // Assuming itemCode has an id for update
-        component_code: formData.componentCode,
+        component: formData.componentCode,
         component_name: formData.componentName,
-        stock_id: assignedStockId,
-        location: formData.location,
+        parent: assignedStockId,
+        loc_code: formData.location,
         work_centre: formData.workCentre,
-        quantity: formData.quantity,
+        quantity: Number(formData.quantity) || 0,
       };
 
-      try {
-        // TODO: Implement API call for updating bills of material
-        console.log("Update Bills of Material payload:", payload);
-        alert("Bills of Material updated successfully!");
-        // go back to table
-        navigate(-1);
-      } catch (err: any) {
-        console.error("Failed to update bills of material:", err);
-        alert("Failed to update bills of material");
+      const bomId = bomRecord?.id ?? Number(routeBomId);
+      if (bomId) {
+        updateMutation.mutate({ id: bomId, data: payload });
+      } else {
+        setErrorMessage("BOM ID not found");
+        setErrorOpen(true);
       }
     }
   };
 
-  // Dummy data for work centres (can be replaced with API later)
-  const workCentres = [
-    { id: 1, name: "Assembly Line 1" },
-    { id: 2, name: "Assembly Line 2" },
-    { id: 3, name: "Packaging Station" },
-    { id: 4, name: "Quality Check" },
-  ];
+  const { data: workCentres = [] } = useQuery({
+    queryKey: ["workCentres"],
+    queryFn: getWorkCentres,
+  });
+
+  // Fetch existing BOMs to check for duplicates
+  const { data: boms = [] } = useQuery({
+    queryKey: ["boms"],
+    queryFn: getBoms,
+  });
+
+  // Mutation for updating BOM
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => updateBom(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["boms"] });
+      queryClient.invalidateQueries({ queryKey: ["bom", routeBomId] });
+      // alert("Bills of Material updated successfully!");
+      setOpen(true);
+    },
+    onError: (err: any) => {
+      console.error("Failed to update bills of material:", err);
+      setErrorMessage("Failed to update bills of material");
+      setErrorOpen(true);
+    },
+  });
 
   return (
     <Stack alignItems="center" sx={{ mt: 4, px: isMobile ? 2 : 0 }}>
@@ -179,55 +228,15 @@ export default function UpdateBillsOfMaterialForm() {
 
         <Stack spacing={2}>
           <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
-            <FormControl size="small" sx={{ flex: 1 }} error={!!errors.componentCode}>
-              <InputLabel>Component Name</InputLabel>
-              <Select
-                name="componentCode"
-                value={formData.componentCode}
-                onChange={handleSelectChange}
-                label="Component Name"
-              >
-                <MenuItem value="">
-                  <em>Select Component</em>
-                </MenuItem>
-                {items && items.length > 0 ? (
-                  (() => {
-                    return Object.entries(
-                      items.reduce((groups: Record<string, any[]>, item) => {
-                        const catId = item.category_id || "Uncategorized";
-                        if (!groups[catId]) groups[catId] = [];
-                        groups[catId].push(item);
-                        return groups;
-                      }, {} as Record<string, any[]>)
-                    ).map(([categoryId, groupedItems]: [string, any[]]) => {
-                      const category = categories.find(cat => cat.category_id === Number(categoryId));
-                      const categoryLabel = category ? category.description : `Category ${categoryId}`;
-                      return [
-                        <ListSubheader key={`cat-${categoryId}`}>
-                          {categoryLabel}
-                        </ListSubheader>,
-                        groupedItems.map((item) => {
-                          const stockId = item.stock_id ?? item.id ?? item.stock_master_id ?? item.item_id ?? 0;
-                          const key = stockId;
-                          const label = item.item_name ?? item.name ?? item.description ?? String(stockId);
-                          const value = String(stockId);
-                          return (
-                            <MenuItem key={String(key)} value={value}>
-                              {label}
-                            </MenuItem>
-                          );
-                        })
-                      ];
-                    });
-                  })()
-                ) : (
-                  <MenuItem disabled value="">
-                    No components available
-                  </MenuItem>
-                )}
-              </Select>
-              <FormHelperText>{errors.componentCode || " "}</FormHelperText>
-            </FormControl>
+            <TextField
+              label="Component Name"
+              value={formData.componentName}
+              size="small"
+              sx={{ flex: 1 }}
+              InputProps={{
+                readOnly: true,
+              }}
+            />
 
             <TextField
               label="Component Code"
@@ -248,13 +257,10 @@ export default function UpdateBillsOfMaterialForm() {
               onChange={handleSelectChange}
               label="Location to Draw From"
             >
-              <MenuItem value="">
-                <em>Select Location</em>
-              </MenuItem>
               {inventoryLocations && inventoryLocations.length > 0 ? (
                 inventoryLocations.map((loc: any) => (
-                  <MenuItem key={loc.location_id ?? loc.id} value={String(loc.location_id ?? loc.id)}>
-                    {loc.location_name ?? loc.name ?? loc.description ?? String(loc.location_id ?? loc.id)}
+                  <MenuItem key={loc.loc_code ?? loc.location_id ?? loc.id} value={String(loc.loc_code ?? loc.location_id ?? loc.id)}>
+                    {loc.location_name ?? loc.name ?? loc.description ?? String(loc.loc_code ?? loc.location_id ?? loc.id)}
                   </MenuItem>
                 ))
               ) : (
@@ -317,6 +323,18 @@ export default function UpdateBillsOfMaterialForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Selected component has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

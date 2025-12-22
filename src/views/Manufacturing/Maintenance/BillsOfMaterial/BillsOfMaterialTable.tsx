@@ -31,12 +31,20 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getItemCodes, deleteItemCode } from "../../../../api/ItemCodes/ItemCodesApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getBoms, deleteBom } from "../../../../api/Bom/BomApi";
+import { getWorkCentres } from "../../../../api/WorkCentre/WorkCentreApi";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 function BillsOfMaterialTable() {
     const [selectedItem, setSelectedItem] = useState("");
     const [itemCode, setItemCode] = useState("");
     const [copyItemCode, setCopyItemCode] = useState("");
     const [selectedCopyItem, setSelectedCopyItem] = useState("");
+    const [openDeleteModal, setOpenDeleteModal] = useState(false);
+    const [selectedDeleteId, setSelectedDeleteId] = useState<number | null>(null);
+    const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
 
     const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
     const navigate = useNavigate();
@@ -63,11 +71,25 @@ function BillsOfMaterialTable() {
         mutationFn: (id: number) => deleteItemCode(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["item-codes"] });
-            alert("Item code deleted successfully!");
         },
         onError: (err: any) => {
             console.error("Failed to delete item code:", err);
-            alert("Failed to delete item code");
+            setErrorMessage("Failed to delete item code");
+            setErrorOpen(true);
+        },
+    });
+
+    // Mutation to delete BOM
+    const deleteBomMutation = useMutation({
+        mutationFn: (id: number) => deleteBom(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["boms"] });
+           // alert("BOM deleted successfully!");
+        },
+        onError: (err: any) => {
+            console.error("Failed to delete BOM:", err);
+            setErrorMessage("Failed to delete BOM");
+            setErrorOpen(true);
         },
     });
 
@@ -82,13 +104,30 @@ function BillsOfMaterialTable() {
     });
     const itemUnits = rawItemUnits?.data ?? rawItemUnits ?? [];
 
-    // Auto-select the first item when items load and nothing is selected yet
+    // Fetch BOMs
+    const { data: rawBoms } = useQuery({
+        queryKey: ["boms"],
+        queryFn: getBoms,
+    });
+    const boms = rawBoms?.data ?? rawBoms ?? [];
+
+    // Fetch work centres
+    const { data: workCentres = [] } = useQuery({
+        queryKey: ["workCentres"],
+        queryFn: getWorkCentres,
+    });
+
+
+
+    // Auto-select the first manufacturable item when items load and nothing is selected yet
     useEffect(() => {
         if ((!selectedItem || String(selectedItem).trim() === "") && items && items.length > 0) {
-            const first = items[0];
-            const firstStockId = first?.stock_id ?? first?.id ?? first?.stock_master_id ?? first?.item_id ?? 0;
-            setSelectedItem(String(firstStockId));
-            setItemCode(String(firstStockId));
+            const manufacturable = items.find((it: any) => Number(it.mb_flag) === 1);
+            if (manufacturable) {
+                const firstStockId = manufacturable?.stock_id ?? manufacturable?.id ?? manufacturable?.stock_master_id ?? manufacturable?.item_id ?? 0;
+                setSelectedItem(String(firstStockId));
+                setItemCode(String(firstStockId));
+            }
         }
     }, [items]);
 
@@ -114,29 +153,30 @@ function BillsOfMaterialTable() {
         }
     }, [selectedCopyItem, items]);
 
-    // Filter data based on selected item
-   const filteredData = useMemo(() => {
-    // Only filter when an item is selected
-    if (!selectedItem) return [];
-
-    // The only shared column between items and item-codes is `stock_id`.
-    // Match item-codes where code.stock_id === selectedItem and is_foreign === 1.
-    const result = foreignItemData.filter((code: any) => {
-        const codeStockId = code.stock_id ?? code.stockMasterId ?? code.stock_master?.stock_id ?? code.stock_master_id ?? code.item_id ?? code.itemId;
-        return String(codeStockId) === String(selectedItem) && code.is_foreign === 1;
-    });
-
-    return result;
-}, [foreignItemData, selectedItem]);
+    // Filter BOMs based on selected parent item
+    const filteredData = useMemo(() => {
+        if (!selectedItem) return [];
+        return boms.filter((bom: any) => {
+            const parentId = bom.parent ?? bom.parent_stock_id ?? bom.parent_stock_master ?? bom.parent_id;
+            return String(parentId) === String(selectedItem);
+        });
+    }, [boms, selectedItem]);
 
     const handleDelete = (id: number) => {
-        if (window.confirm("Are you sure you want to delete this item code?")) {
-            deleteMutation.mutate(id);
+        setSelectedDeleteId(id);
+        setOpenDeleteModal(true);
+    };
+
+    const confirmDelete = async () => {
+        if (selectedDeleteId) {
+            deleteBomMutation.mutate(selectedDeleteId);
+            setOpenDeleteModal(false);
+            setSelectedDeleteId(null);
         }
     };
 
     const breadcrumbItems = [
-        { title: "Home", href: "/home" },
+        { title: "Manufacturing Maintenance", href: "/manufacturing/maintenance/" },
         { title: "Bill Of Material" },
     ];
 
@@ -172,7 +212,7 @@ function BillsOfMaterialTable() {
                         sx={{ maxWidth: 90 }}
                     />
                     <FormControl sx={{ minWidth: 180 }} size="medium">
-                        <InputLabel>Select Item</InputLabel>
+                        <InputLabel>Select a manufacturable item</InputLabel>
                         <Select
                             value={selectedItem}
                             label="Select Item"
@@ -180,8 +220,10 @@ function BillsOfMaterialTable() {
                         >
                                 {items && items.length > 0 ? (
                                 (() => {
+                                    // Only include manufacturable items (mb_flag === 1)
+                                    const manufacturable = items.filter((it: any) => Number(it.mb_flag) === 1);
                                     return Object.entries(
-                                        items.reduce((groups: Record<string, any[]>, item) => {
+                                        manufacturable.reduce((groups: Record<string, any[]>, item) => {
                                             const catId = item.category_id || "Uncategorized";
                                             if (!groups[catId]) groups[catId] = [];
                                             groups[catId].push(item);
@@ -254,54 +296,40 @@ function BillsOfMaterialTable() {
                             </TableHead>
 
                             <TableBody>
-                                <TableRow hover>
-                                    <TableCell>101</TableCell>
-                                    <TableCell>Item1</TableCell>
-                                    <TableCell>default</TableCell>
-                                    <TableCell>work centre</TableCell>
-                                    <TableCell>10</TableCell>
-                                    <TableCell>each</TableCell>
-                                    <TableCell align="center">
-                                        <Stack direction="row" spacing={1} justifyContent="center">
-                                            <Button
-                                                variant="contained"
-                                                size="small"
-                                                startIcon={<EditIcon />}
-                                                onClick={() => {navigate("/manufacturing/maintenance/update-bills-of-material")}}
-                                            >
-                                                Edit
-                                            </Button>
-                                            <Button
-                                                variant="outlined"
-                                                size="small"
-                                                color="error"
-                                                startIcon={<DeleteIcon />}
-                                                onClick={() => {}}
-                                            >
-                                                Delete
-                                            </Button>
-                                        </Stack>
-                                    </TableCell>
-                                </TableRow>
                                 {filteredData.length > 0 ? (
-                                    filteredData.map((item, index) => (
-                                        <TableRow key={item.id ?? index} hover>
-                                            <TableCell>{item.item_code ?? item.code}</TableCell>
-                                            <TableCell>{item.description}</TableCell>
-                                            <TableCell></TableCell>
-                                            <TableCell></TableCell>
-                                            <TableCell>{item.quantity}</TableCell>
+                                    filteredData.map((bom: any, index) => (
+                                        <TableRow key={bom.id ?? index} hover>
+                                            <TableCell>{bom.component ?? bom.component_stock_id ?? bom.component_id}</TableCell>
                                             <TableCell>
                                                 {
-                                                    // resolve corresponding item and map its units id to unit text
                                                     (() => {
-                                                        const codeStockId = item.stock_id ?? item.stockMasterId ?? item.stock_master?.stock_id ?? item.stock_master_id ?? item.item_id ?? item.itemId;
-                                                        const correspondingItem = items.find((it: any) => String(it.stock_id ?? it.id) === String(codeStockId));
+                                                        const compStockId = bom.component ?? bom.component_stock_id ?? bom.component_id;
+                                                        const correspondingItem = items.find((it: any) => String(it.stock_id ?? it.id) === String(compStockId));
+                                                        return correspondingItem ? (correspondingItem.item_name ?? correspondingItem.name ?? correspondingItem.description ?? String(compStockId)) : "";
+                                                    })()
+                                                }
+                                            </TableCell>
+                                            <TableCell>{bom.loc_code ?? bom.location ?? ""}</TableCell>
+                                            <TableCell>
+                                                {
+                                                    (() => {
+                                                        const wcId = bom.work_centre ?? bom.work_centre_id;
+                                                        const workCentre = workCentres.find((wc: any) => String(wc.id) === String(wcId));
+                                                        return workCentre ? workCentre.name : String(wcId ?? "");
+                                                    })()
+                                                }
+                                            </TableCell>
+                                            <TableCell>{bom.quantity}</TableCell>
+                                            <TableCell>
+                                                {
+                                                    (() => {
+                                                        const compStockId = bom.component ?? bom.component_stock_id ?? bom.component_id;
+                                                        const correspondingItem = items.find((it: any) => String(it.stock_id ?? it.id) === String(compStockId));
                                                         if (correspondingItem) {
                                                             const unitId = correspondingItem.units ?? correspondingItem.unit ?? correspondingItem.unit_id;
                                                             if (unitId && itemUnits && itemUnits.length > 0) {
                                                                 const u = itemUnits.find((uu: any) => String(uu.id) === String(unitId));
-                                                                if (u) return u.description ?? u.name ?? u.abbr ?? String(unitId);
+                                                                if (u) return u.abbr ?? String(unitId);
                                                             }
                                                             return correspondingItem.unit_name ?? correspondingItem.unit ?? correspondingItem.units ?? "each";
                                                         }
@@ -315,7 +343,7 @@ function BillsOfMaterialTable() {
                                                         variant="contained"
                                                         size="small"
                                                         startIcon={<EditIcon />}
-                                                        onClick={() => navigate("/manufacturing/maintenance/update-bills-of-material")}
+                                                        onClick={() => navigate(`/manufacturing/maintenance/update-bills-of-material/${bom.id}`)}
                                                     >
                                                         Edit
                                                     </Button>
@@ -324,7 +352,7 @@ function BillsOfMaterialTable() {
                                                         size="small"
                                                         color="error"
                                                         startIcon={<DeleteIcon />}
-                                                        onClick={() => handleDelete(item.id)}
+                                                        onClick={() => handleDelete(bom.id)}
                                                     >
                                                         Delete
                                                     </Button>
@@ -361,8 +389,10 @@ function BillsOfMaterialTable() {
                                                 </MenuItem>
                                                 {items && items.length > 0 ? (
                                                     (() => {
+                                                        // Only include manufacturable items (mb_flag === 1)
+                                                        const manufacturable = items.filter((it: any) => Number(it.mb_flag) === 1);
                                                         return Object.entries(
-                                                            items.reduce((groups: Record<string, any[]>, item) => {
+                                                            manufacturable.reduce((groups: Record<string, any[]>, item) => {
                                                                 const catId = item.category_id || "Uncategorized";
                                                                 if (!groups[catId]) groups[catId] = [];
                                                                 groups[catId].push(item);
@@ -408,6 +438,19 @@ function BillsOfMaterialTable() {
                     </TableContainer>
                 </Stack>
             )}
+            <DeleteConfirmationModal
+                open={openDeleteModal}
+                handleClose={() => setOpenDeleteModal(false)}
+                handleReject={() => setOpenDeleteModal(false)}
+                deleteFunc={confirmDelete}
+                title="Delete BOM"
+                content="Are you sure you want to delete this BOM? This action cannot be undone."
+            />
+            <ErrorModal
+                open={errorOpen}
+                onClose={() => setErrorOpen(false)}
+                message={errorMessage}
+            />
         </Stack>
     );
 }
