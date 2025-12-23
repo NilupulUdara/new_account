@@ -18,7 +18,7 @@ import {
 } from "@mui/material";
 import theme from "../../../../theme";
 import { useForm } from "react-hook-form";
-import { createCompany, getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
+import { createCompany, getCompanies, updateCompany } from "../../../../api/CompanySetup/CompanySetupApi";
 import { getCurrencies } from "../../../../api/Currency/currencyApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { getSalesTypes } from "../../../../api/SalesMaintenance/salesService";
@@ -70,7 +70,7 @@ interface CompanyFormData {
   max_day_range_in_documents_days: string;
 }
 
-export default function CompanySetupForm() {
+export default function UpdateCompanySetupForm() {
   const [formData, setFormData] = useState<CompanyFormData>({
     name: "",
     address: "",
@@ -120,20 +120,9 @@ export default function CompanySetupForm() {
   const navigate = useNavigate();
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
- const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [companyId, setCompanyId] = useState<string | null>(null);
   useEffect(() => {
-    const checkExistingData = async () => {
-      try {
-        const data = await getCompanies();
-        if (data && data.length > 0) {
-          navigate(`/setup/companysetup/update-company-setup/${data[0].id}`);
-          return;
-        }
-      } catch (error) {
-        console.error("Failed to check existing company data:", error);
-      }
-    };
-
     const loadCurrencies = async () => {
       try {
         const data = await getCurrencies();
@@ -161,10 +150,52 @@ export default function CompanySetupForm() {
       }
     };
 
-    checkExistingData();
+    const loadCompanySetup = async () => {
+      try {
+        const data = await getCompanies();
+       // console.log('Loaded companies data:', data);
+        if (data && data.length > 0) {
+          const company = data[0];
+         // console.log('Company data:', company);
+          // Convert boolean fields from backend
+          const companyData = {
+            ...company,
+            timezone_on_reports: Boolean(company.timezone_on_reports),
+            company_logo_on_reports: Boolean(company.company_logo_on_reports),
+            use_barcodes_on_stocks: Boolean(company.use_barcodes_on_stocks),
+            auto_increase_of_document_references: Boolean(company.auto_increase_of_document_references),
+            use_dimensions_on_recurrent_invoices: Boolean(company.use_dimensions_on_recurrent_invoices),
+            use_long_descriptions_on_invoices: Boolean(company.use_long_descriptions_on_invoices),
+            company_logo_on_views: Boolean(company.company_logo_on_views),
+            put_alternative_tax_include_on_docs: Boolean(company.put_alternative_tax_include_on_docs),
+            suppress_tax_rates_on_docs: Boolean(company.suppress_tax_rates_on_docs),
+            automatic_revaluation_currency_accounts: Boolean(company.automatic_revaluation_currency_accounts),
+            manufacturing_enabled: Boolean(company.manufacturing_enabled),
+            fixed_assets_enabled: Boolean(company.fixed_assets_enabled),
+            use_dimensions: Boolean(company.use_dimensions),
+            short_name_and_name_in_list: Boolean(company.short_name_and_name_in_list),
+            open_print_dialog_direct_on_reports: Boolean(company.open_print_dialog_direct_on_reports),
+            search_item_list: Boolean(company.search_item_list),
+            search_customer_list: Boolean(company.search_customer_list),
+            search_supplier_list: Boolean(company.search_supplier_list),
+            delete_company_logo: Boolean(company.delete_company_logo),
+          };
+          setFormData({
+            ...formData,
+            ...companyData,
+            new_company_logo: null, // reset file input
+          });
+          setCompanyId(company.id);
+        }
+      } catch (error) {
+        console.error("Failed to fetch company setup:", error);
+      }
+    };
+
     loadCurrencies();
     loadFiscalYears();
     loadSalesTypes();
+    loadCompanySetup();
   }, []);
 
   const validate = (): boolean => {
@@ -221,7 +252,7 @@ export default function CompanySetupForm() {
         const formDataToSend = new FormData();
         for (const key in formData) {
           const value = (formData as any)[key];
-          if (value !== null && value !== undefined && value !== '') {
+          if (value !== null && value !== undefined) {
             if (value instanceof File) {
               formDataToSend.append(key, value);
             } else if (typeof value === 'boolean') {
@@ -231,12 +262,16 @@ export default function CompanySetupForm() {
             }
           }
         }
+        // console.log('Sending update for company ID:', companyId);
+        // console.log('Form data keys:', Array.from(formDataToSend.keys()));
+        // console.log('Form data values:', Array.from(formDataToSend.values()));
 
-        const response = await createCompany(formDataToSend);
-        if (response && response.id) {
-          navigate(`/setup/companysetup/update-company-setup/${response.id}`);
+        if (companyId) {
+          const response = await updateCompany(companyId, formDataToSend);
+          console.log('Update response:', response);
         } else {
-          window.history.back();
+          const response = await createCompany(formDataToSend);
+          console.log('Create response:', response);
         }
         setOpen(true);
       } catch (error: any) {
@@ -635,7 +670,7 @@ export default function CompanySetupForm() {
                 label="Fixed Assets"
               />
 
-              <FormControlLabel
+              {/* <FormControlLabel
                 control={
                   <Checkbox
                     checked={formData.use_dimensions}
@@ -644,7 +679,7 @@ export default function CompanySetupForm() {
                   />
                 }
                 label="Use Dimensions"
-              />
+              /> */}
 
               <Typography variant="subtitle1" sx={{ mt: 2 }}>
                 User Interface Options
@@ -747,23 +782,23 @@ export default function CompanySetupForm() {
             onClick={handleSubmit}
             fullWidth={true}
           >
-            Create
+            Update
           </Button>
         </Box>
       </Paper>
       <AddedConfirmationModal
-              open={open}
-              title="Success"
-              content="Company setup has been added successfully!"
-              addFunc={async () => { }}
-              handleClose={() => setOpen(false)}
-              onSuccess={() => window.history.back()}
-            />
+        open={open}
+        title="Success"
+        content="Company setup has been saved successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => navigate("/setup/companysetup/")}
+      />
       <ErrorModal
-              open={errorOpen}
-              onClose={() => setErrorOpen(false)}
-              message={errorMessage}
-            />
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }
