@@ -21,6 +21,10 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import { set } from "date-fns";
+import { createWorkOrder } from "../../../../api/WorkOrders/WorkOrderApi";
+import { getWorkOrders } from "../../../../api/WorkOrders/WorkOrderApi";
+import { createJournal, getJournals } from "../../../../api/Journals/JournalApi";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 
 export default function WorkOrderEntry() {
   const navigate = useNavigate();
@@ -66,14 +70,19 @@ export default function WorkOrderEntry() {
     return groups;
   }, [chartMasters]);
 
+  // Only include manufacturable items for the Select dropdown (mb_flag === 1)
+  const manufacturableItems = useMemo(() => {
+    return (items || []).filter((it: any) => Number(it.mb_flag) === 1);
+  }, [items]);
   // Form fields
   const [reference, setReference] = useState("");
-  const [type, setType] = useState("");
+  const [type, setType] = useState<number | string>("");
   const [itemCode, setItemCode] = useState("");
   const [selectedItem, setSelectedItem] = useState("");
   const [destinationLocation, setDestinationLocation] = useState("");
   const [quantity, setQuantity] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [dateRequiredBy, setDateRequiredBy] = useState("");
   const [labourCost, setLabourCost] = useState("0.00");
   const [creditLabourAccount, setCreditLabourAccount] = useState("");
   const [overheadCost, setOverheadCost] = useState("0.00");
@@ -96,13 +105,112 @@ export default function WorkOrderEntry() {
     setItemCode(it ? String(it.stock_id ?? it.id ?? "") : "");
   }, [selectedItem, items]);
 
+  // Set defaults for dropdowns to first available option when data loads
+  useEffect(() => {
+    if (!type) {
+      setType(0);
+    }
+  }, [type]);
+
+  useEffect(() => {
+    if (!selectedItem && manufacturableItems && manufacturableItems.length > 0) {
+      const first = manufacturableItems[0];
+      const stockId = first.stock_id ?? first.id ?? first.stock_master_id ?? first.item_id ?? "";
+      if (stockId !== "") setSelectedItem(String(stockId));
+    }
+  }, [manufacturableItems, selectedItem]);
+
+  useEffect(() => {
+    if (!destinationLocation && locations && locations.length > 0) {
+      const firstLoc = locations[0];
+      if (firstLoc?.loc_code) setDestinationLocation(firstLoc.loc_code);
+    }
+  }, [locations, destinationLocation]);
+
+  // Fiscal years used to build fiscal-year-aware reference like PurchaseOrderEntry
+  const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+
+  useEffect(() => {
+    (async () => {
+      if (!date) return;
+      const dateObj = new Date(date);
+      if (isNaN(dateObj.getTime())) return;
+
+      // Determine fiscal year label
+      let yearLabel = String(dateObj.getFullYear());
+      if (fiscalYears && fiscalYears.length > 0) {
+        const matching = fiscalYears.find((fy: any) => {
+          if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+          const from = new Date(fy.fiscal_year_from);
+          const to = new Date(fy.fiscal_year_to);
+          if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+          return dateObj >= from && dateObj <= to;
+        });
+
+        const chosen = matching || [...fiscalYears]
+          .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
+          .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
+          .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
+
+        if (chosen) {
+          const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
+          const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
+          yearLabel = chosen.fiscal_year || (fromYear === toYear ? String(fromYear) : `${fromYear}-${toYear}`);
+        }
+      }
+
+      // find next sequential number for work orders in that fiscal year
+      try {
+        const allWOs = await getWorkOrders();
+        let nextNum = 1;
+        if (Array.isArray(allWOs) && allWOs.length > 0) {
+          const yearPattern = `/${yearLabel}`;
+          const matchingRefs = allWOs
+            .map((w: any) => w.wo_ref ?? w.reference ?? "")
+            .filter((ref: string) => String(ref).endsWith(yearPattern))
+            .map((ref: string) => {
+              const parts = String(ref).split('/');
+              if (parts.length >= 2) {
+                const numPart = parts[0];
+                const parsed = parseInt(numPart, 10);
+                return isNaN(parsed) ? 0 : parsed;
+              }
+              return 0;
+            })
+            .filter((n: number) => n > 0);
+          if (matchingRefs.length > 0) {
+            const maxRef = Math.max(...matchingRefs);
+            nextNum = maxRef + 1;
+          }
+        }
+        setReference(`${nextNum.toString().padStart(3, '0')}/${yearLabel}`);
+      } catch (err) {
+        console.warn('Failed to fetch work orders for reference generation', err);
+      }
+    })();
+  }, [date, fiscalYears]);
+
+  useEffect(() => {
+    // pick the first available account from groupedChartMasters for both labour and overhead
+    if ((!creditLabourAccount || !creditOverheadAccount) && Object.keys(groupedChartMasters).length > 0) {
+      const allAccounts = Object.values(groupedChartMasters).flat();
+      if (allAccounts.length > 0) {
+        const accCode = allAccounts[0].account_code ?? allAccounts[0].accountCode ?? "";
+        if (accCode) {
+          if (!creditLabourAccount) setCreditLabourAccount(String(accCode));
+          if (!creditOverheadAccount) setCreditOverheadAccount(String(accCode));
+        }
+      }
+    }
+  }, [groupedChartMasters, creditLabourAccount, creditOverheadAccount]);
+
   const handleAddWorkOrder = async () => {
     // Validation
     if (!reference) {
       setSaveError("Please enter a reference");
       return;
     }
-    if (!type) {
+    if (type === "" || type === null || typeof type === "undefined" || isNaN(Number(type))) {
       setSaveError("Please select a type");
       return;
     }
@@ -118,8 +226,16 @@ export default function WorkOrderEntry() {
       setSaveError("Please enter the quantity");
       return;
     }
+    if (Number(quantity) <= 0) {
+      setSaveError("Quantity must be greater than 0");
+      return;
+    }
     if (!date) {
       setSaveError("Please select a date");
+      return;
+    }
+    if (Number(type) === 2 && !dateRequiredBy) {
+      setSaveError("Please select Date Required By");
       return;
     }
 
@@ -128,26 +244,68 @@ export default function WorkOrderEntry() {
 
     try {
       const payload = {
-        reference,
-        type,
-        itemCode,
-        selectedItem,
-        destinationLocation,
-        quantity,
-        date,
-        labourCost,
-        creditLabourAccount,
-        overheadCost,
-        creditOverheadAccount,
-        memo,
+        wo_ref: reference,
+        loc_code: destinationLocation,
+        units_reqd: Number(quantity),
+        stock_id: String(selectedItem || itemCode || ""),
+        date: date,
+        type: Number(type),
+        required_by: Number(type) === 2 ? (dateRequiredBy || date) : date,
+        released_date: date,
+        units_issued: Number(quantity),
+        closed: true,
+        released: true,
+        additional_costs: 0,
       };
 
-      console.log("Prepared work order payload:", payload);
-      // TODO: Save to API
-      navigate("/manufacturing/transactions/work-order-entry/success", { state: { reference } });
+      console.log("Creating work order with payload:", payload);
+      const res = await createWorkOrder(payload as any);
+
+      // Create journal entries for labour and overhead if provided
+      (async () => {
+        try {
+          // compute next trans_no for journal type 0
+          const allJournals = await getJournals();
+          const sameType = Array.isArray(allJournals) ? allJournals.filter((j: any) => Number(j.type) === 0) : [];
+          const maxTransNo = sameType.length > 0 ? Math.max(...sameType.map((j: any) => Number(j.trans_no) || 0)) : 0;
+          const nextTransNo = maxTransNo + 1;
+
+          const toCreate: Array<{ amount: number; note: string }> = [];
+          const labourAmt = Number(labourCost || 0);
+          const overheadAmt = Number(overheadCost || 0);
+          if (!isNaN(labourAmt) && labourAmt > 0) toCreate.push({ amount: labourAmt, note: "Labour" });
+          if (!isNaN(overheadAmt) && overheadAmt > 0) toCreate.push({ amount: overheadAmt, note: "Overhead" });
+
+          let currentTransNo = nextTransNo;
+          for (const entry of toCreate) {
+            const journalPayload = {
+              type: 0,
+              trans_no: currentTransNo,
+              tran_date: date,
+              reference: reference,
+              source_ref: null,
+              event_date: date,
+              doc_date: date,
+              currency: "USD",
+              amount: entry.amount,
+              rate: 1,
+            } as any;
+            try {
+              await createJournal(journalPayload);
+            } catch (jErr) {
+              console.warn("Failed to create journal entry:", jErr, journalPayload);
+            }
+            currentTransNo += 1;
+          }
+        } catch (err) {
+          console.warn("Failed to prepare journal entries:", err);
+        }
+      })();
+
+      navigate("/manufacturing/transactions/work-order-entry/success", { state: { reference, id: res?.id } });
     } catch (error: any) {
-      console.error("Error preparing work order payload:", error);
-      setSaveError(error?.message || "Failed to prepare work order");
+      console.error("Error creating work order:", error);
+      setSaveError(error?.message || JSON.stringify(error) || "Failed to create work order");
     } finally {
       setIsSaving(false);
     }
@@ -206,11 +364,11 @@ export default function WorkOrderEntry() {
               fullWidth
               size="small"
               value={type}
-              onChange={(e) => setType(e.target.value)}
+              onChange={(e) => setType(Number((e.target as HTMLInputElement).value))}
             >
-              <MenuItem value="Assemble">Assemble</MenuItem>
-              <MenuItem value="Unassemble">Unassemble</MenuItem>
-              <MenuItem value="Advanced Manufacture">Advanced Manufacture</MenuItem>
+              <MenuItem value={0}>Assemble</MenuItem>
+              <MenuItem value={1}>Unassemble</MenuItem>
+              <MenuItem value={2}>Advanced Manufacture</MenuItem>
             </TextField>
           </Grid>
 
@@ -236,10 +394,10 @@ export default function WorkOrderEntry() {
                   onChange={(e) => setSelectedItem(e.target.value)}
                 >
                   <MenuItem value="">Select item</MenuItem>
-                  {items && items.length > 0 ? (
+                  {manufacturableItems && manufacturableItems.length > 0 ? (
                     (() => {
                       return Object.entries(
-                        items.reduce((groups: Record<string, any[]>, item) => {
+                        manufacturableItems.reduce((groups: Record<string, any[]>, item) => {
                           const catId = item.category_id || "Uncategorized";
                           if (!groups[catId]) groups[catId] = [];
                           groups[catId].push(item);
@@ -292,155 +450,222 @@ export default function WorkOrderEntry() {
             </TextField>
           </Grid>
 
-          <Grid item xs={12} sm={6}>
-            <TextField
-              label="Quantity"
-              fullWidth
-              size="small"
-              type="number"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-            />
-          </Grid>
+          {Number(type) === 2 ? (
+            <>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Quantity Required"
+                  fullWidth
+                  size="small"
+                  type="number"
+                  inputProps={{ min: 0 }}
+                  value={quantity}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "" || v === "-") return setQuantity("");
+                    const n = Number(v);
+                    if (isNaN(n)) return;
+                    setQuantity(String(Math.max(0, n)));
+                  }}
+                />
+              </Grid>
 
-          <Grid item xs={12} sm={6}>
-            <TextField
-              label="Date"
-              type="date"
-              fullWidth
-              size="small"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-            />
-          </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Date"
+                  type="date"
+                  fullWidth
+                  size="small"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
 
-          <Grid item xs={12} sm={6}>
-            <TextField
-              label="Labour Cost"
-              fullWidth
-              size="small"
-              type="number"
-              value={labourCost}
-              onChange={(e) => setLabourCost(e.target.value)}
-            />
-          </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Date Required By"
+                  type="date"
+                  fullWidth
+                  size="small"
+                  value={dateRequiredBy}
+                  onChange={(e) => setDateRequiredBy(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
 
-          <Grid item xs={12} sm={6}>
-            <TextField
-              select
-              label="Credit Labour Account"
-              fullWidth
-              size="small"
-              value={creditLabourAccount}
-              onChange={(e) => {
-                setCreditLabourAccount(e.target.value);
-                setOpenLabourAccountSelect(false);
-              }}
-              SelectProps={{
-                open: openLabourAccountSelect,
-                onOpen: () => setOpenLabourAccountSelect(true),
-                onClose: () => setOpenLabourAccountSelect(false),
-                renderValue: (value: any) => {
-                  if (!value) return "";
-                  const found = (chartMasters as any[]).find((c: any) => String(c.account_code) === String(value));
-                  return found ? `${found.account_name} - ${found.account_code}` : String(value);
-                },
-              }}
-            >
-              <MenuItem value="" onClick={() => {
-                setCreditLabourAccount("");
-                setOpenLabourAccountSelect(false);
-              }}>
-                Select account
-              </MenuItem>
-              {Object.entries(groupedChartMasters).map(([typeText, accounts]) => (
-                <React.Fragment key={typeText}>
-                  <ListSubheader>{typeText}</ListSubheader>
-                  {accounts.map((acc: any) => (
-                    <MenuItem
-                      key={String(acc.account_code)}
-                      value={String(acc.account_code)}
-                      onClick={() => {
-                        setCreditLabourAccount(String(acc.account_code));
-                        setOpenLabourAccountSelect(false);
-                      }}
-                    >
-                      {acc.account_name} {acc.account_code ? ` - ${acc.account_code}` : ""}
-                    </MenuItem>
+              <Grid item xs={12}>
+                <TextField
+                  label="Memo"
+                  fullWidth
+                  multiline
+                  rows={3}
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
+                  placeholder="Enter memo or notes..."
+                />
+              </Grid>
+            </>
+          ) : (
+            <>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Quantity"
+                  fullWidth
+                  size="small"
+                  type="number"
+                  inputProps={{ min: 0 }}
+                  value={quantity}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "" || v === "-") return setQuantity("");
+                    const n = Number(v);
+                    if (isNaN(n)) return;
+                    setQuantity(String(Math.max(0, n)));
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Date"
+                  type="date"
+                  fullWidth
+                  size="small"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Labour Cost"
+                  fullWidth
+                  size="small"
+                  type="number"
+                  value={labourCost}
+                  onChange={(e) => setLabourCost(e.target.value)}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  select
+                  label="Credit Labour Account"
+                  fullWidth
+                  size="small"
+                  value={creditLabourAccount}
+                  onChange={(e) => {
+                    setCreditLabourAccount(e.target.value);
+                    setOpenLabourAccountSelect(false);
+                  }}
+                  SelectProps={{
+                    open: openLabourAccountSelect,
+                    onOpen: () => setOpenLabourAccountSelect(true),
+                    onClose: () => setOpenLabourAccountSelect(false),
+                    renderValue: (value: any) => {
+                      if (!value) return "";
+                      const found = (chartMasters as any[]).find((c: any) => String(c.account_code) === String(value));
+                      return found ? `${found.account_name} - ${found.account_code}` : String(value);
+                    },
+                  }}
+                >
+                  <MenuItem value="" onClick={() => {
+                    setCreditLabourAccount("");
+                    setOpenLabourAccountSelect(false);
+                  }}>
+                    Select account
+                  </MenuItem>
+                  {Object.entries(groupedChartMasters).map(([typeText, accounts]) => (
+                    <React.Fragment key={typeText}>
+                      <ListSubheader>{typeText}</ListSubheader>
+                      {accounts.map((acc: any) => (
+                        <MenuItem
+                          key={String(acc.account_code)}
+                          value={String(acc.account_code)}
+                          onClick={() => {
+                            setCreditLabourAccount(String(acc.account_code));
+                            setOpenLabourAccountSelect(false);
+                          }}
+                        >
+                          {acc.account_name} {acc.account_code ? ` - ${acc.account_code}` : ""}
+                        </MenuItem>
+                      ))}
+                    </React.Fragment>
                   ))}
-                </React.Fragment>
-              ))}
-            </TextField>
-          </Grid>
+                </TextField>
+              </Grid>
 
-          <Grid item xs={12} sm={6}>
-            <TextField
-              label="Overhead Cost"
-              fullWidth
-              size="small"
-              type="number"
-              value={overheadCost}
-              onChange={(e) => setOverheadCost(e.target.value)}
-            />
-          </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Overhead Cost"
+                  fullWidth
+                  size="small"
+                  type="number"
+                  value={overheadCost}
+                  onChange={(e) => setOverheadCost(e.target.value)}
+                />
+              </Grid>
 
-          <Grid item xs={12} sm={6}>
-            <TextField
-              select
-              label="Credit Overhead Account"
-              fullWidth
-              size="small"
-              value={creditOverheadAccount}
-              onChange={(e) => setCreditOverheadAccount(e.target.value)}
-              SelectProps={{
-                open: openOverheadAccountSelect,
-                onOpen: () => setOpenOverheadAccountSelect(true),
-                onClose: () => setOpenOverheadAccountSelect(false),
-                renderValue: (value: any) => {
-                  if (!value) return "";
-                  const found = (chartMasters as any[]).find((c: any) => String(c.account_code) === String(value));
-                  return found ? `${found.account_name} - ${found.account_code}` : String(value);
-                },
-              }}
-            >
-              <MenuItem value="" onClick={() => {
-                setCreditOverheadAccount("");
-                setOpenOverheadAccountSelect(false);
-              }}>
-                Select account
-              </MenuItem>
-              {Object.entries(groupedChartMasters).map(([typeText, accounts]) => (
-                <React.Fragment key={typeText}>
-                  <ListSubheader>{typeText}</ListSubheader>
-                  {accounts.map((acc: any) => (
-                    <MenuItem
-                      key={String(acc.account_code)}
-                      value={String(acc.account_code)}
-                      onClick={() => {
-                        setCreditOverheadAccount(String(acc.account_code));
-                        setOpenOverheadAccountSelect(false);
-                      }}
-                    >
-                      {acc.account_name} {acc.account_code ? ` - ${acc.account_code}` : ""}
-                    </MenuItem>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  select
+                  label="Credit Overhead Account"
+                  fullWidth
+                  size="small"
+                  value={creditOverheadAccount}
+                  onChange={(e) => setCreditOverheadAccount(e.target.value)}
+                  SelectProps={{
+                    open: openOverheadAccountSelect,
+                    onOpen: () => setOpenOverheadAccountSelect(true),
+                    onClose: () => setOpenOverheadAccountSelect(false),
+                    renderValue: (value: any) => {
+                      if (!value) return "";
+                      const found = (chartMasters as any[]).find((c: any) => String(c.account_code) === String(value));
+                      return found ? `${found.account_name} - ${found.account_code}` : String(value);
+                    },
+                  }}
+                >
+                  <MenuItem value="" onClick={() => {
+                    setCreditOverheadAccount("");
+                    setOpenOverheadAccountSelect(false);
+                  }}>
+                    Select account
+                  </MenuItem>
+                  {Object.entries(groupedChartMasters).map(([typeText, accounts]) => (
+                    <React.Fragment key={typeText}>
+                      <ListSubheader>{typeText}</ListSubheader>
+                      {accounts.map((acc: any) => (
+                        <MenuItem
+                          key={String(acc.account_code)}
+                          value={String(acc.account_code)}
+                          onClick={() => {
+                            setCreditOverheadAccount(String(acc.account_code));
+                            setOpenOverheadAccountSelect(false);
+                          }}
+                        >
+                          {acc.account_name} {acc.account_code ? ` - ${acc.account_code}` : ""}
+                        </MenuItem>
+                      ))}
+                    </React.Fragment>
                   ))}
-                </React.Fragment>
-              ))}
-            </TextField>
-          </Grid>
+                </TextField>
+              </Grid>
 
-          <Grid item xs={12}>
-            <TextField
-              label="Memo"
-              fullWidth
-              multiline
-              rows={3}
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              placeholder="Enter memo or notes..."
-            />
-          </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  label="Memo"
+                  fullWidth
+                  multiline
+                  rows={3}
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
+                  placeholder="Enter memo or notes..."
+                />
+              </Grid>
+            </>
+          )}
         </Grid>
       </Paper>
 

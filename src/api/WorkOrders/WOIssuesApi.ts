@@ -6,7 +6,7 @@ export interface WoIssuePayload {
   issue_no: number;
   workorder_id: number;
   reference?: string | null;
-  issue_date?: string | null; // YYYY-MM-DD
+  issue_date?: string | null;
   loc_code?: string | null;
   work_centre?: number | null;
 }

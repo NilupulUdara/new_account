@@ -24,7 +24,7 @@ function ManufacturingMaintenance() {
 
   const allItems = [
     {
-      text: "BILLS of MATERIALS",
+      text: "BILLS OF MATERIALS",
       icon: <PersonAddIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
       change: +24,
       path: "/manufacturing/maintenance/bills-of-material"

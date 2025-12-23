@@ -33,6 +33,7 @@ import { getItemCodes, deleteItemCode } from "../../../../api/ItemCodes/ItemCode
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import { getBoms, deleteBom } from "../../../../api/Bom/BomApi";
 import { getWorkCentres } from "../../../../api/WorkCentre/WorkCentreApi";
+import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 import ErrorModal from "../../../../components/ErrorModal";
 
@@ -116,6 +117,23 @@ function BillsOfMaterialTable() {
         queryKey: ["workCentres"],
         queryFn: getWorkCentres,
     });
+
+    // Fetch inventory locations to resolve location_name from loc_code
+    const { data: inventoryLocations = [] } = useQuery({
+        queryKey: ["inventoryLocations"],
+        queryFn: getInventoryLocations,
+    });
+
+    const locationMap = useMemo(() => {
+        const list = (inventoryLocations as any[]) || [];
+        const m = new Map<string, string>();
+        list.forEach((loc: any) => {
+            const code = String(loc.loc_code ?? "");
+            const name = String(loc.location_name ?? code);
+            if (code) m.set(code, name);
+        });
+        return m;
+    }, [inventoryLocations]);
 
 
 
@@ -212,7 +230,7 @@ function BillsOfMaterialTable() {
                         sx={{ maxWidth: 90 }}
                     />
                     <FormControl sx={{ minWidth: 180 }} size="medium">
-                        <InputLabel>Select a manufacturable item</InputLabel>
+                        <InputLabel>Manufacturable item</InputLabel>
                         <Select
                             value={selectedItem}
                             label="Select Item"
@@ -309,7 +327,13 @@ function BillsOfMaterialTable() {
                                                     })()
                                                 }
                                             </TableCell>
-                                            <TableCell>{bom.loc_code ?? bom.location ?? ""}</TableCell>
+                                            <TableCell>
+                                                {(() => {
+                                                    const code = String(bom.loc_code ?? bom.location ?? "");
+                                                    if (!code) return "";
+                                                    return locationMap.get(code) ?? code;
+                                                })()}
+                                            </TableCell>
                                             <TableCell>
                                                 {
                                                     (() => {
@@ -361,7 +385,7 @@ function BillsOfMaterialTable() {
                                         </TableRow>
                                     ))
                                 ) : null}
-                                <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+                                {/* <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
                                     <TableCell colSpan={4} sx={{ fontWeight: "bold", borderRight: "1px solid #ddd" }}>
                                         Copy BOM to another manufacturable item
                                     </TableCell>
@@ -432,7 +456,7 @@ function BillsOfMaterialTable() {
                                             Copy
                                         </Button>
                                     </TableCell>
-                                </TableRow>
+                                </TableRow> */}
                             </TableBody>
                         </Table>
                     </TableContainer>
