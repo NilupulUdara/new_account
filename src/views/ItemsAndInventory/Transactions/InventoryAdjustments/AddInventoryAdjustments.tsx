@@ -28,6 +28,7 @@ import { getInventoryLocations } from "../../../../api/InventoryLocation/Invento
 import { getItems, getItemById } from "../../../../api/Item/ItemApi";
 import { getItemTypes } from "../../../../api/ItemType/ItemType";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 import { createStockMove, getStockMoves } from "../../../../api/StockMoves/StockMovesApi";
 import { createAuditTrail } from "../../../../api/StockMoves/AuditTrailsApi";
 import { createComment } from "../../../../api/Comments/CommentsApi";
@@ -64,6 +65,12 @@ export default function AddInventoryAdjustments() {
     queryFn: getFiscalYears,
   });
 
+  // Fetch company setup
+  const { data: companyData } = useQuery({
+    queryKey: ["company"],
+    queryFn: getCompanies,
+  });
+
   // Fetch item units
   const { data: itemUnits = [] } = useQuery({
     queryKey: ["itemUnits"],
@@ -83,21 +90,12 @@ export default function AddInventoryAdjustments() {
     return items.filter((item: any) => item.mb_flag !== serviceType.id);
   }, [items, itemTypes]);
 
-  // Find current fiscal year (not closed and contains today's date)
-  const currentFiscalYear = useMemo(() => {
-    const today = new Date();
-    const openFiscalYears = fiscalYears.filter((fy: any) => !fy.isClosed);
-
-    // First try to find fiscal year that contains today's date
-    const currentFY = openFiscalYears.find((fy: any) => {
-      const from = new Date(fy.fiscal_year_from);
-      const to = new Date(fy.fiscal_year_to);
-      return today >= from && today <= to;
-    });
-
-    // If no fiscal year contains today's date, use the first open one
-    return currentFY || openFiscalYears[0];
-  }, [fiscalYears]);
+  // Find selected fiscal year from company setup
+  const selectedFiscalYear = useMemo(() => {
+    if (!companyData || companyData.length === 0) return null;
+    const company = companyData[0];
+    return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
+  }, [companyData, fiscalYears]);
 
   const { user } = useCurrentUser();
   const userId = user?.id ?? (Number(localStorage.getItem("userId")) || 0);
@@ -120,20 +118,34 @@ export default function AddInventoryAdjustments() {
   //  Form fields
   const [memo, setMemo] = useState("");
   const [location, setLocation] = useState("");
-  const [date, setDate] = useState<string>(
-    new Date().toISOString().split("T")[0]
-  );
+  const [date, setDate] = useState<string>("");
   const [reference, setReference] = useState("");
   const [dateError, setDateError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Set initial date based on selected fiscal year
+  useEffect(() => {
+    if (selectedFiscalYear) {
+      const currentYear = new Date().getFullYear();
+      const fiscalYear = new Date(selectedFiscalYear.fiscal_year_from).getFullYear();
+      let initialDate = "";
+      if (fiscalYear === currentYear) {
+        initialDate = new Date().toISOString().split("T")[0];
+      } else {
+        initialDate = new Date(selectedFiscalYear.fiscal_year_from).toISOString().split("T")[0];
+      }
+      setDate(initialDate);
+      validateDate(initialDate); // Validate immediately to show error if invalid
+    }
+  }, [selectedFiscalYear]);
+
   // Set reference when fiscal year loads (or fallback when DB empty)
   useEffect(() => {
     // Determine year: prefer fiscal year start if available, otherwise use current calendar year
-    const year = currentFiscalYear
-      ? new Date(currentFiscalYear.fiscal_year_from).getFullYear()
+    const year = selectedFiscalYear
+      ? new Date(selectedFiscalYear.fiscal_year_from).getFullYear()
       : new Date().getFullYear();
 
     // Fetch existing references to generate next sequential number
@@ -159,7 +171,7 @@ export default function AddInventoryAdjustments() {
         // Fallback to 001 if there's an error or DB is empty
         setReference(`001/${year}`);
       });
-  }, [currentFiscalYear]);
+  }, [selectedFiscalYear]);
 
   // When selected location changes, refresh QOH values for all rows that have a selected item
   useEffect(() => {
@@ -186,17 +198,22 @@ export default function AddInventoryAdjustments() {
 
   // Validate date is within fiscal year
   const validateDate = (selectedDate: string) => {
-    if (!currentFiscalYear) {
-      setDateError("No active fiscal year found");
+    if (!selectedFiscalYear) {
+      setDateError("No fiscal year selected from company setup");
+      return false;
+    }
+
+    if (selectedFiscalYear.closed) {
+      setDateError("The fiscal year is closed for further data entry.");
       return false;
     }
 
     const selected = new Date(selectedDate);
-    const from = new Date(currentFiscalYear.fiscal_year_from);
-    const to = new Date(currentFiscalYear.fiscal_year_to);
+    const from = new Date(selectedFiscalYear.fiscal_year_from);
+    const to = new Date(selectedFiscalYear.fiscal_year_to);
 
     if (selected < from || selected > to) {
-      setDateError(`Date must be within the fiscal year (${from.toLocaleDateString()} - ${to.toLocaleDateString()})`);
+      setDateError("The entered date is out of fiscal year.");
       return false;
     }
 
@@ -300,7 +317,7 @@ export default function AddInventoryAdjustments() {
           trans_no: transNo,
           user: userId,
           description: null,
-          fiscal_year: currentFiscalYear?.id ?? null,
+          fiscal_year: selectedFiscalYear?.id ?? null,
           gl_date: date,
           gl_seq: null,
         });
@@ -421,6 +438,10 @@ export default function AddInventoryAdjustments() {
               value={date}
               onChange={(e) => handleDateChange(e.target.value)}
               InputLabelProps={{ shrink: true }}
+              inputProps={{
+                min: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_from).toISOString().split('T')[0] : undefined,
+                max: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_to).toISOString().split('T')[0] : undefined,
+              }}
               error={!!dateError}
               helperText={dateError}
             />

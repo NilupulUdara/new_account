@@ -31,6 +31,7 @@ import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { createStockMove, getStockMoves } from "../../../../api/StockMoves/StockMovesApi";
 import { createAuditTrail } from "../../../../api/StockMoves/AuditTrailsApi";
 import { createComment } from "../../../../api/Comments/CommentsApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 import useCurrentUser from "../../../../hooks/useCurrentUser";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
@@ -69,47 +70,74 @@ export default function AddInventoryLocationTransfers() {
     queryFn: getFiscalYears,
   });
 
-  // Find current fiscal year
-  const currentFiscalYear = useMemo(() => {
-    const now = new Date();
-    return fiscalYears.find((fy: any) => 
-      !fy.isClosed && 
-      new Date(fy.fiscal_year_from) <= now && 
-      now <= new Date(fy.fiscal_year_to)
-    );
-  }, [fiscalYears]);
+  // Fetch company setup
+  const { data: companyData } = useQuery({
+    queryKey: ["company"],
+    queryFn: getCompanies,
+  });
+
+  // Find selected fiscal year from company setup
+  const selectedFiscalYear = useMemo(() => {
+    if (!companyData || companyData.length === 0) return null;
+    const company = companyData[0];
+    return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
+  }, [companyData, fiscalYears]);
 
   const { user } = useCurrentUser();
   const userId = user?.id ?? (Number(localStorage.getItem("userId")) || 0);
 
   // Validate date
   const validateDate = (selectedDate: string) => {
-    if (!currentFiscalYear) {
-      setDateError("No active fiscal year found.");
+    if (!selectedFiscalYear) {
+      setDateError("No fiscal year selected from company setup");
       return;
     }
-    const selected = new Date(selectedDate);
-    const start = new Date(currentFiscalYear.fiscal_year_from);
-    const end = new Date(currentFiscalYear.fiscal_year_to);
-    if (selected < start || selected > end) {
-      setDateError("Date must be within the fiscal year.");
-    } else {
-      setDateError("");
+
+    if (selectedFiscalYear.closed) {
+      setDateError("The fiscal year is closed for further data entry.");
+      return;
     }
+
+    const selected = new Date(selectedDate);
+    const from = new Date(selectedFiscalYear.fiscal_year_from);
+    const to = new Date(selectedFiscalYear.fiscal_year_to);
+
+    if (selected < from || selected > to) {
+      setDateError("The entered date is out of fiscal year.");
+      return;
+    }
+
+    setDateError("");
   };
 
   // Validate date on fiscal year load
   useEffect(() => {
-    if (currentFiscalYear) {
+    if (selectedFiscalYear) {
       validateDate(date);
     }
-  }, [currentFiscalYear]);
+  }, [selectedFiscalYear]);
+
+  // Set initial date based on selected fiscal year
+  useEffect(() => {
+    if (selectedFiscalYear) {
+      const currentYear = new Date().getFullYear();
+      const fiscalYear = new Date(selectedFiscalYear.fiscal_year_from).getFullYear();
+      let initialDate = "";
+      if (fiscalYear === currentYear) {
+        initialDate = new Date().toISOString().split("T")[0];
+      } else {
+        initialDate = new Date(selectedFiscalYear.fiscal_year_from).toISOString().split("T")[0];
+      }
+      setDate(initialDate);
+      validateDate(initialDate); // Validate immediately to show error if invalid
+    }
+  }, [selectedFiscalYear]);
 
   // Set reference when fiscal year loads (or fallback when DB empty)
   useEffect(() => {
     // Determine year: prefer fiscal year start if available, otherwise use current calendar year
-    const year = currentFiscalYear
-      ? new Date(currentFiscalYear.fiscal_year_from).getFullYear()
+    const year = selectedFiscalYear
+      ? new Date(selectedFiscalYear.fiscal_year_from).getFullYear()
       : new Date().getFullYear();
 
     // Fetch existing references to generate next sequential number
@@ -135,7 +163,7 @@ export default function AddInventoryLocationTransfers() {
         // Fallback to 001 if there's an error or DB is empty
         setReference(`001/${year}`);
       });
-  }, [currentFiscalYear]);
+  }, [selectedFiscalYear]);
   const [rows, setRows] = useState<{
     id: number;
     itemCode: string;
@@ -159,7 +187,7 @@ export default function AddInventoryLocationTransfers() {
   //  Form fields
   const [fromLocation, setFromLocation] = useState("");
   const [toLocation, setToLocation] = useState("");
-  const [date, setDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState<string>("");
   const [reference, setReference] = useState("");
   const [memo, setMemo] = useState("");
   const [dateError, setDateError] = useState("");
@@ -235,6 +263,10 @@ export default function AddInventoryLocationTransfers() {
       setProcessError("Please fix the date error before proceeding.");
       return;
     }
+    if (selectedFiscalYear?.closed) {
+      setProcessError("Cannot process transfer: The fiscal year is closed.");
+      return;
+    }
 
     // Check if there are valid items with quantities
     const validRows = rows.filter(row => row.selectedItemId && parseFloat(row.quantity) > 0);
@@ -298,7 +330,7 @@ export default function AddInventoryLocationTransfers() {
           trans_no: transNo,
           user: userId,
           description: null,
-          fiscal_year: currentFiscalYear?.id ?? null,
+          fiscal_year: selectedFiscalYear?.id ?? null,
           gl_date: date,
           gl_seq: null,
         });
@@ -437,6 +469,10 @@ export default function AddInventoryLocationTransfers() {
               error={!!dateError}
               helperText={dateError}
               InputLabelProps={{ shrink: true }}
+              inputProps={{
+                min: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_from).toISOString().split('T')[0] : undefined,
+                max: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_to).toISOString().split('T')[0] : undefined,
+              }}
             />
           </Grid>
 
@@ -655,6 +691,11 @@ export default function AddInventoryLocationTransfers() {
           {processError}
         </Alert>
       )}
+      {selectedFiscalYear?.closed && (
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          The fiscal year is closed. Transfers cannot be processed.
+        </Alert>
+      )}
 
       {/*  Process Transfer Button */}
       <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, pr: 1 }}>
@@ -662,7 +703,7 @@ export default function AddInventoryLocationTransfers() {
           variant="contained" 
           color="primary" 
           onClick={handleProcessTransfer}
-          disabled={!!dateError || isProcessing}
+          disabled={!!dateError || isProcessing || selectedFiscalYear?.closed}
         >
           {isProcessing ? "Processing..." : "Process Transfer"}
         </Button>

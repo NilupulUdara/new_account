@@ -41,6 +41,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 import { createSalesOrder, generateProvisionalOrderNo, getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
 import { createSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
@@ -60,6 +61,7 @@ export default function SalesQuotationEntry() {
     const [payment, setPayment] = useState("");
     const [priceList, setPriceList] = useState("");
     const [quotationDate, setQuotationDate] = useState(new Date().toISOString().split("T")[0]);
+    const [dateError, setDateError] = useState("");
     const [deliverFrom, setDeliverFrom] = useState("");
     const [cashAccount, setCashAccount] = useState("");
     const [comments, setComments] = useState("");
@@ -86,6 +88,9 @@ export default function SalesQuotationEntry() {
     const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
     const { data: shippingCompanies = [] } = useQuery({ queryKey: ["shippingCompanies"], queryFn: getShippingCompanies });
     const { data: taxTypes = [] } = useQuery({ queryKey: ["taxTypes"], queryFn: getTaxTypes });
+
+    // Fetch company setup
+    const { data: companyData } = useQuery({ queryKey: ["company"], queryFn: getCompanies });
 
     // ===== Tax-related state =====
     const [taxGroupItems, setTaxGroupItems] = useState<any[]>([]);
@@ -513,6 +518,30 @@ export default function SalesQuotationEntry() {
     // Fetch fiscal years
     const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
 
+    // Find selected fiscal year from company setup
+    const selectedFiscalYear = useMemo(() => {
+        if (!companyData || companyData.length === 0) return null;
+        const company = companyData[0];
+        return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
+    }, [companyData, fiscalYears]);
+
+    // Validate date is within fiscal year
+    const validateDate = (selectedDate: string) => {
+        if (!selectedFiscalYear) {
+            setDateError("No fiscal year selected from company setup");
+            return false;
+        }
+
+        setDateError("");
+        return true;
+    };
+
+    // Handle date change with validation
+    const handleDateChange = (value: string) => {
+        setQuotationDate(value);
+        validateDate(value);
+    };
+
     // Fetch sales orders to determine next order number
     const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
 
@@ -524,46 +553,55 @@ export default function SalesQuotationEntry() {
         }
     }, [salesOrders]);
 
-    // Determine fiscal year (using fiscal_year_from / fiscal_year_to) that contains quotationDate and build next reference number for the fiscal year
+    // Set initial date based on selected fiscal year
     useEffect(() => {
-        if (!quotationDate || fiscalYears.length === 0) return;
-        const dateObj = new Date(quotationDate);
-        if (isNaN(dateObj.getTime())) return;
-
-        const matching = fiscalYears.find((fy: any) => {
-            if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
-            const from = new Date(fy.fiscal_year_from);
-            const to = new Date(fy.fiscal_year_to);
-            if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
-            return dateObj >= from && dateObj <= to; // inclusive
-        });
-
-        // If not found, choose the one whose from date is closest but not after the quotationDate.
-        const chosen = matching || [...fiscalYears]
-            .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
-            .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
-            .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
-
-        if (chosen) {
-            // Preferred label: explicit fiscal_year field if exists, else derive from from/to years.
-            const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
-            const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
-            const yearLabel = chosen.fiscal_year || (fromYear === toYear ? fromYear : `${fromYear}-${toYear}`);
-
-            // Find existing references for this fiscal year and for quotations only (trans_type = 32)
-            const relevantRefs = salesOrders.filter((o: any) =>
-                Number(o.trans_type) === 32 && o.reference && o.reference.endsWith(`/${yearLabel}`)
-            );
-            const numbers = relevantRefs.map((o: any) => {
-                const match = o.reference.match(/^(\d{3})\/.+$/);
-                return match ? parseInt(match[1], 10) : 0;
-            });
-            const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
-            const nextNum = maxNum + 1;
-            const nextRef = `${nextNum.toString().padStart(3, '0')}/${yearLabel}`;
-            setReference(nextRef);
+        if (selectedFiscalYear) {
+            const currentYear = new Date().getFullYear();
+            const fiscalYear = new Date(selectedFiscalYear.fiscal_year_from).getFullYear();
+            let initialDate = "";
+            if (fiscalYear === currentYear) {
+                initialDate = new Date().toISOString().split("T")[0];
+            } else {
+                initialDate = new Date(selectedFiscalYear.fiscal_year_from).toISOString().split("T")[0];
+            }
+            setQuotationDate(initialDate);
+            validateDate(initialDate); // Validate immediately to show error if invalid
         }
-    }, [quotationDate, fiscalYears, salesOrders]);
+    }, [selectedFiscalYear]);
+
+    // Set reference when fiscal year loads (or fallback when DB empty)
+    useEffect(() => {
+        if (!selectedFiscalYear) return;
+
+        // Determine year: prefer fiscal year start if available, otherwise use current calendar year
+        const year = selectedFiscalYear
+            ? new Date(selectedFiscalYear.fiscal_year_from).getFullYear()
+            : new Date().getFullYear();
+
+        // Fetch existing references to generate next sequential number
+        // Only consider stock moves of the same transaction type (17 = adjustment)
+        getSalesOrders()
+            .then((salesOrders) => {
+                const orders = Array.isArray(salesOrders) ? salesOrders : [];
+                const yearReferences = orders
+                    .filter((order: any) => order && order.trans_type === 32 && order.reference && String(order.reference).endsWith(`/${year}`))
+                    .map((order: any) => String(order.reference))
+                    .map((ref: string) => {
+                        const match = String(ref).match(/^(\d{3})\/\d{4}$/);
+                        return match ? parseInt(match[1], 10) : 0;
+                    })
+                    .filter((num: number) => !isNaN(num) && num > 0);
+
+                const nextNumber = yearReferences.length > 0 ? Math.max(...yearReferences) + 1 : 1;
+                const formattedNumber = nextNumber.toString().padStart(3, '0');
+                setReference(`${formattedNumber}/${year}`);
+            })
+            .catch((error) => {
+                console.error("Error fetching sales orders for reference generation:", error);
+                // Fallback to 001 if there's an error or DB is empty
+                setReference(`001/${year}`);
+            });
+    }, [selectedFiscalYear]);
 
     return (
         <Stack spacing={2}>
@@ -687,8 +725,10 @@ export default function SalesQuotationEntry() {
                             fullWidth
                             size="small"
                             value={quotationDate}
-                            onChange={(e) => setQuotationDate(e.target.value)}
+                            onChange={(e) => handleDateChange(e.target.value)}
                             InputLabelProps={{ shrink: true }}
+                            error={!!dateError}
+                            helperText={dateError}
                         />
                     </Grid>
                 </Grid>

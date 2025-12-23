@@ -362,6 +362,7 @@ import UpdatedSalesQuotationEntrySuccess from "./views/Sales/Transactions/SalesQ
 import SalesOrderEntryQuotation from "./views/Sales/Transactions/SalesOrderEntry/SalesOrderEntryQuotation";
 import CreditInvoice from "./views/Sales/Transactions/CustomerCreditNotes/CreditInvoice";
 import UpdateCustomerCreditNotes from "./views/Sales/Transactions/CustomerCreditNotes/UpdateCustomerCreditNotes";
+import UpdateCompanySetupForm from "./views/Setup/CompanySetup/CompanySetup/UpdateCompanySetupForm";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -650,6 +651,10 @@ const AppRoutes = () => {
         <Route
           path="companysetup/company-setup"
           element={withLayout(MainLayout, CompanySetupForm)}
+        />
+        <Route
+          path="companysetup/update-company-setup/:id"
+          element={withLayout(MainLayout, UpdateCompanySetupForm)}
         />
         {/* <Route
           path="companysetup/user-account-setup"

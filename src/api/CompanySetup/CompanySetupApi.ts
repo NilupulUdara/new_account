@@ -36,12 +36,33 @@ export const getCompany = async (id: string | number) => {
   }
 };
 
-export const updateCompany = async (
-  id: string | number,
-  companyData: any
-) => {
+// export const updateCompany = async (
+//   id: string | number,
+//   companyData: any
+// ) => {
+//   try {
+//     const response = await axios.put(`${API_URL}/${id}`, companyData, {
+//       headers: {
+//         'Content-Type': 'multipart/form-data',
+//       },
+//     });
+//     return response.data;
+//   } catch (error: any) {
+//     console.error(error.response?.data || error);
+//     throw error.response?.data || error;
+//   }
+// };
+
+export const updateCompany = async (id: string | number, companyData: FormData) => {
   try {
-    const response = await axios.put(`${API_URL}/${id}`, companyData);
+    // Add _method=PUT to spoof PUT request since we're using POST for multipart
+    companyData.append('_method', 'PUT');
+
+    const response = await axios.post(`${API_URL}/${id}`, companyData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   } catch (error: any) {
     console.error(error.response?.data || error);
