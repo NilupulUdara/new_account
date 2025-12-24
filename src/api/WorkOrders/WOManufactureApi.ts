@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/wo-manufacture";
+const API_URL = "http://localhost:8000/api/wo-manufactures";
 
 export interface WoManufacturePayload {
   reference?: string | null;
