@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Button,
@@ -29,12 +29,14 @@ import { getDebtorTransDetails } from "../../../../api/DebtorTrans/DebtorTransDe
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getSalesTypes } from "../../../../api/SalesMaintenance/salesService";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemTaxTypes } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
 import { updateDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { updateDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
 import { getSalesOrders, updateSalesOrder } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 
 export default function UpdateCustomerDelivery() {
   const navigate = useNavigate();
@@ -59,6 +61,7 @@ export default function UpdateCustomerDelivery() {
   const [memo, setMemo] = useState("");
   const [balanceAction, setBalanceAction] = useState("");
   const [currentCredit, setCurrentCredit] = useState("");
+  const [dateError, setDateError] = useState("");
 
   const [rows, setRows] = useState<any[]>([]);
 
@@ -88,6 +91,11 @@ export default function UpdateCustomerDelivery() {
     queryFn: getSalesTypes,
   });
 
+  const { data: fiscalYears = [] } = useQuery({
+    queryKey: ["fiscalYears"],
+    queryFn: getFiscalYears,
+  });
+
   const { data: items = [] } = useQuery({
     queryKey: ["items"],
     queryFn: getItems,
@@ -112,6 +120,49 @@ export default function UpdateCustomerDelivery() {
     queryKey: ["salesOrders"],
     queryFn: getSalesOrders,
   });
+
+  const { data: companyData } = useQuery({
+    queryKey: ["company"],
+    queryFn: getCompanies,
+  });
+
+  // Find selected fiscal year from company setup
+  const selectedFiscalYear = useMemo(() => {
+    if (!companyData || companyData.length === 0) return null;
+    const company = companyData[0];
+    return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
+  }, [companyData, fiscalYears]);
+
+  // Validate date is within fiscal year
+  const validateDate = (selectedDate: string) => {
+    if (!selectedFiscalYear) {
+      setDateError("No fiscal year selected from company setup");
+      return false;
+    }
+
+    if (selectedFiscalYear.closed) {
+      setDateError("The fiscal year is closed for further data entry.");
+      return false;
+    }
+
+    const selected = new Date(selectedDate);
+    const from = new Date(selectedFiscalYear.fiscal_year_from);
+    const to = new Date(selectedFiscalYear.fiscal_year_to);
+
+    if (selected < from || selected > to) {
+      setDateError("The entered date is out of fiscal year.");
+      return false;
+    }
+
+    setDateError("");
+    return true;
+  };
+
+  // Handle date change with validation
+  const handleDateChange = (value: string) => {
+    setDate(value);
+    validateDate(value);
+  };
 
   // Fetch delivery data
   useEffect(() => {
@@ -161,8 +212,11 @@ export default function UpdateCustomerDelivery() {
       setShippingCompany(String(salesOrder.ship_via) || "");
       setCurrentCredit(customerData?.credit_limit || "");
       setShippingCost(salesOrder.ov_freight || 0);
+      // Validate date after setting
+      const initialDate = salesOrder.tran_date ? salesOrder.tran_date.split(" ")[0] : new Date().toISOString().split("T")[0];
+      validateDate(initialDate);
     }
-  }, [salesOrder, customers, branches, salesTypes]);
+  }, [salesOrder, customers, branches, salesTypes, selectedFiscalYear]);
 
   // Set rows from orderDetails
   useEffect(() => {
@@ -369,8 +423,14 @@ export default function UpdateCustomerDelivery() {
                 fullWidth
                 size="small"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => handleDateChange(e.target.value)}
                 InputLabelProps={{ shrink: true }}
+                inputProps={{
+                  min: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_from).toISOString().split('T')[0] : undefined,
+                  max: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_to).toISOString().split('T')[0] : undefined,
+                }}
+                error={!!dateError}
+                helperText={dateError}
               />
             </Stack>
           </Grid>
@@ -516,13 +576,13 @@ export default function UpdateCustomerDelivery() {
         </Grid>
 
         <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mt: 2 }}>
-          <Button variant="contained" color="primary" onClick={handleUpdate}>
+          <Button variant="contained" color="primary" onClick={handleUpdate} disabled={!!dateError}>
             Update
           </Button>
           <Button variant="outlined" color="warning" onClick={handleClear}>
             Clear Quantity
           </Button>
-          <Button variant="contained" color="success" onClick={handleDispatch}>
+          <Button variant="contained" color="success" onClick={handleDispatch} disabled={!!dateError}>
             Process Dispatch
           </Button>
         </Box>

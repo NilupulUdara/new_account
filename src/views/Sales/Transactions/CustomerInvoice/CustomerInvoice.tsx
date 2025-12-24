@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Button,
@@ -33,6 +33,8 @@ import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemTaxTypes } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
 import { createDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 
 export default function CustomerInvoice() {
   const navigate = useNavigate();
@@ -51,6 +53,7 @@ export default function CustomerInvoice() {
   const [dueDate, setDueDate] = useState("");
   const [memo, setMemo] = useState("");
   const [shippingCost, setShippingCost] = useState(0);
+  const [dateError, setDateError] = useState("");
 
   // === Table Data ===
   const [rows, setRows] = useState([]);
@@ -105,6 +108,61 @@ export default function CustomerInvoice() {
     queryKey: ["itemTaxTypes"],
     queryFn: getItemTaxTypes,
   });
+
+  const { data: fiscalYears = [] } = useQuery({
+    queryKey: ["fiscalYears"],
+    queryFn: getFiscalYears,
+  });
+
+  const { data: companyData } = useQuery({
+    queryKey: ["company"],
+    queryFn: getCompanies,
+  });
+
+  // Find selected fiscal year from company setup
+  const selectedFiscalYear = useMemo(() => {
+    if (!companyData || companyData.length === 0) return null;
+    const company = companyData[0];
+    return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
+  }, [companyData, fiscalYears]);
+
+  // Validate date is within fiscal year
+  const validateDate = (selectedDate: string) => {
+    if (!selectedFiscalYear) {
+      setDateError("No fiscal year selected from company setup");
+      return false;
+    }
+
+    if (selectedFiscalYear.closed) {
+      setDateError("The fiscal year is closed for further data entry.");
+      return false;
+    }
+
+    const selected = new Date(selectedDate);
+    const from = new Date(selectedFiscalYear.fiscal_year_from);
+    const to = new Date(selectedFiscalYear.fiscal_year_to);
+
+    if (selected < from || selected > to) {
+      setDateError("The entered date is out of fiscal year.");
+      return false;
+    }
+
+    setDateError("");
+    return true;
+  };
+
+  // Handle date change with validation
+  const handleDateChange = (value: string) => {
+    setDate(value);
+    validateDate(value);
+  };
+
+  // Validate date when fiscal year changes
+  useEffect(() => {
+    if (selectedFiscalYear) {
+      validateDate(date);
+    }
+  }, [selectedFiscalYear]);
 
   // Mutations
   const createTransMutation = useMutation({
@@ -190,12 +248,12 @@ export default function CustomerInvoice() {
     const newTransNo = maxTransNo + 1;
 
     // Generate new reference
-    const year = new Date().getFullYear();
-    const invoices = debtorTrans.filter(d => d.trans_type === 10 && d.reference.endsWith(`/${year}`));
+    const fiscalYear = selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_from).getFullYear() : new Date().getFullYear();
+    const invoices = debtorTrans.filter(d => d.trans_type === 10 && d.reference.endsWith(`/${fiscalYear}`));
     const numbers = invoices.map(d => parseInt(d.reference.split('/')[0]) || 0);
     const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
     const nextNum = (maxNum + 1).toString().padStart(3, '0');
-    const newReference = `${nextNum}/${year}`;
+    const newReference = `${nextNum}/${fiscalYear}`;
 
     const invoiceData = {
       trans_no: newTransNo,
@@ -338,8 +396,14 @@ export default function CustomerInvoice() {
               fullWidth
               size="small"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => handleDateChange(e.target.value)}
               InputLabelProps={{ shrink: true }}
+              inputProps={{
+                min: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_from).toISOString().split('T')[0] : undefined,
+                max: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_to).toISOString().split('T')[0] : undefined,
+              }}
+              error={!!dateError}
+              helperText={dateError}
             />
           </Grid>
 
@@ -454,10 +518,10 @@ export default function CustomerInvoice() {
         />
 
         <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mt: 2 }}>
-          <Button variant="contained" color="primary" onClick={handleUpdate}>
+          <Button variant="contained" color="primary" onClick={handleUpdate} disabled={!!dateError}>
             Update
           </Button>
-          <Button variant="contained" color="success" onClick={handleProcessInvoice}>
+          <Button variant="contained" color="success" onClick={handleProcessInvoice} disabled={!!dateError}>
             Process Invoice
           </Button>
         </Box>

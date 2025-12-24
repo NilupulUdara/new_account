@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Button,
@@ -30,7 +30,9 @@ import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getSalesTypes } from "../../../../api/SalesMaintenance/salesService";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
-import { getItemTaxTypes } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
+import { getItemTaxTypes } from "../../../../api/ItemTaxType/ItemTaxTypeApi.tsx";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 
 export default function UpdateCustomerInvoice() {
   const navigate = useNavigate();
@@ -50,6 +52,7 @@ export default function UpdateCustomerInvoice() {
   const [dueDate, setDueDate] = useState("");
   const [memo, setMemo] = useState("");
   const [shippingCost, setShippingCost] = useState(0);
+  const [dateError, setDateError] = useState("");
 
   // === Table Data ===
   const [rows, setRows] = useState<any[]>([]);
@@ -66,6 +69,57 @@ export default function UpdateCustomerInvoice() {
   const { data: items = [] } = useQuery({ queryKey: ["items"], queryFn: getItems });
   const { data: itemUnits = [] } = useQuery({ queryKey: ["itemUnits"], queryFn: getItemUnits });
   const { data: itemTaxTypes = [] } = useQuery({ queryKey: ["itemTaxTypes"], queryFn: getItemTaxTypes });
+
+  const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+  const { data: companyData } = useQuery({
+    queryKey: ["company"],
+    queryFn: getCompanies,
+  });
+
+  // Find selected fiscal year from company setup
+  const selectedFiscalYear = useMemo(() => {
+    if (!companyData || companyData.length === 0) return null;
+    const company = companyData[0];
+    return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
+  }, [companyData, fiscalYears]);
+
+  // Validate date is within fiscal year
+  const validateDate = (selectedDate: string) => {
+    if (!selectedFiscalYear) {
+      setDateError("No fiscal year selected from company setup");
+      return false;
+    }
+
+    if (selectedFiscalYear.closed) {
+      setDateError("The fiscal year is closed for further data entry.");
+      return false;
+    }
+
+    const selected = new Date(selectedDate);
+    const from = new Date(selectedFiscalYear.fiscal_year_from);
+    const to = new Date(selectedFiscalYear.fiscal_year_to);
+
+    if (selected < from || selected > to) {
+      setDateError("The entered date is out of fiscal year.");
+      return false;
+    }
+
+    setDateError("");
+    return true;
+  };
+
+  // Handle date change with validation
+  const handleDateChange = (value: string) => {
+    setDate(value);
+    validateDate(value);
+  };
+
+  // Validate date when fiscal year changes
+  useEffect(() => {
+    if (selectedFiscalYear) {
+      validateDate(date);
+    }
+  }, [selectedFiscalYear]);
 
   // === Calculations ===
   const subTotal = rows.reduce((sum, r) => sum + Number(r.total || 0), 0);
@@ -108,7 +162,7 @@ export default function UpdateCustomerInvoice() {
     if (details.length > 0) {
       const newRows = details.map((detail: any, index: number) => {
         const itemData = (items || []).find((i: any) => String(i.stock_id) === String(detail.stock_id));
-        const unitData = (itemUnits || []).find((u: any) => String(u.id) === String(itemData?.units));
+        const unitData = (itemUnits as any[] || []).find((u: any) => String(u.id) === String(itemData?.units));
         const taxTypeData = (itemTaxTypes || []).find((t: any) => String(t.id) === String(itemData?.tax_type_id));
         const price = Number(detail.unit_price || 0);
         const qty = Number(detail.quantity || 0);
@@ -222,8 +276,14 @@ export default function UpdateCustomerInvoice() {
               fullWidth
               size="small"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => handleDateChange(e.target.value)}
               InputLabelProps={{ shrink: true }}
+              inputProps={{
+                min: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_from).toISOString().split('T')[0] : undefined,
+                max: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_to).toISOString().split('T')[0] : undefined,
+              }}
+              error={!!dateError}
+              helperText={dateError}
             />
           </Grid>
 
@@ -338,10 +398,10 @@ export default function UpdateCustomerInvoice() {
         />
 
         <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mt: 2 }}>
-          <Button variant="contained" color="primary" onClick={handleUpdate}>
+          <Button variant="contained" color="primary" onClick={handleUpdate} disabled={!!dateError}>
             Update
           </Button>
-          <Button variant="contained" color="success" onClick={handleProcessInvoice}>
+          <Button variant="contained" color="success" onClick={handleProcessInvoice} disabled={!!dateError}>
             Process Invoice
           </Button>
         </Box>

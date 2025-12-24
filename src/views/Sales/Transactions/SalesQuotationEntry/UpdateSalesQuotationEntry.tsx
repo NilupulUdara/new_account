@@ -299,7 +299,7 @@ export default function UpdateSalesQuotationEntry() {
                     trans_type: 32,
                     stk_code: r.itemCode,
                     description: r.description,
-                    qty_sent: Number(r.quantity || 0),
+                    qty_sent: 0, // Always 0 for quotations
                     unit_price: Number(r.priceAfterTax || 0),
                     price_before_tax: Number(r.priceAfterTax || 0),
                     price_after_tax: Number(r.priceAfterTax || 0),
