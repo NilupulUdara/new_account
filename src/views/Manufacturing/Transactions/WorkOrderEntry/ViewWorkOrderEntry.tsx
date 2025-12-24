@@ -6,6 +6,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import { getWorkOrders } from "../../../../api/WorkOrders/WorkOrderApi";
+import { useQuery } from "@tanstack/react-query";
+import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 
 export default function ViewWorkOrderEntry() {
   const { state } = useLocation();
@@ -15,6 +17,7 @@ export default function ViewWorkOrderEntry() {
   const [workOrder, setWorkOrder] = useState<any | null>(null);
   const [workOrderRequirements, setWorkOrderRequirements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { data: locations = [] } = useQuery({ queryKey: ["inventoryLocations"], queryFn: getInventoryLocations });
 
   useEffect(() => {
     (async () => {
@@ -61,6 +64,17 @@ export default function ViewWorkOrderEntry() {
     if (n === 1) return "Unassemble";
     if (n === 2) return "Advanced Manufacture";
     return String(t ?? "");
+  };
+
+  const getLocationName = (code: any) => {
+    if (!code) return "-";
+    // if workOrder already has location_name we prefer it elsewhere; this helper resolves codes
+    const c = String(code);
+    if (Array.isArray(locations) && locations.length > 0) {
+      const found = locations.find((l: any) => String(l.loc_code ?? l.loccode ?? l.code ?? "") === c || String(l.location_name ?? "") === c);
+      if (found) return found.location_name ?? c;
+    }
+    return c;
   };
 
   // Dummy work order requirements data
@@ -123,7 +137,7 @@ export default function ViewWorkOrderEntry() {
                   <TableCell>{workOrder.wo_ref ?? workOrder.reference ?? "-"}</TableCell>
                   <TableCell>{getTypeLabel(workOrder.type)}</TableCell>
                   <TableCell>{workOrder.stock_id ?? workOrder.stock_code ?? workOrder.item_name ?? "-"}</TableCell>
-                  <TableCell>{workOrder.loc_code ?? workOrder.into_location ?? workOrder.location_name ?? "-"}</TableCell>
+                  <TableCell>{workOrder.location_name ?? getLocationName(workOrder.loc_code ?? workOrder.loc ?? workOrder.location)}</TableCell>
                   <TableCell>{workOrder.date ? String(workOrder.date).split("T")[0] : (workOrder.tran_date ?? "-")}</TableCell>
                   <TableCell>{workOrder.units_reqd ?? workOrder.quantity ?? "-"}</TableCell>
                 </TableRow>
@@ -156,7 +170,7 @@ export default function ViewWorkOrderEntry() {
                 workOrderRequirements.map((req: any) => (
                   <TableRow key={req.id ?? JSON.stringify(req)}>
                     <TableCell>{req.component ?? req.stock_id ?? req.item_name ?? "-"}</TableCell>
-                    <TableCell>{req.fromLocation ?? req.from_loc ?? req.loc_code ?? "-"}</TableCell>
+                    <TableCell>{req.fromLocation ?? req.from_loc ?? req.location_name ?? getLocationName(req.loc_code ?? req.loc ?? req.loccode)}</TableCell>
                     <TableCell>{req.workCentre ?? req.work_centre ?? req.workcentre ?? "-"}</TableCell>
                     <TableCell align="right">{req.unitQuantity ?? req.qty_per_unit ?? req.unit_quantity ?? "-"}</TableCell>
                     <TableCell align="right">{req.totalQuantity ?? req.total_qty ?? "-"}</TableCell>

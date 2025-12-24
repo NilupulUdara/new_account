@@ -25,6 +25,13 @@ import { createWorkOrder } from "../../../../api/WorkOrders/WorkOrderApi";
 import { getWorkOrders } from "../../../../api/WorkOrders/WorkOrderApi";
 import { createJournal, getJournals } from "../../../../api/Journals/JournalApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
+import { getCurrencies } from "../../../../api/Currency/currencyApi";
+import { createComment } from "../../../../api/Comments/CommentsApi";
+import { createWoManufacture } from "../../../../api/WorkOrders/WOManufactureApi";
+import { getBoms } from "../../../../api/Bom/BomApi";
+import { createWoRequirement } from "../../../../api/WorkOrders/WORequirementsApi";
+import { createWOCosting } from "../../../../api/WorkOrders/WOCostingApi";
 
 export default function WorkOrderEntry() {
   const navigate = useNavigate();
@@ -103,6 +110,19 @@ export default function WorkOrderEntry() {
     }
     const it = (items || []).find((i: any) => String(i.stock_id ?? i.id) === String(selectedItem));
     setItemCode(it ? String(it.stock_id ?? it.id ?? "") : "");
+
+    // populate labour and overhead costs from the selected item if available
+    if (it) {
+      const rawLabour = it.labour_cost ?? it.labourCost ?? it.standard_labour_cost ?? it.labour_cost_local ?? 0;
+      const rawOverhead = it.overhead_cost ?? it.overheadCost ?? it.standard_overhead_cost ?? 0;
+      const labourVal = Number(rawLabour);
+      const overheadVal = Number(rawOverhead);
+      setLabourCost(!isNaN(labourVal) ? labourVal.toFixed(2) : "0.00");
+      setOverheadCost(!isNaN(overheadVal) ? overheadVal.toFixed(2) : "0.00");
+    } else {
+      setLabourCost("0.00");
+      setOverheadCost("0.00");
+    }
   }, [selectedItem, items]);
 
   // Set defaults for dropdowns to first available option when data loads
@@ -129,41 +149,60 @@ export default function WorkOrderEntry() {
 
   // Fiscal years used to build fiscal-year-aware reference like PurchaseOrderEntry
   const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+  const { data: companies = [] } = useQuery({ queryKey: ["companies"], queryFn: getCompanies });
+  const { data: currencies = [] } = useQuery({ queryKey: ["currencies"], queryFn: getCurrencies });
 
   useEffect(() => {
     (async () => {
-      if (!date) return;
-      const dateObj = new Date(date);
-      if (isNaN(dateObj.getTime())) return;
-
-      // Determine fiscal year label
-      let yearLabel = String(dateObj.getFullYear());
-      if (fiscalYears && fiscalYears.length > 0) {
-        const matching = fiscalYears.find((fy: any) => {
-          if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
-          const from = new Date(fy.fiscal_year_from);
-          const to = new Date(fy.fiscal_year_to);
-          if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
-          return dateObj >= from && dateObj <= to;
-        });
-
-        const chosen = matching || [...fiscalYears]
-          .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
-          .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
-          .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
-
-        if (chosen) {
-          const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
-          const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
-          yearLabel = chosen.fiscal_year || (fromYear === toYear ? String(fromYear) : `${fromYear}-${toYear}`);
-        }
-      }
-
-      // find next sequential number for work orders in that fiscal year
+      // prefer company setup fiscal year if available
       try {
+        let yearLabel: string | null = null;
+
+        const company = Array.isArray(companies) && companies.length > 0 ? companies[0] : null;
+        const companyFiscalId = company?.fiscal_year_id ?? company?.fiscal_year ?? null;
+
+        if (companyFiscalId && fiscalYears && fiscalYears.length > 0) {
+          const chosenFy = fiscalYears.find((fy: any) => String(fy.id ?? fy.fiscal_year_id ?? fy.fiscal_year) === String(companyFiscalId));
+          if (chosenFy) {
+            const fromYear = chosenFy.fiscal_year_from ? new Date(chosenFy.fiscal_year_from).getFullYear() : null;
+            const toYear = chosenFy.fiscal_year_to ? new Date(chosenFy.fiscal_year_to).getFullYear() : fromYear;
+            yearLabel = chosenFy.fiscal_year || (fromYear && toYear ? (fromYear === toYear ? String(fromYear) : `${fromYear}-${toYear}`) : String(new Date().getFullYear()));
+          }
+        }
+
+        // fallback: use date to determine fiscal year if we don't have company-configured fiscal year
+        if (!yearLabel) {
+          if (!date) return;
+          const dateObj = new Date(date);
+          if (isNaN(dateObj.getTime())) return;
+
+          yearLabel = String(dateObj.getFullYear());
+          if (fiscalYears && fiscalYears.length > 0) {
+            const matching = fiscalYears.find((fy: any) => {
+              if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+              const from = new Date(fy.fiscal_year_from);
+              const to = new Date(fy.fiscal_year_to);
+              if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+              return dateObj >= from && dateObj <= to;
+            });
+
+            const chosen = matching || [...fiscalYears]
+              .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
+              .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
+              .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
+
+            if (chosen) {
+              const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
+              const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
+              yearLabel = chosen.fiscal_year || (fromYear === toYear ? String(fromYear) : `${fromYear}-${toYear}`);
+            }
+          }
+        }
+
+        // find next sequential number for work orders in that fiscal year
         const allWOs = await getWorkOrders();
         let nextNum = 1;
-        if (Array.isArray(allWOs) && allWOs.length > 0) {
+        if (Array.isArray(allWOs) && allWOs.length > 0 && yearLabel) {
           const yearPattern = `/${yearLabel}`;
           const matchingRefs = allWOs
             .map((w: any) => w.wo_ref ?? w.reference ?? "")
@@ -183,12 +222,12 @@ export default function WorkOrderEntry() {
             nextNum = maxRef + 1;
           }
         }
-        setReference(`${nextNum.toString().padStart(3, '0')}/${yearLabel}`);
+        if (yearLabel) setReference(`${nextNum.toString().padStart(3, '0')}/${yearLabel}`);
       } catch (err) {
         console.warn('Failed to fetch work orders for reference generation', err);
       }
     })();
-  }, [date, fiscalYears]);
+  }, [date, fiscalYears, companies]);
 
   useEffect(() => {
     // pick the first available account from groupedChartMasters for both labour and overhead
@@ -239,6 +278,39 @@ export default function WorkOrderEntry() {
       return;
     }
 
+    // Prevent creating work orders if the selected fiscal year is closed (closed === 1)
+    try {
+      let chosenFy: any | null = null;
+      const company = Array.isArray(companies) && companies.length > 0 ? companies[0] : null;
+      const companyFiscalId = company?.fiscal_year_id ?? company?.fiscal_year ?? null;
+      if (companyFiscalId && Array.isArray(fiscalYears) && fiscalYears.length > 0) {
+        chosenFy = fiscalYears.find((fy: any) => String(fy.id ?? fy.fiscal_year_id ?? fy.fiscal_year) === String(companyFiscalId));
+      }
+
+      if (!chosenFy) {
+        // fallback: find fiscal year that contains the selected date
+        if (date) {
+          const dateObj = new Date(date);
+          if (!isNaN(dateObj.getTime()) && Array.isArray(fiscalYears)) {
+            chosenFy = fiscalYears.find((fy: any) => {
+              if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+              const from = new Date(fy.fiscal_year_from);
+              const to = new Date(fy.fiscal_year_to);
+              if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+              return dateObj >= from && dateObj <= to;
+            }) || null;
+          }
+        }
+      }
+
+      if (chosenFy && Number(chosenFy.closed) === 1) {
+        setSaveError("The selected fiscal year is closed. Cannot create work order.");
+        return;
+      }
+    } catch (err) {
+      console.warn("Fiscal year check failed:", err);
+    }
+
     setIsSaving(true);
     setSaveError("");
 
@@ -277,25 +349,117 @@ export default function WorkOrderEntry() {
           if (!isNaN(overheadAmt) && overheadAmt > 0) toCreate.push({ amount: overheadAmt, note: "Overhead" });
 
           let currentTransNo = nextTransNo;
+          // determine currency abbreviation from company setup (home_currency_id) falling back to USD
+          const company = Array.isArray(companies) && companies.length > 0 ? companies[0] : null;
+          const homeCurrencyId = company?.home_currency_id ?? company?.home_currency ?? null;
+          let currencyAbbrev = "USD";
+          if (homeCurrencyId && Array.isArray(currencies) && currencies.length > 0) {
+            const foundCur = (currencies as any[]).find((c: any) => String(c.id) === String(homeCurrencyId));
+            if (foundCur && foundCur.currency_abbreviation) currencyAbbrev = foundCur.currency_abbreviation;
+          }
+
           for (const entry of toCreate) {
+            const thisTransNo = currentTransNo;
             const journalPayload = {
               type: 0,
-              trans_no: currentTransNo,
+              trans_no: thisTransNo,
               tran_date: date,
               reference: reference,
               source_ref: null,
               event_date: date,
               doc_date: date,
-              currency: "USD",
+              currency: currencyAbbrev,
               amount: entry.amount,
               rate: 1,
             } as any;
             try {
               await createJournal(journalPayload);
+
+              // create corresponding WO costing record (0 = labour, 1 = overhead)
+              try {
+                if (res?.id) {
+                  const costPayload = {
+                    workorder_id: res.id,
+                    cost_type: entry.note === "Labour" ? 0 : 1,
+                    trans_type: 0,
+                    trans_no: thisTransNo,
+                    factor: 1,
+                  } as any;
+                  await createWOCosting(costPayload);
+                }
+              } catch (wcErr) {
+                console.warn("Failed to create WO costing record:", wcErr);
+              }
             } catch (jErr) {
               console.warn("Failed to create journal entry:", jErr, journalPayload);
             }
             currentTransNo += 1;
+          }
+          // create a comment record if memo was provided
+          if (memo && String(memo).trim() !== "") {
+            try {
+              const commentPayload = {
+                type: 26,
+                id: res?.id,
+                date_: date,
+                memo_: memo,
+              };
+              await createComment(commentPayload);
+            } catch (cErr) {
+              console.warn("Failed to create comment for work order:", cErr);
+            }
+          }
+          // create a WO manufacture record for this work order
+          try {
+            if (res?.id) {
+              const woManPayload = {
+                reference: reference,
+                workorder_id: res.id,
+                quantity: Number(quantity) || 0,
+                date: date,
+              } as any;
+              await createWoManufacture(woManPayload);
+            }
+          } catch (mErr) {
+            console.warn("Failed to create WO manufacture record:", mErr);
+          }
+          // create WO requirement records by expanding BOM components where parent == selected item
+          try {
+            const parentCode = String(itemCode || selectedItem || "");
+            if (parentCode) {
+              const allBoms = await getBoms();
+              const matches = Array.isArray(allBoms) ? allBoms.filter((b: any) => String(b.parent) === parentCode) : [];
+              for (const bom of matches) {
+                try {
+                  const componentId = bom.component ?? bom.component_stock_id ?? bom.component_id ?? "";
+                  const workCentre = Number(bom.work_centre ?? bom.work_centre_id) || 0;
+                  const unitsReq = Number(bom.quantity ?? bom.units_req ?? bom.qty) || 0;
+                  const locCode = bom.loc_code ?? bom.loccode ?? "";
+                  const unitsIssued = Number(quantity) || 0;
+
+                  // find material/unit cost for the component from items list
+                  const compItem = (items || []).find((it: any) => String(it.stock_id ?? it.id) === String(componentId));
+                  const unitCostRaw = compItem?.material_cost ?? compItem?.materialCost ?? compItem?.standard_cost ?? compItem?.unit_cost ?? compItem?.cost ?? 0;
+                  const unitCost = Number(unitCostRaw) || 0;
+
+                  const reqPayload = {
+                    workorder_id: res.id,
+                    stock_id: String(componentId),
+                    work_centre: workCentre,
+                    units_req: unitsReq,
+                    unit_cost: unitCost,
+                    loc_code: String(locCode),
+                    units_issued: unitsIssued,
+                  } as any;
+
+                  await createWoRequirement(reqPayload);
+                } catch (reqErr) {
+                  console.warn("Failed to create WO requirement for BOM record:", reqErr, bom);
+                }
+              }
+            }
+          } catch (bErr) {
+            console.warn("Failed to expand BOM into WO requirements:", bErr);
           }
         } catch (err) {
           console.warn("Failed to prepare journal entries:", err);

@@ -213,6 +213,16 @@ export default function AddBillsOfMaterialForm() {
             InputProps={{ readOnly: true }}
           />
           <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
+            <TextField
+              label="Component Code"
+              value={formData.componentCode}
+              size="small"
+              sx={{ flex: 1 }}
+              InputProps={{
+                readOnly: true,
+              }}
+            />
+
             <FormControl size="small" sx={{ flex: 1 }} error={!!errors.componentCode}>
               <InputLabel>Component Name</InputLabel>
               <Select
@@ -263,16 +273,6 @@ export default function AddBillsOfMaterialForm() {
               </Select>
               <FormHelperText>{errors.componentCode || " "}</FormHelperText>
             </FormControl>
-
-            <TextField
-              label="Component Code"
-              value={formData.componentCode}
-              size="small"
-              sx={{ flex: 1 }}
-              InputProps={{
-                readOnly: true,
-              }}
-            />
           </Box>
 
           <FormControl size="small" fullWidth error={!!errors.location}>
