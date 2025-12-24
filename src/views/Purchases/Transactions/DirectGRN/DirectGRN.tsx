@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Box,
@@ -38,6 +38,7 @@ import { createPurchOrder, getPurchOrders } from "../../../../api/PurchOrders/Pu
 import { createPurchOrderDetail } from "../../../../api/PurchOrders/PurchOrderDetailsApi";
 import { createGrnBatch, getGrnBatches } from "../../../../api/GRN/GrnBatchApi";
 import { createGrnItem } from "../../../../api/GRN/GrnItemsApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 
 export default function DirectGRN() {
   const navigate = useNavigate();
@@ -53,6 +54,7 @@ export default function DirectGRN() {
   const [credit, setCredit] = useState(0);
   const [receiveInto, setReceiveInto] = useState(0);
   const [reference, setReference] = useState("");
+  const [dateError, setDateError] = useState("");
 
   const [memo, setMemo] = useState("");
 
@@ -69,6 +71,66 @@ export default function DirectGRN() {
 
   // ========= Generate Reference =========
   const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+
+  // Fetch company setup
+  const { data: companyData } = useQuery<any[]>({
+    queryKey: ["company"],
+    queryFn: getCompanies,
+  });
+
+  // Find selected fiscal year from company setup
+  const selectedFiscalYear = useMemo(() => {
+    if (!companyData || companyData.length === 0) return null;
+    const company = companyData[0];
+    return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
+  }, [companyData, fiscalYears]);
+
+  // Validate date is within fiscal year
+  const validateDate = (selectedDate: string) => {
+    if (!selectedFiscalYear) {
+      setDateError("No fiscal year selected from company setup");
+      return false;
+    }
+
+    if (selectedFiscalYear.closed) {
+      setDateError("The fiscal year is closed for further data entry.");
+      return false;
+    }
+
+    const selected = new Date(selectedDate);
+    const from = new Date(selectedFiscalYear.fiscal_year_from);
+    const to = new Date(selectedFiscalYear.fiscal_year_to);
+
+    if (selected < from || selected > to) {
+      setDateError("The entered date is out of fiscal year.");
+      return false;
+    }
+
+    setDateError("");
+    return true;
+  };
+
+  // Handle date change with validation
+  const handleDateChange = (value: string) => {
+    setDeliveryDate(value);
+    validateDate(value);
+  };
+
+  // Set initial date based on selected fiscal year
+  useEffect(() => {
+    if (selectedFiscalYear) {
+      const currentYear = new Date().getFullYear();
+      const fiscalYear = new Date(selectedFiscalYear.fiscal_year_from).getFullYear();
+      let initialDate = "";
+      if (fiscalYear === currentYear) {
+        initialDate = new Date().toISOString().split("T")[0];
+      } else {
+        initialDate = new Date(selectedFiscalYear.fiscal_year_from).toISOString().split("T")[0];
+      }
+      setDeliveryDate(initialDate);
+      validateDate(initialDate); // Validate immediately to show error if invalid
+    }
+  }, [selectedFiscalYear]);
 
   useEffect(() => {
     (async () => {
@@ -261,6 +323,7 @@ export default function DirectGRN() {
       try {
         // basic validations
         if (!supplier) { alert('Select supplier first'); return; }
+        if (dateError) { alert(dateError); return; }
         const detailsToPost = rows.filter(r => (r.itemCode || r.stockId) && r.quantity > 0);
         if (detailsToPost.length === 0) { alert('Add at least one item with quantity > 0'); return; }
 
@@ -479,7 +542,10 @@ export default function DirectGRN() {
                 ))}
               </TextField>
 
-              <TextField label="Delivery Date" type="date" fullWidth size="small" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+              <TextField label="Delivery Date" type="date" fullWidth size="small" value={deliveryDate} onChange={(e) => handleDateChange(e.target.value)} InputLabelProps={{ shrink: true }} inputProps={{
+                min: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_from).toISOString().split('T')[0] : undefined,
+                max: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_to).toISOString().split('T')[0] : undefined,
+              }} error={!!dateError} helperText={dateError} />
 
               <TextField label="Current Credit" fullWidth size="small" value={credit} InputProps={{ readOnly: true }} />
 
@@ -673,7 +739,7 @@ export default function DirectGRN() {
           <Button variant="outlined" onClick={() => navigate(-1)}>
             Cancel GRN
           </Button>
-          <Button variant="contained" color="primary" onClick={handlePlaceOrder}>
+          <Button variant="contained" color="primary" onClick={handlePlaceOrder} disabled={!!dateError}>
             Place GRN
           </Button>
         </Box>

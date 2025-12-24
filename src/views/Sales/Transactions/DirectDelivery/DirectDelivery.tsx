@@ -30,6 +30,7 @@ import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
 import { getSalesTypes } from "../../../../api/SalesMaintenance/salesService";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 // import { getCashAccounts } from "../../../../api/Accounts/CashAccountsApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 import { getItems, getItemById } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
@@ -66,6 +67,7 @@ export default function DirectDelivery() {
     const [comments, setComments] = useState("");
     const [shippingCharge, setShippingCharge] = useState(0);
     const [priceColumnLabel, setPriceColumnLabel] = useState("Price After Tax");
+    const [dateError, setDateError] = useState("");
 
     // Tax calculation state
     const [taxGroupItems, setTaxGroupItems] = useState<any[]>([]);
@@ -90,9 +92,64 @@ export default function DirectDelivery() {
     const { data: categories = [] } = useQuery({ queryKey: ["itemCategories"], queryFn: () => getItemCategories() });
     const { data: shippingCompanies = [] } = useQuery({ queryKey: ["shippingCompanies"], queryFn: getShippingCompanies });
     const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+    const { data: companyData } = useQuery({ queryKey: ["company"], queryFn: getCompanies });
     const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
     const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
     const { data: taxTypes = [] } = useQuery({ queryKey: ["taxTypes"], queryFn: getTaxTypes });
+
+    // Find selected fiscal year from company setup
+    const selectedFiscalYear = useMemo(() => {
+        if (!companyData || companyData.length === 0) return null;
+        const company = companyData[0];
+        return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
+    }, [companyData, fiscalYears]);
+
+    // Set initial date based on selected fiscal year
+    useEffect(() => {
+        if (selectedFiscalYear) {
+            const currentYear = new Date().getFullYear();
+            const fiscalYear = new Date(selectedFiscalYear.fiscal_year_from).getFullYear();
+            let initialDate = "";
+            if (fiscalYear === currentYear) {
+                initialDate = new Date().toISOString().split("T")[0];
+            } else {
+                initialDate = new Date(selectedFiscalYear.fiscal_year_from).toISOString().split("T")[0];
+            }
+            setDeliveryDate(initialDate);
+            validateDate(initialDate); // Validate immediately to show error if invalid
+        }
+    }, [selectedFiscalYear]);
+
+    // Validate date is within fiscal year
+    const validateDate = (selectedDate: string) => {
+        if (!selectedFiscalYear) {
+            setDateError("No fiscal year selected from company setup");
+            return false;
+        }
+
+        if (selectedFiscalYear.closed) {
+            setDateError("The fiscal year is closed for further data entry.");
+            return false;
+        }
+
+        const selected = new Date(selectedDate);
+        const from = new Date(selectedFiscalYear.fiscal_year_from);
+        const to = new Date(selectedFiscalYear.fiscal_year_to);
+
+        if (selected < from || selected > to) {
+            setDateError("The entered date is out of fiscal year.");
+            return false;
+        }
+
+        setDateError("");
+        return true;
+    };
+
+    // Handle date change with validation
+    const handleDateChange = (value: string) => {
+        setDeliveryDate(value);
+        validateDate(value);
+    };
 
     // ===== Table rows =====
     const [rows, setRows] = useState([
@@ -187,46 +244,31 @@ export default function DirectDelivery() {
 
     // ===== Auto-generate reference based on fiscal year =====
     useEffect(() => {
-        if (fiscalYears.length === 0 || debtorTrans.length === 0) return;
+        // Determine year: prefer fiscal year start if available, otherwise use current calendar year
+        const year = selectedFiscalYear
+            ? new Date(selectedFiscalYear.fiscal_year_from).getFullYear()
+            : new Date().getFullYear();
 
-        const today = new Date(deliveryDate);
-        const currentFiscalYear = fiscalYears.find((fy: any) => {
-            const fromDate = new Date(fy.fiscal_year_from);
-            const toDate = new Date(fy.fiscal_year_to);
-            return today >= fromDate && today <= toDate;
-        });
+        // Filter for trans_type=13 (debtor_trans) references
+        const existingRefs = debtorTrans
+            .filter((d: any) => Number(d.trans_type) === 13 && d.reference)
+            .map((d: any) => d.reference);
 
-        if (currentFiscalYear) {
-            const fromYear = new Date(currentFiscalYear.fiscal_year_from).getFullYear();
-            const toYear = new Date(currentFiscalYear.fiscal_year_to).getFullYear();
-            const yearLabel = fromYear === toYear ? `${fromYear}` : `${fromYear}/${toYear}`;
+        const yearReferences = existingRefs.filter((ref: string) =>
+            ref.endsWith(`/${year}`)
+        );
 
-            // Filter for trans_type=13 (debtor_trans) references
-            const existingRefs = debtorTrans
-                .filter((d: any) => Number(d.trans_type) === 13 && d.reference)
-                .map((d: any) => d.reference);
+        const nums = yearReferences
+            .map((ref: string) => {
+                const match = ref.match(/^(\d{3})\/\d{4}$/);
+                return match ? parseInt(match[1], 10) : 0;
+            })
+            .filter((num: number) => !isNaN(num) && num > 0);
 
-            const currentYearRefs = existingRefs.filter((ref: string) =>
-                ref.endsWith(`/${yearLabel}`) || ref === yearLabel
-            );
-
-            let nextNum = 1;
-            if (currentYearRefs.length > 0) {
-                const nums = currentYearRefs
-                    .map((ref: string) => {
-                        const match = ref.match(/^(\d{3})\/.+$/);
-                        return match ? parseInt(match[1], 10) : 0;
-                    })
-                    .filter((n: number) => n > 0);
-
-                if (nums.length > 0) {
-                    nextNum = Math.max(...nums) + 1;
-                }
-            }
-
-            setReference(`${nextNum.toString().padStart(3, '0')}/${yearLabel}`);
-        }
-    }, [fiscalYears, debtorTrans, deliveryDate]);
+        const nextNumber = nums.length > 0 ? Math.max(...nums) + 1 : 1;
+        const formattedNumber = nextNumber.toString().padStart(3, '0');
+        setReference(`${formattedNumber}/${year}`);
+    }, [selectedFiscalYear, debtorTrans]);
 
     // Auto-select first customer on load (same logic as SalesQuotationEntry)
     useEffect(() => {
@@ -697,8 +739,14 @@ export default function DirectDelivery() {
                             fullWidth
                             size="small"
                             value={deliveryDate}
-                            onChange={(e) => setDeliveryDate(e.target.value)}
+                            onChange={(e) => handleDateChange(e.target.value)}
                             InputLabelProps={{ shrink: true }}
+                            inputProps={{
+                                min: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_from).toISOString().split('T')[0] : undefined,
+                                max: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_to).toISOString().split('T')[0] : undefined,
+                            }}
+                            error={!!dateError}
+                            helperText={dateError}
                         />
                     </Grid>
                 </Grid>
@@ -1036,8 +1084,8 @@ export default function DirectDelivery() {
                     <Button variant="outlined" onClick={() => navigate(-1)}>
                         Cancel Delivery
                     </Button>
-                    <Button variant="contained" color="primary" onClick={handlePlaceQuotation}>
-                        Place Delivery
+                    <Button variant="contained" color="primary" onClick={handlePlaceQuotation} disabled={!!dateError || submitting}>
+                        {submitting ? "Saving..." : "Place Delivery"}
                     </Button>
                 </Box>
             </Paper>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Box,
   Button,
@@ -26,6 +26,7 @@ import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi";
 import { getDebtorTrans, createDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { createBankTrans } from "../../../../api/BankTrans/BankTransApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 import { getSalesOrders, getSalesOrderByOrderNo, updateSalesOrder } from "../../../../api/SalesOrders/SalesOrdersApi";
 import { createCustAllocation } from "../../../../api/CustAllocation/CustAllocationApi";
 
@@ -64,6 +65,7 @@ export default function CustomerPayments() {
   const [amountOfDiscount, setAmountOfDiscount] = useState(0);
   const [amount, setAmount] = useState(0);
   const [memo, setMemo] = useState("");
+  const [dateError, setDateError] = useState("");
 
   // ====== Allocation Table State ======
   const [allocationRows, setAllocationRows] = useState<AllocationRow[]>([]);
@@ -83,47 +85,74 @@ export default function CustomerPayments() {
   const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
   const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
   const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
+  const { data: companyData } = useQuery({
+    queryKey: ["company"],
+    queryFn: getCompanies,
+  });
+
+  // Find selected fiscal year from company setup
+  const selectedFiscalYear = useMemo(() => {
+    if (!companyData || companyData.length === 0) return null;
+    const company = companyData[0];
+    return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
+  }, [companyData, fiscalYears]);
+
+  // Validate date is within fiscal year
+  const validateDate = (selectedDate: string) => {
+    if (!selectedFiscalYear) {
+      setDateError("No fiscal year selected from company setup");
+      return false;
+    }
+
+    if (selectedFiscalYear.closed) {
+      setDateError("The fiscal year is closed for further data entry.");
+      return false;
+    }
+
+    const selected = new Date(selectedDate);
+    const from = new Date(selectedFiscalYear.fiscal_year_from);
+    const to = new Date(selectedFiscalYear.fiscal_year_to);
+
+    if (selected < from || selected > to) {
+      setDateError("The entered date is out of fiscal year.");
+      return false;
+    }
+
+    setDateError("");
+    return true;
+  };
+
+  // Handle date change with validation
+  const handleDateChange = (value: string) => {
+    setDepositDate(value);
+    validateDate(value);
+  };
+
+  // Validate date when fiscal year changes
+  useEffect(() => {
+    if (selectedFiscalYear) {
+      validateDate(depositDate);
+    }
+  }, [selectedFiscalYear]);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!depositDate || fiscalYears.length === 0) return;
-    const dateObj = new Date(depositDate);
-    if (isNaN(dateObj.getTime())) return;
+    if (!selectedFiscalYear) return;
+    const yearLabel = selectedFiscalYear.fiscal_year || new Date(selectedFiscalYear.fiscal_year_from).getFullYear();
 
-    const matching = fiscalYears.find((fy: any) => {
-      if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
-      const from = new Date(fy.fiscal_year_from);
-      const to = new Date(fy.fiscal_year_to);
-      if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
-      return dateObj >= from && dateObj <= to; // inclusive
+    // Find existing references for this fiscal year and for customer payments only (trans_type = 12)
+    const relevantRefs = debtorTrans.filter((dt: any) =>
+      Number(dt.trans_type) === 12 && dt.reference && dt.reference.endsWith(`/${yearLabel}`)
+    );
+    const numbers = relevantRefs.map((dt: any) => {
+      const match = dt.reference.match(/^(\d{3})\/.+$/);
+      return match ? parseInt(match[1], 10) : 0;
     });
-
-    // If not found, choose the one whose from date is closest but not after the depositDate.
-    const chosen = matching || [...fiscalYears]
-      .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
-      .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
-      .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
-
-    if (chosen) {
-      // Preferred label: explicit fiscal_year field if exists, else derive from from/to years.
-      const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
-      const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
-      const yearLabel = chosen.fiscal_year || (fromYear === toYear ? fromYear : `${fromYear}-${toYear}`);
-
-      // Find existing references for this fiscal year and for customer payments only (trans_type = 12)
-      const relevantRefs = debtorTrans.filter((dt: any) =>
-        Number(dt.trans_type) === 12 && dt.reference && dt.reference.endsWith(`/${yearLabel}`)
-      );
-      const numbers = relevantRefs.map((dt: any) => {
-        const match = dt.reference.match(/^(\d{3})\/.+$/);
-        return match ? parseInt(match[1], 10) : 0;
-      });
-      const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
-      const nextNum = maxNum + 1;
-      const nextRef = `${nextNum.toString().padStart(3, '0')}/${yearLabel}`;
-      setReference(nextRef);
-    }
-  }, [depositDate, fiscalYears, debtorTrans]);
+    const maxNum = numbers.length > 0 ? Math.max(...numbers) : 0;
+    const nextNum = maxNum + 1;
+    const nextRef = `${nextNum.toString().padStart(3, '0')}/${yearLabel}`;
+    setReference(nextRef);
+  }, [selectedFiscalYear, debtorTrans]);
 
   useEffect(() => {
     // Only populate allocations after a customer is selected
@@ -440,8 +469,14 @@ export default function CustomerPayments() {
                 fullWidth
                 size="small"
                 value={depositDate}
-                onChange={(e) => setDepositDate(e.target.value)}
+                onChange={(e) => handleDateChange(e.target.value)}
                 InputLabelProps={{ shrink: true }}
+                inputProps={{
+                  min: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_from).toISOString().split('T')[0] : undefined,
+                  max: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_to).toISOString().split('T')[0] : undefined,
+                }}
+                error={!!dateError}
+                helperText={dateError}
               />
               <TextField
                 label="Reference"
@@ -622,6 +657,7 @@ export default function CustomerPayments() {
           <Button
             variant="contained"
             onClick={handleAddPayment}
+            disabled={!!dateError}
           >
             Add Payment
           </Button>

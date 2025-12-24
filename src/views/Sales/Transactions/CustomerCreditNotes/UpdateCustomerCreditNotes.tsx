@@ -40,6 +40,7 @@ import { getDebtorTrans, createDebtorTran } from "../../../../api/DebtorTrans/De
 import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
 import auditTrailApi from "../../../../api/AuditTrail/AuditTrailApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 import useCurrentUser from "../../../../hooks/useCurrentUser";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
@@ -63,6 +64,7 @@ export default function UpdateCustomerCreditNotes() {
     const [creditNoteType, setCreditNoteType] = useState("");
     const [returnLocation, setReturnLocation] = useState("");
     const [memo, setMemo] = useState("");
+    const [dateError, setDateError] = useState("");
 
     // ===== Fetch master data =====
     const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
@@ -78,6 +80,55 @@ export default function UpdateCustomerCreditNotes() {
     const { data: taxTypes = [] } = useQuery({ queryKey: ["taxTypes"], queryFn: getTaxTypes });
     const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
     const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+    const { data: companyData } = useQuery({
+        queryKey: ["company"],
+        queryFn: getCompanies,
+    });
+
+    // Find selected fiscal year from company setup
+    const selectedFiscalYear = useMemo(() => {
+        if (!companyData || companyData.length === 0) return null;
+        const company = companyData[0];
+        return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
+    }, [companyData, fiscalYears]);
+
+    // Validate date is within fiscal year
+    const validateDate = (selectedDate: string) => {
+        if (!selectedFiscalYear) {
+            setDateError("No fiscal year selected from company setup");
+            return false;
+        }
+
+        if (selectedFiscalYear.closed) {
+            setDateError("The fiscal year is closed for further data entry.");
+            return false;
+        }
+
+        const selected = new Date(selectedDate);
+        const from = new Date(selectedFiscalYear.fiscal_year_from);
+        const to = new Date(selectedFiscalYear.fiscal_year_to);
+
+        if (selected < from || selected > to) {
+            setDateError("The entered date is out of fiscal year.");
+            return false;
+        }
+
+        setDateError("");
+        return true;
+    };
+
+    // Handle date change with validation
+    const handleDateChange = (value: string) => {
+        setCreditNoteDate(value);
+        validateDate(value);
+    };
+
+    // Validate date when fiscal year changes
+    useEffect(() => {
+        if (selectedFiscalYear) {
+            validateDate(creditNoteDate);
+        }
+    }, [selectedFiscalYear]);
     const { user } = useCurrentUser();
 
     // ===== Tax-related state =====
@@ -492,8 +543,14 @@ export default function UpdateCustomerCreditNotes() {
                                 fullWidth
                                 size="small"
                                 value={creditNoteDate}
-                                onChange={(e) => setCreditNoteDate(e.target.value)}
+                                onChange={(e) => handleDateChange(e.target.value)}
                                 InputLabelProps={{ shrink: true }}
+                                inputProps={{
+                                    min: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_from).toISOString().split('T')[0] : undefined,
+                                    max: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_to).toISOString().split('T')[0] : undefined,
+                                }}
+                                error={!!dateError}
+                                helperText={dateError}
                             />
                             <TextField
                                 select
@@ -709,7 +766,7 @@ export default function UpdateCustomerCreditNotes() {
                     <Button variant="outlined" onClick={() => navigate(-1)}>
                         Update
                     </Button>
-                    <Button variant="contained" color="primary" onClick={handleProcessCreditNote}>
+                    <Button variant="contained" color="primary" onClick={handleProcessCreditNote} disabled={!!dateError}>
                         Process Credit Note
                     </Button>
                 </Box>
