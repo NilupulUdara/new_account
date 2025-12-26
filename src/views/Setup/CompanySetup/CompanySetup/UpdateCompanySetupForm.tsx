@@ -772,7 +772,7 @@ export default function UpdateCompanySetupForm() {
             gap: 2,
           }}
         >
-          <Button onClick={() => window.history.back()} fullWidth={true} sx={{ sm: { width: "auto" } }}>
+          <Button onClick={() => navigate('/setup/companysetup')} fullWidth={true} sx={{ sm: { width: "auto" } }}>
             Back
           </Button>
 

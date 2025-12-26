@@ -24,6 +24,8 @@ import { set } from "date-fns";
 import { createWorkOrder } from "../../../../api/WorkOrders/WorkOrderApi";
 import { getWorkOrders } from "../../../../api/WorkOrders/WorkOrderApi";
 import { createJournal, getJournals } from "../../../../api/Journals/JournalApi";
+import useCurrentUser from "../../../../hooks/useCurrentUser";
+import auditTrailApi from "../../../../api/AuditTrail/AuditTrailApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 import { getCurrencies } from "../../../../api/Currency/currencyApi";
@@ -32,6 +34,7 @@ import { createWoManufacture } from "../../../../api/WorkOrders/WOManufactureApi
 import { getBoms } from "../../../../api/Bom/BomApi";
 import { createWoRequirement } from "../../../../api/WorkOrders/WORequirementsApi";
 import { createWOCosting } from "../../../../api/WorkOrders/WOCostingApi";
+import { createStockMove } from "../../../../api/StockMoves/StockMovesApi";
 
 export default function WorkOrderEntry() {
   const navigate = useNavigate();
@@ -151,6 +154,7 @@ export default function WorkOrderEntry() {
   const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
   const { data: companies = [] } = useQuery({ queryKey: ["companies"], queryFn: getCompanies });
   const { data: currencies = [] } = useQuery({ queryKey: ["currencies"], queryFn: getCurrencies });
+  const { user } = useCurrentUser();
 
   useEffect(() => {
     (async () => {
@@ -303,9 +307,52 @@ export default function WorkOrderEntry() {
         }
       }
 
+      // If company has a configured fiscal year, ensure the entered date is within it and it's not closed
+      try {
+        if (companyFiscalId && chosenFy) {
+          if (date) {
+            const dateObj = new Date(date);
+            const from = chosenFy.fiscal_year_from ? new Date(chosenFy.fiscal_year_from) : null;
+            const to = chosenFy.fiscal_year_to ? new Date(chosenFy.fiscal_year_to) : null;
+            const outOfRange = !from || !to || isNaN(from.getTime()) || isNaN(to.getTime()) || dateObj < from || dateObj > to;
+            const closed = Number(chosenFy.closed) === 1;
+            if (outOfRange || closed) {
+              setSaveError("The entered date is out of fiscal year or is closed for further data entry.");
+              return;
+            }
+          }
+        }
+      } catch (fyCheckErr) {
+        console.warn("Failed to validate company fiscal year date check:", fyCheckErr);
+      }
+
       if (chosenFy && Number(chosenFy.closed) === 1) {
         setSaveError("The selected fiscal year is closed. Cannot create work order.");
         return;
+      }
+      // determine fiscalYearId for audit trail entries - prefer company configured fiscal year
+      var fiscalYearIdForAudit: any = null;
+      if (companyFiscalId) {
+        fiscalYearIdForAudit = companyFiscalId;
+      } else if (chosenFy) {
+        fiscalYearIdForAudit = chosenFy?.id ?? chosenFy?.fiscal_year_id ?? null;
+      } else {
+        try {
+          if (date && Array.isArray(fiscalYears) && fiscalYears.length > 0) {
+            const dateObj = new Date(date);
+            const matching = fiscalYears.find((fy: any) => {
+              if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+              const from = new Date(fy.fiscal_year_from);
+              const to = new Date(fy.fiscal_year_to);
+              if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+              return dateObj >= from && dateObj <= to;
+            });
+            const chosen = matching || fiscalYears[0];
+            fiscalYearIdForAudit = chosen?.id ?? chosen?.fiscal_year_id ?? null;
+          }
+        } catch (fyErr) {
+          console.warn("Failed to determine fiscal year for audit trail:", fyErr);
+        }
       }
     } catch (err) {
       console.warn("Fiscal year check failed:", err);
@@ -332,6 +379,39 @@ export default function WorkOrderEntry() {
 
       console.log("Creating work order with payload:", payload);
       const res = await createWorkOrder(payload as any);
+
+      // determine created work order id from response (be tolerant of different APIs)
+      const createdWoId = res?.id ?? res?.workorder_id ?? res?.wo_id ?? res?.trans_no ?? res?.insertId ?? null;
+
+      // create first two audit trail entries: created and released
+      try {
+        const nowStamp = new Date().toISOString();
+        // 1st: created
+        await auditTrailApi.create({
+          type: 26,
+          trans_no: createdWoId,
+          user: user?.id ?? (Number(localStorage.getItem("userId")) || null),
+          stamp: nowStamp,
+          description: "",
+          fiscal_year: fiscalYearIdForAudit ?? null,
+          gl_date: date,
+          gl_seq: null,
+        });
+
+        // 2nd: released
+        await auditTrailApi.create({
+          type: 26,
+          trans_no: createdWoId,
+          user: user?.id ?? (Number(localStorage.getItem("userId")) || null),
+          stamp: nowStamp,
+          description: "Released",
+          fiscal_year: fiscalYearIdForAudit ?? null,
+          gl_date: date,
+          gl_seq: 0,
+        });
+      } catch (atErr) {
+        console.warn("Failed to create initial audit trail records:", atErr);
+      }
 
       // Create journal entries for labour and overhead if provided
       (async () => {
@@ -372,27 +452,46 @@ export default function WorkOrderEntry() {
               amount: entry.amount,
               rate: 1,
             } as any;
-            try {
-              await createJournal(journalPayload);
-
-              // create corresponding WO costing record (0 = labour, 1 = overhead)
               try {
-                if (res?.id) {
-                  const costPayload = {
-                    workorder_id: res.id,
-                    cost_type: entry.note === "Labour" ? 0 : 1,
-                    trans_type: 0,
-                    trans_no: thisTransNo,
-                    factor: 1,
-                  } as any;
-                  await createWOCosting(costPayload);
+                const jRes = await createJournal(journalPayload);
+
+                // determine created trans_no from response
+                const createdTransNo = jRes?.trans_no ?? jRes?.id ?? thisTransNo;
+
+                // create corresponding WO costing record (0 = labour, 1 = overhead)
+                try {
+                  if (createdWoId) {
+                    const costPayload = {
+                      workorder_id: createdWoId,
+                      cost_type: entry.note === "Labour" ? 0 : 1,
+                      trans_type: 0,
+                      trans_no: createdTransNo,
+                      factor: 1,
+                    } as any;
+                    await createWOCosting(costPayload);
+                  }
+                } catch (wcErr) {
+                  console.warn("Failed to create WO costing record:", wcErr);
                 }
-              } catch (wcErr) {
-                console.warn("Failed to create WO costing record:", wcErr);
+
+                // create audit trail record for this journal entry (type 0)
+                try {
+                  await auditTrailApi.create({
+                    type: 0,
+                    trans_no: createdTransNo,
+                    user: user?.id ?? (Number(localStorage.getItem("userId")) || null),
+                    stamp: new Date().toISOString(),
+                    description: "",
+                    fiscal_year: fiscalYearIdForAudit ?? null,
+                    gl_date: date,
+                    gl_seq: 0,
+                  });
+                } catch (atJErr) {
+                  console.warn("Failed to create audit trail for journal:", atJErr);
+                }
+              } catch (jErr) {
+                console.warn("Failed to create journal entry:", jErr, journalPayload);
               }
-            } catch (jErr) {
-              console.warn("Failed to create journal entry:", jErr, journalPayload);
-            }
             currentTransNo += 1;
           }
           // create a comment record if memo was provided
@@ -400,7 +499,7 @@ export default function WorkOrderEntry() {
             try {
               const commentPayload = {
                 type: 26,
-                id: res?.id,
+                id: createdWoId,
                 date_: date,
                 memo_: memo,
               };
@@ -409,16 +508,19 @@ export default function WorkOrderEntry() {
               console.warn("Failed to create comment for work order:", cErr);
             }
           }
-          // create a WO manufacture record for this work order
+          // create a WO manufacture record for this work order and capture its id
+          let createdWoManId: any = null;
           try {
-            if (res?.id) {
+            if (createdWoId) {
               const woManPayload = {
                 reference: reference,
-                workorder_id: res.id,
+                workorder_id: createdWoId,
                 quantity: Number(quantity) || 0,
                 date: date,
               } as any;
-              await createWoManufacture(woManPayload);
+              const manRes = await createWoManufacture(woManPayload);
+              console.debug("WO manufacture create response:", manRes);
+              createdWoManId = manRes?.id ?? manRes?.workmanufacture_id ?? manRes?.wo_manufacture_id ?? manRes?.trans_no ?? manRes?.insertId ?? null;
             }
           } catch (mErr) {
             console.warn("Failed to create WO manufacture record:", mErr);
@@ -443,7 +545,7 @@ export default function WorkOrderEntry() {
                   const unitCost = Number(unitCostRaw) || 0;
 
                   const reqPayload = {
-                    workorder_id: res.id,
+                    workorder_id: createdWoId,
                     stock_id: String(componentId),
                     work_centre: workCentre,
                     units_req: unitsReq,
@@ -453,6 +555,26 @@ export default function WorkOrderEntry() {
                   } as any;
 
                   await createWoRequirement(reqPayload);
+
+                  // create corresponding stock_move record for this BOM component
+                  try {
+                    const stockMovePayload = {
+                      trans_no: createdWoManId,
+                      stock_id: String(componentId),
+                      type: 29,
+                      loc_code: String(locCode),
+                      tran_date: date,
+                      price: 0,
+                      reference: "",
+                      qty: Number(quantity) ? -Math.abs(Number(quantity)) : 0,
+                      standard_cost: unitCost,
+                    } as any;
+                    console.debug("Creating stock_move with payload:", stockMovePayload);
+                    const smRes = await createStockMove(stockMovePayload);
+                    console.debug("Stock move create response:", smRes);
+                  } catch (smErr) {
+                    console.warn("Failed to create stock_move for BOM component:", smErr, bom);
+                  }
                 } catch (reqErr) {
                   console.warn("Failed to create WO requirement for BOM record:", reqErr, bom);
                 }
@@ -461,12 +583,53 @@ export default function WorkOrderEntry() {
           } catch (bErr) {
             console.warn("Failed to expand BOM into WO requirements:", bErr);
           }
+
+          // create stock_move record for the manufactured item itself
+          try {
+            if (createdWoId) {
+              const mainItemId = String(itemCode || selectedItem || "");
+              const mainItem = (items || []).find((it: any) => String(it.stock_id ?? it.id) === mainItemId);
+              const mainMaterialCost = Number(mainItem?.material_cost ?? mainItem?.materialCost ?? mainItem?.standard_cost ?? mainItem?.unit_cost ?? 0) || 0;
+
+              const mainStockMovePayload = {
+                trans_no: createdWoId,
+                stock_id: mainItemId,
+                type: 26,
+                loc_code: String(destinationLocation || ""),
+                tran_date: date,
+                price: 0,
+                reference: reference || "",
+                qty: Number(quantity) || 0,
+                standard_cost: mainMaterialCost,
+              } as any;
+
+              console.debug("Creating stock_move for manufactured item:", mainStockMovePayload);
+              const mainSmRes = await createStockMove(mainStockMovePayload);
+              console.debug("Manufactured item stock_move response:", mainSmRes);
+              try {
+                await auditTrailApi.create({
+                  type: 29,
+                  trans_no: createdWoManId,
+                  user: user?.id ?? (Number(localStorage.getItem("userId")) || null),
+                  stamp: new Date().toISOString(),
+                  description: "Production",
+                  fiscal_year: fiscalYearIdForAudit ?? null,
+                  gl_date: date,
+                  gl_seq: 0,
+                });
+              } catch (atProdErr) {
+                console.warn("Failed to create audit trail for production stock move:", atProdErr);
+              }
+            }
+          } catch (mainSmErr) {
+            console.warn("Failed to create stock_move for manufactured item:", mainSmErr);
+          }
         } catch (err) {
           console.warn("Failed to prepare journal entries:", err);
         }
       })();
 
-      navigate("/manufacturing/transactions/work-order-entry/success", { state: { reference, id: res?.id } });
+      navigate("/manufacturing/transactions/work-order-entry/success", { state: { reference, id: createdWoId } });
     } catch (error: any) {
       console.error("Error creating work order:", error);
       setSaveError(error?.message || JSON.stringify(error) || "Failed to create work order");
