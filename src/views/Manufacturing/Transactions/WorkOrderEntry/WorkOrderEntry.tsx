@@ -34,7 +34,7 @@ import { createWoManufacture } from "../../../../api/WorkOrders/WOManufactureApi
 import { getBoms } from "../../../../api/Bom/BomApi";
 import { createWoRequirement } from "../../../../api/WorkOrders/WORequirementsApi";
 import { createWOCosting } from "../../../../api/WorkOrders/WOCostingApi";
-import { createStockMove } from "../../../../api/StockMoves/StockMovesApi";
+import { createStockMove, getStockMoves } from "../../../../api/StockMoves/StockMovesApi";
 
 export default function WorkOrderEntry() {
   const navigate = useNavigate();
@@ -358,6 +358,41 @@ export default function WorkOrderEntry() {
       console.warn("Fiscal year check failed:", err);
     }
 
+    // Before saving, ensure BOM components are available in the destination location
+    try {
+      const parentCode = String(itemCode || selectedItem || "");
+      if (parentCode) {
+        const allBoms = await getBoms();
+        const matches = Array.isArray(allBoms) ? allBoms.filter((b: any) => String(b.parent) === parentCode) : [];
+        if (matches.length > 0) {
+          const moves = await getStockMoves();
+          const shortages: string[] = [];
+          for (const bom of matches) {
+            const componentId = bom.component ?? bom.component_stock_id ?? bom.component_id ?? "";
+            const unitsPerParent = Number(bom.quantity ?? bom.units_req ?? bom.qty) || 0;
+            const requiredTotal = unitsPerParent * (Number(quantity) || 0);
+            const bomLoc = bom.loc_code ?? bom.loccode ?? bom.loc ?? "";
+            const qoh = Array.isArray(moves)
+              ? moves
+                  .filter((m: any) => String(m.stock_id) === String(componentId) && String(m.loc_code ?? m.loc ?? m.location) === String(bomLoc))
+                  .reduce((s: number, m: any) => s + (Number(m.qty) || 0), 0)
+              : 0;
+            if (qoh < requiredTotal) {
+              const label = (items || []).find((it: any) => String(it.stock_id ?? it.id) === String(componentId));
+              const name = label ? (label.item_name ?? label.name ?? label.description ?? String(componentId)) : String(componentId);
+              shortages.push(`${name} (loc ${bomLoc}): required ${requiredTotal}, on hand ${qoh}`);
+            }
+          }
+          if (shortages.length > 0) {
+            setSaveError(`Insufficient component stock at destination: ${shortages.join("; ")}`);
+            return;
+          }
+        }
+      }
+    } catch (chkErr) {
+      console.warn("Failed to verify BOM availability:", chkErr);
+    }
+
     setIsSaving(true);
     setSaveError("");
 
@@ -372,7 +407,7 @@ export default function WorkOrderEntry() {
         required_by: Number(type) === 2 ? (dateRequiredBy || date) : date,
         released_date: date,
         units_issued: Number(quantity),
-        closed: true,
+        closed: false,
         released: true,
         additional_costs: 0,
       };
@@ -535,9 +570,10 @@ export default function WorkOrderEntry() {
                 try {
                   const componentId = bom.component ?? bom.component_stock_id ?? bom.component_id ?? "";
                   const workCentre = Number(bom.work_centre ?? bom.work_centre_id) || 0;
-                  const unitsReq = Number(bom.quantity ?? bom.units_req ?? bom.qty) || 0;
+                  const unitsPerParent = Number(bom.quantity ?? bom.units_req ?? bom.qty) || 0;
                   const locCode = bom.loc_code ?? bom.loccode ?? "";
-                  const unitsIssued = Number(quantity) || 0;
+                  const totalUnitsReq = unitsPerParent * (Number(quantity) || 0);
+                  const unitsIssued = 0;
 
                   // find material/unit cost for the component from items list
                   const compItem = (items || []).find((it: any) => String(it.stock_id ?? it.id) === String(componentId));
@@ -548,7 +584,7 @@ export default function WorkOrderEntry() {
                     workorder_id: createdWoId,
                     stock_id: String(componentId),
                     work_centre: workCentre,
-                    units_req: unitsReq,
+                    units_req: totalUnitsReq,
                     unit_cost: unitCost,
                     loc_code: String(locCode),
                     units_issued: unitsIssued,
@@ -566,7 +602,7 @@ export default function WorkOrderEntry() {
                       tran_date: date,
                       price: 0,
                       reference: "",
-                      qty: Number(quantity) ? -Math.abs(Number(quantity)) : 0,
+                      qty: -Math.abs(Number(totalUnitsReq) || 0),
                       standard_cost: unitCost,
                     } as any;
                     console.debug("Creating stock_move with payload:", stockMovePayload);

@@ -13,6 +13,7 @@ import { getJournals } from "../../../../api/Journals/JournalApi";
 import { getWOCostings } from "../../../../api/WorkOrders/WOCostingApi";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getWorkCentres } from "../../../../api/WorkCentre/WorkCentreApi";
+import { getStockMoves } from "../../../../api/StockMoves/StockMovesApi";
 
 export default function ViewWorkOrderEntry() {
   const { state } = useLocation();
@@ -23,10 +24,11 @@ export default function ViewWorkOrderEntry() {
   const [workOrderRequirements, setWorkOrderRequirements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { data: locations = [] } = useQuery({ queryKey: ["inventoryLocations"], queryFn: getInventoryLocations });
-  const { data: journals = [] } = useQuery({ queryKey: ["journals"], queryFn: getJournals });
-  const { data: woCostings = [] } = useQuery({ queryKey: ["woCostings"], queryFn: getWOCostings });
+  const { data: journals = [], refetch: refetchJournals } = useQuery({ queryKey: ["journals"], queryFn: getJournals });
+  const { data: woCostings = [], refetch: refetchWOCostings } = useQuery({ queryKey: ["woCostings"], queryFn: getWOCostings });
   const { data: items = [] } = useQuery({ queryKey: ["items"], queryFn: getItems });
   const { data: workCentres = [] } = useQuery({ queryKey: ["workCentres"], queryFn: getWorkCentres });
+  const { data: stockMoves = [], refetch: refetchStockMoves } = useQuery({ queryKey: ["stockMoves"], queryFn: getStockMoves });
 
   const costsForWorkOrder = useMemo(() => {
     if (!workOrder || !Array.isArray(woCostings)) return [];
@@ -66,6 +68,14 @@ export default function ViewWorkOrderEntry() {
 
         if (found) {
           setWorkOrder(found);
+            // Immediately refetch related lists so recent async creations appear
+            try { refetchJournals && refetchJournals(); } catch (e) {}
+            try { refetchWOCostings && refetchWOCostings(); } catch (e) {}
+            try { refetchStockMoves && refetchStockMoves(); } catch (e) {}
+            // Delayed retry in case background writes complete shortly after navigation
+            setTimeout(() => { try { refetchJournals && refetchJournals(); } catch (e) {} }, 1000);
+            setTimeout(() => { try { refetchWOCostings && refetchWOCostings(); } catch (e) {} }, 1200);
+            setTimeout(() => { try { refetchStockMoves && refetchStockMoves(); } catch (e) {} }, 1400);
           // prefer to show BOM-derived requirements for the manufactured item
           try {
             const parentCode = String(found.stock_id ?? found.stock_code ?? found.item_name ?? "");
@@ -81,7 +91,20 @@ export default function ViewWorkOrderEntry() {
                 unitQuantity: bom.quantity ?? bom.qty ?? 0,
                 totalQuantity: totalQty,
                 unitsIssued: unitsIssued,
-                onHand: bom.on_hand ?? bom.onHand ?? "",
+                onHand: (() => {
+                  try {
+                    const compId = bom.component ?? bom.component_stock_id ?? bom.component_id ?? "";
+                    const bomLoc = bom.loc_code ?? bom.loccode ?? bom.loc ?? "";
+                    if (!compId) return "-";
+                    const movesArr = Array.isArray(stockMoves) ? stockMoves : [];
+                    const q = movesArr
+                      .filter((m: any) => String(m.stock_id) === String(compId) && String(m.loc_code ?? m.loc ?? m.location) === String(bomLoc))
+                      .reduce((s: number, m: any) => s + (Number(m.qty) || 0), 0);
+                    return Number.isNaN(q) ? 0 : q;
+                  } catch (e) {
+                    return 0;
+                  }
+                })(),
               }));
               setWorkOrderRequirements(mapped);
             } else {

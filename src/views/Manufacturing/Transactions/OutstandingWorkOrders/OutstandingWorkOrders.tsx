@@ -32,6 +32,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 import { getItems } from "../../../../api/Item/ItemApi";
+import { getWorkOrders } from "../../../../api/WorkOrders/WorkOrderApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
@@ -70,21 +71,88 @@ export default function OutstandingWorkOrders() {
     queryFn: () => getItemCategories() as Promise<{ category_id: number; description: string }[]>,
   });
 
+  const filteredItems = (items || []).filter((it: any) => {
+    const flag = it.mb_flag ?? it.mbFlag ?? it.mb ?? 0;
+    return Number(flag) === 1;
+  });
+
   useEffect(() => {
     if (!selectedItem) {
       setItemCode("");
       return;
     }
-    const it = (items || []).find((i: any) => String(i.stock_id ?? i.id) === String(selectedItem));
+    const it = (filteredItems || []).find((i: any) => String(i.stock_id ?? i.id) === String(selectedItem));
     setItemCode(it ? String(it.stock_id ?? it.id ?? "") : "");
-  }, [selectedItem, items]);
+  }, [selectedItem, filteredItems]);
 
-  // Dummy rows
+  // Work orders — ensure we refetch on mount so newly created WOs appear without a full reload
+  const { data: workOrders = [], refetch: refetchWorkOrders } = useQuery({ queryKey: ["workOrders"], queryFn: getWorkOrders, refetchOnMount: "always", refetchOnWindowFocus: true });
+
+  useEffect(() => {
+    // explicit refetch on mount to cover navigation cases where the component may not fully remount
+    if (typeof refetchWorkOrders === "function") refetchWorkOrders();
+  }, [refetchWorkOrders]);
+
+  const getTypeLabel = (t: any) => {
+    const n = Number(t);
+    if (n === 0) return "Assemble";
+    if (n === 1) return "Unassemble";
+    if (n === 2) return "Advanced Manufacture";
+    return String(t ?? "");
+  };
+
   const today = new Date().toISOString().split("T")[0];
-  const rows: Row[] = [
-    { id: 1, reference: "WO-001", type: "Assembly", location: "Warehouse A", item: "Item A", required: 100, manufactured: 50, date: today, requiredBy: "2025-12-01" },
-    { id: 2, reference: "WO-002", type: "Packaging", location: "Warehouse B", item: "Item B", required: 200, manufactured: 150, date: today, requiredBy: "2025-12-02" },
-  ];
+
+  const rows: Row[] = useMemo(() => {
+    if (!Array.isArray(workOrders)) return [];
+
+    // Start with open work orders
+    let filtered = workOrders.filter((w: any) => {
+      if (w.closed === undefined || w.closed === null) return true;
+      if (typeof w.closed === "boolean") return w.closed === false;
+      return String(w.closed) === "0" || String(w.closed).toLowerCase() === "false";
+    });
+
+    // Apply search filters at raw record level for accuracy
+    if (numberText && String(numberText).trim() !== "") {
+      const num = String(numberText).trim();
+      filtered = filtered.filter((w: any, idx: number) => {
+        const idVal = String(w.id ?? w.wo_id ?? idx + 1);
+        return idVal.includes(num);
+      });
+    }
+
+    if (referenceText && String(referenceText).trim() !== "") {
+      const rt = String(referenceText).trim().toLowerCase();
+      filtered = filtered.filter((w: any) => String(w.wo_ref ?? w.reference ?? "").toLowerCase().includes(rt));
+    }
+
+    if (location && location !== "ALL_LOCATIONS") {
+      filtered = filtered.filter((w: any) => String(w.loc_code ?? w.location ?? w.loc ?? "") === String(location));
+    }
+
+    if (selectedItem && selectedItem !== "ALL_ITEMS") {
+      filtered = filtered.filter((w: any) => String(w.stock_id ?? w.stock ?? w.item_id ?? "") === String(selectedItem));
+    }
+
+    // Map to Row[] for table rendering
+    return filtered.map((w: any, idx: number) => {
+      const locCode = w.loc_code ?? w.location ?? w.loc ?? "";
+      const loc = (locations || []).find((l: any) => String(l.loc_code ?? l.loccode ?? l.code ?? "") === String(locCode));
+      const itemRec = (items || []).find((it: any) => String(it.stock_id ?? it.id ?? it.stock_master_id ?? it.item_id ?? "") === String(w.stock_id ?? w.stock));
+      return {
+        id: w.id ?? w.wo_id ?? idx + 1,
+        reference: w.wo_ref ?? w.reference ?? "",
+        type: getTypeLabel(w.type),
+        location: loc ? (loc.location_name ?? String(locCode)) : String(locCode),
+        item: itemRec ? (itemRec.item_name ?? itemRec.name ?? itemRec.description ?? String(w.stock_id)) : String(w.stock_id ?? ""),
+        required: Number(w.units_reqd ?? w.quantity ?? 0),
+        manufactured: Number(w.units_issued ?? w.unitsIssued ?? 0),
+        date: w.date ? String(w.date).split("T")[0] : (w.tran_date ?? today),
+        requiredBy: w.required_by ?? w.date_required_by ?? w.requiredBy ?? "",
+      } as Row;
+    });
+  }, [workOrders, items, locations, numberText, referenceText, location, selectedItem]);
 
   const paginatedRows = useMemo(() => {
     if (rowsPerPage === -1) return rows;
@@ -106,7 +174,7 @@ export default function OutstandingWorkOrders() {
   };
 
   const handleEdit = (id: number) => {
-    console.log("Edit for", id);
+    navigate("/manufacturing/transactions/work-order-entry/update", { state: { id } });
   };
 
   const handlePrint = (id: number) => {
@@ -121,7 +189,7 @@ export default function OutstandingWorkOrders() {
           <Breadcrumb breadcrumbs={[{ title: "Transactions", href: "/manufacturing/transactions" }, { title: "Outstanding Work Orders" }]} />
         </Box>
 
-        <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>Back</Button>
+        <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/manufacturing/transactions')}>Back</Button>
       </Box>
 
       <Paper sx={{ p: 2, borderRadius: 2 }}>
@@ -161,10 +229,10 @@ export default function OutstandingWorkOrders() {
               <InputLabel id="item-label">Select Item</InputLabel>
               <Select labelId="item-label" value={selectedItem ?? ""} label="Select Item" onChange={(e) => setSelectedItem(String(e.target.value))}>
                 <MenuItem value="ALL_ITEMS">All Items</MenuItem>
-                {items && items.length > 0 ? (
+                {filteredItems && filteredItems.length > 0 ? (
                   (() => {
                     return Object.entries(
-                      items.reduce((groups: Record<string, any[]>, item) => {
+                      filteredItems.reduce((groups: Record<string, any[]>, item) => {
                         const catId = item.category_id || "Uncategorized";
                         if (!groups[catId]) groups[catId] = [];
                         groups[catId].push(item);
