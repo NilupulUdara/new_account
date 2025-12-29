@@ -25,7 +25,9 @@ import { getItemById, updateItem, deleteItem } from "../../../../../api/Item/Ite
 import { useNavigate, useParams } from "react-router-dom";
 import { getItemTypes } from "../../../../../api/ItemType/ItemType";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
-
+import ErrorModal from "../../../../../components/ErrorModal";
+import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal";
+import DeleteConfirmationModal from "../../../../../components/DeleteConfirmationModal";
 interface ItemGeneralSettingProps {
   itemId: string | number; //  always required now
 }
@@ -65,6 +67,11 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
     11: "Payroll Expenses",
     12: "General and Adminitrative Expenses",
   };
+
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
 
   const [itemTypes, setItemTypes] = useState<any[]>([]);
   const [chartMasters, setChartMasters] = useState<any[]>([]);
@@ -121,6 +128,8 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
         }));
       } catch (err) {
         console.error("Failed to fetch data:", err);
+        setErrorMessage("Failed to fetch data");
+        setErrorOpen(true);
       }
     };
     fetchData();
@@ -169,11 +178,14 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
     onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["items"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["item", itemId], exact: true });
-      alert("Item updated successfully!");
+      // alert("Item updated successfully!");
+      setOpen(true);
     },
     onError: (err: any) => {
       console.error("Failed to update item:", err);
-      alert("Failed to update item");
+      //  alert("Failed to update item");
+      setErrorMessage("Failed to update item");
+      setErrorOpen(true);
     },
   });
 
@@ -252,18 +264,18 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
     mutationFn: () => deleteItem(itemId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["items"], exact: false });
-      alert("Item deleted successfully!");
+      setOpenDeleteModal(false);
     },
-    onError: (err) => {
+    onError: (err: any) => {
       console.error("Failed to delete item:", err);
-      alert("Failed to delete item!");
+      setErrorMessage("Failed to delete item");
+      setErrorOpen(true);
+      setOpenDeleteModal(false);
     },
   });
 
-  const handleDelete = () => {
-    if (window.confirm("Are you sure you want to delete this item?")) {
-      deleteMutation.mutate();
-    }
+  const handleDelete = async () => {
+    await deleteMutation.mutateAsync();
   };
 
   // show loading / error for fetch-item
@@ -687,11 +699,34 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
           <Button variant="contained" color="secondary" sx={{ width: '140px' }} onClick={handleClone}>
             Clone Item
           </Button>
-          <Button variant="outlined" color="error" sx={{ width: '140px' }} onClick={handleDelete}>
+          <Button variant="outlined" color="error" sx={{ width: '140px' }} onClick={() => setOpenDeleteModal(true)}>
             Delete Item
           </Button>
         </Box>
       </Box>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Item has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => setOpen(false)}
+      />
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Item"
+        content="Are you sure you want to delete this item? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setOpenDeleteModal(false)}
+        deleteFunc={handleDelete}
+        onSuccess={() => {
+          // Handled in mutation onSuccess
+        }}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

@@ -32,12 +32,19 @@ import theme from "../../../../theme";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getItemCodes, deleteItemCode } from "../../../../api/ItemCodes/ItemCodesApi";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 function ForeignItemCodesTable() {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedItem, setSelectedItem] = useState(""); // dropdown state
+
+    const [openDeleteModal, setOpenDeleteModal] = useState(false);
+    const [selectedId, setSelectedId] = useState<number | null>(null);
+    const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
 
     const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
     const navigate = useNavigate();
@@ -63,11 +70,6 @@ function ForeignItemCodesTable() {
         mutationFn: (id: number) => deleteItemCode(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["item-codes"] });
-            alert("Item code deleted successfully!");
-        },
-        onError: (err: any) => {
-            console.error("Failed to delete item code:", err);
-            alert("Failed to delete item code");
         },
     });
 
@@ -92,33 +94,33 @@ function ForeignItemCodesTable() {
     }, [items]);
 
     // Filter data based on selected item and search query
-   const filteredData = useMemo(() => {
-    // Only filter when an item is selected
-    if (!selectedItem) return [];
+    const filteredData = useMemo(() => {
+        // Only filter when an item is selected
+        if (!selectedItem) return [];
 
-    // The only shared column between items and item-codes is `stock_id`.
-    // Match item-codes where code.stock_id === selectedItem and is_foreign === 1.
-    const result = foreignItemData.filter((code: any) => {
-        const codeStockId = code.stock_id ?? code.stockMasterId ?? code.stock_master?.stock_id ?? code.stock_master_id ?? code.item_id ?? code.itemId;
-        return String(codeStockId) === String(selectedItem) && code.is_foreign === 1;
-    });
-
-    if (searchQuery.trim()) {
-        const lowerQuery = searchQuery.toLowerCase();
-        return result.filter((item: any) => {
-            const codeStr = String(item.item_code ?? item.code ?? "").toLowerCase();
-            const desc = String(item.description ?? "").toLowerCase();
-            const cat = String(item.category_id ?? item.category ?? "").toLowerCase();
-            return (
-                codeStr.includes(lowerQuery) ||
-                desc.includes(lowerQuery) ||
-                cat.includes(lowerQuery)
-            );
+        // The only shared column between items and item-codes is `stock_id`.
+        // Match item-codes where code.stock_id === selectedItem and is_foreign === 1.
+        const result = foreignItemData.filter((code: any) => {
+            const codeStockId = code.stock_id ?? code.stockMasterId ?? code.stock_master?.stock_id ?? code.stock_master_id ?? code.item_id ?? code.itemId;
+            return String(codeStockId) === String(selectedItem) && code.is_foreign === 1;
         });
-    }
 
-    return result;
-}, [foreignItemData, selectedItem, searchQuery]);
+        if (searchQuery.trim()) {
+            const lowerQuery = searchQuery.toLowerCase();
+            return result.filter((item: any) => {
+                const codeStr = String(item.item_code ?? item.code ?? "").toLowerCase();
+                const desc = String(item.description ?? "").toLowerCase();
+                const cat = String(item.category_id ?? item.category ?? "").toLowerCase();
+                return (
+                    codeStr.includes(lowerQuery) ||
+                    desc.includes(lowerQuery) ||
+                    cat.includes(lowerQuery)
+                );
+            });
+        }
+
+        return result;
+    }, [foreignItemData, selectedItem, searchQuery]);
 
 
     const paginatedData = useMemo(() => {
@@ -132,9 +134,23 @@ function ForeignItemCodesTable() {
         setPage(0);
     };
 
-    const handleDelete = (id: number) => {
-        if (window.confirm("Are you sure you want to delete this item code?")) {
-            deleteMutation.mutate(id);
+    const handleDeleteClick = (id: number) => {
+        setSelectedId(id);
+        setOpenDeleteModal(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!selectedId) return;
+        try {
+            await deleteMutation.mutateAsync(selectedId);
+            setOpenDeleteModal(false);
+            setSelectedId(null);
+        } catch (error) {
+            console.error("Failed to delete foreign item code:", error);
+            setErrorMessage("Failed to delete the foreign item code. Please try again.");
+            setErrorOpen(true);
+            setOpenDeleteModal(false);
+            setSelectedId(null);
         }
     };
 
@@ -212,7 +228,7 @@ function ForeignItemCodesTable() {
                     </FormControl>
                 </Box>
 
-                    <Stack direction="row" spacing={1}>
+                <Stack direction="row" spacing={1}>
                     <Button
                         variant="contained"
                         color="primary"
@@ -302,7 +318,7 @@ function ForeignItemCodesTable() {
                                                         size="small"
                                                         color="error"
                                                         startIcon={<DeleteIcon />}
-                                                        onClick={() => handleDelete(item.id)}
+                                                        onClick={() => handleDeleteClick(item.id)}
                                                     >
                                                         Delete
                                                     </Button>
@@ -338,6 +354,20 @@ function ForeignItemCodesTable() {
                     </TableContainer>
                 </Stack>
             )}
+            <DeleteConfirmationModal
+                open={openDeleteModal}
+                title="Delete Foreign Item Code"
+                content="Are you sure you want to delete this foreign item code? This action cannot be undone."
+                handleClose={() => setOpenDeleteModal(false)}
+                handleReject={() => setOpenDeleteModal(false)}
+                deleteFunc={handleDeleteConfirm}
+                onSuccess={() => {}}
+            />
+            <ErrorModal
+                open={errorOpen}
+                onClose={() => setErrorOpen(false)}
+                message={errorMessage}
+            />
         </Stack>
     );
 }

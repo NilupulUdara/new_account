@@ -20,7 +20,8 @@ import theme from "../../../../theme";
 import { getCurrencies } from "../../../../api/Currency/currencyApi";
 import { getSalesTypes } from "../../../../api/SalesMaintenance/salesService";
 import { createSalesPricing, getSalesPricingByStockId } from "../../../../api/SalesPricing/SalesPricingApi";
-
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 interface SalesPricingFormData {
   stock_id: string;
   currency_id: number | "";
@@ -59,6 +60,10 @@ export default function AddSalesPricingForm2() {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [salesTypes, setSalesTypes] = useState<SalesType[]>([]);
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const navigate = useNavigate();
@@ -74,6 +79,8 @@ export default function AddSalesPricingForm2() {
         setCurrencies(currenciesRes.map(c => ({ id: c.id, currency_abbreviation: c.currency_abbreviation })));
         setSalesTypes(salesTypesRes.map(s => ({ id: s.id!, typeName: s.typeName! })));
       } catch (error) {
+        setErrorMessage("Failed to fetch currencies or sales types. Please try again.");
+        setErrorOpen(true);
         console.error("Failed to fetch currencies or sales types", error);
       }
     };
@@ -127,11 +134,14 @@ export default function AddSalesPricingForm2() {
         sales_type_id: formData.sales_type_id,
         price: Number(formData.price),
       });
-      alert("Sales Pricing added successfully!");
-      navigate("/itemsandinventory/pricingandcosts/sales-pricing/");
+      //alert("Sales Pricing added successfully!");
+      setOpen(true);
+      //navigate("/itemsandinventory/pricingandcosts/sales-pricing/");
     } catch (error) {
       console.error("API Error:", error);
-      alert("Failed to add Sales Pricing");
+     // alert("Failed to add Sales Pricing");
+      setErrorMessage("Failed to add Sales Pricing. Please try again.");
+      setErrorOpen(true);
     }
   };
 
@@ -213,6 +223,19 @@ export default function AddSalesPricingForm2() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="The new price has been added!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => navigate("/itemsandinventory/pricingandcosts/sales-pricing/")}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

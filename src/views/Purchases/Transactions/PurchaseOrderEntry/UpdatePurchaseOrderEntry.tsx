@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Box,
   Button,
@@ -33,6 +34,8 @@ import { getItems } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import { getPurchDataById } from "../../../../api/PurchasingPricing/PurchasingPricingApi";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 import {
   getPurchOrderByOrderNo,
   updatePurchOrder,
@@ -65,6 +68,8 @@ export default function UpdatePurchaseOrderEntry() {
 
   const [memo, setMemo] = useState("");
 
+  const [dateError, setDateError] = useState("");
+
   // API data states
   const [suppliers, setSuppliers] = useState([]);
   const [locations, setLocations] = useState([]);
@@ -75,13 +80,44 @@ export default function UpdatePurchaseOrderEntry() {
   const [deletedDetailIds, setDeletedDetailIds] = useState<any[]>([]);
 
   // ========= Generate Reference =========
+  // Fetch fiscal years to build fiscal-year-aware reference
+  const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+
+  const { data: companyData } = useQuery({
+    queryKey: ["company"],
+    queryFn: getCompanies,
+  });
+
+  // Find selected fiscal year from company setup
+  const selectedFiscalYear = useMemo(() => {
+    if (!companyData || companyData.length === 0) return null;
+    const company = companyData[0];
+    return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
+  }, [companyData, fiscalYears]);
+
+  // Validate date is within fiscal year
+  const validateDate = (selectedDate: string) => {
+    if (!selectedFiscalYear) {
+      setDateError("No fiscal year selected from company setup");
+      return false;
+    }
+
+    setDateError("");
+    return true;
+  };
+
+  // Handle date change with validation
+  const handleDateChange = (value: string) => {
+    setOrderDate(value);
+    validateDate(value);
+  };
+
+  // Validate date when fiscal year is loaded
   useEffect(() => {
-    const year = new Date().getFullYear();
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, "0");
-    setReference(`${random}/${year}`);
-  }, []);
+    if (selectedFiscalYear && orderDate) {
+      validateDate(orderDate);
+    }
+  }, [selectedFiscalYear]);
 
   // ========= Update Credit When Supplier Changes =========
   useEffect(() => {
@@ -436,7 +472,17 @@ export default function UpdatePurchaseOrderEntry() {
                 InputProps={{ readOnly: true }}
               />
 
-              <TextField label="Order Date" type="date" fullWidth size="small" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+              <TextField
+                label="Order Date"
+                type="date"
+                fullWidth
+                size="small"
+                value={orderDate}
+                onChange={(e) => handleDateChange(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                error={!!dateError}
+                helperText={dateError}
+              />
 
               <TextField label="Current Credit" fullWidth size="small" value={credit} InputProps={{ readOnly: true }} />
 

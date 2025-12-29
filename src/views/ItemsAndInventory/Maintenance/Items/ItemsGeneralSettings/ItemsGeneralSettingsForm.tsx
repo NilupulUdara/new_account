@@ -27,6 +27,8 @@ import { getInventoryLocations } from "../../../../../api/InventoryLocation/Inve
 import { createLocStock } from "../../../../../api/LocStock/LocStockApi";
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import ErrorModal from "../../../../../components/ErrorModal";
+import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
 interface ItemGeneralSettingProps {
   itemId?: string | number;
 }
@@ -35,6 +37,10 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const [formData, setFormData] = useState({
     itemCode: "",
@@ -121,6 +127,8 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
         }));
       } catch (err) {
         console.error("Failed to fetch data:", err);
+         setErrorMessage("Failed to fetch data");
+         setErrorOpen(true);
       }
     };
     fetchData();
@@ -205,7 +213,8 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
       );
       await Promise.all(locStockPromises);
 
-      alert("Item added successfully!");
+//      alert("Item added successfully!");
+      setOpen(true);
       console.log("Created:", res);
       queryClient.invalidateQueries({ queryKey: ["items"], exact: false });
 
@@ -220,7 +229,8 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
       navigate("/itemsandinventory/maintenance/items");
     } catch (err) {
       console.error("Failed to create item:", err);
-      alert("Failed to add Item.");
+      setErrorMessage("Failed to add Item.");
+      setErrorOpen(true);
     }
   };
 
@@ -608,6 +618,19 @@ export default function ItemsGeneralSettingsForm({ itemId }: ItemGeneralSettingP
           </Button>
         </Box>
       </Box>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Item has been added successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => setOpen(false)}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

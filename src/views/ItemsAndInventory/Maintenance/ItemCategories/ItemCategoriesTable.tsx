@@ -31,8 +31,8 @@ import { getItemCategories, updateItemCategory, deleteItemCategory } from "../..
 import { getItemTaxTypes } from "../../../../api/ItemTaxType/ItemTaxTypeApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemTypes } from "../../../../api/ItemType/ItemType";
-
-
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 function ItemCategoriesTable() {
   const [page, setPage] = useState(0);
@@ -41,6 +41,11 @@ function ItemCategoriesTable() {
   const [showInactive, setShowInactive] = useState(false);
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
+
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const queryClient = useQueryClient();
 
@@ -119,8 +124,24 @@ function ItemCategoriesTable() {
     },
   });
 
-  const handleDelete = (id: number) => {
-    deleteCategoryMutation.mutate(id);
+  const handleDeleteClick = (id: number) => {
+    setSelectedId(id);
+    setOpenDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedId) return;
+    try {
+      await deleteCategoryMutation.mutateAsync(selectedId);
+      setOpenDeleteModal(false);
+      setSelectedId(null);
+    } catch (error) {
+      console.error("Failed to delete item category:", error);
+      setErrorMessage("Failed to delete the item category. Please try again.");
+      setErrorOpen(true);
+      setOpenDeleteModal(false);
+      setSelectedId(null);
+    }
   };
 
   const updateCategoryMutation = useMutation({
@@ -269,7 +290,7 @@ function ItemCategoriesTable() {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(item.category_id)}
+                          onClick={() => handleDeleteClick(item.category_id)}
                         >
                           Delete
                         </Button>
@@ -304,6 +325,20 @@ function ItemCategoriesTable() {
           </Table>
         </TableContainer>
       </Stack>
+       <DeleteConfirmationModal
+              open={openDeleteModal}
+              title="Delete Item Category"
+              content="Are you sure you want to delete this item category? This action cannot be undone."
+              handleClose={() => setOpenDeleteModal(false)}
+              handleReject={() => setOpenDeleteModal(false)}
+              deleteFunc={handleDeleteConfirm}
+              onSuccess={() => {}}
+            />
+            <ErrorModal
+              open={errorOpen}
+              onClose={() => setErrorOpen(false)}
+              message={errorMessage}
+            />
     </Stack>
   );
 }

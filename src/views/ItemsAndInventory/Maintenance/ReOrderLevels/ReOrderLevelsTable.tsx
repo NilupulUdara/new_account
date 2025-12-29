@@ -38,7 +38,8 @@ import { getItemCategories } from "../../../../api/ItemCategories/ItemCategories
 import { getItemTypes } from "../../../../api/ItemType/ItemType";
 import { getStockMoves } from "../../../../api/StockMoves/StockMovesApi";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 interface ItemReOderlevelProps {
   itemId?: string | number;
 }
@@ -50,6 +51,10 @@ export default function ReOrderLevelsTable({ itemId }: ItemReOderlevelProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedItem, setSelectedItem] = useState<string | number>(itemId || "");
   const [showInactive, setShowInactive] = useState(false);
+
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
@@ -183,10 +188,11 @@ export default function ReOrderLevelsTable({ itemId }: ItemReOderlevelProps) {
 
       await Promise.all(updates);
       queryClient.invalidateQueries({ queryKey: ["locStocks", selectedItem] });
-      alert("Reorder Levels updated successfully!");
+      setOpen(true);
     } catch (error) {
       console.error("Error updating reorder levels:", error);
-      alert("Failed to update reorder levels.");
+      setErrorMessage("Failed to update reorder levels.");
+      setErrorOpen(true);
     }
   };
 
@@ -381,6 +387,18 @@ export default function ReOrderLevelsTable({ itemId }: ItemReOderlevelProps) {
           </TableContainer>
         </>
       </Stack>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Reorder levels has been updated!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => setOpen(false)}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

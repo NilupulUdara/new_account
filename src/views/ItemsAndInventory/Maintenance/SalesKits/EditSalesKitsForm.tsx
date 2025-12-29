@@ -39,6 +39,8 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import theme from "../../../../theme";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 
 interface EditQuantityData {
   id: string;
@@ -62,6 +64,10 @@ export default function EditSalesKitsForm() {
   const [addErrors, setAddErrors] = useState<Partial<typeof addComponentData>>({});
   const [editQuantityDialog, setEditQuantityDialog] = useState(false);
   const [editQuantityData, setEditQuantityData] = useState<EditQuantityData>({ id: "", quantity: "" });
+
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
@@ -148,10 +154,12 @@ export default function EditSalesKitsForm() {
         });
       }
       queryClient.invalidateQueries({ queryKey: ["item-codes"] });
-      alert("Kit updated successfully");
+      setOpen(true);
+      //alert("Kit updated successfully");
     } catch (error) {
       console.error("Error updating kit:", error);
-      alert("Error updating kit");
+      setErrorMessage("Error updating kit");
+      setErrorOpen(true);
     }
   };
 
@@ -187,10 +195,12 @@ export default function EditSalesKitsForm() {
       });
       queryClient.invalidateQueries({ queryKey: ["item-codes"] });
       setAddComponentData({ component: "", quantity: "" });
-      alert("Component added successfully");
+      setOpen(true);
+      //alert("Component added successfully");
     } catch (error) {
       console.error("Error adding component:", error);
-      alert("Error adding component");
+      setErrorMessage("Error adding component");
+      setErrorOpen(true);
     }
   };
 
@@ -267,16 +277,16 @@ export default function EditSalesKitsForm() {
         }}
       >
         <Box>
-            <PageTitle title="Edit Sales Kit" />
-            <Breadcrumb breadcrumbs={breadcrumbItems} />
-          </Box>
-
-          <Box sx={{ px: 2, mb: 2 }}>
-            <Stack direction="row" spacing={1}>
-              <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate("/itemsandinventory/maintenance/")}>Back</Button>
-            </Stack>
-          </Box>
+          <PageTitle title="Edit Sales Kit" />
+          <Breadcrumb breadcrumbs={breadcrumbItems} />
         </Box>
+
+        <Box sx={{ px: 2, mb: 2 }}>
+          <Stack direction="row" spacing={1}>
+            <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate("/itemsandinventory/maintenance/")}>Back</Button>
+          </Stack>
+        </Box>
+      </Box>
 
       {/* Form */}
       <Stack sx={{ alignItems: "center" }}>
@@ -525,6 +535,18 @@ export default function EditSalesKitsForm() {
           </DialogActions>
         </Dialog>
       </Stack>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Sales kit has been updated successfully!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

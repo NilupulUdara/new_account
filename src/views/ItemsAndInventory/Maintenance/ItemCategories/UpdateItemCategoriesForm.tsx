@@ -25,7 +25,8 @@ import { getItemCategoryById, updateItemCategory } from "../../../../api/ItemCat
 import { useNavigate, useParams } from "react-router-dom";
 import { getItemTypes } from "../../../../api/ItemType/ItemType";
 import { useQueryClient } from "@tanstack/react-query";
-
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 interface ItemCategoriesFormData {
   categoryName: string;
   itemTaxType: string;
@@ -41,6 +42,11 @@ interface ItemCategoriesFormData {
 }
 
 export default function UpdateItemCategoriesForm() {
+
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const [formData, setFormData] = useState<ItemCategoriesFormData>({
     categoryName: "",
     itemTaxType: "",
@@ -124,7 +130,8 @@ export default function UpdateItemCategoriesForm() {
         }
       } catch (err) {
         console.error("Failed to fetch data:", err);
-        alert("Failed to load category data. Please try again.");
+        setErrorMessage("Failed to load category data. Please try again.");
+        setErrorOpen(true);
         navigate(-1);
       } finally {
         setIsLoading(false);
@@ -189,8 +196,8 @@ export default function UpdateItemCategoriesForm() {
 
         await updateItemCategory(Number(id), payload);
         queryClient.invalidateQueries({ queryKey: ["itemCategories"] });
-        alert("Item Category updated successfully!");
-        navigate(-1);
+       // alert("Item Category updated successfully!");
+        setOpen(true);
       } catch (error: any) {
         console.error("Failed to update category:", error);
         if (error.response?.data?.errors) {
@@ -206,9 +213,11 @@ export default function UpdateItemCategoriesForm() {
             inventoryAdjustmentAccount: backendErr.dflt_adjustment_act?.[0],
             itemAssemblyCostAccount: backendErr.dflt_wip_act?.[0],
           });
-          alert("Validation errors occurred. Please check the fields.");
+          setErrorMessage("Validation errors occurred. Please check the fields.");
+          setErrorOpen(true);
         } else {
-          alert("Failed to update Item Category. Please try again.");
+          setErrorMessage("Failed to update Item Category. Please try again.");
+          setErrorOpen(true);
         }
       }
     }
@@ -547,6 +556,18 @@ export default function UpdateItemCategoriesForm() {
           </Box>
         </Paper>
       )}
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Selected item category has been updated!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

@@ -37,6 +37,8 @@ import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function AddInventoryAdjustments() {
   const navigate = useNavigate();
@@ -124,6 +126,10 @@ export default function AddInventoryAdjustments() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   // Set initial date based on selected fiscal year
   useEffect(() => {
@@ -294,15 +300,15 @@ export default function AddInventoryAdjustments() {
       const stockMoves = rows
         .filter(row => row.selectedItemId && row.quantity)
         .map(row => ({
-            stock_id: row.selectedItemId,
-            loc_code: location,
-            tran_date: date,
-            qty: parseFloat(row.quantity.toString()),
-            standard_cost: row.unitCost,
-            reference: reference,
-            trans_no: parseInt(reference.split('/')[0], 10),  // Extract number from reference (e.g., "001" -> 1)
-            type: 17,
-          }));
+          stock_id: row.selectedItemId,
+          loc_code: location,
+          tran_date: date,
+          qty: parseFloat(row.quantity.toString()),
+          standard_cost: row.unitCost,
+          reference: reference,
+          trans_no: parseInt(reference.split('/')[0], 10),  // Extract number from reference (e.g., "001" -> 1)
+          type: 17,
+        }));
 
       // Save all stock moves
       await Promise.all(
@@ -539,7 +545,7 @@ export default function AddInventoryAdjustments() {
                       (() => {
                         return Object.entries(
                           filteredItems
-                            .filter(item => 
+                            .filter(item =>
                               !rows.some(r => r.id !== row.id && r.selectedItemId === item.stock_id)
                             )
                             .reduce((groups: Record<string, any[]>, item) => {
@@ -719,6 +725,19 @@ export default function AddInventoryAdjustments() {
           {isSaving ? "Saving..." : "Process Adjustment"}
         </Button>
       </Box>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Items adjustment has been processed!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => setOpen(false)}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

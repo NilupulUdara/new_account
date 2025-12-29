@@ -20,7 +20,8 @@ import theme from "../../../../../theme";
 import { getCurrencies } from "../../../../../api/Currency/currencyApi";
 import { getSalesTypes } from "../../../../../api/SalesMaintenance/salesService";
 import { createSalesPricing, getSalesPricingByStockId } from "../../../../../api/SalesPricing/SalesPricingApi";
-
+import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../../components/ErrorModal";
 interface SalesPricingFormData {
   stock_id: string;
   currency_id: number | "";
@@ -59,6 +60,10 @@ export default function AddSalesPricingForm() {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [salesTypes, setSalesTypes] = useState<SalesType[]>([]);
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const navigate = useNavigate();
@@ -74,7 +79,9 @@ export default function AddSalesPricingForm() {
         setCurrencies(currenciesRes.map(c => ({ id: c.id, currency_abbreviation: c.currency_abbreviation })));
         setSalesTypes(salesTypesRes.map(s => ({ id: s.id!, typeName: s.typeName! })));
       } catch (error) {
-        console.error("Failed to fetch currencies or sales types", error);
+       // console.error("Failed to fetch currencies or sales types", error);
+        setErrorMessage("Failed to fetch currencies or sales types. Please try again.");
+        setErrorOpen(true);
       }
     };
     fetchData();
@@ -117,7 +124,9 @@ export default function AddSalesPricingForm() {
         Number(pricing.sales_type_id) === Number(formData.sales_type_id)
       );
       if (duplicate) {
-        setErrors({ ...errors, sales_type_id: "A sales pricing with this currency and sales type already exists for this item." });
+       // setErrors({ ...errors, sales_type_id: "A sales pricing with this currency and sales type already exists for this item." });
+        setErrorMessage("A sales pricing with this currency and sales type already exists for this item.");
+        setErrorOpen(true);
         return;
       }
 
@@ -127,11 +136,13 @@ export default function AddSalesPricingForm() {
         sales_type_id: formData.sales_type_id,
         price: Number(formData.price),
       });
-      alert("Sales Pricing added successfully!");
-      navigate("/itemsandinventory/maintenance/items", { state: { tab: 1, selectedItem: itemId } });
+      //alert("Sales Pricing added successfully!");
+      setOpen(true);
+    //  navigate("/itemsandinventory/maintenance/items", { state: { tab: 1, selectedItem: itemId } });
     } catch (error) {
       console.error("API Error:", error);
-      alert("Failed to add Sales Pricing");
+      setErrorMessage("Failed to add Sales Pricing. Please try again.");
+      setErrorOpen(true);
     }
   };
 
@@ -213,6 +224,19 @@ export default function AddSalesPricingForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="The new price has been added!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

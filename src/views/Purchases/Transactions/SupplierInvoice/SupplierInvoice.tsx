@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
     Box,
@@ -36,6 +36,7 @@ import { getGrnItems } from "../../../../api/GRN/GrnItemsApi";
 import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { getPurchDataById } from "../../../../api/PurchasingPricing/PurchasingPricingApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 import { getSuppTrans, createSuppTrans } from "../../../../api/SuppTrans/SuppTransApi";
 import { createSuppInvoiceItem } from "../../../../api/SuppInvoiceItems/SuppInvoiceItemsApi";
 import { getPurchOrderDetails, updatePurchOrderDetail } from "../../../../api/PurchOrders/PurchOrderDetailsApi";
@@ -80,6 +81,8 @@ export default function SupplierInvoice() {
     const [supplierRef, setSupplierRef] = useState("");
     const [memo, setMemo] = useState("");
 
+    const [invoiceDateError, setInvoiceDateError] = useState("");
+
     // API Data
     const [suppliers, setSuppliers] = useState([]);
     const [dimensions, setDimensions] = useState([]);
@@ -107,35 +110,61 @@ export default function SupplierInvoice() {
 
     // Fiscal-year aware Reference (scoped to supplier invoices trans_type 20)
     const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+    const { data: companyData } = useQuery({ queryKey: ["company"], queryFn: getCompanies });
+
+    // Find selected fiscal year from company setup
+    const selectedFiscalYear = useMemo(() => {
+        if (!companyData || companyData.length === 0) return null;
+        const company = companyData[0];
+        return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
+    }, [companyData, fiscalYears]);
+
+    // Validate date is within fiscal year
+    const validateDate = (selectedDate: string, setError: (error: string) => void) => {
+        if (!selectedFiscalYear) {
+            setError("No fiscal year selected from company setup");
+            return false;
+        }
+
+        if (selectedFiscalYear.closed) {
+            setError("The fiscal year is closed for further data entry.");
+            return false;
+        }
+
+        const selected = new Date(selectedDate);
+        const from = new Date(selectedFiscalYear.fiscal_year_from);
+        const to = new Date(selectedFiscalYear.fiscal_year_to);
+
+        if (selected < from || selected > to) {
+            setError("The entered date is out of fiscal year.");
+            return false;
+        }
+
+        setError("");
+        return true;
+    };
+
+    // Validate dates when fiscal year is selected
+    useEffect(() => {
+        if (selectedFiscalYear) {
+            validateDate(invoiceDate, setInvoiceDateError);
+        }
+    }, [selectedFiscalYear]);
 
     useEffect(() => {
         (async () => {
             try {
-                if (!invoiceDate) return;
-                const dateObj = new Date(invoiceDate);
-                if (isNaN(dateObj.getTime())) return;
+                // Determine year: prefer fiscal year start if available, otherwise use current calendar year
+                const year = selectedFiscalYear
+                    ? new Date(selectedFiscalYear.fiscal_year_from).getFullYear()
+                    : new Date().getFullYear();
 
-                // determine fiscal year label (fallback to calendar year)
-                let yearLabel = String(dateObj.getFullYear());
-                if (Array.isArray(fiscalYears) && fiscalYears.length > 0) {
-                    const matching = fiscalYears.find((fy: any) => {
-                        if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
-                        const from = new Date(fy.fiscal_year_from);
-                        const to = new Date(fy.fiscal_year_to);
-                        if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
-                        return dateObj >= from && dateObj <= to;
-                    });
-
-                    const chosen = matching || [...fiscalYears]
-                        .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
-                        .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
-                        .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
-
-                    if (chosen) {
-                        const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
-                        const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
-                        yearLabel = chosen.fiscal_year || (fromYear === toYear ? String(fromYear) : `${fromYear}-${toYear}`);
-                    }
+                // Determine fiscal year label
+                let yearLabel = String(year);
+                if (selectedFiscalYear) {
+                    const fromYear = new Date(selectedFiscalYear.fiscal_year_from).getFullYear();
+                    const toYear = new Date(selectedFiscalYear.fiscal_year_to).getFullYear();
+                    yearLabel = selectedFiscalYear.fiscal_year || (fromYear === toYear ? String(fromYear) : `${fromYear}-${toYear}`);
                 }
 
                 // compute next sequential number for trans_type 20 within this fiscal year
@@ -173,7 +202,7 @@ export default function SupplierInvoice() {
                 console.warn('Failed to generate supplier invoice reference', err);
             }
         })();
-    }, [invoiceDate, fiscalYears]);
+    }, [selectedFiscalYear]);
 
     // Fetch API
     useEffect(() => {
@@ -711,8 +740,11 @@ export default function SupplierInvoice() {
                                 type="date"
                                 size="small"
                                 value={invoiceDate}
-                                onChange={(e) => setInvoiceDate(e.target.value)}
+                                onChange={(e) => { setInvoiceDate(e.target.value); validateDate(e.target.value, setInvoiceDateError); }}
                                 InputLabelProps={{ shrink: true }}
+                                inputProps={{ min: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_from).toISOString().split('T')[0] : undefined, max: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_to).toISOString().split('T')[0] : undefined, }}
+                                error={!!invoiceDateError}
+                                helperText={invoiceDateError}
                             />
 
                             <TextField
@@ -1072,7 +1104,7 @@ export default function SupplierInvoice() {
                 />
 
                 <Stack direction="row" justifyContent="flex-end" spacing={2} mt={2}>
-                    <Button variant="contained" onClick={handleEnterInvoice}>
+                    <Button variant="contained" onClick={handleEnterInvoice} disabled={!!invoiceDateError}>
                         Enter Invoice
                     </Button>
                 </Stack>

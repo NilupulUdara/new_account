@@ -20,7 +20,8 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import theme from "../../../../theme";
-
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 interface ForeignItemFormData {
   upcCode: string;
   quantity: string;
@@ -37,6 +38,9 @@ export default function UpdateForeignItemCodesForm() {
   });
 
   const [errors, setErrors] = useState<Partial<ForeignItemFormData>>({});
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
@@ -92,22 +96,28 @@ export default function UpdateForeignItemCodesForm() {
 
       const id = itemCodeFromState?.id ?? itemCodeFromState?.code_id ?? null;
       if (!id) {
-        alert("Cannot update: missing item code id.");
+        setErrorMessage("Cannot update: missing item code id.");
+        setErrorOpen(true);
         return;
       }
 
       try {
-  const res = await updateItemCode(id, payload);
-  console.log("Updated item code:", res);
-  // Invalidate so the table refreshes.
-  // Use refetchType: 'all' to ensure inactive queries (the table) are refetched.
-  await queryClient.invalidateQueries({ queryKey: ["item-codes"], exact: false, refetchType: 'all' });
-  alert("Foreign Item Code updated successfully!");
-  setFormData({ upcCode: "", quantity: "", description: "", category: "" });
-  navigate(-1);
+        const res = await updateItemCode(id, payload);
+        console.log("Updated item code:", res);
+        // Invalidate so the table refreshes.
+        // Use refetchType: 'all' to ensure inactive queries (the table) are refetched.
+        await queryClient.invalidateQueries({ queryKey: ["item-codes"], exact: false, refetchType: 'all' });
+        //alert("Foreign Item Code updated successfully!");
+        setOpen(true);
+        setFormData({ upcCode: "", quantity: "", description: "", category: "" });
+       
       } catch (err: any) {
         console.error("Failed to update item code:", err);
-        alert("Failed to update foreign item code");
+       // alert("Failed to update foreign item code");
+        setErrorMessage(
+          err?.response?.data?.message || "Failed to update foreign item code. Please try again."
+        );
+        setErrorOpen(true);
       }
     }
   };
@@ -212,6 +222,18 @@ export default function UpdateForeignItemCodesForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Item code has been updated!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

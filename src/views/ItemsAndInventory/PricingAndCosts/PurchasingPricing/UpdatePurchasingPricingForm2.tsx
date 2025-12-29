@@ -19,7 +19,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import theme from "../../../../theme";
 import { getPurchDataById, updatePurchData } from "../../../../api/PurchasingPricing/PurchasingPricingApi";
 import { getSuppliers } from "../../../../api/Supplier/SupplierApi";
-
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 interface PurchasingPricingFormData {
   supplier_id: number | "";
   price: string;
@@ -52,6 +53,10 @@ export default function UpdatePurchasingPricingForm2() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const [errors, setErrors] = useState<PurchasingPricingErrors>({});
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
@@ -64,6 +69,8 @@ export default function UpdatePurchasingPricingForm2() {
         const suppliersRes = await getSuppliers();
         setSuppliers(suppliersRes);
       } catch (error) {
+        setErrorMessage("Failed to fetch suppliers. Please try again.");
+        setErrorOpen(true);
         console.error("Failed to fetch suppliers", error);
       }
     };
@@ -86,7 +93,8 @@ export default function UpdatePurchasingPricingForm2() {
         });
       } catch (error) {
         console.error("Failed to fetch purchasing pricing data", error);
-        alert("Failed to fetch purchasing pricing data");
+        setErrorMessage("Failed to fetch purchasing pricing data. Please try again.");
+        setErrorOpen(true);
       } finally {
         setLoading(false);
       }
@@ -133,11 +141,15 @@ export default function UpdatePurchasingPricingForm2() {
         conversion_factor: Number(formData.conversion_factor),
         supplier_description: formData.supplier_description,
       });
-      alert("Purchasing Pricing updated successfully!");
-      navigate("/itemsandinventory/pricingandcosts/purchasing-pricing");
+      console.log("Purchasing Pricing Updated:", formData);
+      setOpen(true);
+      //alert("Purchasing Pricing updated successfully!");
+      //navigate("/itemsandinventory/pricingandcosts/purchasing-pricing");
     } catch (error) {
       console.error("API Error:", error);
-      alert("Failed to update Purchasing Pricing");
+      setErrorMessage("Failed to update Purchasing Pricing. Please try again.");
+      setErrorOpen(true);
+      //alert("Failed to update Purchasing Pricing");
     }
   };
 
@@ -253,6 +265,18 @@ export default function UpdatePurchasingPricingForm2() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Supplier purchasing data has been updated!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => navigate("/itemsandinventory/pricingandcosts/purchasing-pricing")}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

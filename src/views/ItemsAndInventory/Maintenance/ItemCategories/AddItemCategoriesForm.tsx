@@ -25,7 +25,8 @@ import { createItemCategory } from "../../../../api/ItemCategories/ItemCategorie
 import { getItemTypes } from "../../../../api/ItemType/ItemType";
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 interface ItemCategoriesFormData {
   categoryName: string;
   itemTaxType: string;
@@ -44,6 +45,9 @@ export default function AddItemCategoriesForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const [formData, setFormData] = useState<ItemCategoriesFormData>({
     categoryName: "",
@@ -189,13 +193,16 @@ export default function AddItemCategoriesForm() {
 
     try {
       const res = await createItemCategory(payload);
-      alert("Item Category added successfully!");
+      // alert("Item Category added successfully!");
+      setOpen(true);
       console.log("Created:", res);
       queryClient.invalidateQueries({ queryKey: ["itemCategories"], exact: false });
-      navigate("/itemsandinventory/maintenance/item-categories");
+      //navigate("/itemsandinventory/maintenance/item-categories");
     } catch (err) {
       console.error("Failed to create item category:", err);
-      alert("Failed to add Item Category.");
+      // alert("Failed to add Item Category.");
+      setErrorMessage("Failed to add Item Category.");
+      setErrorOpen(true);
     }
   };
 
@@ -497,6 +504,19 @@ export default function AddItemCategoriesForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="New item category has been added!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => navigate("/itemsandinventory/maintenance/item-categories")}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

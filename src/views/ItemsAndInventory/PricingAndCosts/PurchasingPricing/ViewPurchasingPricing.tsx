@@ -36,7 +36,8 @@ import { getPurchData, PurchData, deletePurchData } from "../../../../api/Purcha
 import { getSuppliers } from "../../../../api/Supplier/SupplierApi";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
-
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 interface ItemPurchasinPricingProps {
   itemId?: string | number;
 }
@@ -68,6 +69,11 @@ function ViewPurchasingPricing({ itemId }: ItemPurchasinPricingProps) {
   const navigate = useNavigate();
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
 
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedItemForDelete, setSelectedItemForDelete] = useState<{ supplierId: number; stockId: string } | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   // Fetch items for dropdown
   const [items, setItems] = useState<{ stock_id: string | number; category_id: string | number; description: string; inactive: number }[]>([]);
   const [categories, setCategories] = useState<{ category_id: number; description: string }[]>([]);
@@ -81,6 +87,8 @@ function ViewPurchasingPricing({ itemId }: ItemPurchasinPricingProps) {
         const categoriesData = await getItemCategories();
         setCategories(categoriesData);
       } catch (error) {
+        setErrorMessage("Failed to fetch. Please try again.");
+        setErrorOpen(true);
         console.error("Failed to fetch items and categories:", error);
       }
     };
@@ -114,6 +122,8 @@ function ViewPurchasingPricing({ itemId }: ItemPurchasinPricingProps) {
 
         setPurchaseData(dataWithSupplierNames);
       } catch (error) {
+        setErrorMessage("Failed to fetch purchasing pricing data. Please try again.");
+        setErrorOpen(true);
         console.error("Failed to fetch purchasing pricing data:", error);
         setPurchaseData([]);
       } finally {
@@ -150,25 +160,34 @@ function ViewPurchasingPricing({ itemId }: ItemPurchasinPricingProps) {
     setPage(0);
   };
 
-  const handleDelete = async (supplierId: number, stockId: string) => {
-    if (window.confirm("Are you sure you want to delete this entry?")) {
-      try {
-        await deletePurchData(supplierId, stockId);
-        // Refresh data after deletion
-        const updatedData = await getPurchData();
-        let filteredData = [];
-        if (selectedItem) {
-          filteredData = updatedData.filter(item => item.stock_id === selectedItem.toString());
-        }
-        const dataWithSupplierNames = filteredData.map(item => ({
-          ...item,
-          supplier_name: suppliers.find(s => s.supplier_id === item.supplier_id)?.supp_name || 'Unknown Supplier'
-        }));
-        setPurchaseData(dataWithSupplierNames);
-      } catch (error) {
-        console.error("Failed to delete purchasing pricing:", error);
-        alert("Failed to delete the record. Please try again.");
+  const handleDeleteClick = (supplierId: number, stockId: string) => {
+    setSelectedItemForDelete({ supplierId, stockId });
+    setOpenDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedItemForDelete) return;
+    try {
+      await deletePurchData(selectedItemForDelete.supplierId, selectedItemForDelete.stockId);
+      // Refresh data after deletion
+      const updatedData = await getPurchData();
+      let filteredData = [];
+      if (selectedItem) {
+        filteredData = updatedData.filter(item => item.stock_id === selectedItem.toString());
       }
+      const dataWithSupplierNames = filteredData.map(item => ({
+        ...item,
+        supplier_name: suppliers.find(s => s.supplier_id === item.supplier_id)?.supp_name || 'Unknown Supplier'
+      }));
+      setPurchaseData(dataWithSupplierNames);
+      setOpenDeleteModal(false);
+      setSelectedItemForDelete(null);
+    } catch (error) {
+      console.error("Failed to delete purchasing pricing:", error);
+      setErrorMessage("Failed to delete the record. Please try again.");
+      setErrorOpen(true);
+      setOpenDeleteModal(false);
+      setSelectedItemForDelete(null);
     }
   };
 
@@ -338,7 +357,7 @@ function ViewPurchasingPricing({ itemId }: ItemPurchasinPricingProps) {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(item.supplier_id, item.stock_id)}
+                          onClick={() => handleDeleteClick(item.supplier_id, item.stock_id)}
                         >
                           Delete
                         </Button>
@@ -375,6 +394,20 @@ function ViewPurchasingPricing({ itemId }: ItemPurchasinPricingProps) {
           </Table>
         </TableContainer>
       </Stack>
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Purchasing Pricing"
+        content="Are you sure you want to delete this purchasing pricing entry? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setOpenDeleteModal(false)}
+        deleteFunc={handleDeleteConfirm}
+        onSuccess={() => {}}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

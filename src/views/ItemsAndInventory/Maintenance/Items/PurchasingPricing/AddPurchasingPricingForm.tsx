@@ -19,7 +19,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import theme from "../../../../../theme";
 import { getSuppliers } from "../../../../../api/Supplier/SupplierApi";
 import { createPurchData, PurchData } from "../../../../../api/PurchasingPricing/PurchasingPricingApi";
-
+import AddedConfirmationModal from "../../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../../components/ErrorModal";
 interface Supplier {
   supplier_id: number;
   supp_name: string;
@@ -50,6 +51,11 @@ export default function AddPurchasingPricingForm({ itemId }: AddPurchasingPricin
 
   const [errors, setErrors] = useState<Partial<PurchasingPricingFormData>>({});
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const navigate = useNavigate();
@@ -60,6 +66,8 @@ export default function AddPurchasingPricingForm({ itemId }: AddPurchasingPricin
         const suppliersData = await getSuppliers();
         setSuppliers(suppliersData);
       } catch (error) {
+        setErrorMessage("Failed to fetch suppliers. Please try again.");
+        setErrorOpen(true);
         console.error("Failed to fetch suppliers:", error);
       }
     };
@@ -106,7 +114,7 @@ export default function AddPurchasingPricingForm({ itemId }: AddPurchasingPricin
         await createPurchData(purchData);
 
         console.log("Purchasing Pricing Submitted:", purchData);
-        alert("Purchasing Pricing added successfully!");
+        setOpen(true);
 
         // Reset form
         setFormData({
@@ -116,14 +124,10 @@ export default function AddPurchasingPricingForm({ itemId }: AddPurchasingPricin
           conversionFactor: "",
           supplierCode: "",
         });
-
-        // Navigate back to items page with purchasing pricing tab selected
-        navigate("/itemsandinventory/maintenance/items/", {
-          state: { tab: 2, selectedItem: actualItemId }
-        });
       } catch (error) {
         console.error("Failed to save purchasing pricing:", error);
-        alert("Failed to save purchasing pricing. Please try again.");
+        setErrorMessage("Failed to save purchasing pricing. Please try again.");
+        setErrorOpen(true);
       }
     }
   };
@@ -139,7 +143,7 @@ export default function AddPurchasingPricingForm({ itemId }: AddPurchasingPricin
           borderRadius: 2,
         }}
       >
-         <Stack spacing={2}>
+        <Stack spacing={2}>
           {/* Supplier Dropdown */}
           <FormControl size="small" fullWidth error={!!errors.supplier}>
             <InputLabel>Supplier</InputLabel>
@@ -232,6 +236,21 @@ export default function AddPurchasingPricingForm({ itemId }: AddPurchasingPricin
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="This supplier purchasing data has been added!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => navigate("/itemsandinventory/maintenance/items/", {
+          state: { tab: 2, selectedItem: actualItemId }
+        })}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }
