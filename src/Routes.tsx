@@ -307,6 +307,7 @@ import OutstandingWorkOrders from "./views/Manufacturing/Transactions/Outstandin
 import WorkOrderEntrySuccess from "./views/Manufacturing/Transactions/WorkOrderEntry/WorkOrderEntrySuccess";
 import ViewWorkOrderEntry from "./views/Manufacturing/Transactions/WorkOrderEntry/ViewWorkOrderEntry";
 import ViewGLJournalEntry from "./views/Manufacturing/Transactions/WorkOrderEntry/ViewGLJournalEntry";
+import UpdateWorkOrderEntry from "./views/Manufacturing/Transactions/WorkOrderEntry/UpdateWorkOrderEntry";
 import SupplierInvoice from "./views/Purchases/Transactions/SupplierInvoice/SupplierInvoice";
 import SupplierInvoiceSuccess from "./views/Purchases/Transactions/SupplierInvoice/SupplierInvoiceSuccess";
 import ViewSupplierInvoice from "./views/Purchases/Transactions/SupplierInvoice/ViewSupplierInvoice";
@@ -2543,6 +2544,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Work order entry']}>
               {withLayout(MainLayout, ViewGLJournalEntry)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manufacturing/transactions/work-order-entry/update"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Work order entry']}>
+              {withLayout(MainLayout, UpdateWorkOrderEntry)}
             </ProtectedRoute>
           }
         />
