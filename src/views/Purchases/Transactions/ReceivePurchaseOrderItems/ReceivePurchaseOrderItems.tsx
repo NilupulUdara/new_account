@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Box,
   Button,
@@ -20,6 +21,8 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
 import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 
 export default function ReceivePurchaseOrderItems() {
   const navigate = useNavigate();
@@ -35,6 +38,51 @@ export default function ReceivePurchaseOrderItems() {
   const [dateReceived, setDateReceived] = useState(
     new Date().toISOString().split("T")[0]
   );
+
+  const [dateReceivedError, setDateReceivedError] = useState("");
+
+  // Fiscal year queries
+  const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+  const { data: companyData } = useQuery({ queryKey: ["company"], queryFn: getCompanies });
+
+  // Find selected fiscal year from company setup
+  const selectedFiscalYear = useMemo(() => {
+    if (!companyData || companyData.length === 0) return null;
+    const company = companyData[0];
+    return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
+  }, [companyData, fiscalYears]);
+
+  // Validate date is within fiscal year
+  const validateDate = (selectedDate: string, setError: (error: string) => void) => {
+    if (!selectedFiscalYear) {
+      setError("No fiscal year selected from company setup");
+      return false;
+    }
+
+    if (selectedFiscalYear.closed) {
+      setError("The fiscal year is closed for further data entry.");
+      return false;
+    }
+
+    const selected = new Date(selectedDate);
+    const from = new Date(selectedFiscalYear.fiscal_year_from);
+    const to = new Date(selectedFiscalYear.fiscal_year_to);
+
+    if (selected < from || selected > to) {
+      setError("The entered date is out of fiscal year.");
+      return false;
+    }
+
+    setError("");
+    return true;
+  };
+
+  // Validate dates when fiscal year is selected
+  useEffect(() => {
+    if (selectedFiscalYear) {
+      validateDate(dateReceived, setDateReceivedError);
+    }
+  }, [selectedFiscalYear]);
 
   const deliveryLocations = [
     { id: 1, name: "Colombo Main Store" },
@@ -152,9 +200,12 @@ export default function ReceivePurchaseOrderItems() {
                 fullWidth
                 label="Date Items Received"
                 value={dateReceived}
-                onChange={(e) => setDateReceived(e.target.value)}
+                onChange={(e) => { setDateReceived(e.target.value); validateDate(e.target.value, setDateReceivedError); }}
                 size="small"
                 InputLabelProps={{ shrink: true }}
+                inputProps={{ min: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_from).toISOString().split('T')[0] : undefined, max: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_to).toISOString().split('T')[0] : undefined, }}
+                error={!!dateReceivedError}
+                helperText={dateReceivedError}
               />
             </Stack>
           </Grid>
@@ -256,10 +307,10 @@ export default function ReceivePurchaseOrderItems() {
 
       {/* Buttons */}
       <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
-        <Button variant="contained" color="primary" onClick={handleUpdate}>
+        <Button variant="contained" color="primary" onClick={handleUpdate} disabled={!!dateReceivedError}>
           Update
         </Button>
-        <Button variant="contained" color="success" onClick={handleProcessReceive}>
+        <Button variant="contained" color="success" onClick={handleProcessReceive} disabled={!!dateReceivedError}>
           Process Receive Items
         </Button>
       </Box>

@@ -14,7 +14,8 @@ import theme from "../../../../../theme";
 import { getItemById, updateItem } from "../../../../../api/Item/ItemApi";
 import { getItemTypes } from "../../../../../api/ItemType/ItemType";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-
+import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../../components/ErrorModal";
 interface ItemStandardCostProps {
   itemId?: string | number;
 }
@@ -41,6 +42,10 @@ export default function AddStandardCostForm({ itemId }: ItemStandardCostProps) {
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   // Fetch item data
   const { data: itemData, isLoading: itemLoading } = useQuery({
@@ -77,11 +82,12 @@ export default function AddStandardCostForm({ itemId }: ItemStandardCostProps) {
     mutationFn: (payload: any) => updateItem(itemId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["item", itemId] });
-      alert("Standard Cost updated successfully!");
+      setOpen(true);
     },
     onError: (err: any) => {
+      setErrorMessage("Failed to update standard cost");
+      setErrorOpen(true);
       console.error("Failed to update standard cost:", err);
-      alert("Failed to update standard cost");
     },
   });
 
@@ -96,7 +102,7 @@ export default function AddStandardCostForm({ itemId }: ItemStandardCostProps) {
     if (!formData.unitCost) newErrors.unitCost = "Unit Cost is required";
     if (isManufacture && !formData.standardLabourCost) newErrors.standardLabourCost = "Standard Labour Cost is required";
     if (isManufacture && !formData.standardOverheadCost) newErrors.standardOverheadCost = "Standard Overhead Cost is required";
-   
+
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -218,10 +224,22 @@ export default function AddStandardCostForm({ itemId }: ItemStandardCostProps) {
             sx={{ backgroundColor: "var(--pallet-blue)" }}
             onClick={handleSubmit}
           >
-            Add Standard Cost
+            Update Standard Cost
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="Cost has been updated!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => setOpen(false)}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

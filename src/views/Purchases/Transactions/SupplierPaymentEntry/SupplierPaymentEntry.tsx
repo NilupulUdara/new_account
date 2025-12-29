@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Button,
@@ -33,6 +33,7 @@ import { getPurchOrders, getPurchOrderByOrderNo, updatePurchOrder } from "../../
 import { getPurchOrderDetails } from "../../../../api/PurchOrders/PurchOrderDetailsApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { getBankTrans, createBankTrans } from "../../../../api/BankTrans/BankTransApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 
 // NOTE: bank balance logic removed — replace with real API call when available
 
@@ -50,6 +51,8 @@ export default function SupplierPaymentEntry() {
   const [dimension, setDimension] = useState(0);
   const [bankBalance, setBankBalance] = useState(0);
 
+  const [datePaidError, setDatePaidError] = useState("");
+
   const [amountDiscount, setAmountDiscount] = useState(0);
   const [amountPayment, setAmountPayment] = useState(0);
   const [memo, setMemo] = useState("");
@@ -65,37 +68,63 @@ export default function SupplierPaymentEntry() {
   const [purchOrders, setPurchOrders] = useState<any[]>([]);
   const [purchOrderDetails, setPurchOrderDetails] = useState<any[]>([]);
 
+  // Validate date is within fiscal year
+  const validateDate = (selectedDate: string, setError: (error: string) => void) => {
+    if (!selectedFiscalYear) {
+      setError("No fiscal year selected from company setup");
+      return false;
+    }
+
+    if (selectedFiscalYear.closed) {
+      setError("The fiscal year is closed for further data entry.");
+      return false;
+    }
+
+    const selected = new Date(selectedDate);
+    const from = new Date(selectedFiscalYear.fiscal_year_from);
+    const to = new Date(selectedFiscalYear.fiscal_year_to);
+
+    if (selected < from || selected > to) {
+      setError("The entered date is out of fiscal year.");
+      return false;
+    }
+
+    setError("");
+    return true;
+  };
+
   // ================== GENERATE REFERENCE ==================
   const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+  const { data: companyData } = useQuery({ queryKey: ["company"], queryFn: getCompanies });
+
+  // Find selected fiscal year from company setup
+  const selectedFiscalYear = useMemo(() => {
+    if (!companyData || companyData.length === 0) return null;
+    const company = companyData[0];
+    return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
+  }, [companyData, fiscalYears]);
+
+  // Validate dates when fiscal year is selected
+  useEffect(() => {
+    if (selectedFiscalYear) {
+      validateDate(datePaid, setDatePaidError);
+    }
+  }, [selectedFiscalYear]);
 
   useEffect(() => {
     (async () => {
       try {
-        if (!datePaid) return;
-        const dateObj = new Date(datePaid);
-        if (isNaN(dateObj.getTime())) return;
+        // Determine year: prefer fiscal year start if available, otherwise use current calendar year
+        const year = selectedFiscalYear
+          ? new Date(selectedFiscalYear.fiscal_year_from).getFullYear()
+          : new Date().getFullYear();
 
         // Determine fiscal year label
-        let yearLabel = String(dateObj.getFullYear());
-        if (Array.isArray(fiscalYears) && fiscalYears.length > 0) {
-          const matching = fiscalYears.find((fy: any) => {
-            if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
-            const from = new Date(fy.fiscal_year_from);
-            const to = new Date(fy.fiscal_year_to);
-            if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
-            return dateObj >= from && dateObj <= to;
-          });
-
-          const chosen = matching || [...fiscalYears]
-            .filter((fy: any) => fy.fiscal_year_from && !isNaN(new Date(fy.fiscal_year_from).getTime()))
-            .sort((a: any, b: any) => new Date(b.fiscal_year_from).getTime() - new Date(a.fiscal_year_from).getTime())
-            .find((fy: any) => new Date(fy.fiscal_year_from) <= dateObj) || fiscalYears[0];
-
-          if (chosen) {
-            const fromYear = chosen.fiscal_year_from ? new Date(chosen.fiscal_year_from).getFullYear() : dateObj.getFullYear();
-            const toYear = chosen.fiscal_year_to ? new Date(chosen.fiscal_year_to).getFullYear() : fromYear;
-            yearLabel = chosen.fiscal_year || (fromYear === toYear ? String(fromYear) : `${fromYear}-${toYear}`);
-          }
+        let yearLabel = String(year);
+        if (selectedFiscalYear) {
+          const fromYear = new Date(selectedFiscalYear.fiscal_year_from).getFullYear();
+          const toYear = new Date(selectedFiscalYear.fiscal_year_to).getFullYear();
+          yearLabel = selectedFiscalYear.fiscal_year || (fromYear === toYear ? String(fromYear) : `${fromYear}-${toYear}`);
         }
 
         // find next supp_trans reference number for trans_type 22
@@ -132,7 +161,7 @@ export default function SupplierPaymentEntry() {
         console.warn('Failed to generate payment reference', err);
       }
     })();
-  }, [datePaid, fiscalYears]);
+  }, [selectedFiscalYear]);
 
   // helper to normalize date strings to YYYY-MM-DD (top-level for reuse)
   const formatDate = (val: any) => {
@@ -697,8 +726,11 @@ export default function SupplierPaymentEntry() {
                 fullWidth
                 size="small"
                 value={datePaid}
-                onChange={(e) => setDatePaid(e.target.value)}
+                onChange={(e) => { setDatePaid(e.target.value); validateDate(e.target.value, setDatePaidError); }}
                 InputLabelProps={{ shrink: true }}
+                inputProps={{ min: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_from).toISOString().split('T')[0] : undefined, max: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_to).toISOString().split('T')[0] : undefined, }}
+                error={!!datePaidError}
+                helperText={datePaidError}
               />
 
               <TextField
@@ -860,7 +892,7 @@ export default function SupplierPaymentEntry() {
             Cancel
           </Button>
 
-          <Button variant="contained" color="primary" onClick={handleSubmit}>
+          <Button variant="contained" color="primary" onClick={handleSubmit} disabled={!!datePaidError}>
             Enter Payment
           </Button>
         </Box>

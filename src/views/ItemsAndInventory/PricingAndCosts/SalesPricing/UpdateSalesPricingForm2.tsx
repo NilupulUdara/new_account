@@ -20,7 +20,8 @@ import theme from "../../../../theme";
 import { getCurrencies } from "../../../../api/Currency/currencyApi";
 import { getSalesTypes } from "../../../../api/SalesMaintenance/salesService";
 import { getSalesPricingById, updateSalesPricing, getSalesPricingByStockId } from "../../../../api/SalesPricing/SalesPricingApi";
-
+import UpdateConfirmationModal from "../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../components/ErrorModal";
 interface SalesPricingFormData {
   currency_id: number | "";
   sales_type_id: number | "";
@@ -46,6 +47,10 @@ export default function UpdateSalesPricingForm2() {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [salesTypes, setSalesTypes] = useState<SalesType[]>([]);
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const navigate = useNavigate();
@@ -58,6 +63,8 @@ export default function UpdateSalesPricingForm2() {
         setCurrencies(currenciesRes.map(c => ({ id: c.id!, currency_abbreviation: c.currency_abbreviation! })));
         setSalesTypes(salesTypesRes.map(s => ({ id: s.id!, typeName: s.typeName! })));
       } catch (error) {
+        setErrorMessage("Failed to fetch currencies or sales types. Please try again.");
+        setErrorOpen(true);
         console.error("Failed to fetch currencies or sales types", error);
       }
     };
@@ -78,7 +85,8 @@ export default function UpdateSalesPricingForm2() {
         setStockId(pricingRes.stock_id || "");
       } catch (error) {
         console.error("Failed to fetch data", error);
-        alert("Failed to fetch sales pricing data");
+        setErrorMessage("Failed to fetch sales pricing data. Please try again.");
+        setErrorOpen(true);
       }
     };
     fetchData();
@@ -114,14 +122,14 @@ export default function UpdateSalesPricingForm2() {
   };
 
   const validate = () => {
-  const newErrors: { currency_id?: string; sales_type_id?: string; price?: string } = {};
-  if (!formData.currency_id) newErrors.currency_id = "Currency is required";
-  if (!formData.sales_type_id) newErrors.sales_type_id = "Sales Type is required";
-  if (!formData.price) newErrors.price = "Price is required";
+    const newErrors: { currency_id?: string; sales_type_id?: string; price?: string } = {};
+    if (!formData.currency_id) newErrors.currency_id = "Currency is required";
+    if (!formData.sales_type_id) newErrors.sales_type_id = "Sales Type is required";
+    if (!formData.price) newErrors.price = "Price is required";
 
-  setErrors(newErrors);
-  return Object.keys(newErrors).length === 0;
-};
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
 
   const handleSubmit = async () => {
@@ -134,11 +142,14 @@ export default function UpdateSalesPricingForm2() {
         sales_type_id: formData.sales_type_id,
         price: Number(formData.price),
       });
-      alert("Sales Pricing updated successfully!");
-      navigate("/itemsandinventory/pricingandcosts/sales-pricing/");
+      //alert("Sales Pricing updated successfully!");
+      setOpen(true);
+      //navigate("/itemsandinventory/pricingandcosts/sales-pricing/");
     } catch (error) {
       console.error("API Error:", error);
-      alert("Failed to update Sales Pricing");
+      //alert("Failed to update Sales Pricing");
+      setErrorMessage("Failed to update Sales Pricing. Please try again.");
+      setErrorOpen(true);
     }
   };
 
@@ -202,6 +213,18 @@ export default function UpdateSalesPricingForm2() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="This price has been updated!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() =>  navigate("/itemsandinventory/pricingandcosts/sales-pricing/")}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

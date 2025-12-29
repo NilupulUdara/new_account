@@ -21,12 +21,18 @@ import {
   ListSubheader,
 } from "@mui/material";
 import theme from "../../../../theme";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function AddSalesKitComponentPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   // state passed from table: { item_code, componentRow? }
   const state = (location.state as any) ?? {};
@@ -180,6 +186,19 @@ export default function AddSalesKitComponentPage() {
           </Box>
         </Stack>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="New alias code has been created successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

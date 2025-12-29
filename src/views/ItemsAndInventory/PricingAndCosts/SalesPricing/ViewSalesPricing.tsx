@@ -34,7 +34,8 @@ import SearchBar from "../../../../components/SearchBar";
 import { getSalesPricing, deleteSalesPricing } from "../../../../api/SalesPricing/SalesPricingApi";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
-
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 interface ItemSalesPricingProps {
     itemId?: string | number;
 }
@@ -56,6 +57,11 @@ function ViewSalesPricing({ itemId }: ItemSalesPricingProps) {
     const [showInactive, setShowInactive] = useState(false);
     const navigate = useNavigate();
     const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
+
+    const [openDeleteModal, setOpenDeleteModal] = useState(false);
+    const [selectedId, setSelectedId] = useState<number | string | null>(null);
+    const [errorOpen, setErrorOpen] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
 
     // Fetch items for dropdown
     const [items, setItems] = useState<{ stock_id: string | number; category_id: string | number; description: string; inactive: number }[]>([]);
@@ -117,15 +123,24 @@ function ViewSalesPricing({ itemId }: ItemSalesPricingProps) {
         setPage(0);
     };
 
-    const handleDelete = async (id: number) => {
-        if (window.confirm("Are you sure you want to delete this entry?")) {
-            try {
-                await deleteSalesPricing(id);
-                setSalesData((prev) => prev.filter((item) => item.id !== id));
-            } catch (error) {
-                console.error("Failed to delete sales pricing:", error);
-                alert("Failed to delete. Please try again.");
-            }
+    const handleDeleteClick = (id: number) => {
+        setSelectedId(id);
+        setOpenDeleteModal(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!selectedId) return;
+        try {
+            await deleteSalesPricing(selectedId);
+            setSalesData((prev) => prev.filter((item) => item.id !== selectedId));
+            setOpenDeleteModal(false);
+            setSelectedId(null);
+        } catch (error) {
+            console.error("Failed to delete sales pricing:", error);
+            setErrorMessage("Failed to delete. Please try again.");
+            setErrorOpen(true);
+            setOpenDeleteModal(false);
+            setSelectedId(null);
         }
     };
 
@@ -239,7 +254,7 @@ function ViewSalesPricing({ itemId }: ItemSalesPricingProps) {
                                                 <Button variant="contained" size="small" startIcon={<EditIcon />} onClick={() => navigate(`/itemsandinventory/pricingandcosts/update-sales-pricing/${item.id}`)}>
                                                     Edit
                                                 </Button>
-                                                <Button variant="outlined" size="small" color="error" startIcon={<DeleteIcon />} onClick={() => handleDelete(item.id)}>
+                                                <Button variant="outlined" size="small" color="error" startIcon={<DeleteIcon />} onClick={() => handleDeleteClick(item.id)}>
                                                     Delete
                                                 </Button>
                                             </Stack>
@@ -273,6 +288,21 @@ function ViewSalesPricing({ itemId }: ItemSalesPricingProps) {
                     </Table>
                 </TableContainer>
             </Stack>
+            <DeleteConfirmationModal
+                open={openDeleteModal}
+                title="Delete Sales Pricing"
+                content="Are you sure you want to delete this sales pricing entry? This action cannot be undone."
+                handleClose={() => setOpenDeleteModal(false)}
+                handleReject={() => setOpenDeleteModal(false)}
+                deleteFunc={handleDeleteConfirm}
+                onSuccess={() => { }}
+            />
+
+            <ErrorModal
+                open={errorOpen}
+                onClose={() => setErrorOpen(false)}
+                message={errorMessage}
+            />
         </Stack>
     );
 }

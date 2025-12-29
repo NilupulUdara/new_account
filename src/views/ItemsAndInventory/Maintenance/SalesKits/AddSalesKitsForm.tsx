@@ -41,7 +41,9 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import theme from "../../../../theme";
-
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
+import DeleteConfirmationModal from "../../../../components/DeleteConfirmationModal";
 interface SalesKitFormData {
   selectedKit: string; // existing kit or "new"
   kitCode: string;
@@ -53,20 +55,20 @@ interface SalesKitFormData {
 }
 
 // Mock existing sales kits for dropdown
-const mockSalesKits = [
-  { name: "Starter Kit", code: "KIT001" },
-  { name: "Pro Kit", code: "KIT002" },
-  { name: "Advanced Kit", code: "KIT003" },
-];
+// const mockSalesKits = [
+//   { name: "Starter Kit", code: "KIT001" },
+//   { name: "Pro Kit", code: "KIT002" },
+//   { name: "Advanced Kit", code: "KIT003" },
+// ];
 
 // Mock items for Component dropdown
-const mockItems = [
-  { name: "Laptop", code: "ITM001" },
-  { name: "Toy Car", code: "ITM002" },
-  { name: "Notebook", code: "ITM003" },
-  { name: "Shirt", code: "ITM004" },
-  { name: "Food Pack", code: "ITM005" },
-];
+// const mockItems = [
+//   { name: "Laptop", code: "ITM001" },
+//   { name: "Toy Car", code: "ITM002" },
+//   { name: "Notebook", code: "ITM003" },
+//   { name: "Shirt", code: "ITM004" },
+//   { name: "Food Pack", code: "ITM005" },
+// ];
 
 export default function AddSalesKitsForm() {
   const [formData, setFormData] = useState<SalesKitFormData>({
@@ -79,6 +81,10 @@ export default function AddSalesKitsForm() {
     quantity: "",
   });
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const [errors, setErrors] = useState<Partial<SalesKitFormData>>({});
   const [selectedKitCode, setSelectedKitCode] = useState<string>("");
   const [page, setPage] = useState(0);
@@ -88,6 +94,9 @@ export default function AddSalesKitsForm() {
   const [addErrors, setAddErrors] = useState<Partial<typeof addComponentData>>({});
   const [editQuantityDialog, setEditQuantityDialog] = useState(false);
   const [editQuantityData, setEditQuantityData] = useState<{ id: string; quantity: string }>({ id: "", quantity: "" });
+
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
@@ -113,8 +122,8 @@ export default function AddSalesKitsForm() {
       // Clear navigation state so it doesn't reapply on future navigations
       navigate(location.pathname + location.search, { replace: true, state: {} });
     }
-  // We only want to run this when route location changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // We only want to run this when route location changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.key]);
 
   // Allow stock_id to be passed via location.state or query param
@@ -281,10 +290,13 @@ export default function AddSalesKitsForm() {
         });
       }
       queryClient.invalidateQueries({ queryKey: ["item-codes"] });
-      alert("Kit updated successfully");
+      // alert("Kit updated successfully");
+      setOpen(true);
     } catch (error) {
       console.error("Error updating kit:", error);
-      alert("Error updating kit");
+      //alert("Error updating kit");
+      setErrorMessage("Error updating kit");
+      setErrorOpen(true);
     }
   };
 
@@ -383,15 +395,24 @@ export default function AddSalesKitsForm() {
   };
 
   // Delete component
-  const handleDeleteComponent = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this component?")) return;
+  const handleDeleteClick = (id: string) => {
+    setSelectedId(Number(id));
+    setOpenDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedId) return;
     try {
-      await (await import("../../../../api/ItemCodes/ItemCodesApi")).deleteItemCode(id);
+      await (await import("../../../../api/ItemCodes/ItemCodesApi")).deleteItemCode(String(selectedId));
       queryClient.invalidateQueries({ queryKey: ["item-codes"] });
-      alert("Component deleted successfully");
+      setOpenDeleteModal(false);
+      setSelectedId(null);
     } catch (error) {
       console.error("Error deleting component:", error);
-      alert("Error deleting component");
+      setErrorMessage("Error deleting component");
+      setErrorOpen(true);
+      setOpenDeleteModal(false);
+      setSelectedId(null);
     }
   };
 
@@ -412,7 +433,8 @@ export default function AddSalesKitsForm() {
         console.log("Created sales kit:", res);
         // Invalidate item-codes so the table refreshes
         await queryClient.invalidateQueries({ queryKey: ["item-codes"], exact: false, refetchType: 'all' });
-        alert("Sales Kit added successfully!");
+        //alert("Sales Kit added successfully!");
+        setOpen(true);
         setFormData({
           selectedKit: "new",
           kitCode: "",
@@ -423,10 +445,12 @@ export default function AddSalesKitsForm() {
           quantity: "",
         });
         // go back to table
-        navigate(-1);
+        //     navigate(-1);
       } catch (err: any) {
         console.error("Failed to create sales kit:", err);
-        alert("Failed to add sales kit");
+        //alert("Failed to add sales kit");
+        setErrorMessage("Failed to add sales kit");
+        setErrorOpen(true);
       }
     }
   };
@@ -715,17 +739,17 @@ export default function AddSalesKitsForm() {
         {/* If an existing kit is selected, show components table and add-component form */}
         {formData.selectedKit !== "new" && selectedKitCode && (
           <Box sx={{ width: "100%", mt: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 1, mr: 2 }}>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  size="small"
-                  onClick={() => navigate('/itemsandinventory/maintenance/add-saleskit-component', { state: { item_code: selectedKitCode, kitDescription: formData.description, kitCategoryId: formData.category } })}
-                  sx={{ height: 36 }}
-                >
-                  Add Component
-                </Button>
-              </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 1, mr: 2 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                onClick={() => navigate('/itemsandinventory/maintenance/add-saleskit-component', { state: { item_code: selectedKitCode, kitDescription: formData.description, kitCategoryId: formData.category } })}
+                sx={{ height: 36 }}
+              >
+                Add Component
+              </Button>
+            </Box>
 
             <TableContainer component={Paper} elevation={2} sx={{ overflowX: "auto", width: "100%", maxWidth: "100%" }}>
               <Table aria-label="kit components table">
@@ -750,25 +774,25 @@ export default function AddSalesKitsForm() {
                           <TableCell>{component.stock_id}</TableCell>
                           <TableCell>{correspondingItem?.description || component.description}</TableCell>
                           <TableCell>{component.quantity}</TableCell>
-                              <TableCell>
-                                {
-                                  // Prefer the unit defined on the item (item.units) mapped via itemUnits lookup
-                                  (() => {
-                                    const item = correspondingItem;
-                                    if (item) {
-                                      const unitId = item.units ?? item.unit ?? item.unit_id;
-                                      if (unitId && itemUnits && itemUnits.length > 0) {
-                                        const u = itemUnits.find((uu: any) => String(uu.id) === String(unitId));
-                                        if (u) return u.description ?? u.name ?? u.abbr ?? String(unitId);
-                                      }
-                                      // Fallbacks: check for unit-ish fields on item
-                                      return item.unit_name ?? item.unit ?? item.units ?? "each";
-                                    }
-                                    // lastly try component row's unit fields
-                                    return component.unit ?? component.units ?? "each";
-                                  })()
+                          <TableCell>
+                            {
+                              // Prefer the unit defined on the item (item.units) mapped via itemUnits lookup
+                              (() => {
+                                const item = correspondingItem;
+                                if (item) {
+                                  const unitId = item.units ?? item.unit ?? item.unit_id;
+                                  if (unitId && itemUnits && itemUnits.length > 0) {
+                                    const u = itemUnits.find((uu: any) => String(uu.id) === String(unitId));
+                                    if (u) return u.description ?? u.name ?? u.abbr ?? String(unitId);
+                                  }
+                                  // Fallbacks: check for unit-ish fields on item
+                                  return item.unit_name ?? item.unit ?? item.units ?? "each";
                                 }
-                              </TableCell>
+                                // lastly try component row's unit fields
+                                return component.unit ?? component.units ?? "each";
+                              })()
+                            }
+                          </TableCell>
                           <TableCell align="center">
                             <Stack direction="row" spacing={1} justifyContent="center">
                               <Button
@@ -784,7 +808,7 @@ export default function AddSalesKitsForm() {
                                 size="small"
                                 color="error"
                                 startIcon={<DeleteIcon />}
-                                onClick={() => handleDeleteComponent(component.id)}
+                                onClick={() => handleDeleteClick(component.id)}
                               >
                                 Delete
                               </Button>
@@ -824,6 +848,28 @@ export default function AddSalesKitsForm() {
           </Box>
         )}
       </Stack>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="New alias code has been created successfully!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Sales Kit Component"
+        content="Are you sure you want to delete this sales kit component? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setOpenDeleteModal(false)}
+        deleteFunc={handleDeleteConfirm}
+        onSuccess={() => {}}
+      />
     </Stack>
   );
 }

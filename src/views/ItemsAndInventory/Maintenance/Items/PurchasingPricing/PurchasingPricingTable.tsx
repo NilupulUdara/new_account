@@ -27,7 +27,8 @@ import PageTitle from "../../../../../components/PageTitle";
 import SearchBar from "../../../../../components/SearchBar";
 import { getPurchData, PurchData, deletePurchData } from "../../../../../api/PurchasingPricing/PurchasingPricingApi";
 import { getSuppliers } from "../../../../../api/Supplier/SupplierApi";
-
+import DeleteConfirmationModal from "../../../../../components/DeleteConfirmationModal";
+import ErrorModal from "../../../../../components/ErrorModal";
 interface ItemPurchasinPricingProps {
   itemId?: string | number;
 }
@@ -56,6 +57,11 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
+
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<{ supplierId: number; stockId: string } | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   // Fetch data from backend
   useEffect(() => {
@@ -120,25 +126,34 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
     setPage(0);
   };
 
-  const handleDelete = async (supplierId: number, stockId: string) => {
-    if (window.confirm("Are you sure you want to delete this entry?")) {
-      try {
-        await deletePurchData(supplierId, stockId);
-        // Refresh data after deletion
-        const updatedData = await getPurchData();
-        let filteredData = updatedData;
-        if (itemId) {
-          filteredData = updatedData.filter(item => item.stock_id === itemId.toString());
-        }
-        const dataWithSupplierNames = filteredData.map(item => ({
-          ...item,
-          supplier_name: suppliers.find(s => s.supplier_id === item.supplier_id)?.supp_name || 'Unknown Supplier'
-        }));
-        setPurchaseData(dataWithSupplierNames);
-      } catch (error) {
-        console.error("Failed to delete purchasing pricing:", error);
-        alert("Failed to delete the record. Please try again.");
+  const handleDeleteClick = (supplierId: number, stockId: string) => {
+    setSelectedItem({ supplierId, stockId });
+    setOpenDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedItem) return;
+    try {
+      await deletePurchData(selectedItem.supplierId, selectedItem.stockId);
+      // Refresh data after deletion
+      const updatedData = await getPurchData();
+      let filteredData = updatedData;
+      if (itemId) {
+        filteredData = updatedData.filter(item => item.stock_id === itemId.toString());
       }
+      const dataWithSupplierNames = filteredData.map(item => ({
+        ...item,
+        supplier_name: suppliers.find(s => s.supplier_id === item.supplier_id)?.supp_name || 'Unknown Supplier'
+      }));
+      setPurchaseData(dataWithSupplierNames);
+      setOpenDeleteModal(false);
+      setSelectedItem(null);
+    } catch (error) {
+      console.error("Failed to delete purchasing pricing:", error);
+      setErrorMessage("Failed to delete the record. Please try again.");
+      setErrorOpen(true);
+      setOpenDeleteModal(false);
+      setSelectedItem(null);
     }
   };
 
@@ -250,7 +265,7 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
                           size="small"
                           color="error"
                           startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(item.supplier_id, item.stock_id)}
+                          onClick={() => handleDeleteClick(item.supplier_id, item.stock_id)}
                         >
                           Delete
                         </Button>
@@ -285,6 +300,20 @@ function PurchasingPricingTable({ itemId }: ItemPurchasinPricingProps) {
           </Table>
         </TableContainer>
       </Stack>
+      <DeleteConfirmationModal
+        open={openDeleteModal}
+        title="Delete Purchasing Pricing"
+        content="Are you sure you want to delete this purchasing pricing entry? This action cannot be undone."
+        handleClose={() => setOpenDeleteModal(false)}
+        handleReject={() => setOpenDeleteModal(false)}
+        deleteFunc={handleDeleteConfirm}
+        onSuccess={() => { }}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

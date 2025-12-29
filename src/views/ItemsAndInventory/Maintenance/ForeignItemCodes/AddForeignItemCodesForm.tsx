@@ -20,7 +20,8 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import theme from "../../../../theme";
-
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 interface ForeignItemFormData {
   upcCode: string;
   quantity: string;
@@ -37,6 +38,10 @@ export default function AddForeignItemCodesForm() {
   });
 
   const [errors, setErrors] = useState<Partial<ForeignItemFormData>>({});
+
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
@@ -88,18 +93,20 @@ export default function AddForeignItemCodesForm() {
       };
 
       try {
-  const res = await createItemCode(payload);
-  console.log("Created item code:", res);
-  // Invalidate item-codes so the table refreshes without a manual reload.
-  // Use refetchType: 'all' because the table query may be inactive while we're on the Add page.
-  await queryClient.invalidateQueries({ queryKey: ["item-codes"], exact: false, refetchType: 'all' });
-  alert("Foreign Item Code added successfully!");
-  setFormData({ upcCode: "", quantity: "", description: "", category: "" });
-  // go back to table
-  navigate(-1);
+        const res = await createItemCode(payload);
+        console.log("Created item code:", res);
+        // Invalidate item-codes so the table refreshes without a manual reload.
+        // Use refetchType: 'all' because the table query may be inactive while we're on the Add page.
+        await queryClient.invalidateQueries({ queryKey: ["item-codes"], exact: false, refetchType: 'all' });
+        //alert("Foreign Item Code added successfully!");
+        setOpen(true);
+        setFormData({ upcCode: "", quantity: "", description: "", category: "" });
+        // go back to table
       } catch (err: any) {
         console.error("Failed to create item code:", err);
-        alert("Failed to add foreign item code");
+       // alert("Failed to add foreign item code");
+        setErrorMessage(err?.response?.data?.message || "Failed to add foreign item code");
+        setErrorOpen(true);
       }
     }
   };
@@ -209,6 +216,19 @@ export default function AddForeignItemCodesForm() {
           </Button>
         </Box>
       </Paper>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="New item code has been added!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

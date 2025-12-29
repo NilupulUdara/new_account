@@ -36,6 +36,8 @@ import useCurrentUser from "../../../../hooks/useCurrentUser";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
+import ErrorModal from "../../../../components/ErrorModal";
 
 export default function AddInventoryLocationTransfers() {
   const navigate = useNavigate();
@@ -195,6 +197,11 @@ export default function AddInventoryLocationTransfers() {
   const [processError, setProcessError] = useState("");
   const [processSuccess, setProcessSuccess] = useState(false);
 
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [payload, setPayload] = useState<any>(null);
+
   // Update QOH when from location changes
   useEffect(() => {
     if (fromLocation) {
@@ -321,8 +328,6 @@ export default function AddInventoryLocationTransfers() {
         });
       }
 
-      setProcessSuccess(true);
-
       // Create audit trail entry for this transfer
       try {
         await createAuditTrail({
@@ -353,7 +358,7 @@ export default function AddInventoryLocationTransfers() {
       }
 
       // Build payload to pass to success/view pages
-      const payload = {
+      const transferPayload = {
         reference,
         date,
         fromLocation,
@@ -368,12 +373,10 @@ export default function AddInventoryLocationTransfers() {
             selectedItemId: r.selectedItemId,
           })),
       };
+      setPayload(transferPayload);
 
-      // Navigate to a transfer success page
-      navigate(
-        "/itemsandinventory/transactions/inventory-location-transfer/success",
-        { state: payload }
-      );
+      setProcessSuccess(true);
+      setOpen(true);
     } catch (error: any) {
       console.error("Error processing transfer:", error);
       setProcessError(error.response?.data?.message || "Error processing transfer. Please try again.");
@@ -708,6 +711,19 @@ export default function AddInventoryLocationTransfers() {
           {isProcessing ? "Processing..." : "Process Transfer"}
         </Button>
       </Box>
+      <AddedConfirmationModal
+        open={open}
+        title="Success"
+        content="Inventory location transfer has been processed!"
+        addFunc={async () => { }}
+        handleClose={() => setOpen(false)}
+        onSuccess={() => navigate("/itemsandinventory/transactions/inventory-location-transfer/success", { state: payload })}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }

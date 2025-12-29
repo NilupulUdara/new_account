@@ -20,7 +20,8 @@ import theme from "../../../../../theme";
 import { getCurrencies } from "../../../../../api/Currency/currencyApi";
 import { getSalesTypes } from "../../../../../api/SalesMaintenance/salesService";
 import { getSalesPricingById, updateSalesPricing, getSalesPricingByStockId } from "../../../../../api/SalesPricing/SalesPricingApi";
-
+import UpdateConfirmationModal from "../../../../../components/UpdateConfirmationModal"
+import ErrorModal from "../../../../../components/ErrorModal";
 interface SalesPricingFormData {
   currency_id: number | "";
   sales_type_id: number | "";
@@ -32,6 +33,10 @@ interface SalesType { id: number; typeName: string; }
 
 export default function UpdateSalesPricingForm() {
   const { id } = useParams<{ id: string }>();
+  const [open, setOpen] = useState(false);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   const [formData, setFormData] = useState<SalesPricingFormData>({
     currency_id: "",
     sales_type_id: "",
@@ -58,6 +63,8 @@ export default function UpdateSalesPricingForm() {
         setCurrencies(currenciesRes.map(c => ({ id: c.id!, currency_abbreviation: c.currency_abbreviation! })));
         setSalesTypes(salesTypesRes.map(s => ({ id: s.id!, typeName: s.typeName! })));
       } catch (error) {
+        setErrorMessage("Failed to fetch currencies or sales types. Please try again.");
+        setErrorOpen(true);
         console.error("Failed to fetch currencies or sales types", error);
       }
     };
@@ -78,7 +85,8 @@ export default function UpdateSalesPricingForm() {
         setStockId(pricingRes.stock_id || "");
       } catch (error) {
         console.error("Failed to fetch data", error);
-        alert("Failed to fetch sales pricing data");
+        setErrorMessage("Failed to fetch sales pricing data. Please try again.");
+        setErrorOpen(true); 
       }
     };
     fetchData();
@@ -108,20 +116,21 @@ export default function UpdateSalesPricingForm() {
           setFormData(prev => ({ ...prev, price: existingPricing.price.toString() }));
         }
       } catch (error) {
-        console.error("Failed to fetch existing pricings", error);
+        setErrorMessage("Failed to fetch existing pricings. Please try again.");
+        setErrorOpen(true);
       }
     }
   };
 
   const validate = () => {
-  const newErrors: { currency_id?: string; sales_type_id?: string; price?: string } = {};
-  if (!formData.currency_id) newErrors.currency_id = "Currency is required";
-  if (!formData.sales_type_id) newErrors.sales_type_id = "Sales Type is required";
-  if (!formData.price) newErrors.price = "Price is required";
+    const newErrors: { currency_id?: string; sales_type_id?: string; price?: string } = {};
+    if (!formData.currency_id) newErrors.currency_id = "Currency is required";
+    if (!formData.sales_type_id) newErrors.sales_type_id = "Sales Type is required";
+    if (!formData.price) newErrors.price = "Price is required";
 
-  setErrors(newErrors);
-  return Object.keys(newErrors).length === 0;
-};
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
 
   const handleSubmit = async () => {
@@ -134,11 +143,12 @@ export default function UpdateSalesPricingForm() {
         sales_type_id: formData.sales_type_id,
         price: Number(formData.price),
       });
-      alert("Sales Pricing updated successfully!");
-      navigate("/itemsandinventory/maintenance/items/");
+      setOpen(true);
+    //  navigate("/itemsandinventory/maintenance/items/");
     } catch (error) {
       console.error("API Error:", error);
-      alert("Failed to update Sales Pricing");
+      setErrorMessage("Failed to update Sales Pricing. Please try again.");
+      setErrorOpen(true);
     }
   };
 
@@ -202,6 +212,18 @@ export default function UpdateSalesPricingForm() {
           </Button>
         </Box>
       </Paper>
+      <UpdateConfirmationModal
+        open={open}
+        title="Success"
+        content="This price has been updated!"
+        handleClose={() => setOpen(false)}
+        onSuccess={() => window.history.back()}
+      />
+      <ErrorModal
+        open={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        message={errorMessage}
+      />
     </Stack>
   );
 }
