@@ -18,7 +18,7 @@ import {
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
@@ -33,6 +33,9 @@ import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemTaxTypes } from "../../../../api/ItemTaxType/ItemTaxTypeApi.tsx";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
+import { updateDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { updateDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
+import { getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
 
 export default function UpdateCustomerInvoice() {
   const navigate = useNavigate();
@@ -54,8 +57,12 @@ export default function UpdateCustomerInvoice() {
   const [shippingCost, setShippingCost] = useState(0);
   const [dateError, setDateError] = useState("");
 
+  const isUpdate = !!trans_no;
+  const [currentVersion, setCurrentVersion] = useState(0);
+
   // === Table Data ===
   const [rows, setRows] = useState<any[]>([]);
+  const [originalInvoice, setOriginalInvoice] = useState<any>(null);
 
   // === API Queries ===
   const { data: paymentTerms = [] } = useQuery({ queryKey: ["paymentTerms"], queryFn: getPaymentTerms });
@@ -75,6 +82,25 @@ export default function UpdateCustomerInvoice() {
     queryKey: ["company"],
     queryFn: getCompanies,
   });
+  const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
+
+  const queryClient = useQueryClient();
+
+  // Mutations
+  const updateDebtorTranMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string | number; data: any }) => updateDebtorTran(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["debtorTrans"] });
+      queryClient.invalidateQueries({ queryKey: ["debtorTransDetails"] });
+    },
+  });
+
+  const updateDebtorTransDetailMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string | number; data: any }) => updateDebtorTransDetail(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["debtorTransDetails"] });
+    },
+  });
 
   // Find selected fiscal year from company setup
   const selectedFiscalYear = useMemo(() => {
@@ -82,6 +108,19 @@ export default function UpdateCustomerInvoice() {
     const company = companyData[0];
     return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
   }, [companyData, fiscalYears]);
+
+  // Find selected payment term
+  const selectedPaymentTerm = useMemo(() => {
+    return paymentTerms.find((pt: any) => String(pt.terms_indicator) === String(originalInvoice?.payment_terms));
+  }, [originalInvoice?.payment_terms, paymentTerms]);
+
+  const selectedPaymentType = useMemo(() => {
+    const pt = selectedPaymentTerm?.payment_type;
+    if (pt == null) return null;
+    if (typeof pt === "number") return pt;
+    // try common id fields when payment_type is an object
+    return pt.id ?? pt.payment_type ?? null;
+  }, [selectedPaymentTerm]);
 
   // Validate date is within fiscal year
   const validateDate = (selectedDate: string) => {
@@ -126,8 +165,95 @@ export default function UpdateCustomerInvoice() {
   const invoiceTotal = subTotal + shippingCost;
 
   // === Actions ===
-  const handleUpdate = () => alert("Invoice updated!");
-  const handleProcessInvoice = () => alert("Invoice processed successfully!");
+  const handleUpdate = async () => {
+    if (!originalInvoice) {
+      alert("No invoice data found");
+      return;
+    }
+
+    try {
+      // Prepare main transaction update data
+      const updateData = {
+        payment_terms: paymentTerm,
+        ship_via: shippingCompany,
+        tran_date: date,
+        due_date: dueDate,
+        ov_freight: shippingCost,
+      };
+
+      console.log("Updating debtor transaction:", originalInvoice.trans_no, updateData);
+
+      // Update main transaction
+      await updateDebtorTranMutation.mutateAsync({
+        id: originalInvoice.id,
+        data: updateData,
+      });
+
+      console.log("Debtor transaction updated successfully");
+
+      // Update details if quantities changed
+      for (const row of rows) {
+        const originalDetail = debtorTransDetails.find((d: any) => d.id === row.src_id);
+        if (originalDetail && Number(originalDetail.quantity) !== Number(row.thisInvoice)) {
+          const detailUpdateData = {
+            quantity: row.thisInvoice,
+            // Recalculate total if needed, but probably handled on backend
+          };
+          console.log("Updating detail:", row.src_id, detailUpdateData);
+          await updateDebtorTransDetailMutation.mutateAsync({
+            id: row.src_id,
+            data: detailUpdateData,
+          });
+          console.log("Detail updated successfully");
+        }
+      }
+
+      alert("Invoice updated successfully!");
+      navigate("/sales/inquiriesandreports/customer-transaction-inquiry/success", { state: { trans_no, reference, date } });
+    } catch (error) {
+      console.error("Error updating invoice:", error);
+      alert("Failed to update invoice. Please try again.");
+    }
+  };
+  const handleProcessInvoice = async () => {
+    if (!originalInvoice) {
+      alert("No invoice data found");
+      return;
+    }
+
+    try {
+      // Prepare processing update data
+      // In accounting systems, processing typically involves:
+      // - Setting allocation amount
+      // - Updating status or posted flag
+      const processData = {
+        alloc: originalInvoice.ov_amount || invoiceTotal, // Allocation amount
+       // posted: true, // Mark as posted to GL
+        payment_terms: paymentTerm,
+        ship_via: shippingCompany,
+        tran_date: date,
+        due_date: dueDate,
+        ov_freight: shippingCost,
+        // status: 'processed', // Alternative status field
+      };
+
+      console.log("Processing invoice:", originalInvoice.trans_no, processData);
+
+      // Update main transaction to mark as processed
+      await updateDebtorTranMutation.mutateAsync({
+        id: originalInvoice.id,
+        data: processData,
+      });
+
+      console.log("Invoice processed successfully");
+
+      alert("Invoice processed successfully!");
+      navigate("/sales/inquiriesandreports/customer-transaction-inquiry/success", { state: { trans_no, reference, date } });
+    } catch (error) {
+      console.error("Error processing invoice:", error);
+      alert("Failed to process invoice. Please try again.");
+    }
+  };
 
   const breadcrumbItems = [
     { title: "Transactions", href: "/sales/transactions" },
@@ -140,6 +266,9 @@ export default function UpdateCustomerInvoice() {
 
     const invoice = debtorTransList.find((d: any) => String(d.trans_no) === String(trans_no) && d.trans_type === 10);
     if (!invoice) return;
+
+    setOriginalInvoice(invoice);
+    setCurrentVersion(invoice.version || 0);
 
     // basic fields
     const customerData = customers.find((c: any) => String(c.debtor_no) === String(invoice.debtor_no));
@@ -185,7 +314,7 @@ export default function UpdateCustomerInvoice() {
         };
       });
       setRows(newRows);
-      setShippingCost(Number(invoice.shipping_cost || 0));
+      setShippingCost(Number(invoice.ov_freight || 0));
     }
   }, [trans_no, debtorTransList, debtorTransDetails, customers, branches, salesTypes, items, itemUnits, itemTaxTypes, navReference, navDate]);
 
@@ -262,7 +391,7 @@ export default function UpdateCustomerInvoice() {
               size="small"
             >
               {shippingCompanies.map((sc: any) => (
-                <MenuItem key={sc.id} value={sc.id}>
+                <MenuItem key={sc.shipper_id} value={sc.shipper_id}>
                   {sc.shipper_name}
                 </MenuItem>
               ))}
@@ -303,7 +432,7 @@ export default function UpdateCustomerInvoice() {
 
       {/* Items Table */}
       <Typography variant="subtitle1" sx={{ mb: 2, textAlign: "center" }}>
-        Invoice Items
+        {selectedPaymentType === 1 ? "Sales Order Items" : "Invoice Items"}
       </Typography>
 
       <TableContainer component={Paper}>
@@ -313,11 +442,12 @@ export default function UpdateCustomerInvoice() {
               <TableCell>No</TableCell>
               <TableCell>Item Code</TableCell>
               <TableCell>Description</TableCell>
-              <TableCell>Delivered</TableCell>
+              {selectedPaymentType !== 1 && <TableCell>Delivered</TableCell>}
               <TableCell>Units</TableCell>
-              <TableCell>Invoiced</TableCell>
-              <TableCell>This Invoice</TableCell>
-              <TableCell>Price</TableCell>
+              {selectedPaymentType === 1 && <TableCell>Quantity</TableCell>}
+              <TableCell>Credited</TableCell>
+              {selectedPaymentType !== 1 && <TableCell>This Invoice</TableCell>}
+              {selectedPaymentType !== 1 && <TableCell>Price</TableCell>}
               <TableCell>Tax Type</TableCell>
               <TableCell>Discount</TableCell>
               <TableCell>Total</TableCell>
@@ -330,25 +460,28 @@ export default function UpdateCustomerInvoice() {
                 <TableCell>{index + 1}</TableCell>
                 <TableCell>{row.itemCode}</TableCell>
                 <TableCell>{row.description}</TableCell>
-                <TableCell>{row.delivered}</TableCell>
+                {selectedPaymentType !== 1 && <TableCell>{row.delivered}</TableCell>}
                 <TableCell>{row.units}</TableCell>
+                {selectedPaymentType === 1 && <TableCell>{row.thisInvoice}</TableCell>}
                 <TableCell>{row.invoiced}</TableCell>
-                <TableCell>
-                  <TextField
-                    size="small"
-                    type="number"
-                    value={row.thisInvoice}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      setRows((prev) =>
-                        prev.map((r) =>
-                          r.id === row.id ? { ...r, thisInvoice: value, total: value * r.price } : r
-                        )
-                      );
-                    }}
-                  />
-                </TableCell>
-                <TableCell>{row.price}</TableCell>
+                {selectedPaymentType !== 1 && (
+                  <TableCell>
+                    <TextField
+                      size="small"
+                      type="number"
+                      value={row.thisInvoice}
+                      onChange={(e) => {
+                        const value = Number(e.target.value);
+                        setRows((prev) =>
+                          prev.map((r) =>
+                            r.id === row.id ? { ...r, thisInvoice: value, total: value * r.price } : r
+                          )
+                        );
+                      }}
+                    />
+                  </TableCell>
+                )}
+                {selectedPaymentType !== 1 && <TableCell>{row.price}</TableCell>}
                 <TableCell>{row.taxType}</TableCell>
                 <TableCell>{row.discount}%</TableCell>
                 <TableCell>{row.total.toFixed(2)}</TableCell>
@@ -365,6 +498,7 @@ export default function UpdateCustomerInvoice() {
                   type="number"
                   value={shippingCost}
                   onChange={(e) => setShippingCost(Number(e.target.value))}
+                  InputProps={selectedPaymentType === 1 ? { readOnly: true } : undefined}
                 />
               </TableCell>
             </TableRow>
@@ -388,6 +522,46 @@ export default function UpdateCustomerInvoice() {
 
       {/* Memo and Actions */}
       <Paper sx={{ p: 2, borderRadius: 2 }}>
+        {selectedPaymentType === 1 && (
+          <Grid container spacing={2} sx={{ mb: 2 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Sales Order"
+                value={salesOrders.find(o => o.order_no === originalInvoice?.order_no)?.reference || ""}
+                InputProps={{ readOnly: true }}
+                size="small"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Payments Received"
+                value={originalInvoice?.alloc || 0}
+                InputProps={{ readOnly: true }}
+                size="small"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Invoiced Here"
+                value={invoiceTotal.toFixed(2)}
+                InputProps={{ readOnly: true }}
+                size="small"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Invoiced So Far"
+                value={originalInvoice?.ov_amount || 0}
+                InputProps={{ readOnly: true }}
+                size="small"
+              />
+            </Grid>
+          </Grid>
+        )}
         <TextField
           fullWidth
           label="Memo"

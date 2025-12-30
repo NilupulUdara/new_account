@@ -617,6 +617,10 @@ const AppRoutes = () => {
         )}
       />
       <Route
+        path="/sales/inquiriesandreports/customer-transaction-inquiry/update-customer-invoice"
+        element={withLayout(MainLayout, UpdateCustomerInvoice)}
+      />
+      <Route
         path="/occupational-health/clinical-suite/consultation"
         element={withLayout(
           MainLayout,
@@ -1461,7 +1465,7 @@ const AppRoutes = () => {
           }
         />
         <Route
-          path="/sales/inquiriesandreports/customer-transaction-inquiry/update-customer-invoice/"
+          path="/sales/inquiriesandreports/customer-transaction-inquiry/update-customer-invoice/:id"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales Related Reports']}>
               {withLayout(MainLayout, UpdateCustomerInvoice)}

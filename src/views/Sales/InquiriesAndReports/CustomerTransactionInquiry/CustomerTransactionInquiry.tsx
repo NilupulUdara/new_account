@@ -329,8 +329,8 @@ export default function CustomerTransactionInquiry() {
           </TableHead>
 
           <TableBody>
-            {paginatedRows.map((r) => (
-              <TableRow key={r.id} hover>
+            {paginatedRows.map((r, idx) => (
+              <TableRow key={`${r.id}-${idx}`} hover>
                 <TableCell>{r.currency}</TableCell>
                 <TableCell>{r.terms}</TableCell>
                 <TableCell align="right">{r.current.toFixed(2)}</TableCell>

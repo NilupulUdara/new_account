@@ -35,7 +35,7 @@ export const createDebtorTran = async (data: any) => {
 
 export const updateDebtorTran = async (id: string | number, data: any) => {
   try {
-    const response = await axios.put(`${API_URL}/${id}`, data);
+    const response = await axios.patch(`${API_URL}/${id}`, data);
     return response.data;
   } catch (error: any) {
     console.error(`Error updating debtor transaction ${id}:`, error.response?.data || error);
