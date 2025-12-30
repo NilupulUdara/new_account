@@ -33,6 +33,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
+import { getWorkOrders } from "../../../../api/WorkOrders/WorkOrderApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -47,6 +48,7 @@ interface Row {
   manufactured: number;
   date: string;
   requiredBy: string;
+  closed?: number | boolean | string;
 }
 
 export default function WorkOrderInquiry() {
@@ -71,21 +73,98 @@ export default function WorkOrderInquiry() {
     queryFn: () => getItemCategories() as Promise<{ category_id: number; description: string }[]>,
   });
 
+  const filteredItems = (items || []).filter((it: any) => {
+    const flag = it.mb_flag ?? it.mbFlag ?? it.mb ?? 0;
+    return Number(flag) === 1;
+  });
+
   useEffect(() => {
     if (!selectedItem) {
       setItemCode("");
       return;
     }
-    const it = (items || []).find((i: any) => String(i.stock_id ?? i.id) === String(selectedItem));
+    const it = (filteredItems || []).find((i: any) => String(i.stock_id ?? i.id) === String(selectedItem));
     setItemCode(it ? String(it.stock_id ?? it.id ?? "") : "");
-  }, [selectedItem, items]);
+  }, [selectedItem, filteredItems]);
 
-  // Dummy rows
   const today = new Date().toISOString().split("T")[0];
-  const rows: Row[] = [
-    { id: 1, reference: "WO-001", type: "Assembly", location: "Warehouse A", item: "Item A", required: 100, manufactured: 50, date: today, requiredBy: "2025-12-01" },
-    { id: 2, reference: "WO-002", type: "Packaging", location: "Warehouse B", item: "Item B", required: 200, manufactured: 150, date: today, requiredBy: "2025-12-02" },
-  ];
+
+  const { data: workOrders = [] } = useQuery({ queryKey: ["workOrders"], queryFn: getWorkOrders, refetchOnMount: "always", refetchOnWindowFocus: true });
+
+  const getTypeLabel = (t: any) => {
+    const n = Number(t);
+    if (n === 0) return "Assemble";
+    if (n === 1) return "Unassemble";
+    if (n === 2) return "Advanced Manufacture";
+    return String(t ?? "");
+  };
+
+  const rows: Row[] = useMemo(() => {
+    if (!Array.isArray(workOrders)) return [];
+
+    let filtered = [...workOrders];
+
+    // optionally show only open
+    if (onlyOpen) {
+      filtered = filtered.filter((w: any) => {
+        if (w.closed === undefined || w.closed === null) return true;
+        if (typeof w.closed === "boolean") return w.closed === false;
+        return String(w.closed) === "0" || String(w.closed).toLowerCase() === "false";
+      });
+    }
+
+    // optionally show only overdue (required by date has passed)
+    if (onlyOverdue) {
+      filtered = filtered.filter((w: any) => {
+        const req = w.required_by ?? w.date_required_by ?? w.requiredBy ?? w.date_required ?? w.required_date ?? null;
+        if (!req) return false;
+        const reqDate = new Date(String(req));
+        const todayDate = new Date();
+        reqDate.setHours(0, 0, 0, 0);
+        todayDate.setHours(0, 0, 0, 0);
+        return todayDate > reqDate;
+      });
+    }
+
+    if (numberText && String(numberText).trim() !== "") {
+      const num = String(numberText).trim();
+      filtered = filtered.filter((w: any, idx: number) => {
+        const idVal = String(w.id ?? w.wo_id ?? idx + 1);
+        return idVal.includes(num);
+      });
+    }
+
+    if (referenceText && String(referenceText).trim() !== "") {
+      const rt = String(referenceText).trim().toLowerCase();
+      filtered = filtered.filter((w: any) => String(w.wo_ref ?? w.reference ?? "").toLowerCase().includes(rt));
+    }
+
+    if (location && location !== "ALL_LOCATIONS") {
+      filtered = filtered.filter((w: any) => String(w.loc_code ?? w.location ?? w.loc ?? "") === String(location));
+    }
+
+    if (selectedItem && selectedItem !== "ALL_ITEMS") {
+      filtered = filtered.filter((w: any) => String(w.stock_id ?? w.stock ?? w.item_id ?? "") === String(selectedItem));
+    }
+
+    return filtered.map((w: any, idx: number) => {
+      const locCode = w.loc_code ?? w.location ?? w.loc ?? "";
+      const loc = (locations || []).find((l: any) => String(l.loc_code ?? l.loccode ?? l.code ?? "") === String(locCode));
+      const itemRec = (items || []).find((it: any) => String(it.stock_id ?? it.id ?? it.stock_master_id ?? it.item_id ?? "") === String(w.stock_id ?? w.stock));
+      return {
+        id: w.id ?? w.wo_id ?? idx + 1,
+        reference: w.wo_ref ?? w.reference ?? "",
+        type: getTypeLabel(w.type),
+        location: loc ? (loc.location_name ?? String(locCode)) : String(locCode),
+        item: itemRec ? (itemRec.item_name ?? itemRec.name ?? itemRec.description ?? String(w.stock_id)) : String(w.stock_id ?? ""),
+        required: Number(w.units_reqd ?? w.quantity ?? 0),
+        manufactured: Number(w.units_issued ?? w.unitsIssued ?? 0),
+        date: w.date ? String(w.date).split("T")[0] : (w.tran_date ?? today),
+        requiredBy: w.required_by ?? w.date_required_by ?? w.requiredBy ?? "",
+        closed: w.closed ?? w.is_closed ?? w.closed_flag ?? 0,
+      } as Row;
+    });
+  }, [workOrders, items, locations, numberText, referenceText, location, selectedItem, onlyOpen, onlyOverdue]);
 
   const paginatedRows = useMemo(() => {
     if (rowsPerPage === -1) return rows;
@@ -107,7 +186,7 @@ export default function WorkOrderInquiry() {
   };
 
   const handleEdit = (id: number) => {
-    console.log("Edit for", id);
+    navigate("/manufacturing/transactions/work-order-entry/update", { state: { id } });
   };
 
   const handlePrint = (id: number) => {
@@ -135,6 +214,16 @@ export default function WorkOrderInquiry() {
             <TextField fullWidth size="small" label="Reference" value={referenceText} onChange={(e) => setReferenceText(e.target.value)} />
           </Grid>
 
+          <Grid item xs={12} sm={2} md={3}>
+            <FormControlLabel control={<Checkbox checked={onlyOverdue} onChange={(e) => setOnlyOverdue(e.target.checked)} />} label="Only overdue" />
+          </Grid>
+
+          <Grid item xs={12} sm={2} md={3}>
+            <FormControlLabel control={<Checkbox checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />} label="Only open" />
+          </Grid>
+        </Grid>
+
+        <Grid container spacing={2} alignItems="center" sx={{ mt: 1 }}>
           <Grid item xs={12} sm={3} md={3}>
             <FormControl fullWidth size="small">
               <InputLabel id="location-label">Location</InputLabel>
@@ -147,16 +236,6 @@ export default function WorkOrderInquiry() {
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} sm={2} md={3}>
-            <FormControlLabel control={<Checkbox checked={onlyOverdue} onChange={(e) => setOnlyOverdue(e.target.checked)} />} label="Only overdue" />
-          </Grid>
-        </Grid>
-
-        <Grid container spacing={2} alignItems="center" sx={{ mt: 1 }}>
-          <Grid item xs={12} sm={2} md={3}>
-            <FormControlLabel control={<Checkbox checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />} label="Only open" />
-          </Grid>
-
           <Grid item xs={12} sm={3} md={3}>
             <TextField fullWidth size="small" label="Item Code" value={itemCode} InputProps={{ readOnly: true }} />
           </Grid>
@@ -166,10 +245,10 @@ export default function WorkOrderInquiry() {
               <InputLabel id="item-label">Select Item</InputLabel>
               <Select labelId="item-label" value={selectedItem ?? ""} label="Select Item" onChange={(e) => setSelectedItem(String(e.target.value))}>
                 <MenuItem value="ALL_ITEMS">All Items</MenuItem>
-                {items && items.length > 0 ? (
+                {filteredItems && filteredItems.length > 0 ? (
                   (() => {
                     return Object.entries(
-                      items.reduce((groups: Record<string, any[]>, item) => {
+                      filteredItems.reduce((groups: Record<string, any[]>, item) => {
                         const catId = item.category_id || "Uncategorized";
                         if (!groups[catId]) groups[catId] = [];
                         groups[catId].push(item);
@@ -251,7 +330,15 @@ export default function WorkOrderInquiry() {
                   <Button variant="outlined" size="small" onClick={() => handleGL(r.id)}>GL</Button>
                 </TableCell>
                 <TableCell>
-                  <Button variant="outlined" size="small" startIcon={<EditIcon />} onClick={() => handleEdit(r.id)}>Edit</Button>
+                  {(() => {
+                    const closedVal = r.closed;
+                    const isClosed = closedVal === true || String(closedVal) === "1" || String(closedVal).toLowerCase() === "true";
+                    return isClosed ? (
+                      <span>Closed</span>
+                    ) : (
+                      <Button variant="outlined" size="small" startIcon={<EditIcon />} onClick={() => handleEdit(r.id)}>Edit</Button>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell></TableCell>
                 <TableCell></TableCell>
