@@ -9,6 +9,8 @@ export default function WorkOrderEntrySuccess() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const { reference } = state || {};
+  const { type } = state || {};
+  const { deleted } = state || {};
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
@@ -43,81 +45,131 @@ export default function WorkOrderEntrySuccess() {
       </Box>
 
       <Paper sx={{ p: 2 }}>
-        <Typography sx={{ mb: 2 }}>
-          The Work Order has been added.
-        </Typography>
+        {deleted ? (
+          <>
+            <Typography sx={{ mb: 2 }}>
+              The Work Order has been deleted.
+            </Typography>
+            <Stack spacing={3} direction="column" alignItems="center">
+              <Button
+                variant="outlined"
+                sx={{ width: '500px' }}
+                onClick={() => navigate("/manufacturing/transactions/work-order-entry")}
+              >
+                Enter a New Work Order
+              </Button>
 
-        <Stack spacing={3} direction="column" alignItems="center">
-          <Button
-            variant="outlined"
-            sx={{ width: '500px' }}
-            onClick={() => navigate("/manufacturing/transactions/work-order-entry/view", { state })}
-          >
-            View This Work Order
-          </Button>
+              <Button
+                variant="outlined"
+                sx={{ width: '500px' }}
+                onClick={() => navigate("/manufacturing/inquiriesandreports/work-order-inquiry")}
+              >
+                Select an Existing Work Order
+              </Button>
+            </Stack>
+          </>
+        ) : (
+          <>
+            <Typography sx={{ mb: 2 }}>
+              The Work Order has been added.
+            </Typography>
 
-          <Button
-            variant="outlined"
-            sx={{ width: '500px' }}
-            onClick={() => {
-              // Navigate to print view - pass reference so print view can filter
-              navigate("", { state: { reference } });
-            }}
-          >
-            Print This Work Order
-          </Button>
+            <Stack spacing={3} direction="column" alignItems="center">
+              <Button
+                variant="outlined"
+                sx={{ width: '500px' }}
+                onClick={() => navigate("/manufacturing/transactions/work-order-entry/view", { state })}
+              >
+                View This Work Order
+              </Button>
 
-          <Button
-            variant="outlined"
-            sx={{ width: '500px' }}
-            onClick={() => navigate("/", { state })}
-          >
-            Email This Work Order
-          </Button>
+              {Number(type) === 2 ? (
+                // Advanced manufacture: show only the three basic navigation options
+                <>
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/manufacturing/transactions/work-order-entry", { state })}
+                  >
+                    Enter a New Work Order
+                  </Button>
 
-          <Button
-            variant="outlined"
-            sx={{ width: '500px' }}
-            onClick={() => {
-              
-              navigate("/manufacturing/transactions/work-order-entry/view-gl-journal-entries", { state: { reference } });
-            }}
-          >
-            View the GL Journal Entries for This Work Order
-          </Button>
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/manufacturing/inquiriesandreports/work-order-inquiry")}
+                  >
+                    Select an Existing Work Order
+                  </Button>
+                </>
+              ) : (
+                // Non-advanced: show full options
+                <>
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => {
+                      // Navigate to print view - pass reference so print view can filter
+                      navigate("", { state: { reference } });
+                    }}
+                  >
+                    Print This Work Order
+                  </Button>
 
-          <Button
-            variant="outlined"
-            sx={{ width: '500px' }}
-            onClick={() => navigate("/", { state })}
-          >
-            Print the GL Journal Entries for This Work Order
-          </Button>
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/", { state })}
+                  >
+                    Email This Work Order
+                  </Button>
 
-          <Button
-            variant="outlined"
-            sx={{ width: '500px' }}
-            onClick={() => navigate("/", { state })}
-          >
-            Add an Attachment
-          </Button>
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => {
+                      navigate("/manufacturing/transactions/work-order-entry/view-gl-journal-entries", { state: { reference } });
+                    }}
+                  >
+                    View the GL Journal Entries for This Work Order
+                  </Button>
 
-          <Button
-            variant="outlined"
-            sx={{ width: '500px' }}
-            onClick={() => navigate("/manufacturing/transactions/work-order-entry", { state })}
-          >
-            Enter a New Work Order
-          </Button>
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/", { state })}
+                  >
+                    Print the GL Journal Entries for This Work Order
+                  </Button>
 
-          <Button
-            variant="outlined"
-            sx={{ width: '500px' }}
-            onClick={() => navigate("/manufacturing/inquiriesandreports/work-order-inquiry")}
-          >
-            Select an Existing Work Order
-          </Button>
-        </Stack>
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/", { state })}
+                  >
+                    Add an Attachment
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/manufacturing/transactions/work-order-entry", { state })}
+                  >
+                    Enter a New Work Order
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/manufacturing/inquiriesandreports/work-order-inquiry")}
+                  >
+                    Select an Existing Work Order
+                  </Button>
+                </>
+              )}
+            </Stack>
+          </>
+        )}
       </Paper>
     </Stack>
   );

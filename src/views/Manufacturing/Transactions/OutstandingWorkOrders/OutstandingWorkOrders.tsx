@@ -48,6 +48,7 @@ interface Row {
   manufactured: number;
   date: string;
   requiredBy: string;
+  closed?: number | boolean | string;
 }
 
 export default function OutstandingWorkOrders() {
@@ -135,6 +136,19 @@ export default function OutstandingWorkOrders() {
       filtered = filtered.filter((w: any) => String(w.stock_id ?? w.stock ?? w.item_id ?? "") === String(selectedItem));
     }
 
+    // optionally show only overdue (required by date has passed)
+    if (onlyOverdue) {
+      filtered = filtered.filter((w: any) => {
+        const req = w.required_by ?? w.date_required_by ?? w.requiredBy ?? w.date_required ?? w.required_date ?? null;
+        if (!req) return false;
+        const reqDate = new Date(String(req));
+        const todayDate = new Date();
+        reqDate.setHours(0, 0, 0, 0);
+        todayDate.setHours(0, 0, 0, 0);
+        return todayDate > reqDate;
+      });
+    }
+
     // Map to Row[] for table rendering
     return filtered.map((w: any, idx: number) => {
       const locCode = w.loc_code ?? w.location ?? w.loc ?? "";
@@ -152,7 +166,7 @@ export default function OutstandingWorkOrders() {
         requiredBy: w.required_by ?? w.date_required_by ?? w.requiredBy ?? "",
       } as Row;
     });
-  }, [workOrders, items, locations, numberText, referenceText, location, selectedItem]);
+  }, [workOrders, items, locations, numberText, referenceText, location, selectedItem, onlyOverdue]);
 
   const paginatedRows = useMemo(() => {
     if (rowsPerPage === -1) return rows;

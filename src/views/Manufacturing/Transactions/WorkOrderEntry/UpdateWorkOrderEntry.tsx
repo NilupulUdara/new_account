@@ -21,6 +21,11 @@ import { getItems } from "../../../../api/Item/ItemApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 import { getComments, createComment } from "../../../../api/Comments/CommentsApi";
 import { getWorkOrderById, updateWorkOrder, deleteWorkOrder } from "../../../../api/WorkOrders/WorkOrderApi";
+import { getWoRequirementsByWorkOrder, deleteWoRequirement } from "../../../../api/WorkOrders/WORequirementsApi";
+import auditTrailApi from "../../../../api/AuditTrail/AuditTrailApi";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
+import useCurrentUser from "../../../../hooks/useCurrentUser";
 import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
 
@@ -86,6 +91,9 @@ export default function UpdateWorkOrderEntry() {
 
   const { data: comments = [] } = useQuery({ queryKey: ["comments", idFromState], queryFn: getComments, enabled: !!idFromState });
   const queryClient = useQueryClient();
+  const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+  const { data: companies = [] } = useQuery({ queryKey: ["companies"], queryFn: getCompanies });
+  const { user } = useCurrentUser();
 
   useEffect(() => {
     if (!idFromState) return;
@@ -139,9 +147,9 @@ export default function UpdateWorkOrderEntry() {
         type: Number(type),
         required_by: dateRequiredBy && String(dateRequiredBy).trim() !== "" ? dateRequiredBy : date,
         released_date: date,
-        units_issued: Number(quantity),
+        units_issued: 0,
         closed: false,
-        released: true,
+        released: false,
         additional_costs: 0,
         memo: memo,
       } as any;
@@ -182,7 +190,13 @@ export default function UpdateWorkOrderEntry() {
         console.warn("Failed to invalidate queries:", invErr);
       }
 
-      navigate("/manufacturing/transactions/outstanding-work-orders");
+      // after update, go to the work order success page with deleted flag
+      try {
+        console.log("Work order updated successfully, navigating to success page", { id: idFromState, reference, type });
+        navigate("/manufacturing/transactions/work-order-entry/success", { state: { reference, id: idFromState, type: Number(type), deleted: true } });
+      } catch (navErr) {
+        console.warn("Navigation to success page failed:", navErr);
+      }
     } catch (err: any) {
       console.error("Failed to update work order:", err);
       setSaveError(err?.message || "Failed to update work order");
@@ -194,19 +208,85 @@ export default function UpdateWorkOrderEntry() {
   const handleDelete = async () => {
     if (!idFromState) return;
     if (!confirm("Delete this work order? This cannot be undone.")) return;
+    setIsSaving(true);
+    setSaveError("");
     try {
+      // 1) delete related WO requirements
+      try {
+        const reqs = await getWoRequirementsByWorkOrder(Number(idFromState));
+        if (Array.isArray(reqs) && reqs.length > 0) {
+          for (const r of reqs) {
+            try {
+              const rid = r.id ?? r.wo_requirement_id ?? r.wo_req_id ?? r.requirement_id;
+              if (rid) await deleteWoRequirement(rid);
+            } catch (delReqErr) {
+              console.warn("Failed to delete WO requirement", r, delReqErr);
+            }
+          }
+        }
+      } catch (reqErr) {
+        console.warn("Failed to fetch or delete WO requirements:", reqErr);
+      }
+
+      // 2) delete the work order itself
       await deleteWorkOrder(idFromState);
+
+      // 3) create an audit trail entry (type 26 = work order)
+      try {
+        // determine fiscal year for audit: prefer company configured fiscal year
+        let fiscalYearIdForAudit: any = null;
+        try {
+          const company = Array.isArray(companies) && companies.length > 0 ? companies[0] : null;
+          const companyFiscalId = company?.fiscal_year_id ?? company?.fiscal_year ?? null;
+          if (companyFiscalId) {
+            fiscalYearIdForAudit = companyFiscalId;
+          } else if (Array.isArray(fiscalYears) && fiscalYears.length > 0) {
+            const auditDateObj = date ? new Date(date) : new Date();
+            const matching = (fiscalYears as any[]).find((fy: any) => {
+              if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+              const from = new Date(fy.fiscal_year_from);
+              const to = new Date(fy.fiscal_year_to);
+              if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+              return auditDateObj >= from && auditDateObj <= to;
+            });
+            const chosen = matching || (fiscalYears as any[])[0];
+            fiscalYearIdForAudit = chosen?.id ?? chosen?.fiscal_year_id ?? null;
+          }
+        } catch (fyErr) {
+          console.warn("Failed to determine fiscal year for audit trail:", fyErr);
+        }
+
+        const auditPayload: any = {
+          type: 26,
+          trans_no: idFromState,
+          user: user?.id ?? (Number(localStorage.getItem("userId")) || null),
+          stamp: new Date().toISOString(),
+          description: "Cancelled",
+          fiscal_year: fiscalYearIdForAudit ?? null,
+          gl_date: date,
+          gl_seq: 0,
+        };
+
+        await auditTrailApi.create(auditPayload);
+      } catch (atErr) {
+        console.warn("Failed to create audit trail record for deleted work order:", atErr);
+      }
+
       try {
         queryClient.invalidateQueries({ queryKey: ["workOrders"] });
         queryClient.invalidateQueries({ queryKey: ["comments", idFromState] });
-        queryClient.invalidateQueries({ queryKey: ["comments"] } );
+        queryClient.invalidateQueries({ queryKey: ["comments"] });
       } catch (invErr) {
         console.warn("Failed to invalidate queries after delete:", invErr);
       }
-      navigate("/manufacturing/transactions/outstanding-work-orders");
+
+      // after update, show success page with the limited options (same as delete)
+      navigate("/manufacturing/transactions/work-order-entry/success", { state: { reference, id: idFromState, type: Number(type), deleted: true } });
     } catch (err: any) {
       console.error("Failed to delete work order:", err);
       setSaveError(err?.message || "Failed to delete work order");
+    } finally {
+      setIsSaving(false);
     }
   };
 
