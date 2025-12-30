@@ -476,7 +476,7 @@ export default function DirectInvoice() {
             console.log("Posting sales order payload", payload);
             await createSalesOrder(payload as any);
 
-            // Prepare debtor trans numbers per type (10 -> version 0) and (13 -> version 1)
+            // Prepare debtor trans numbers per type (10 -> version 0) and (13 -> version 1) and (12 -> payment)
             const existingDebtorTrans = await getDebtorTrans();
             const maxTrans10 = (existingDebtorTrans || [])
                 .filter((d: any) => Number(d.trans_type) === 10 && d.trans_no != null)
@@ -484,11 +484,16 @@ export default function DirectInvoice() {
             const maxTrans13 = (existingDebtorTrans || [])
                 .filter((d: any) => Number(d.trans_type) === 13 && d.trans_no != null)
                 .reduce((m: number, d: any) => Math.max(m, Number(d.trans_no)), 0);
+            const maxTrans12 = (existingDebtorTrans || [])
+                .filter((d: any) => Number(d.trans_type) === 12 && d.trans_no != null)
+                .reduce((m: number, d: any) => Math.max(m, Number(d.trans_no)), 0);
 
             let nextTransNo10 = maxTrans10 + 1;
             let nextTransNo13 = maxTrans13 + 1;
+            let nextTransNo12 = maxTrans12 + 1;
             if (nextTransNo10 === orderNo) nextTransNo10++;
             if (nextTransNo13 === orderNo) nextTransNo13++;
+            if (nextTransNo12 === orderNo) nextTransNo12++;
 
             const debtorPayload10 = {
                 trans_no: nextTransNo10,
@@ -542,12 +547,40 @@ export default function DirectInvoice() {
                 tax_included: selectedPriceList?.taxIncl ? 1 : 0,
             };
 
-            console.log("Posting debtor_trans payloads", debtorPayload10, debtorPayload13);
+            const debtorPayload12 = {
+                trans_no: nextTransNo12,
+                trans_type: 12,
+                version: 0,
+                debtor_no: Number(customer),
+                branch_code: Number(branch),
+                tran_date: invoiceDate,
+                due_date: invoiceDate,
+                reference: reference || "",
+                tpe: 0,
+                order_no: 0,
+                ov_amount: 0, // Payment amount - will be set when payment is made
+                ov_gst: 0,
+                ov_freight: 0,
+                ov_freight_tax: 0,
+                ov_discount: 0,
+                alloc: 0, // Amount allocated to invoices
+                prep_amount: 0,
+                rate: 1,
+                ship_via: null,
+                dimension_id: 0,
+                dimension2_id: 0,
+                payment_terms: null,
+                tax_included: 0,
+            };
+
+            console.log("Posting debtor_trans payloads", debtorPayload10, debtorPayload13, debtorPayload12);
             const debtorResp10 = await createDebtorTran(debtorPayload10 as any);
             const debtorResp13 = await createDebtorTran(debtorPayload13 as any);
+            const debtorResp12 = await createDebtorTran(debtorPayload12 as any);
 
             const debtorTransNo10 = debtorResp10?.trans_no ?? debtorResp10?.id ?? null;
             const debtorTransNo13 = debtorResp13?.trans_no ?? debtorResp13?.id ?? null;
+            const debtorTransNo12 = debtorResp12?.trans_no ?? debtorResp12?.id ?? null;
 
             // Create audit trail entry for the sales invoice (trans_type 10)
             try {
@@ -605,9 +638,9 @@ export default function DirectInvoice() {
 
                 const createdDetailId = detailResp?.id ?? detailResp?.sales_order_detail_id ?? detailResp?.detail_id ?? detailResp?.order_detail_id ?? null;
 
-                const debtorDetail10 = {
-                    debtor_trans_no: debtorTransNo10,
-                    debtor_trans_type: debtorResp10?.trans_type ?? 10,
+                const debtorDetail13 = {
+                    debtor_trans_no: debtorTransNo13,
+                    debtor_trans_type: debtorResp13?.trans_type ?? 13,
                     stock_id: row.itemCode,
                     description: row.description,
                     unit_price: unitPrice,
@@ -615,13 +648,13 @@ export default function DirectInvoice() {
                     quantity: row.quantity,
                     discount_percent: discount,
                     standard_cost: row.materialCost,
-                    qty_done: 0,
+                    qty_done: 1,
                     src_id: createdDetailId,
                 };
 
-                const debtorDetail13 = {
-                    debtor_trans_no: debtorTransNo13,
-                    debtor_trans_type: debtorResp13?.trans_type ?? 13,
+                const debtorDetail10 = {
+                    debtor_trans_no: debtorTransNo10,
+                    debtor_trans_type: debtorResp10?.trans_type ?? 10,
                     stock_id: row.itemCode,
                     description: row.description,
                     unit_price: unitPrice,
