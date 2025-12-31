@@ -11,6 +11,7 @@ export default function WorkOrderEntrySuccess() {
   const { reference } = state || {};
   const { type } = state || {};
   const { deleted } = state || {};
+  const { successMode } = state || {};
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
@@ -75,17 +76,16 @@ export default function WorkOrderEntrySuccess() {
             </Typography>
 
             <Stack spacing={3} direction="column" alignItems="center">
-              <Button
-                variant="outlined"
-                sx={{ width: '500px' }}
-                onClick={() => navigate("/manufacturing/transactions/work-order-entry/view", { state })}
-              >
-                View This Work Order
-              </Button>
-
               {Number(type) === 2 ? (
                 // Advanced manufacture: show only the three basic navigation options
                 <>
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/manufacturing/transactions/work-order-entry/view", { state })}
+                  >
+                    View This Work Order
+                  </Button>
                   <Button
                     variant="outlined"
                     sx={{ width: '500px' }}
@@ -102,9 +102,51 @@ export default function WorkOrderEntrySuccess() {
                     Select an Existing Work Order
                   </Button>
                 </>
+              ) : successMode === 'cost' ? (
+                // Cost processing success: show limited cost-related options
+                <>
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/manufacturing/transactions/work-order-entry/view", { state })}
+                  >
+                    View This Work Order
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/manufacturing/transactions/work-order-entry/view-gl-journal-entries", { state: { reference } })}
+                  >
+                    View the GL Journal Entries for This Work Order
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/manufacturing/transactions/outstanding-work-orders/costs", { state: { id: state?.id } })}
+                  >
+                    Enter another additional cost
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/manufacturing/transactions/outstanding-work-orders")}
+                  >
+                    Select another Work Order to Process
+                  </Button>
+                </>
               ) : (
                 // Non-advanced: show full options
                 <>
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/manufacturing/transactions/work-order-entry/view", { state })}
+                  >
+                    View This Work Order
+                  </Button>
                   <Button
                     variant="outlined"
                     sx={{ width: '500px' }}

@@ -364,6 +364,10 @@ import SalesOrderEntryQuotation from "./views/Sales/Transactions/SalesOrderEntry
 import CreditInvoice from "./views/Sales/Transactions/CustomerCreditNotes/CreditInvoice";
 import UpdateCustomerCreditNotes from "./views/Sales/Transactions/CustomerCreditNotes/UpdateCustomerCreditNotes";
 import UpdateCompanySetupForm from "./views/Setup/CompanySetup/CompanySetup/UpdateCompanySetupForm";
+import ReleaseWorkOrder from "./views/Manufacturing/Transactions/OutstandingWorkOrders/ReleaseWorkOrder";
+import IssueWorkOrder from "./views/Manufacturing/Transactions/OutstandingWorkOrders/IssueWorkOrder";
+import CostWorkOrder from "./views/Manufacturing/Transactions/OutstandingWorkOrders/CostWorkOrder";
+import ProduceWorkOrder from "./views/Manufacturing/Transactions/OutstandingWorkOrders/ProduceWorkOrder";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -2564,6 +2568,38 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Work order releases']}>
               {withLayout(MainLayout, OutstandingWorkOrders)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manufacturing/transactions/outstanding-work-orders/release"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Work order releases']}>
+              {withLayout(MainLayout, ReleaseWorkOrder)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manufacturing/transactions/outstanding-work-orders/issue"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Work order releases']}>
+              {withLayout(MainLayout, IssueWorkOrder)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manufacturing/transactions/outstanding-work-orders/costs"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Work order releases']}>
+              {withLayout(MainLayout, CostWorkOrder)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manufacturing/transactions/outstanding-work-orders/produce"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Work order releases']}>
+              {withLayout(MainLayout, ProduceWorkOrder)}
             </ProtectedRoute>
           }
         />
