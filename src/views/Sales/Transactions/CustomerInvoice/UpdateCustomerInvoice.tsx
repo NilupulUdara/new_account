@@ -36,6 +36,7 @@ import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 import { updateDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { updateDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
 import { getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { getCustAllocations } from "../../../../api/CustAllocation/CustAllocationApi";
 
 export default function UpdateCustomerInvoice() {
   const navigate = useNavigate();
@@ -83,6 +84,7 @@ export default function UpdateCustomerInvoice() {
     queryFn: getCompanies,
   });
   const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
+  const { data: custAllocations = [] } = useQuery({ queryKey: ["custAllocations"], queryFn: async () => (await getCustAllocations()).data });
 
   const queryClient = useQueryClient();
 
@@ -114,6 +116,11 @@ export default function UpdateCustomerInvoice() {
     return paymentTerms.find((pt: any) => String(pt.terms_indicator) === String(originalInvoice?.payment_terms));
   }, [originalInvoice?.payment_terms, paymentTerms]);
 
+  // Find current payment term based on form selection
+  const currentPaymentTerm = useMemo(() => {
+    return paymentTerms.find((pt: any) => String(pt.terms_indicator) === String(paymentTerm));
+  }, [paymentTerm, paymentTerms]);
+
   const selectedPaymentType = useMemo(() => {
     const pt = selectedPaymentTerm?.payment_type;
     if (pt == null) return null;
@@ -121,6 +128,14 @@ export default function UpdateCustomerInvoice() {
     // try common id fields when payment_type is an object
     return pt.id ?? pt.payment_type ?? null;
   }, [selectedPaymentTerm]);
+
+  const currentPaymentType = useMemo(() => {
+    const pt = currentPaymentTerm?.payment_type;
+    if (pt == null) return null;
+    if (typeof pt === "number") return pt;
+    // try common id fields when payment_type is an object
+    return pt.id ?? pt.payment_type ?? null;
+  }, [currentPaymentTerm]);
 
   // Validate date is within fiscal year
   const validateDate = (selectedDate: string) => {
@@ -163,6 +178,8 @@ export default function UpdateCustomerInvoice() {
   // === Calculations ===
   const subTotal = rows.reduce((sum, r) => sum + Number(r.total || 0), 0);
   const invoiceTotal = subTotal + shippingCost;
+  const paymentsReceived = custAllocations.filter(ca => ca.trans_no_to === originalInvoice?.trans_no && ca.trans_type_to === 10 && ca.trans_type_from === 12).reduce((sum, ca) => sum + Number(ca.amt || 0), 0);
+  const paymentRef = debtorTransList.find(dt => dt.trans_no === custAllocations.find(ca => ca.trans_no_to === originalInvoice?.trans_no && ca.trans_type_to === 10 && ca.trans_type_from === 12)?.trans_no_from && dt.trans_type === 12)?.reference || '';
 
   // === Actions ===
   const handleUpdate = async () => {
@@ -179,6 +196,8 @@ export default function UpdateCustomerInvoice() {
         tran_date: date,
         due_date: dueDate,
         ov_freight: shippingCost,
+        ov_amount: invoiceTotal,
+        prep_amount: currentPaymentType === 1 ? invoiceTotal : 0,
       };
 
       console.log("Updating debtor transaction:", originalInvoice.trans_no, updateData);
@@ -192,21 +211,82 @@ export default function UpdateCustomerInvoice() {
       console.log("Debtor transaction updated successfully");
 
       // Update details if quantities changed
+      console.log("Starting detail updates. Rows count:", rows.length);
+      console.log("Debtor trans details count:", debtorTransDetails.length);
+
       for (const row of rows) {
-        const originalDetail = debtorTransDetails.find((d: any) => d.id === row.src_id);
+        // Find detail by matching debtor_trans_no and debtor_trans_type = 10, and stock_id
+        const originalDetail = debtorTransDetails.find((d: any) =>
+          String(d.debtor_trans_no) === String(originalInvoice.trans_no) &&
+          d.debtor_trans_type === 10 &&
+          String(d.stock_id) === String(row.itemCode)
+        );
+
+        console.log("Processing row:", {
+          rowId: row.id,
+          itemCode: row.itemCode,
+          thisInvoice: row.thisInvoice,
+          detailFound: !!originalDetail,
+          originalDetail: originalDetail ? {
+            id: originalDetail.id,
+            debtor_trans_no: originalDetail.debtor_trans_no,
+            debtor_trans_type: originalDetail.debtor_trans_type,
+            stock_id: originalDetail.stock_id,
+            quantity: originalDetail.quantity
+          } : null
+        });
+
         if (originalDetail && Number(originalDetail.quantity) !== Number(row.thisInvoice)) {
           const detailUpdateData = {
             quantity: row.thisInvoice,
             // Recalculate total if needed, but probably handled on backend
           };
-          console.log("Updating detail:", row.src_id, detailUpdateData);
-          await updateDebtorTransDetailMutation.mutateAsync({
-            id: row.src_id,
-            data: detailUpdateData,
+          console.log("Updating detail:", originalDetail.id, detailUpdateData);
+
+          try {
+            await updateDebtorTransDetailMutation.mutateAsync({
+              id: originalDetail.id,
+              data: detailUpdateData,
+            });
+            console.log("Detail updated successfully for row:", row.id);
+          } catch (error) {
+            console.error("Failed to update detail for row:", row.id, error);
+          }
+
+          // Also update the corresponding delivery detail (trans_type=13)
+          const deliveryDetail = debtorTransDetails.find((d: any) =>
+            String(d.debtor_trans_no) === String(originalInvoice.trans_no) &&
+            d.debtor_trans_type === 13 &&
+            String(d.stock_id) === String(row.itemCode)
+          );
+
+          if (deliveryDetail && Number(deliveryDetail.quantity) !== Number(row.thisInvoice)) {
+            const deliveryUpdateData = {
+              qty_done: row.thisInvoice,
+            };
+            console.log("Updating delivery detail:", deliveryDetail.id, deliveryUpdateData);
+
+            try {
+              await updateDebtorTransDetailMutation.mutateAsync({
+                id: deliveryDetail.id,
+                data: deliveryUpdateData,
+              });
+              console.log("Delivery detail updated successfully for row:", row.id);
+            } catch (error) {
+              console.error("Failed to update delivery detail for row:", row.id, error);
+            }
+          }
+        } else {
+          console.log("Detail update skipped for row:", row.id, {
+            detailFound: !!originalDetail,
+            quantityChanged: originalDetail ? Number(originalDetail.quantity) !== Number(row.thisInvoice) : false,
+            originalQty: originalDetail?.quantity,
+            newQty: row.thisInvoice
           });
-          console.log("Detail updated successfully");
         }
       }
+
+      console.log("Detail updates completed");
 
       alert("Invoice updated successfully!");
       navigate("/sales/inquiriesandreports/customer-transaction-inquiry/success", { state: { trans_no, reference, date } });
@@ -234,6 +314,8 @@ export default function UpdateCustomerInvoice() {
         tran_date: date,
         due_date: dueDate,
         ov_freight: shippingCost,
+        ov_amount: invoiceTotal,
+        prep_amount: currentPaymentType === 1 ? invoiceTotal : 0,
         // status: 'processed', // Alternative status field
       };
 
@@ -246,6 +328,84 @@ export default function UpdateCustomerInvoice() {
       });
 
       console.log("Invoice processed successfully");
+
+      // Update details if quantities changed
+      console.log("Starting detail updates for processing. Rows count:", rows.length);
+      console.log("Debtor trans details count:", debtorTransDetails.length);
+
+      for (const row of rows) {
+        // Find detail by matching debtor_trans_no and debtor_trans_type = 10, and stock_id
+        const originalDetail = debtorTransDetails.find((d: any) =>
+          String(d.debtor_trans_no) === String(originalInvoice.trans_no) &&
+          d.debtor_trans_type === 10 &&
+          String(d.stock_id) === String(row.itemCode)
+        );
+
+        console.log("Processing row for processing:", {
+          rowId: row.id,
+          itemCode: row.itemCode,
+          thisInvoice: row.thisInvoice,
+          detailFound: !!originalDetail,
+          originalDetail: originalDetail ? {
+            id: originalDetail.id,
+            debtor_trans_no: originalDetail.debtor_trans_no,
+            debtor_trans_type: originalDetail.debtor_trans_type,
+            stock_id: originalDetail.stock_id,
+            quantity: originalDetail.quantity
+          } : null
+        });
+
+        if (originalDetail && Number(originalDetail.quantity) !== Number(row.thisInvoice)) {
+          const detailUpdateData = {
+            quantity: row.thisInvoice,
+            // Recalculate total if needed, but probably handled on backend
+          };
+          console.log("Updating detail during processing:", originalDetail.id, detailUpdateData);
+
+          try {
+            await updateDebtorTransDetailMutation.mutateAsync({
+              id: originalDetail.id,
+              data: detailUpdateData,
+            });
+            console.log("Detail updated successfully for row during processing:", row.id);
+          } catch (error) {
+            console.error("Failed to update detail for row during processing:", row.id, error);
+          }
+
+          // Also update the corresponding delivery detail (trans_type=13)
+          const deliveryDetail = debtorTransDetails.find((d: any) =>
+            String(d.debtor_trans_no) === String(originalInvoice.trans_no) &&
+            d.debtor_trans_type === 13 &&
+            String(d.stock_id) === String(row.itemCode)
+          );
+
+          if (deliveryDetail && Number(deliveryDetail.quantity) !== Number(row.thisInvoice)) {
+            const deliveryUpdateData = {
+              qty_done: row.thisInvoice,
+            };
+            console.log("Updating delivery detail during processing:", deliveryDetail.id, deliveryUpdateData);
+
+            try {
+              await updateDebtorTransDetailMutation.mutateAsync({
+                id: deliveryDetail.id,
+                data: deliveryUpdateData,
+              });
+              console.log("Delivery detail updated successfully for row during processing:", row.id);
+            } catch (error) {
+              console.error("Failed to update delivery detail for row during processing:", row.id, error);
+            }
+          }
+        } else {
+          console.log("Detail update skipped for row during processing:", row.id, {
+            detailFound: !!originalDetail,
+            quantityChanged: originalDetail ? Number(originalDetail.quantity) !== Number(row.thisInvoice) : false,
+            originalQty: originalDetail?.quantity,
+            newQty: row.thisInvoice
+          });
+        }
+      }
+
+      console.log("Detail updates completed for processing");
 
       alert("Invoice processed successfully!");
       navigate("/sales/inquiriesandreports/customer-transaction-inquiry/success", { state: { trans_no, reference, date } });
@@ -286,8 +446,10 @@ export default function UpdateCustomerInvoice() {
     setShippingCompany(invoice.ship_via || "");
     setMemo(invoice.memo_ || invoice.comments || "");
 
-    // rows from details
-    const details = (debtorTransDetails || []).filter((d: any) => String(d.debtor_trans_no) === String(invoice.trans_no));
+    // rows from details (only invoice lines: debtor_trans_type = 10)
+    const details = (debtorTransDetails || []).filter(
+      (d: any) => String(d.debtor_trans_no) === String(invoice.trans_no) && Number(d.debtor_trans_type) === 10
+    );
     if (details.length > 0) {
       const newRows = details.map((detail: any, index: number) => {
         const itemData = (items || []).find((i: any) => String(i.stock_id) === String(detail.stock_id));
@@ -298,11 +460,19 @@ export default function UpdateCustomerInvoice() {
         const discount = Number(detail.discount_percent || 0);
         const total = qty * price * (1 - discount / 100);
 
+        // Find delivered quantity from debtor_trans_type = 13
+        const deliveredDetail = (debtorTransDetails || []).find((d: any) =>
+          String(d.debtor_trans_no) === String(invoice.trans_no) &&
+          Number(d.debtor_trans_type) === 13 &&
+          String(d.stock_id) === String(detail.stock_id)
+        );
+        const deliveredQty = Number(deliveredDetail?.quantity || 0);
+
         return {
           id: index + 1,
           itemCode: detail.stock_id || "",
           description: detail.description || "",
-          delivered: qty,
+          delivered: deliveredQty,
           units: unitData?.abbr || detail.units || "",
           invoiced: Number(detail.qty_invoiced || 0),
           thisInvoice: qty,
@@ -310,7 +480,6 @@ export default function UpdateCustomerInvoice() {
           taxType: taxTypeData?.name || "",
           discount: discount,
           total: total,
-          src_id: detail.src_id,
         };
       });
       setRows(newRows);
@@ -472,12 +641,22 @@ export default function UpdateCustomerInvoice() {
                       value={row.thisInvoice}
                       onChange={(e) => {
                         const value = Number(e.target.value);
+                        // Validate that quantity doesn't exceed delivered amount
+                        if (value < 0) {
+                          alert("Quantity cannot be negative");
+                          return;
+                        }
+                        if (value > row.delivered) {
+                          alert(`Quantity cannot exceed delivered amount (${row.delivered})`);
+                          return;
+                        }
                         setRows((prev) =>
                           prev.map((r) =>
                             r.id === row.id ? { ...r, thisInvoice: value, total: value * r.price } : r
                           )
                         );
                       }}
+                      inputProps={{ min: 0, max: row.delivered }}
                     />
                   </TableCell>
                 )}
@@ -537,7 +716,7 @@ export default function UpdateCustomerInvoice() {
               <TextField
                 fullWidth
                 label="Payments Received"
-                value={originalInvoice?.alloc || 0}
+                value={paymentRef}
                 InputProps={{ readOnly: true }}
                 size="small"
               />
@@ -546,7 +725,7 @@ export default function UpdateCustomerInvoice() {
               <TextField
                 fullWidth
                 label="Invoiced Here"
-                value={invoiceTotal.toFixed(2)}
+                value={currentPaymentType === 1 ? 0 : invoiceTotal.toFixed(2)}
                 InputProps={{ readOnly: true }}
                 size="small"
               />
@@ -554,8 +733,8 @@ export default function UpdateCustomerInvoice() {
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Invoiced So Far"
-                value={originalInvoice?.ov_amount || 0}
+                label={currentPaymentType === 1 ? "Left to be invoiced:" : "Invoiced so far:" }
+                value={0}
                 InputProps={{ readOnly: true }}
                 size="small"
               />
