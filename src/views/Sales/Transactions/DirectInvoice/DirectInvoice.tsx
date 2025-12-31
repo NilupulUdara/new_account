@@ -28,6 +28,7 @@ import { createSalesOrder, getSalesOrders } from "../../../../api/SalesOrders/Sa
 import { createSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 import { createDebtorTran, getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
+import { createCustAllocation } from "../../../../api/CustAllocation/CustAllocationApi";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
@@ -54,7 +55,7 @@ export default function DirectInvoice() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
 
-     const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(false);
 
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
@@ -491,9 +492,9 @@ export default function DirectInvoice() {
             let nextTransNo10 = maxTrans10 + 1;
             let nextTransNo13 = maxTrans13 + 1;
             let nextTransNo12 = maxTrans12 + 1;
-            if (nextTransNo10 === orderNo) nextTransNo10++;
-            if (nextTransNo13 === orderNo) nextTransNo13++;
-            if (nextTransNo12 === orderNo) nextTransNo12++;
+            // if (nextTransNo10 === orderNo) nextTransNo10++;
+            // if (nextTransNo13 === orderNo) nextTransNo13++;
+            // if (nextTransNo12 === orderNo) nextTransNo12++;
 
             const debtorPayload10 = {
                 trans_no: nextTransNo10,
@@ -519,6 +520,32 @@ export default function DirectInvoice() {
                 dimension2_id: 0,
                 payment_terms: payment ? Number(payment) : null,
                 tax_included: selectedPriceList?.taxIncl ? 1 : 0,
+            };
+
+            const debtorPayload12 = {
+                trans_no: nextTransNo12,
+                trans_type: 12,
+                version: 0,
+                debtor_no: Number(customer),
+                branch_code: Number(branch),
+                tran_date: invoiceDate,
+                due_date: invoiceDate,
+                reference: reference || "",
+                tpe: 0,
+                order_no: 0,
+                ov_amount: subTotal + shippingCharge, // Payment amount - will be set when payment is made
+                ov_gst: 0,
+                ov_freight: 0,
+                ov_freight_tax: 0,
+                ov_discount: 0,
+                alloc: subTotal + shippingCharge, // Amount allocated to invoices
+                prep_amount: 0,
+                rate: 1,
+                ship_via: null,
+                dimension_id: 0,
+                dimension2_id: 0,
+                payment_terms: null,
+                tax_included: 0,
             };
 
             const debtorPayload13 = {
@@ -547,40 +574,35 @@ export default function DirectInvoice() {
                 tax_included: selectedPriceList?.taxIncl ? 1 : 0,
             };
 
-            const debtorPayload12 = {
-                trans_no: nextTransNo12,
-                trans_type: 12,
-                version: 0,
-                debtor_no: Number(customer),
-                branch_code: Number(branch),
-                tran_date: invoiceDate,
-                due_date: invoiceDate,
-                reference: reference || "",
-                tpe: 0,
-                order_no: 0,
-                ov_amount: 0, // Payment amount - will be set when payment is made
-                ov_gst: 0,
-                ov_freight: 0,
-                ov_freight_tax: 0,
-                ov_discount: 0,
-                alloc: 0, // Amount allocated to invoices
-                prep_amount: 0,
-                rate: 1,
-                ship_via: null,
-                dimension_id: 0,
-                dimension2_id: 0,
-                payment_terms: null,
-                tax_included: 0,
-            };
 
             console.log("Posting debtor_trans payloads", debtorPayload10, debtorPayload13, debtorPayload12);
             const debtorResp10 = await createDebtorTran(debtorPayload10 as any);
-            const debtorResp13 = await createDebtorTran(debtorPayload13 as any);
             const debtorResp12 = await createDebtorTran(debtorPayload12 as any);
+            const debtorResp13 = await createDebtorTran(debtorPayload13 as any);
+
 
             const debtorTransNo10 = debtorResp10?.trans_no ?? debtorResp10?.id ?? null;
             const debtorTransNo13 = debtorResp13?.trans_no ?? debtorResp13?.id ?? null;
             const debtorTransNo12 = debtorResp12?.trans_no ?? debtorResp12?.id ?? null;
+
+            // Create cust_allocation record linking payment to invoice
+            if (debtorTransNo12 && debtorTransNo10) {
+                try {
+                    const custAllocPayload = {
+                        person_id: Number(customer),
+                        amt: subTotal + shippingCharge, // Full invoice amount
+                        date_alloc: invoiceDate,
+                        trans_no_from: debtorTransNo12,
+                        trans_type_from: 12, // customer payment
+                        trans_no_to: debtorTransNo10,
+                        trans_type_to: 10, // sales invoice
+                    };
+                    await createCustAllocation(custAllocPayload);
+                    console.log("Created cust_allocation linking payment to invoice");
+                } catch (err) {
+                    console.error("Failed to create cust_allocation", err);
+                }
+            }
 
             // Create audit trail entry for the sales invoice (trans_type 10)
             try {
@@ -648,9 +670,14 @@ export default function DirectInvoice() {
                     quantity: row.quantity,
                     discount_percent: discount,
                     standard_cost: row.materialCost,
-                    qty_done: 1,
+                    qty_done: row.quantity,
+                    //qty_done: row.quantity,
                     src_id: createdDetailId,
                 };
+
+                console.log("Posting debtor_trans_detail 13", debtorDetail13);
+                const debtorDetail13Resp = await createDebtorTransDetail(debtorDetail13);
+                const debtorDetail13Id = debtorDetail13Resp?.id ?? debtorDetail13Resp?.debtor_trans_detail_id ?? null;
 
                 const debtorDetail10 = {
                     debtor_trans_no: debtorTransNo10,
@@ -663,17 +690,15 @@ export default function DirectInvoice() {
                     discount_percent: discount,
                     standard_cost: row.materialCost,
                     qty_done: 0,
-                    src_id: createdDetailId,
+                    src_id: debtorDetail13Id,
                 };
 
                 console.log("Posting debtor_trans_detail 10", debtorDetail10);
                 await createDebtorTransDetail(debtorDetail10);
-                console.log("Posting debtor_trans_detail 13", debtorDetail13);
-                await createDebtorTransDetail(debtorDetail13);
             }
 
-           // alert("Saved to sales_orders (order_no: " + orderNo + ")");
-             setOpen(true);
+            // alert("Saved to sales_orders (order_no: " + orderNo + ")");
+            setOpen(true);
             await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
             await queryClient.invalidateQueries({ queryKey: ["debtorTrans"] });
             navigate("/sales/transactions/direct-invoice/success", { state: { orderNo, reference, invoiceDate } });

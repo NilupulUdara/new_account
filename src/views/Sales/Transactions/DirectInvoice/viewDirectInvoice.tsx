@@ -360,7 +360,7 @@ export default function ViewDirectInvoice() {
           </Grid>
           <Grid item xs={12} sm={6}>
             <Typography>
-              <b>Due Date:</b> {dueDate || "-"}
+              <b>Due Date:</b> {invoiceDate || "-"}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
