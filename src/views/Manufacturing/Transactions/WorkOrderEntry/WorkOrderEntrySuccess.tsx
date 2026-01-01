@@ -72,11 +72,46 @@ export default function WorkOrderEntrySuccess() {
         ) : (
           <>
             <Typography sx={{ mb: 2 }}>
-              The Work Order has been added.
+              {successMode === 'manufacture' ? 'The manufacturing process has been entered.' : successMode === 'release' ? 'The Work Order has been released.' : 'The Work Order has been added.'}
             </Typography>
 
             <Stack spacing={3} direction="column" alignItems="center">
-              {Number(type) === 2 ? (
+              {successMode === 'manufacture' ? (
+                // Manufacturing success: show only the required options
+                <>
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/manufacturing/transactions/work-order-entry/view", { state })}
+                  >
+                    View This Work Order
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/manufacturing/transactions/work-order-entry/view-gl-journal-entries", { state: { reference } })}
+                  >
+                    View the GL Journal Entries for This Work Order
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/", { state: { reference } })}
+                  >
+                    Print the GL Journal Entries for This Work Order
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/manufacturing/transactions/outstanding-work-orders")}
+                  >
+                    Select another Work Order to Process
+                  </Button>
+                </>
+              ) : Number(type) === 2 ? (
                 // Advanced manufacture: show only the three basic navigation options
                 <>
                   <Button
