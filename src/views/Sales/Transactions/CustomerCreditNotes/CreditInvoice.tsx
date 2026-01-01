@@ -20,7 +20,7 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 // ===== API Imports =====
@@ -37,9 +37,10 @@ import { getSalesPricing } from "../../../../api/SalesPricing/SalesPricingApi";
 import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
 import { getDebtorTrans, createDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
-import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
+import { createDebtorTransDetail, getDebtorTransDetails, updateDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
 import auditTrailApi from "../../../../api/AuditTrail/AuditTrailApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 import useCurrentUser from "../../../../hooks/useCurrentUser";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
@@ -47,7 +48,10 @@ import theme from "../../../../theme";
 
 export default function CreditInvoice() {
     const navigate = useNavigate();
+    const location = useLocation();
     const queryClient = useQueryClient();
+
+   // console.log('CreditInvoice component mounted or updated', { state: location.state });
 
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
@@ -66,6 +70,9 @@ export default function CreditInvoice() {
     const [returnLocation, setReturnLocation] = useState("");
     const [memo, setMemo] = useState("");
 
+    const [originalTransNo, setOriginalTransNo] = useState<string | null>(null);
+    const [dateError, setDateError] = useState("");
+
     // ===== Fetch master data =====
     const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
     const { data: branches = [] } = useQuery({ queryKey: ["branches"], queryFn: () => getBranches() });
@@ -79,8 +86,71 @@ export default function CreditInvoice() {
     const { data: salesPricing = [] } = useQuery({ queryKey: ["salesPricing"], queryFn: getSalesPricing });
     const { data: taxTypes = [] } = useQuery({ queryKey: ["taxTypes"], queryFn: getTaxTypes });
     const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
+    const { data: debtorTransDetails = [] } = useQuery({ queryKey: ["debtorTransDetails"], queryFn: getDebtorTransDetails });
     const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+    const { data: companyData } = useQuery({ queryKey: ["company"], queryFn: getCompanies });
     const { user } = useCurrentUser();
+
+    // Find selected fiscal year from company setup
+    const selectedFiscalYear = useMemo(() => {
+        if (!companyData || companyData.length === 0) return null;
+        const company = companyData[0];
+        return fiscalYears.find((fy: any) => fy.id === company.fiscal_year_id);
+    }, [companyData, fiscalYears]);
+
+    // Validate date is within fiscal year
+    const validateDate = (selectedDate: string) => {
+        if (!selectedFiscalYear) {
+            setDateError("No fiscal year selected from company setup");
+            return false;
+        }
+
+        if (selectedFiscalYear.closed) {
+            setDateError("The fiscal year is closed for further data entry.");
+            return false;
+        }
+
+        const selected = new Date(selectedDate);
+        const from = new Date(selectedFiscalYear.fiscal_year_from);
+        const to = new Date(selectedFiscalYear.fiscal_year_to);
+
+        if (selected < from || selected > to) {
+            setDateError("The entered date is out of fiscal year.");
+            return false;
+        }
+
+        setDateError("");
+        return true;
+    };
+
+    // Validate date when fiscal year changes
+    useEffect(() => {
+        if (selectedFiscalYear) {
+            validateDate(creditNoteDate);
+        }
+    }, [selectedFiscalYear]);
+
+    // Handle date change with validation
+    const handleDateChange = (value: string) => {
+        setCreditNoteDate(value);
+        validateDate(value);
+    };
+
+    // Extract data from navigation state
+    useEffect(() => {
+     //   console.log('useEffect for location.state running', location.state);
+        if (location.state) {
+            const state = location.state as any;
+            if (state.trans_no) {
+                setOriginalTransNo(state.trans_no);
+                setCreditingInvoice(state.trans_no);
+            }
+            if (state.reference) setReference(state.reference);
+            if (state.date) setInvoiceDate(state.date);
+            if (state.debtor_no) setCustomer(String(state.debtor_no));
+            if (state.branch_code) setBranch(String(state.branch_code));
+        }
+    }, [location.state]);
 
     // ===== Tax-related state =====
     const [taxGroupItems, setTaxGroupItems] = useState<any[]>([]);
@@ -97,6 +167,7 @@ export default function CreditInvoice() {
             total: 0,
             selectedItemId: null as string | number | null,
             material_cost: 0,
+            remainingQuantity: 0,
         },
     ]);
 
@@ -115,6 +186,7 @@ export default function CreditInvoice() {
                 total: 0,
                 selectedItemId: null,
                 material_cost: 0,
+                remainingQuantity: 0,
             },
         ]);
     };
@@ -129,15 +201,17 @@ export default function CreditInvoice() {
                 r.id === id
                     ? {
                         ...r,
-                        [field]: value,
+                        [field]: field === "creditQuantity" ? Math.min(Math.max(0, Number(value)), r.remainingQuantity) :
+                                field === "price" ? Math.max(0, Number(value)) :
+                                field === "discount" ? Math.min(100, Math.max(0, Number(value))) :
+                                value,
                         total:
-                            field === "quantity" ||
+                            field === "creditQuantity" ||
                                 field === "price" ||
-                                field === "discount" ||
-                                field === "creditQuantity"
-                                ? (field === "creditQuantity" ? value : (field === "quantity" ? value : r.quantity)) *
-                                (field === "price" ? value : r.price) *
-                                (1 - (field === "discount" ? value : r.discount) / 100)
+                                field === "discount"
+                                ? (field === "creditQuantity" ? Math.min(Math.max(0, Number(value)), r.remainingQuantity) : r.creditQuantity) *
+                                (field === "price" ? Math.max(0, Number(value)) : r.price) *
+                                (1 - (field === "discount" ? Math.min(100, Math.max(0, Number(value))) : r.discount) / 100)
                                 : r.total,
                     }
                     : r
@@ -168,6 +242,51 @@ export default function CreditInvoice() {
         const nextNum = maxNum + 1;
         setReference(`${nextNum.toString().padStart(3, '0')}/${fiscalYear}`);
     }, [debtorTrans]);
+
+    // Set branch from debtorTrans if not set
+    useEffect(() => {
+     //   console.log('useEffect for branch from debtorTrans', { branch, originalTransNo, debtorTransLength: debtorTrans.length });
+        if (!branch && originalTransNo && debtorTrans.length > 0) {
+            const originalTrans = debtorTrans.find((t: any) => String(t.trans_no) === String(originalTransNo));
+        //    console.log('originalTrans', originalTrans);
+            if (originalTrans && originalTrans.branch_code) {
+         //       console.log('setting branch from debtorTrans:', originalTrans.branch_code);
+                setBranch(String(originalTrans.branch_code));
+            }
+        }
+    }, [branch, originalTransNo, debtorTrans]);
+
+    // Populate rows from original invoice details
+    useEffect(() => {
+        if (originalTransNo && debtorTransDetails.length > 0) {
+            const filteredDetails = debtorTransDetails.filter((d: any) => String(d.debtor_trans_no) === String(originalTransNo) && d.debtor_trans_type === 10);
+            if (filteredDetails.length > 0) {
+                const newRows = filteredDetails.map((detail: any, index: number) => {
+                    const item = items.find((i: any) => i.stock_id === detail.stock_id);
+                    const unitData = itemUnits.find((u: any) => u.id === item?.units);
+                    const sumCredits = debtorTransDetails
+                        .filter((d: any) => String(d.debtor_trans_no) === String(originalTransNo) && d.debtor_trans_type === 11 && String(d.stock_id) === String(detail.stock_id))
+                        .reduce((sum, d) => sum + Number(d.quantity || 0), 0);
+                    const remainingQuantity = Number(detail.quantity) - sumCredits;
+                    return {
+                        id: index + 1,
+                        itemCode: detail.stock_id,
+                        description: detail.description,
+                        quantity: detail.quantity, // original invoiced quantity
+                        unit: unitData?.abbr || item?.units || "",
+                        price: detail.unit_price,
+                        creditQuantity: 0,
+                        discount: detail.discount_percent || 0,
+                        total: 0,
+                        selectedItemId: detail.stock_id,
+                        material_cost: detail.standard_cost || 0,
+                        remainingQuantity,
+                    };
+                });
+                setRows(newRows);
+            }
+        }
+    }, [originalTransNo, debtorTransDetails, items, itemUnits]);
 
     // Reset branch when customer changes
     useEffect(() => {
@@ -201,7 +320,7 @@ export default function CreditInvoice() {
                         return {
                             ...r,
                             price: newPrice,
-                            total: r.quantity * newPrice * (1 - r.discount / 100),
+                            total: r.creditQuantity * newPrice * (1 - r.discount / 100),
                         };
                     }
                     return r;
@@ -210,10 +329,10 @@ export default function CreditInvoice() {
         }
     }, [salesType, salesPricing]);
 
-    // Update tax group items when branch changes
+    {/* // Update tax group items when branch changes
     useEffect(() => {
         if (branch) {
-            const selectedBranch = branches.find((b: any) => b.branch_code === branch);
+            const selectedBranch = branches.find((b: any) => String(b.branch_code) === String(branch) && String(b.debtor_no) === String(customer));
             if (selectedBranch && selectedBranch.tax_group) {
                 getTaxGroupItemsByGroupId(selectedBranch.tax_group)
                     .then((items) => setTaxGroupItems(items))
@@ -224,17 +343,22 @@ export default function CreditInvoice() {
         } else {
             setTaxGroupItems([]);
         }
-    }, [branch, branches]);
+    }, [branch, branches, customer]); */}
 
     const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
 
     const selectedCustomerObj = useMemo(() => customers.find((c: any) => String(c.debtor_no) === String(customer)), [customers, customer]);
     const customerDisplayName = selectedCustomerObj ? selectedCustomerObj.name : (customer || "");
     const currencyDisplay = selectedCustomerObj?.curr_code ?? "";
-    const selectedBranchObj = useMemo(() => branches.find((b: any) => String(b.branch_code) === String(branch)), [branches, branch]);
+    const selectedBranchObj = useMemo(() => {
+        const found = branches.find((b: any) => String(b.branch_code) === String(branch) && String(b.debtor_no) === String(customer));
+      //  console.log('selectedBranchObj debug:', { branch, customer, branches: branches.length, found });
+        return found;
+    }, [branches, branch, customer]);
     const branchDisplayName = selectedBranchObj
-        ? `${selectedBranchObj.br_name} - ${[selectedBranchObj.br_address, selectedBranchObj.city, selectedBranchObj.state, selectedBranchObj.postal_code].filter(Boolean).join(", ")}`
+        ? selectedBranchObj.br_name
         : (branch || "");
+  //  console.log('branchDisplayName:', branchDisplayName, 'selectedBranchObj:', selectedBranchObj);
 
     // Calculate taxes if taxIncl is true
     const selectedPriceList = useMemo(() => {
@@ -281,7 +405,11 @@ export default function CreditInvoice() {
             return;
         }
         if (!branch) {
-            alert("Please select a branch.");
+            alert("Branch is required. Please navigate from Customer Transaction Inquiry to pre-populate the branch.");
+            return;
+        }
+        if (dateError) {
+            alert("Please correct the date error before processing.");
             return;
         }
         if (!hasValidRows) {
@@ -297,6 +425,8 @@ export default function CreditInvoice() {
 
         const selectedCustomer = customers.find((c: any) => c.debtor_no === customer);
 
+        const originalTrans = debtorTrans.find((t: any) => String(t.trans_no) === String(originalTransNo) && t.trans_type === 10);
+
         const total = subTotal + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount);
 
         const debtorPayload = {
@@ -308,17 +438,17 @@ export default function CreditInvoice() {
             tran_date: creditNoteDate,
             due_date: creditNoteDate,
             reference,
-            tpe: salesType,
-            order_no: 0,
+            tpe: salesType ? Number(salesType) : 0,
+            order_no: originalTrans?.order_no || 0,
             ov_amount: total,
             ov_gst: 0,
             ov_freight: 0,
             ov_freight_tax: 0,
             ov_discount: 0,
-            alloc: 0,
+            alloc: total,
             prep_amount: 0,
             rate: 1,
-            ship_via:  Number(shippingCompany),
+            ship_via: shippingCompany ? Number(shippingCompany) : null,
             dimension_id: 0,
             dimension2_id: 0,
             payment_terms: selectedCustomer?.payment_terms || null,
@@ -333,6 +463,13 @@ export default function CreditInvoice() {
         const detailsToPost = rows.filter(r => r.selectedItemId);
        // console.log("Number of details to post:", detailsToPost.length);
         for (const row of detailsToPost) {
+            // Find the original invoice detail
+            const originalDetail = debtorTransDetails.find((d: any) =>
+                String(d.debtor_trans_no) === String(originalTransNo) &&
+                d.debtor_trans_type === 10 &&
+                String(d.stock_id) === String(row.itemCode)
+            );
+
             const debtorDetailPayload = {
                 debtor_trans_no: debtorTransNo,
                 debtor_trans_type: 11,
@@ -340,16 +477,35 @@ export default function CreditInvoice() {
                 description: row.description,
                 unit_price: row.price,
                 unit_tax: 0,
-                quantity: row.quantity,
+                quantity: row.creditQuantity,
                 discount_percent: row.discount,
                 standard_cost: row.material_cost,
                 qty_done: 0,
-                src_id: 1,
+                src_id: originalDetail ? originalDetail.id : 1,
             };
             console.log("Posting debtor_trans_detail", debtorDetailPayload);
             try {
                 const response = await createDebtorTransDetail(debtorDetailPayload);
                 console.log("Debtor trans detail posted successfully:", response);
+
+                // Update the original invoice detail (debtor_trans_type = 10)
+                if (originalDetail) {
+                    const updatedQtyDone = Number(originalDetail.qty_done || originalDetail.quantity) - Number(row.creditQuantity);
+                    if (updatedQtyDone >= 0) {
+                        const updateData = { qty_done: updatedQtyDone };
+                        console.log("Updating original detail:", originalDetail.id, updateData);
+                        try {
+                            await updateDebtorTransDetail(originalDetail.id, updateData);
+                            console.log("Original detail updated successfully");
+                        } catch (updateError) {
+                            console.error("Failed to update original detail:", updateError);
+                        }
+                    } else {
+                        console.warn("Credit quantity exceeds original qty_done for item:", row.itemCode);
+                    }
+                } else {
+                    console.warn("Original detail not found for item:", row.itemCode);
+                }
             } catch (error) {
                 console.error("Failed to post debtor trans detail:", error);
             }
@@ -487,7 +643,7 @@ export default function CreditInvoice() {
                                 fullWidth
                                 size="small"
                                 value={invoiceDate}
-                                onChange={(e) => setInvoiceDate(e.target.value)}
+                                disabled
                                 InputLabelProps={{ shrink: true }}
                             />
                             <TextField
@@ -496,8 +652,14 @@ export default function CreditInvoice() {
                                 fullWidth
                                 size="small"
                                 value={creditNoteDate}
-                                onChange={(e) => setCreditNoteDate(e.target.value)}
+                                onChange={(e) => handleDateChange(e.target.value)}
                                 InputLabelProps={{ shrink: true }}
+                                inputProps={{
+                                    min: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_from).toISOString().split('T')[0] : undefined,
+                                    max: selectedFiscalYear ? new Date(selectedFiscalYear.fiscal_year_to).toISOString().split('T')[0] : undefined,
+                                }}
+                                error={!!dateError}
+                                helperText={dateError}
                             />
                         </Stack>
                     </Grid>
@@ -680,7 +842,7 @@ export default function CreditInvoice() {
                     <Button variant="outlined" onClick={() => navigate(-1)}>
                         Update
                     </Button>
-                    <Button variant="contained" color="primary" onClick={handleProcessCreditNote}>
+                    <Button variant="contained" color="primary" onClick={handleProcessCreditNote} disabled={!!dateError}>
                         Process Credit Note
                     </Button>
                 </Box>
