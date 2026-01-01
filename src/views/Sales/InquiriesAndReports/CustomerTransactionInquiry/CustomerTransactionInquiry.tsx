@@ -55,6 +55,7 @@ interface Row {
   branch: string;
   amount: number;
   debtor_no?: string | number;
+  branch_code?: string | number;
 }
 
 export default function CustomerTransactionInquiry() {
@@ -110,6 +111,7 @@ export default function CustomerTransactionInquiry() {
       due_date: t.due_date ? String(t.due_date).split(" ")[0] : "",
       branch: branchObj?.br_name ?? String(t.branch_code ?? ""),
       amount: Number(t.ov_amount ?? 0),
+      branch_code: t.branch_code,
     } as Row;
   });
 
@@ -399,7 +401,10 @@ export default function CustomerTransactionInquiry() {
                       <Button
                         variant="outlined"
                         size="small"
-                        onClick={() => navigate("/sales/transactions/credit-invoice/", { state: { trans_no: r.number, reference: r.reference, date: r.date, debtor_no: r.debtor_no } })}
+                        onClick={() => {
+                            console.log('Credit this clicked', r);
+                            navigate("/sales/transactions/credit-invoice/", { state: { trans_no: r.number, reference: r.reference, date: r.date, debtor_no: r.debtor_no, branch_code: r.branch_code } });
+                        }}
                       >
                         Credit this
                       </Button>
