@@ -242,7 +242,7 @@ export default function ReleaseWorkOrder() {
         console.warn("Failed to invalidate queries after release:", invErr);
       }
 
-      navigate("/manufacturing/transactions/work-order-entry/success", { state: { reference, id: idFromState, type: 2 } });
+      navigate("/manufacturing/transactions/work-order-entry/success", { state: { reference, id: idFromState, type: 2, successMode: 'release' } });
     } catch (err: any) {
       console.error("Failed to release work order:", err);
       setSaveError(err?.message || "Failed to release work order");
