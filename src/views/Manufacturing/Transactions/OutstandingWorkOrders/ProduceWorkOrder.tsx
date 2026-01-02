@@ -28,6 +28,7 @@ import { getItems } from "../../../../api/Item/ItemApi";
 import useCurrentUser from "../../../../hooks/useCurrentUser";
 import { createWoManufacture, getWoManufactures } from "../../../../api/WorkOrders/WOManufactureApi";
 import { getWoRequirementsByWorkOrder, updateWoRequirement } from "../../../../api/WorkOrders/WORequirementsApi";
+import { getBoms } from "../../../../api/Bom/BomApi";
 import { createStockMove } from "../../../../api/StockMoves/StockMovesApi";
 import auditTrailApi from "../../../../api/AuditTrail/AuditTrailApi";
 import { updateWorkOrder, getWorkOrderById } from "../../../../api/WorkOrders/WorkOrderApi";
@@ -51,6 +52,7 @@ export default function ProduceWorkOrder() {
   const [prodQuantity, setProdQuantity] = useState("0");
   const [prodMemo, setProdMemo] = useState("");
   const [formError, setFormError] = useState("");
+  const [processingAction, setProcessingAction] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
   const { user } = useCurrentUser();
@@ -191,12 +193,38 @@ export default function ProduceWorkOrder() {
         }
       }
 
-      // 3) create negative stock_moves for every requirement's stock (bom items) qty = -quantity
+      // 3) create negative stock_moves for every requirement's stock (bom items)
+      // qty should be producedQuantity * bom.component_quantity
       try {
+        // load BOMs for parent item to determine component quantity per parent
+        let allBoms: any[] = [];
+        let parentCode = null;
+        try {
+          const currentWo = woRecord ?? (await getWorkOrderById(idFromState));
+          parentCode = String(currentWo?.stock_id ?? currentWo?.stock ?? currentWo?.item_id ?? "");
+          const boms = await getBoms();
+          allBoms = Array.isArray(boms) ? boms : [];
+        } catch (bomLoadErr) {
+          console.warn("Failed to load BOMs for negative stock move qty calculation:", bomLoadErr);
+          allBoms = [];
+        }
+
         for (const req of requirements) {
           try {
             const compStockId = req.stock_id ?? req.stockid ?? req.stock;
             const unitCost = Number(req.unit_cost ?? req.unitCost ?? 0) || 0;
+
+            // find BOM entry for this component
+            let unitsPerParent = 0;
+            try {
+              const match = allBoms.find((b: any) => String(b.component ?? b.component_stock_id ?? b.component_id ?? "") === String(compStockId) && (!parentCode || String(b.parent) === String(parentCode)));
+              unitsPerParent = Number(match?.quantity ?? match?.qty ?? match?.units_req ?? 0) || 0;
+            } catch (bFindErr) {
+              console.warn("Failed to find BOM entry for component:", bFindErr);
+            }
+
+            const moveQty = unitsPerParent > 0 ? -Math.abs(Number(qty) * unitsPerParent) : -Math.abs(Number(qty) || 0);
+
             if (createdWoManId) {
               const stockMovePayload = {
                 trans_no: createdWoManId,
@@ -206,7 +234,7 @@ export default function ProduceWorkOrder() {
                 tran_date: prodDate,
                 price: 0,
                 reference: "",
-                qty: -Math.abs(Number(qty) || 0),
+                qty: moveQty,
                 standard_cost: unitCost,
               } as any;
               await createStockMove(stockMovePayload);
@@ -309,11 +337,19 @@ export default function ProduceWorkOrder() {
     } catch (err) {
       console.error("Failed production process:", err);
       setFormError("Failed to process production. See console for details.");
+    } finally {
+      setProcessingAction(null);
     }
   };
 
-  const handleProcess = () => processProduction(false);
-  const handleProcessAndClose = () => processProduction(true);
+  const handleProcess = () => {
+    setProcessingAction('process');
+    processProduction(false);
+  };
+  const handleProcessAndClose = () => {
+    setProcessingAction('processAndClose');
+    processProduction(true);
+  };
 
   const breadcrumbItems = [
     { title: "Transactions", href: "/manufacturing/transactions" },
@@ -410,8 +446,8 @@ export default function ProduceWorkOrder() {
                 )}
 
                 <Grid item xs={12} sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
-                  <Button variant="contained" color="primary" onClick={handleProcess}>Process</Button>
-                  <Button variant="contained" color="secondary" onClick={handleProcessAndClose}>Process and Close Order</Button>
+                  <Button variant="contained" color="primary" onClick={handleProcess} disabled={!!processingAction}>{processingAction === 'process' ? 'Processing...' : 'Process'}</Button>
+                  <Button variant="contained" color="secondary" onClick={handleProcessAndClose} disabled={!!processingAction}>{processingAction === 'processAndClose' ? 'Processing...' : 'Process and Close Order'}</Button>
                 </Grid>
               </Grid>
             </Paper>

@@ -29,6 +29,9 @@ import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import { useQuery } from "@tanstack/react-query";
 import { getItems } from "../../../../api/Item/ItemApi";
+import { getBoms } from "../../../../api/Bom/BomApi";
+import { getWorkCentres } from "../../../../api/WorkCentre/WorkCentreApi";
+import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
 
 function InventoryItemWhereUsedInquiry() {
@@ -74,20 +77,33 @@ function InventoryItemWhereUsedInquiry() {
         }
     }, [selectedItem, items]);
 
-    // Dummy data for the table
-    const dummyData = [
-        { parentItem: 'ITEM001', workCentre: 'Assembly Line 1', location: 'Warehouse A', quantityRequired: 5 },
-        { parentItem: 'ITEM002', workCentre: 'Packaging Station', location: 'Warehouse B', quantityRequired: 10 },
-        { parentItem: 'ITEM003', workCentre: 'Assembly Line 2', location: 'Warehouse A', quantityRequired: 20 },
-        { parentItem: 'ITEM004', workCentre: 'Quality Check', location: 'Warehouse C', quantityRequired: 50 },
-        { parentItem: 'ITEM005', workCentre: 'Assembly Line 1', location: 'Warehouse A', quantityRequired: 15 },
-        { parentItem: 'ITEM006', workCentre: 'Packaging Station', location: 'Warehouse B', quantityRequired: 25 },
-    ];
+    // Fetch BOMs, work centres and locations
+    const { data: rawBoms = [] } = useQuery({ queryKey: ["boms"], queryFn: getBoms });
+    const { data: workCentres = [] } = useQuery({ queryKey: ["workCentres"], queryFn: getWorkCentres });
+    const { data: locations = [] } = useQuery({ queryKey: ["inventoryLocations"], queryFn: getInventoryLocations });
+
+    // Build where-used rows: parents where component === selected item
+    const whereUsed = useMemo(() => {
+        if (!selectedItem) return [];
+        const allBoms = Array.isArray(rawBoms?.data ?? rawBoms) ? (rawBoms.data ?? rawBoms) : (rawBoms || []);
+        const matches = allBoms.filter((b: any) => String(b.component) === String(itemCode) || String(b.component) === String(selectedItem));
+        return matches.map((b: any) => {
+            const parent = String(b.parent ?? b.parent_item ?? b.parent_stock_id ?? "");
+            const qty = Number(b.quantity ?? b.qty ?? b.units_req ?? 0) || 0;
+            const wc = (workCentres || []).find((w: any) => String(w.id ?? w.work_centre_id ?? w.workcentre_id ?? w.work_centre) === String(b.work_centre ?? b.work_centre_id ?? ""));
+            const wcLabel = wc ? (wc.work_centre_name ?? wc.name ?? wc.description ?? String(b.work_centre)) : String(b.work_centre ?? "");
+            const loc = (locations || []).find((l: any) => String(l.loc_code ?? l.loccode ?? l.code ?? "") === String(b.loc_code ?? b.loccode ?? ""));
+            const locLabel = loc ? (loc.location_name ?? String(b.loc_code ?? "")) : String(b.loc_code ?? "");
+            const parentRec = (items || []).find((it: any) => String(it.stock_id ?? it.id) === String(parent));
+            const parentLabel = parentRec ? `${parent} - ${parentRec.item_name ?? parentRec.name ?? parentRec.description ?? ""}` : parent;
+            return { parentId: parent, parentItem: parentLabel, workCentre: wcLabel, location: locLabel, quantityRequired: qty };
+        });
+    }, [rawBoms, selectedItem, itemCode, workCentres, locations]);
 
     const paginatedData = useMemo(() => {
-        if (rowsPerPage === -1) return dummyData;
-        return dummyData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-    }, [dummyData, page, rowsPerPage]);
+        if (rowsPerPage === -1) return whereUsed;
+        return whereUsed.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+    }, [whereUsed, page, rowsPerPage]);
 
     const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
     const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -207,11 +223,19 @@ function InventoryItemWhereUsedInquiry() {
                                 {paginatedData.length > 0 ? (
                                     paginatedData.map((item, index) => (
                                         <TableRow key={index} hover>
-                                            <TableCell>{item.parentItem}</TableCell>
-                                            <TableCell>{item.workCentre}</TableCell>
-                                            <TableCell>{item.location}</TableCell>
-                                            <TableCell>{item.quantityRequired}</TableCell>
-                                        </TableRow>
+                                                <TableCell>
+                                                    <Button
+                                                        variant="text"
+                                                        color="primary"
+                                                        onClick={() => navigate("/manufacturing/maintenance/bills-of-material", { state: { stock_id: item.parentId } })}
+                                                    >
+                                                        {item.parentItem}
+                                                    </Button>
+                                                </TableCell>
+                                                <TableCell>{item.workCentre}</TableCell>
+                                                <TableCell>{item.location}</TableCell>
+                                                <TableCell>{item.quantityRequired}</TableCell>
+                                            </TableRow>
                                     ))
                                 ) : (
                                     <TableRow>
@@ -226,7 +250,7 @@ function InventoryItemWhereUsedInquiry() {
                                     <TablePagination
                                         rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
                                         colSpan={4}
-                                        count={dummyData.length}
+                                        count={whereUsed.length}
                                         rowsPerPage={rowsPerPage}
                                         page={page}
                                         onPageChange={handleChangePage}
