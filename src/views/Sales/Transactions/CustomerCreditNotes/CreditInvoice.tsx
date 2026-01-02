@@ -38,6 +38,7 @@ import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
 import { getDebtorTrans, createDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { createDebtorTransDetail, getDebtorTransDetails, updateDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
+import { createCustAllocation } from "../../../../api/CustAllocation/CustAllocationApi";
 import auditTrailApi from "../../../../api/AuditTrail/AuditTrailApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
@@ -247,7 +248,7 @@ export default function CreditInvoice() {
     useEffect(() => {
      //   console.log('useEffect for branch from debtorTrans', { branch, originalTransNo, debtorTransLength: debtorTrans.length });
         if (!branch && originalTransNo && debtorTrans.length > 0) {
-            const originalTrans = debtorTrans.find((t: any) => String(t.trans_no) === String(originalTransNo));
+            const originalTrans = debtorTrans.find((t: any) => String(t.trans_no) === String(originalTransNo) && t.trans_type === 10);
         //    console.log('originalTrans', originalTrans);
             if (originalTrans && originalTrans.branch_code) {
          //       console.log('setting branch from debtorTrans:', originalTrans.branch_code);
@@ -255,6 +256,16 @@ export default function CreditInvoice() {
             }
         }
     }, [branch, originalTransNo, debtorTrans]);
+
+    // Set sales type from debtorTrans if not set
+    useEffect(() => {
+        if (!salesType && originalTransNo && debtorTrans.length > 0) {
+            const originalTrans = debtorTrans.find((t: any) => String(t.trans_no) === String(originalTransNo) && t.trans_type === 10);
+            if (originalTrans && originalTrans.tpe) {
+                setSalesType(String(originalTrans.tpe));
+            }
+        }
+    }, [salesType, originalTransNo, debtorTrans]);
 
     // Populate rows from original invoice details
     useEffect(() => {
@@ -264,8 +275,9 @@ export default function CreditInvoice() {
                 const newRows = filteredDetails.map((detail: any, index: number) => {
                     const item = items.find((i: any) => i.stock_id === detail.stock_id);
                     const unitData = itemUnits.find((u: any) => u.id === item?.units);
+                    // Find all credit notes that reference this original invoice detail
                     const sumCredits = debtorTransDetails
-                        .filter((d: any) => String(d.debtor_trans_no) === String(originalTransNo) && d.debtor_trans_type === 11 && String(d.stock_id) === String(detail.stock_id))
+                        .filter((d: any) => d.debtor_trans_type === 11 && d.src_id === detail.id)
                         .reduce((sum, d) => sum + Number(d.quantity || 0), 0);
                     const remainingQuantity = Number(detail.quantity) - sumCredits;
                     return {
@@ -365,6 +377,17 @@ export default function CreditInvoice() {
         return salesTypes.find((st: any) => String(st.id) === String(salesType));
     }, [salesType, salesTypes]);
 
+    // Determine tax inclusion setting - use original invoice's setting if available, otherwise use selected price list
+    const effectiveTaxIncluded = useMemo(() => {
+        if (originalTransNo && debtorTrans.length > 0) {
+            const originalTrans = debtorTrans.find((t: any) => String(t.trans_no) === String(originalTransNo) && t.trans_type === 10);
+            if (originalTrans) {
+                return originalTrans.tax_included === 1;
+            }
+        }
+        return selectedPriceList?.taxIncl || false;
+    }, [originalTransNo, debtorTrans, selectedPriceList]);
+
     const taxCalculations = useMemo(() => {
         if (taxGroupItems.length === 0) {
             return [];
@@ -377,7 +400,7 @@ export default function CreditInvoice() {
             const taxName = taxTypeData?.description || "Tax";
 
             let taxAmount = 0;
-            if (selectedPriceList?.taxIncl) {
+            if (effectiveTaxIncluded) {
                 // For prices that include tax, we need to extract the tax amount
                 // Tax amount = subtotal - (subtotal / (1 + rate/100))
                 taxAmount = subTotal - (subTotal / (1 + taxRate / 100));
@@ -427,7 +450,10 @@ export default function CreditInvoice() {
 
         const originalTrans = debtorTrans.find((t: any) => String(t.trans_no) === String(originalTransNo) && t.trans_type === 10);
 
-        const total = subTotal + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount);
+        // Use the same tax_included setting as the original invoice
+        const taxIncludedFromOriginal = originalTrans?.tax_included === 1;
+
+        const total = subTotal + (taxIncludedFromOriginal ? 0 : totalTaxAmount);
 
         const debtorPayload = {
             trans_no: nextTransNo,
@@ -452,12 +478,31 @@ export default function CreditInvoice() {
             dimension_id: 0,
             dimension2_id: 0,
             payment_terms: selectedCustomer?.payment_terms || null,
-            tax_included: selectedPriceList?.taxIncl ? 1 : 0,
+            tax_included: taxIncludedFromOriginal ? 1 : 0,
         };
       //  console.log("Posting debtor_trans payload", debtorPayload);
         const debtorResp = await createDebtorTran(debtorPayload as any);
         const debtorTransNo = debtorResp?.trans_no ?? debtorResp?.id ?? null;
        // console.log("Debtor trans created:", debtorResp, "debtorTransNo:", debtorTransNo);
+
+        // Create cust_allocation record linking credit note to original invoice
+        if (debtorTransNo && originalTransNo) {
+            try {
+                const custAllocPayload = {
+                    person_id: Number(customer),
+                    amt: total, // Full credit note amount
+                    date_alloc: creditNoteDate,
+                    trans_no_from: debtorTransNo,
+                    trans_type_from: 11, // customer credit note
+                    trans_no_to: Number(originalTransNo),
+                    trans_type_to: 10, // sales invoice
+                };
+                await createCustAllocation(custAllocPayload);
+                console.log("Created cust_allocation linking credit note to invoice");
+            } catch (err) {
+                console.error("Failed to create cust_allocation", err);
+            }
+        }
 
         // Create debtor_trans_details
         const detailsToPost = rows.filter(r => r.selectedItemId);
@@ -490,7 +535,7 @@ export default function CreditInvoice() {
 
                 // Update the original invoice detail (debtor_trans_type = 10)
                 if (originalDetail) {
-                    const updatedQtyDone = Number(originalDetail.qty_done || originalDetail.quantity) - Number(row.creditQuantity);
+                    const updatedQtyDone = Number(row.creditQuantity);
                     if (updatedQtyDone >= 0) {
                         const updateData = { qty_done: updatedQtyDone };
                         console.log("Updating original detail:", originalDetail.id, updateData);
@@ -549,7 +594,8 @@ export default function CreditInvoice() {
         alert("Credit Note processed successfully!");
         queryClient.invalidateQueries({ queryKey: ["debtorTrans"] });
         queryClient.invalidateQueries({ queryKey: ["debtorTransDetails"] });
-        navigate("/sales/transactions/customer-credit-notes/success", { state: { trans_no: debtorTransNo, reference } });
+        queryClient.invalidateQueries({ queryKey: ["custAllocations"] });
+        navigate("/sales/transactions/credit-invoice/success", { state: { trans_no: debtorTransNo, reference } });
     };
 
     const breadcrumbItems = [
@@ -700,41 +746,10 @@ export default function CreditInvoice() {
                                 </TableCell>
                                 <TableCell>
                                     <TextField
-                                        select
                                         size="small"
                                         value={row.description}
-                                        onChange={async (e) => {
-                                            const selected = items.find((item: any) => item.description === e.target.value);
-                                            handleChange(row.id, "description", e.target.value);
-                                            if (selected) {
-                                                handleChange(row.id, "itemCode", selected.stock_id);
-                                                handleChange(row.id, "selectedItemId", selected.stock_id);
-                                                const itemData = await getItemById(selected.stock_id);
-                                                if (itemData) {
-                                                    const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
-                                                    handleChange(row.id, "unit", unitName);
-                                                    handleChange(row.id, "price", 0); // Will be updated when sales type is selected
-                                                    handleChange(row.id, "material_cost", itemData.material_cost || 0);
-                                                }
-                                            }
-                                        }}
-                                    >
-                                        {Object.entries(
-                                            items.reduce((acc: any, item: any) => {
-                                                const category = categories.find((c: any) => c.category_id === item.category_id)?.description || "Uncategorized";
-                                                if (!acc[category]) acc[category] = [];
-                                                acc[category].push(item);
-                                                return acc;
-                                            }, {} as Record<string, any[]>)
-                                        ).map(([category, catItems]: [string, any[]]) => [
-                                            <ListSubheader key={category}>{category}</ListSubheader>,
-                                            ...catItems.map((item: any) => (
-                                                <MenuItem key={item.stock_id} value={item.description}>
-                                                    {item.description}
-                                                </MenuItem>
-                                            )),
-                                        ])}
-                                    </TextField>
+                                        InputProps={{ readOnly: true }}
+                                    />
                                 </TableCell>
                                 <TableCell>
                                     <TextField
@@ -785,7 +800,7 @@ export default function CreditInvoice() {
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>
                                 Total
                             </TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>{(subTotal + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount)).toFixed(2)}</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>{(subTotal + (effectiveTaxIncluded ? 0 : totalTaxAmount)).toFixed(2)}</TableCell>
                             <TableCell></TableCell>
                         </TableRow>
                     </TableFooter>

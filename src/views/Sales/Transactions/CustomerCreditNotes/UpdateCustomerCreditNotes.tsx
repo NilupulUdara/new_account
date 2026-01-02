@@ -20,7 +20,7 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 // ===== API Imports =====
@@ -36,8 +36,8 @@ import { getInventoryLocations } from "../../../../api/InventoryLocation/Invento
 import { getSalesPricing } from "../../../../api/SalesPricing/SalesPricingApi";
 import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
-import { getDebtorTrans, createDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
-import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
+import { getDebtorTrans, createDebtorTran, updateDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { createDebtorTransDetail, getDebtorTransDetails, updateDebtorTransDetail, deleteDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
 import auditTrailApi from "../../../../api/AuditTrail/AuditTrailApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
@@ -48,6 +48,7 @@ import theme from "../../../../theme";
 
 export default function UpdateCustomerCreditNotes() {
     const navigate = useNavigate();
+    const location = useLocation();
     const queryClient = useQueryClient();
 
     // ===== Form fields =====
@@ -66,6 +67,18 @@ export default function UpdateCustomerCreditNotes() {
     const [memo, setMemo] = useState("");
     const [dateError, setDateError] = useState("");
 
+    // Populate form fields with selected data from navigation state
+    useEffect(() => {
+        if (location.state) {
+            const { trans_no, reference, date, debtor_no } = location.state;
+            // Don't set reference when editing - it will be loaded from transaction data
+            if (!trans_no && reference) setReference(reference);
+            // Don't set date when editing - it will be loaded from transaction data
+            if (!trans_no && date) setCreditNoteDate(date);
+            if (debtor_no) setCustomer(debtor_no);
+        }
+    }, [location.state]);
+
     // ===== Fetch master data =====
     const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
     const { data: branches = [] } = useQuery({ queryKey: ["branches"], queryFn: () => getBranches() });
@@ -79,11 +92,63 @@ export default function UpdateCustomerCreditNotes() {
     const { data: salesPricing = [] } = useQuery({ queryKey: ["salesPricing"], queryFn: getSalesPricing });
     const { data: taxTypes = [] } = useQuery({ queryKey: ["taxTypes"], queryFn: getTaxTypes });
     const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
+    const { data: debtorTransDetails = [] } = useQuery({ queryKey: ["debtorTransDetails"], queryFn: getDebtorTransDetails });
     const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
     const { data: companyData } = useQuery({
         queryKey: ["company"],
         queryFn: getCompanies,
     });
+
+    // Load transaction data when debtorTrans is available and we have trans_no
+    useEffect(() => {
+        if (debtorTrans.length > 0 && location.state?.trans_no) {
+            const selectedTransaction = debtorTrans.find((t: any) => 
+                String(t.trans_no) === String(location.state.trans_no) && 
+                String(t.trans_type) === "11"
+            );
+            
+            if (selectedTransaction) {
+                // Populate additional form fields from the transaction
+                setCustomer(selectedTransaction.debtor_no || "");
+                setBranch(selectedTransaction.branch_code || "");
+                setSalesType(selectedTransaction.tpe || "");
+                setShippingCompany(selectedTransaction.ship_via || "");
+                setDiscount(selectedTransaction.discount || 0);
+                setReference(selectedTransaction.reference || "");
+                setCreditNoteDate(selectedTransaction.tran_date ? 
+                    selectedTransaction.tran_date.split(" ")[0] : 
+                    new Date().toISOString().split("T")[0]);
+                setMemo(selectedTransaction.memo || "");
+                
+                // Load transaction details for the table rows
+                if (debtorTransDetails.length > 0) {
+                    const transactionDetails = debtorTransDetails.filter((d: any) => 
+                        String(d.debtor_trans_no) === String(selectedTransaction.trans_no) &&
+                        String(d.debtor_trans_type) === "11"
+                    );
+                    
+                    if (transactionDetails.length > 0) {
+                        const detailRows = transactionDetails.map((detail: any, index: number) => ({
+                            id: index + 1,
+                            itemCode: detail.stock_id || "",
+                            description: detail.description || "",
+                            quantity: detail.quantity || 0,
+                            unit: "", // Would need to be populated from item data
+                            priceAfterTax: detail.unit_price || 0,
+                            priceBeforeTax: detail.unit_price || 0,
+                            discount: detail.discount_percent || 0,
+                            total: (detail.unit_price || 0) * (detail.quantity || 0) * (1 - (detail.discount_percent || 0) / 100),
+                            selectedItemId: detail.stock_id,
+                            materialCost: detail.standard_cost || 0,
+                        }));
+                        setRows(detailRows);
+                    }
+                }
+                
+                console.log("Loading transaction data:", selectedTransaction);
+            }
+        }
+    }, [debtorTrans, debtorTransDetails, location.state]);
 
     // Find selected fiscal year from company setup
     const selectedFiscalYear = useMemo(() => {
@@ -193,6 +258,9 @@ export default function UpdateCustomerCreditNotes() {
 
     // ===== Auto-generate reference =====
     useEffect(() => {
+        // Only generate reference for new credit notes, not when editing
+        if (location.state?.trans_no) return;
+
         const fiscalYear = new Date().getFullYear();
         if (debtorTrans.length === 0) {
             setReference(`001/${fiscalYear}`);
@@ -213,12 +281,14 @@ export default function UpdateCustomerCreditNotes() {
         const maxNum = Math.max(...numbers, 0);
         const nextNum = maxNum + 1;
         setReference(`${nextNum.toString().padStart(3, '0')}/${fiscalYear}`);
-    }, [debtorTrans]);
+    }, [debtorTrans, location.state?.trans_no]);
 
-    // Reset branch when customer changes
+    // Reset branch when customer changes (only if not in edit mode)
     useEffect(() => {
-        setBranch("");
-    }, [customer]);
+        if (!location.state?.trans_no) {
+            setBranch("");
+        }
+    }, [customer, location.state?.trans_no]);
 
     // Update discount when customer changes
     useEffect(() => {
@@ -326,70 +396,154 @@ export default function UpdateCustomerCreditNotes() {
             alert("Please add items with quantity greater than 0.");
             return;
         }
-        // Compute next trans_no for trans_type 11 (credit note)
-        const existingDebtorTrans = (debtorTrans || []) as any[];
-        const maxTrans = existingDebtorTrans
-            .filter((d: any) => Number(d.trans_type) === 11 && d.trans_no != null)
-            .reduce((m: number, d: any) => Math.max(m, Number(d.trans_no)), 0);
-        const nextTransNo = maxTrans + 1;
 
         const selectedCustomer = customers.find((c: any) => c.debtor_no === customer);
-
         const total = subTotal + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount);
+        const isEditing = !!location.state?.trans_no;
 
-        const debtorPayload = {
-            trans_no: nextTransNo,
-            trans_type: 11,
-            version: 0,
-            debtor_no: Number(customer),
-            branch_code: Number(branch),
-            tran_date: creditNoteDate,
-            due_date: creditNoteDate,
-            reference,
-            tpe: salesType,
-            order_no: 0,
-            ov_amount: total,
-            ov_gst: 0,
-            ov_freight: 0,
-            ov_freight_tax: 0,
-            ov_discount: 0,
-            alloc: 0,
-            prep_amount: 0,
-            rate: 1,
-            ship_via:  Number(shippingCompany),
-            dimension_id: 0,
-            dimension2_id: 0,
-            payment_terms: selectedCustomer?.payment_terms || null,
-            tax_included: selectedPriceList?.taxIncl ? 1 : 0,
-        };
-      //  console.log("Posting debtor_trans payload", debtorPayload);
-        const debtorResp = await createDebtorTran(debtorPayload as any);
-        const debtorTransNo = debtorResp?.trans_no ?? debtorResp?.id ?? null;
-       // console.log("Debtor trans created:", debtorResp, "debtorTransNo:", debtorTransNo);
+        let debtorResp: any = null;
 
-        // Create debtor_trans_details
-        const detailsToPost = rows.filter(r => r.selectedItemId);
-       // console.log("Number of details to post:", detailsToPost.length);
-        for (const row of detailsToPost) {
-            const debtorDetailPayload = {
-                debtor_trans_no: debtorTransNo,
-                debtor_trans_type: 11,
-                stock_id: row.itemCode,
-                description: row.description,
-                unit_price: row.price,
-                unit_tax: 0,
-                quantity: row.quantity,
-                discount_percent: row.discount,
-                standard_cost: row.material_cost,
-                qty_done: 0,
-                src_id: 1,
+        if (isEditing) {
+            // UPDATE EXISTING CREDIT NOTE
+            const existingTransNo = location.state.trans_no;
+
+            const debtorPayload = {
+                trans_type: 11,
+                version: 0,
+                debtor_no: Number(customer),
+                branch_code: Number(branch),
+                tran_date: creditNoteDate,
+                due_date: creditNoteDate,
+                reference,
+                tpe: salesType,
+                order_no: 0,
+                ov_amount: total,
+                ov_gst: 0,
+                ov_freight: 0,
+                ov_freight_tax: 0,
+                ov_discount: 0,
+                alloc: 0,
+                prep_amount: 0,
+                rate: 1,
+                ship_via: Number(shippingCompany),
+                dimension_id: 0,
+                dimension2_id: 0,
+                payment_terms: selectedCustomer?.payment_terms || null,
+                tax_included: selectedPriceList?.taxIncl ? 1 : 0,
             };
-            console.log("Posting debtor_trans_detail", debtorDetailPayload);
-            try {
-                const response = await createDebtorTransDetail(debtorDetailPayload);
-                console.log("Debtor trans detail posted successfully:", response);
-            } catch (error) {
-                console.error("Failed to post debtor trans detail:", error);
+
+            // Update the main debtor transaction
+            debtorResp = await updateDebtorTran(existingTransNo, debtorPayload);
+            console.log("Debtor trans updated:", debtorResp);
+
+            // Get existing details for this transaction
+            const existingDetails = debtorTransDetails.filter((d: any) =>
+                String(d.debtor_trans_no) === String(existingTransNo) &&
+                String(d.debtor_trans_type) === "11"
+            );
+
+            // Process current form rows
+            const currentRows = rows.filter(r => r.selectedItemId);
+
+            // Only update existing details - don't create new ones when editing
+            for (const row of currentRows) {
+                const existingDetail = existingDetails.find((d: any) => d.stock_id === row.itemCode);
+
+                if (existingDetail) {
+                    // Update existing detail
+                    const detailPayload = {
+                        debtor_trans_no: existingTransNo,
+                        debtor_trans_type: 11,
+                        stock_id: row.itemCode,
+                        description: row.description,
+                        unit_price: row.price,
+                        unit_tax: 0,
+                        quantity: row.quantity,
+                        discount_percent: row.discount,
+                        standard_cost: row.material_cost,
+                        qty_done: 0,
+                        src_id: 1,
+                    };
+
+                    await updateDebtorTransDetail(existingDetail.id, detailPayload);
+                    console.log("Debtor trans detail updated:", existingDetail.id);
+                } else {
+                    // Skip creating new details when editing - only update existing ones
+                    console.log("Skipping new detail creation for:", row.itemCode, "- only existing items can be updated");
+                }
+            }
+
+            // Delete details that are no longer in the form
+            const currentStockIds = currentRows.map(r => r.itemCode);
+            const detailsToDelete = existingDetails.filter((d: any) => !currentStockIds.includes(d.stock_id));
+
+            for (const detail of detailsToDelete) {
+                await deleteDebtorTransDetail(detail.id);
+                console.log("Debtor trans detail deleted:", detail.id);
+            }
+
+        } else {
+            // CREATE NEW CREDIT NOTE
+            // Compute next trans_no for trans_type 11 (credit note)
+            const existingDebtorTrans = (debtorTrans || []) as any[];
+            const maxTrans = existingDebtorTrans
+                .filter((d: any) => Number(d.trans_type) === 11 && d.trans_no != null)
+                .reduce((m: number, d: any) => Math.max(m, Number(d.trans_no)), 0);
+            const nextTransNo = maxTrans + 1;
+
+            const debtorPayload = {
+                trans_no: nextTransNo,
+                trans_type: 11,
+                version: 0,
+                debtor_no: Number(customer),
+                branch_code: Number(branch),
+                tran_date: creditNoteDate,
+                due_date: creditNoteDate,
+                reference,
+                tpe: salesType,
+                order_no: 0,
+                ov_amount: total,
+                ov_gst: 0,
+                ov_freight: 0,
+                ov_freight_tax: 0,
+                ov_discount: 0,
+                alloc: 0,
+                prep_amount: 0,
+                rate: 1,
+                ship_via: Number(shippingCompany),
+                dimension_id: 0,
+                dimension2_id: 0,
+                payment_terms: selectedCustomer?.payment_terms || null,
+                tax_included: selectedPriceList?.taxIncl ? 1 : 0,
+            };
+
+            debtorResp = await createDebtorTran(debtorPayload as any);
+            const debtorTransNo = debtorResp?.trans_no ?? debtorResp?.id ?? null;
+            console.log("Debtor trans created:", debtorResp, "debtorTransNo:", debtorTransNo);
+
+            // Create debtor_trans_details
+            const detailsToPost = rows.filter(r => r.selectedItemId);
+            for (const row of detailsToPost) {
+                const debtorDetailPayload = {
+                    debtor_trans_no: debtorTransNo,
+                    debtor_trans_type: 11,
+                    stock_id: row.itemCode,
+                    description: row.description,
+                    unit_price: row.price,
+                    unit_tax: 0,
+                    quantity: row.quantity,
+                    discount_percent: row.discount,
+                    standard_cost: row.material_cost,
+                    qty_done: 0,
+                    src_id: 1,
+                };
+                console.log("Posting debtor_trans_detail", debtorDetailPayload);
+                try {
+                    const response = await createDebtorTransDetail(debtorDetailPayload);
+                    console.log("Debtor trans detail posted successfully:", response);
+                } catch (error) {
+                    console.error("Failed to post debtor trans detail:", error);
+                }
             }
         }
 
@@ -413,9 +567,12 @@ export default function UpdateCustomerCreditNotes() {
                     auditFiscalYearId = chosen.id ?? chosen.fiscal_year_id ?? null;
                 }
             }
+
+            const transNo = isEditing ? location.state.trans_no : (debtorResp?.trans_no ?? debtorResp?.id ?? null);
+
             const auditPayload: any = {
                 type: 11,
-                trans_no: debtorTransNo,
+                trans_no: transNo,
                 user: user?.id ?? null,
                 stamp: new Date().toISOString(),
                 description: memo || '',
@@ -428,15 +585,21 @@ export default function UpdateCustomerCreditNotes() {
             console.warn('Failed to create audit trail for customer credit note', e);
         }
 
-        alert("Credit Note processed successfully!");
+        alert(isEditing ? "Credit Note updated successfully!" : "Credit Note processed successfully!");
         queryClient.invalidateQueries({ queryKey: ["debtorTrans"] });
         queryClient.invalidateQueries({ queryKey: ["debtorTransDetails"] });
-        navigate("/sales/transactions/customer-credit-notes/success", { state: { trans_no: debtorTransNo, reference } });
+
+        if (isEditing) {
+            navigate(-1);
+        } else {
+            const debtorTransNo = debtorResp?.trans_no ?? debtorResp?.id ?? null;
+            navigate("/sales/transactions/customer-credit-notes/success", { state: { trans_no: debtorTransNo, reference } });
+        }
     };
 
     const breadcrumbItems = [
         { title: "Transactions", href: "/sales/transactions/" },
-        { title: "Modifying Customer Credit Note" },
+        { title: location.state?.trans_no ? "Modifying Customer Credit Note" : "Creating Customer Credit Note" },
     ];
 
     return (
@@ -764,10 +927,10 @@ export default function UpdateCustomerCreditNotes() {
 
                 <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, gap: 2 }}>
                     <Button variant="outlined" onClick={() => navigate(-1)}>
-                        Update
+                        Cancel
                     </Button>
                     <Button variant="contained" color="primary" onClick={handleProcessCreditNote} disabled={!!dateError}>
-                        Process Credit Note
+                        {location.state?.trans_no ? "Update Credit Note" : "Process Credit Note"}
                     </Button>
                 </Box>
             </Paper>
