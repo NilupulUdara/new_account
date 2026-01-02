@@ -27,6 +27,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createSalesOrder, getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
 import { createSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 import { createDebtorTran, getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { createBankTrans, getBankTrans } from "../../../../api/BankTrans/BankTransApi";
 import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
 import { createCustAllocation } from "../../../../api/CustAllocation/CustAllocationApi";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
@@ -34,7 +35,7 @@ import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
 import { getSalesTypes } from "../../../../api/SalesMaintenance/salesService";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
-// import { getCashAccounts } from "../../../../api/Accounts/CashAccountsApi";
+import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi";
 import { getItems, getItemById } from "../../../../api/Item/ItemApi";
 import { getItemUnits } from "../../../../api/ItemUnit/ItemUnitApi";
 import { getItemCategories } from "../../../../api/ItemCategories/ItemCategoriesApi";
@@ -94,6 +95,7 @@ export default function DirectInvoice() {
     const { data: shippingCompanies = [] } = useQuery({ queryKey: ["shippingCompanies"], queryFn: getShippingCompanies });
     const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
     const { data: companyData } = useQuery({ queryKey: ["company"], queryFn: getCompanies });
+    const { data: bankAccounts = [] } = useQuery({ queryKey: ["bankAccounts"], queryFn: getBankAccounts });
     const { user } = useCurrentUser();
     const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
     const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
@@ -444,6 +446,7 @@ export default function DirectInvoice() {
         if (!customer) { alert("Select customer first"); return; }
         if (!branch) { alert("Select branch first"); return; }
         if (!deliverFrom) { alert("Select deliver-from location"); return; }
+        if (!cashAccount) { alert("Select cash account"); return; }
         if (rows.filter(r => r.itemCode && r.quantity > 0).length === 0) {
             alert("At least one item must be added to the invoice.");
             return;
@@ -479,6 +482,7 @@ export default function DirectInvoice() {
 
             // Prepare debtor trans numbers per type (10 -> version 0) and (13 -> version 1) and (12 -> payment)
             const existingDebtorTrans = await getDebtorTrans();
+            const existingBankTrans = await getBankTrans();
             const maxTrans10 = (existingDebtorTrans || [])
                 .filter((d: any) => Number(d.trans_type) === 10 && d.trans_no != null)
                 .reduce((m: number, d: any) => Math.max(m, Number(d.trans_no)), 0);
@@ -488,10 +492,14 @@ export default function DirectInvoice() {
             const maxTrans12 = (existingDebtorTrans || [])
                 .filter((d: any) => Number(d.trans_type) === 12 && d.trans_no != null)
                 .reduce((m: number, d: any) => Math.max(m, Number(d.trans_no)), 0);
+            const maxBankTrans = (existingBankTrans || [])
+                .filter((b: any) => Number(b.type) === 12 && b.trans_no != null)
+                .reduce((m: number, b: any) => Math.max(m, Number(b.trans_no)), 0);
 
             let nextTransNo10 = maxTrans10 + 1;
             let nextTransNo13 = maxTrans13 + 1;
             let nextTransNo12 = maxTrans12 + 1;
+            let nextBankTransNo = maxBankTrans + 1;
             // if (nextTransNo10 === orderNo) nextTransNo10++;
             // if (nextTransNo13 === orderNo) nextTransNo13++;
             // if (nextTransNo12 === orderNo) nextTransNo12++;
@@ -545,7 +553,7 @@ export default function DirectInvoice() {
                 dimension_id: 0,
                 dimension2_id: 0,
                 payment_terms: null,
-                tax_included: 0,
+                tax_included: selectedPriceList?.taxIncl ? 1 : 0,
             };
 
             const debtorPayload13 = {
@@ -584,6 +592,45 @@ export default function DirectInvoice() {
             const debtorTransNo10 = debtorResp10?.trans_no ?? debtorResp10?.id ?? null;
             const debtorTransNo13 = debtorResp13?.trans_no ?? debtorResp13?.id ?? null;
             const debtorTransNo12 = debtorResp12?.trans_no ?? debtorResp12?.id ?? null;
+
+            // Generate bank_trans reference (separate sequence for type=12)
+            const year = selectedFiscalYear
+                ? new Date(selectedFiscalYear.fiscal_year_from).getFullYear()
+                : new Date().getFullYear();
+            const existingBankRefs = (existingBankTrans || [])
+                .filter((b: any) => Number(b.type) === 12 && b.ref)
+                .map((b: any) => b.ref);
+            const yearBankRefs = existingBankRefs.filter((ref: string) =>
+                ref.endsWith(`/${year}`)
+            );
+            const bankNums = yearBankRefs
+                .map((ref: string) => {
+                    const match = ref.match(/^(\d{3})\/\d{4}$/);
+                    return match ? parseInt(match[1], 10) : 0;
+                })
+                .filter((num: number) => !isNaN(num) && num > 0);
+            const nextBankNumber = bankNums.length > 0 ? Math.max(...bankNums) + 1 : 1;
+            const formattedBankNumber = nextBankNumber.toString().padStart(3, '0');
+            const bankTransRef = `${formattedBankNumber}/${year}`;
+
+            // Create bank_trans record for the cash receipt
+            if (debtorTransNo12 && cashAccount) {
+                const bankTransPayload = {
+                    bank_act: cashAccount,
+                    trans_no: nextBankTransNo,
+                    type: 12,
+                    ref: bankTransRef,
+                    trans_date: invoiceDate,
+                    amount: subTotal + shippingCharge, // The payment amount
+                    dimension_id: 0,
+                    dimension2_id: 0,
+                    person_type_id: 2, // Debtor
+                    person_id: Number(customer),
+                    reconciled: null,
+                };
+                console.log("Posting bank_trans payload", bankTransPayload);
+                await createBankTrans(bankTransPayload);
+            }
 
             // Create cust_allocation record linking payment to invoice
             if (debtorTransNo12 && debtorTransNo10) {
@@ -1226,11 +1273,11 @@ export default function DirectInvoice() {
                                     size="small"
                                 >
                                     <MenuItem value="">Select</MenuItem>
-                                    {/* {cashAccounts.map((acc: any) => (
-                                <MenuItem key={acc.id} value={acc.id}>
-                                    {acc.name}
-                                </MenuItem>
-                            ))} */}
+                                    {bankAccounts.map((acc: any) => (
+                                        <MenuItem key={acc.id} value={acc.id}>
+                                            {acc.bank_account_name}
+                                        </MenuItem>
+                                    ))}
                                 </TextField>
                             </Grid>
 

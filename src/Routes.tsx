@@ -368,6 +368,9 @@ import ReleaseWorkOrder from "./views/Manufacturing/Transactions/OutstandingWork
 import IssueWorkOrder from "./views/Manufacturing/Transactions/OutstandingWorkOrders/IssueWorkOrder";
 import CostWorkOrder from "./views/Manufacturing/Transactions/OutstandingWorkOrders/CostWorkOrder";
 import ProduceWorkOrder from "./views/Manufacturing/Transactions/OutstandingWorkOrders/ProduceWorkOrder";
+import CreditInvoiceSuccess from "./views/Sales/Transactions/CustomerCreditNotes/CreditInvoiceSuccess";
+import ViewCreditInvoice from "./views/Sales/Transactions/CustomerCreditNotes/ViewCreditInvoice";
+import UpdateCustomerPayments from "./views/Sales/Transactions/CustomerPayments/UpdateCustomerPayments";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1269,6 +1272,22 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/sales/transactions/credit-invoice/success"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
+              {withLayout(MainLayout, CreditInvoiceSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/credit-invoice/view-credit-invoice"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
+              {withLayout(MainLayout, ViewCreditInvoice)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/sales/transactions/template-delivery"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales templates']}>
@@ -1297,6 +1316,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
               {withLayout(MainLayout, CustomerPayments)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/update-customer-payments"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
+              {withLayout(MainLayout, UpdateCustomerPayments)}
             </ProtectedRoute>
           }
         />

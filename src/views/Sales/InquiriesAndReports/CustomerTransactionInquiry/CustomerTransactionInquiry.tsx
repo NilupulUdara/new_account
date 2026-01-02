@@ -32,6 +32,7 @@ import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getTransTypes } from "../../../../api/Reflines/TransTypesApi";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -77,9 +78,48 @@ export default function CustomerTransactionInquiry() {
   const { data: paymentTerms = [] } = useQuery({ queryKey: ["paymentTerms"], queryFn: getPaymentTerms });
   const { data: branches = [] } = useQuery({ queryKey: ["branches"], queryFn: () => getBranches() });
   const { data: transTypes = [] } = useQuery({ queryKey: ["transTypes"], queryFn: getTransTypes });
+  const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
+  
+  console.log('Fiscal years loaded:', fiscalYears);
 
   // Fetch debtor transactions
   const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
+
+  // Function to check if a transaction's fiscal year is closed
+  const isFiscalYearClosed = (transactionDate: string) => {
+    console.log('Checking fiscal year for date:', transactionDate);
+    if (!fiscalYears || fiscalYears.length === 0) {
+      console.log('No fiscal years loaded');
+      return false;
+    }
+    
+    const transDate = new Date(transactionDate + 'T00:00:00'); // Ensure it's treated as local date
+    console.log('Parsed transaction date:', transDate);
+    if (isNaN(transDate.getTime())) {
+      console.log('Invalid transaction date');
+      return false;
+    }
+    
+    const matchingFiscalYear = fiscalYears.find((fy: any) => {
+      if (!fy.fiscal_year_from || !fy.fiscal_year_to) return false;
+      const from = new Date(fy.fiscal_year_from + 'T00:00:00');
+      const to = new Date(fy.fiscal_year_to + 'T00:00:00');
+      if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
+      const isInRange = transDate >= from && transDate <= to;
+      console.log('Checking fiscal year:', fy.id, 'from:', from, 'to:', to, 'isInRange:', isInRange);
+      return isInRange;
+    });
+    
+    // If no fiscal year found for this date, allow editing
+    if (!matchingFiscalYear) {
+      console.log('No matching fiscal year found for date - allowing edit');
+      return false;
+    }
+    
+    const isClosed = matchingFiscalYear.closed == 1 || matchingFiscalYear.closed === true;
+    console.log('Fiscal year check result:', { transactionDate, matchingFiscalYear, closed: matchingFiscalYear.closed, isClosed });
+    return isClosed;
+  };
 
   // Map debtor_trans records to table rows, pulling currency and payment terms from debtor master when available
   const rows: Row[] = (debtorTrans || []).map((t: any, idx: number) => {
@@ -98,11 +138,11 @@ export default function CustomerTransactionInquiry() {
       trans_type_id: t.trans_type ?? "",
       currency: customer?.curr_code ?? t.curr_code ?? "",
       terms: paymentTermLabel,
-      current: t.ov_amount ?? 0,
+      current: (String(t.trans_type) === "12" || String(t.trans_type) === "11") ? -(Math.abs(t.ov_amount ?? 0)) : Math.abs(t.ov_amount ?? 0),
       days_1_30: 0,
       days_31_60: 0,
       over_60_days: 0,
-      total_balance: t.ov_amount ?? 0,
+      total_balance: (String(t.trans_type) === "12" || String(t.trans_type) === "11") ? -(Math.abs(t.ov_amount ?? 0)) : Math.abs(t.ov_amount ?? 0),
       type: transTypeLabel,
       number: t.trans_no ? String(t.trans_no) : "",
       order: t.order_no ? String(t.order_no) : "",
@@ -110,7 +150,7 @@ export default function CustomerTransactionInquiry() {
       date: t.tran_date ? String(t.tran_date).split(" ")[0] : "",
       due_date: t.due_date ? String(t.due_date).split(" ")[0] : "",
       branch: branchObj?.br_name ?? String(t.branch_code ?? ""),
-      amount: Number(t.ov_amount ?? 0),
+      amount: (String(t.trans_type) === "12" || String(t.trans_type) === "11") ? -(Math.abs(Number(t.ov_amount ?? 0))) : Math.abs(Number(t.ov_amount ?? 0)),
       branch_code: t.branch_code,
     } as Row;
   });
@@ -354,7 +394,8 @@ export default function CustomerTransactionInquiry() {
                     <Button
                       variant="outlined"
                       size="small"
-                      onClick={() => {
+                      disabled={isFiscalYearClosed(r.date)}
+                      onClick={isFiscalYearClosed(r.date) ? undefined : () => {
                         const t = String(r.trans_type_id);
                         // Sales Invoice -> open invoice update in inquiries
                         if (t === "10") {
@@ -373,7 +414,7 @@ export default function CustomerTransactionInquiry() {
                         // Payment -> navigate to customer payments entry
                         else if (t === "12") {
                           navigate(
-                            "/sales/transactions/customer-payments",
+                            "/sales/transactions/update-customer-payments/",
                             { state: { trans_no: r.number, reference: r.reference, date: r.date, debtor_no: r.debtor_no } }
                           );
                         }
