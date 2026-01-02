@@ -23,7 +23,7 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -49,6 +49,7 @@ function BillsOfMaterialTable() {
 
     const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
     const navigate = useNavigate();
+    const location = useLocation();
     const queryClient = useQueryClient();
 
     const { data: rawForeignItemData } = useQuery({
@@ -137,8 +138,18 @@ function BillsOfMaterialTable() {
 
 
 
-    // Auto-select the first manufacturable item when items load and nothing is selected yet
+    // Pre-select based on navigation state or default to first manufacturable
     useEffect(() => {
+        const navStock = (location as any)?.state?.stock_id;
+        if (navStock) {
+            // If a stock_id was passed via navigation state, use it
+            const selected = String(navStock);
+            setSelectedItem(selected);
+            const matched = items.find((it: any) => String(it.stock_id ?? it.id) === selected);
+            setItemCode(String(matched?.stock_id ?? matched?.id ?? selected));
+            return;
+        }
+
         if ((!selectedItem || String(selectedItem).trim() === "") && items && items.length > 0) {
             const manufacturable = items.find((it: any) => Number(it.mb_flag) === 1);
             if (manufacturable) {
@@ -147,7 +158,7 @@ function BillsOfMaterialTable() {
                 setItemCode(String(firstStockId));
             }
         }
-    }, [items]);
+    }, [items, location]);
 
     // Update item code when selected item changes
     useEffect(() => {

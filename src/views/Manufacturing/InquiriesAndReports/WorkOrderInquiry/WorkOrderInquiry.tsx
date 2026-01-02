@@ -49,6 +49,7 @@ interface Row {
   date: string;
   requiredBy: string;
   closed?: number | boolean | string;
+  released?: number | boolean | string;
 }
 
 export default function WorkOrderInquiry() {
@@ -162,6 +163,7 @@ export default function WorkOrderInquiry() {
         date: w.date ? String(w.date).split("T")[0] : (w.tran_date ?? today),
         requiredBy: w.required_by ?? w.date_required_by ?? w.requiredBy ?? "",
         closed: w.closed ?? w.is_closed ?? w.closed_flag ?? 0,
+        released: w.released ?? w.is_released ?? w.released_flag ?? 0,
       } as Row;
     });
   }, [workOrders, items, locations, numberText, referenceText, location, selectedItem, onlyOpen, onlyOverdue]);
@@ -191,6 +193,22 @@ export default function WorkOrderInquiry() {
 
   const handlePrint = (id: number) => {
     console.log("Print for", id);
+  };
+
+  const handleRelease = (id: number, reference?: string) => {
+    navigate("/manufacturing/transactions/outstanding-work-orders/release", { state: { id, reference, action: "release" } });
+  };
+
+  const handleIssue = (id: number) => {
+    navigate("/manufacturing/transactions/outstanding-work-orders/issue", { state: { id, action: "issue" } });
+  };
+
+  const handleCosts = (id: number) => {
+    navigate("/manufacturing/transactions/outstanding-work-orders/costs", { state: { id, action: "costs" } });
+  };
+
+  const handleProduce = (id: number) => {
+    navigate("/manufacturing/transactions/outstanding-work-orders/produce", { state: { id, action: "produce" } });
   };
 
   return (
@@ -307,9 +325,7 @@ export default function WorkOrderInquiry() {
               <TableCell>Required by</TableCell>
               <TableCell align="center">GL</TableCell>
               <TableCell align="center">Edit</TableCell>
-              <TableCell></TableCell>
-              <TableCell></TableCell>
-              <TableCell></TableCell>
+              <TableCell align="center">Actions</TableCell>
               <TableCell align="center">Print</TableCell>
             </TableRow>
           </TableHead>
@@ -340,9 +356,28 @@ export default function WorkOrderInquiry() {
                     );
                   })()}
                 </TableCell>
-                <TableCell></TableCell>
-                <TableCell></TableCell>
-                <TableCell></TableCell>
+
+                <TableCell>
+                  {(() => {
+                    const closedVal = r.closed;
+                    const isClosed = closedVal === true || String(closedVal) === "1" || String(closedVal).toLowerCase() === "true";
+                    if (isClosed) return null;
+                    const rel = r.released;
+                    const isReleased = rel === true || String(rel) === "1" || String(rel).toLowerCase() === "true";
+                    if (!isReleased) {
+                      return (
+                        <Button variant="contained" size="small" onClick={() => handleRelease(r.id, r.reference)}>Release</Button>
+                      );
+                    }
+                    return (
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <Button variant="outlined" size="small" onClick={() => handleIssue(r.id)}>Issue</Button>
+                        <Button variant="outlined" size="small" onClick={() => handleCosts(r.id)}>Costs</Button>
+                        <Button variant="outlined" size="small" onClick={() => handleProduce(r.id)}>Produce</Button>
+                      </div>
+                    );
+                  })()}
+                </TableCell>
                 <TableCell>
                   <Button variant="outlined" size="small" startIcon={<PrintIcon />} onClick={() => handlePrint(r.id)}>Print</Button>
                 </TableCell>
@@ -354,7 +389,7 @@ export default function WorkOrderInquiry() {
             <TableRow>
               <TablePagination
                 rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
-                colSpan={16}
+                colSpan={13}
                 count={rows.length}
                 rowsPerPage={rowsPerPage}
                 page={page}

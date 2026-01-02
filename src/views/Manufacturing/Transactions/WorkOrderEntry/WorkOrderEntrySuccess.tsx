@@ -72,7 +72,13 @@ export default function WorkOrderEntrySuccess() {
         ) : (
           <>
             <Typography sx={{ mb: 2 }}>
-              {successMode === 'manufacture' ? 'The manufacturing process has been entered.' : successMode === 'release' ? 'The Work Order has been released.' : 'The Work Order has been added.'}
+              {successMode === 'manufacture'
+                ? 'The manufacturing process has been entered.'
+                : successMode === 'release'
+                ? 'The Work Order has been released.'
+                : successMode === 'update'
+                ? 'The Work Order has been updated.'
+                : 'The Work Order has been added.'}
             </Typography>
 
             <Stack spacing={3} direction="column" alignItems="center">
@@ -109,6 +115,25 @@ export default function WorkOrderEntrySuccess() {
                     onClick={() => navigate("/manufacturing/transactions/outstanding-work-orders")}
                   >
                     Select another Work Order to Process
+                  </Button>
+                </>
+              ) : successMode === 'update' ? (
+                // Update success: show only Enter New and Select Existing (same as delete)
+                <>
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/manufacturing/transactions/work-order-entry")}
+                  >
+                    Enter a New Work Order
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    sx={{ width: '500px' }}
+                    onClick={() => navigate("/manufacturing/inquiriesandreports/work-order-inquiry")}
+                  >
+                    Select an Existing Work Order
                   </Button>
                 </>
               ) : Number(type) === 2 ? (

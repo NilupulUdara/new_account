@@ -57,6 +57,7 @@ export default function UpdateWorkOrderEntry() {
   const [memo, setMemo] = useState("");
   const [woMemo, setWoMemo] = useState("");
   const [memoDisabled, setMemoDisabled] = useState(false);
+  const [woRecord, setWoRecord] = useState<any | null>(null);
 
   const manufacturableItems = useMemo(() => (items || []).filter((it: any) => Number(it.mb_flag) === 1), [items]);
 
@@ -72,6 +73,7 @@ export default function UpdateWorkOrderEntry() {
           setLoadingError("Work order not found");
           return;
         }
+        setWoRecord(wo ?? null);
         setReference(wo.wo_ref ?? wo.reference ?? "");
         setType(typeof wo.type !== "undefined" ? Number(wo.type) : "");
         const stock = String(wo.stock_id ?? wo.stock ?? wo.item_id ?? "");
@@ -129,6 +131,7 @@ export default function UpdateWorkOrderEntry() {
     setItemCode(it ? String(it.stock_id ?? it.id ?? "") : "");
   }, [selectedItem, items]);
 
+
   const handleUpdate = async () => {
     setSaveError("");
     if (!idFromState) { setSaveError("Missing work order id"); return; }
@@ -138,23 +141,28 @@ export default function UpdateWorkOrderEntry() {
 
     setIsSaving(true);
     try {
+      // reload current workorder to preserve unchanged columns
+      const currentWo = woRecord ?? (await getWorkOrderById(idFromState));
+      // determine if this work order was released
+      const wasReleased = Number(currentWo?.released ?? currentWo?.released_flag ?? 0) === 1;
+
       const payload = {
-        wo_ref: reference,
-        loc_code: destinationLocation,
+        // preserve other columns from currentWo where possible
+        wo_ref: currentWo?.wo_ref ?? currentWo?.reference ?? reference,
+        loc_code: wasReleased ? (currentWo?.loc_code ?? currentWo?.location ?? currentWo?.loc ?? destinationLocation) : destinationLocation,
         units_reqd: Number(quantity),
-        stock_id: String(selectedItem || itemCode || ""),
+        stock_id: wasReleased ? (currentWo?.stock_id ?? currentWo?.stock ?? currentWo?.item_id ?? String(selectedItem || itemCode || "")) : String(selectedItem || itemCode || ""),
         date: date,
-        type: Number(type),
+        type: Number(currentWo?.type ?? type),
         required_by: dateRequiredBy && String(dateRequiredBy).trim() !== "" ? dateRequiredBy : date,
-        released_date: date,
-        units_issued: 0,
-        closed: false,
-        released: false,
-        additional_costs: 0,
+        released_date: wasReleased ? (currentWo?.released_date ?? currentWo?.date ?? null) : (currentWo?.released_date ?? null),
+        units_issued: Number(currentWo?.units_issued ?? currentWo?.unitsIssued ?? 0),
+        closed: currentWo?.closed ?? false,
+        released: currentWo?.released ?? false,
+        additional_costs: currentWo?.additional_costs ?? currentWo?.additionalCosts ?? 0,
         memo: memo,
       } as any;
 
-      // update the work order first
       await updateWorkOrder(idFromState, payload);
 
       // then create or update the comment record for this work order (type 26)
@@ -190,10 +198,10 @@ export default function UpdateWorkOrderEntry() {
         console.warn("Failed to invalidate queries:", invErr);
       }
 
-      // after update, go to the work order success page with deleted flag
+      // after update, go to the work order success page indicating an update
       try {
         console.log("Work order updated successfully, navigating to success page", { id: idFromState, reference, type });
-        navigate("/manufacturing/transactions/work-order-entry/success", { state: { reference, id: idFromState, type: Number(type), deleted: true } });
+        navigate("/manufacturing/transactions/work-order-entry/success", { state: { reference, id: idFromState, type: Number(type), successMode: 'update' } });
       } catch (navErr) {
         console.warn("Navigation to success page failed:", navErr);
       }
@@ -332,7 +340,7 @@ export default function UpdateWorkOrderEntry() {
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth size="small">
                   <InputLabel id="item-select-label">Select Item</InputLabel>
-                  <Select labelId="item-select-label" value={selectedItem ?? ""} label="Select Item" onChange={(e) => setSelectedItem(String(e.target.value))}>
+                  <Select labelId="item-select-label" value={selectedItem ?? ""} label="Select Item" onChange={(e) => setSelectedItem(String(e.target.value))} disabled={Number(woRecord?.released ?? woRecord?.released_flag ?? 0) === 1}>
                     {manufacturableItems.map((it: any) => (
                       <MenuItem key={String(it.stock_id ?? it.id)} value={String(it.stock_id ?? it.id)}>{it.item_name ?? it.name ?? it.description ?? String(it.stock_id ?? it.id)}</MenuItem>
                     ))}
@@ -345,7 +353,7 @@ export default function UpdateWorkOrderEntry() {
           <Grid item xs={12} sm={6}>
             <FormControl fullWidth size="small">
               <InputLabel id="location-label">Destination Location</InputLabel>
-              <Select labelId="location-label" value={destinationLocation} label="Destination Location" onChange={(e) => setDestinationLocation(String(e.target.value))}>
+              <Select labelId="location-label" value={destinationLocation} label="Destination Location" onChange={(e) => setDestinationLocation(String(e.target.value))} disabled={Number(woRecord?.released ?? woRecord?.released_flag ?? 0) === 1}>
                 <MenuItem value="">Select location</MenuItem>
                 {(locations || []).map((loc: any) => (
                   <MenuItem key={loc.loc_code} value={loc.loc_code}>{loc.location_name}</MenuItem>
@@ -355,8 +363,14 @@ export default function UpdateWorkOrderEntry() {
           </Grid>
 
           <Grid item xs={12} sm={6}>
-            <TextField label="Quantity" fullWidth size="small" type="number" inputProps={{ min: 0 }} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+            <TextField label="Quantity Required" fullWidth size="small" type="number" inputProps={{ min: 0 }} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
           </Grid>
+
+          {Number(woRecord?.released ?? woRecord?.released_flag ?? 0) === 1 && (
+            <Grid item xs={12} sm={6}>
+              <TextField label="Quantity Manufactured" fullWidth size="small" value={String(woRecord?.units_issued ?? woRecord?.unitsIssued ?? 0)} InputProps={{ readOnly: true }} />
+            </Grid>
+          )}
 
           <Grid item xs={12} sm={6}>
             <TextField label="Date" type="date" fullWidth size="small" value={date} onChange={(e) => setDate(e.target.value)} InputLabelProps={{ shrink: true }} />
@@ -365,6 +379,12 @@ export default function UpdateWorkOrderEntry() {
           <Grid item xs={12} sm={6}>
             <TextField label="Date Required By" type="date" fullWidth size="small" value={dateRequiredBy} onChange={(e) => setDateRequiredBy(e.target.value)} InputLabelProps={{ shrink: true }} />
           </Grid>
+
+          {Number(woRecord?.released ?? woRecord?.released_flag ?? 0) === 1 && (
+            <Grid item xs={12} sm={6}>
+              <TextField label="Released On" type="date" fullWidth size="small" value={woRecord?.released_date ? String(woRecord?.released_date).split("T")[0] : ""} InputLabelProps={{ shrink: true }} InputProps={{ readOnly: true }} />
+            </Grid>
+          )}
 
           <Grid item xs={12}>
             <TextField

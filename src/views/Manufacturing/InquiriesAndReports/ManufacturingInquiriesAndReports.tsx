@@ -24,7 +24,7 @@ function ManufacturingInquiriesAndReports() {
 
   const allItems = [
     {
-      text: "COSTED BILL OF MATERILA INQUIRY",
+      text: "COSTED BILL OF MATERIAL INQUIRY",
       change: +10,
       icon: <RequestQuoteIcon sx={{ fontSize: 40, color: "#1976d2" }} />,
       path: "/manufacturing/inquiriesandreports/costed-bill-of-material-inquiry"
