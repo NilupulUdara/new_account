@@ -1,10 +1,14 @@
-import React, { useState } from "react";
+import React from "react";
 import { Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, Stack, Button } from "@mui/material";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PrintIcon from '@mui/icons-material/Print';
 import { useLocation, useNavigate } from "react-router-dom";
 import PageTitle from "../../../../components/PageTitle";
 import Breadcrumb from "../../../../components/BreadCrumb";
+import { useQuery } from "@tanstack/react-query";
+import { getWorkOrders } from "../../../../api/WorkOrders/WorkOrderApi";
+import { getItems } from "../../../../api/Item/ItemApi";
+import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 
 export default function ViewGLJournalEntry() {
   const { state } = useLocation();
@@ -16,20 +20,43 @@ export default function ViewGLJournalEntry() {
     { title: "Work Order Entry" },
   ];
 
-  // Dummy work order data
-  const workOrderData = [
-    {
-      id: 2,
-      reference: "002/2022",
-      manufacturedItem: "item2",
-      intoLocation: "colombo",
-      date: "11/18/2022",
-      requiredBy: "12/31/2022",
-      quantityRequired: 5,
-      releasedDate: "11/10/2022",
-      manufactured: 10
-    }
-  ];
+  // Load work orders and find the matching record by reference
+  const { data: workOrders = [] } = useQuery({ queryKey: ["workOrders"], queryFn: getWorkOrders });
+
+  // Also load items and locations so we can show friendly names instead of codes
+  const { data: items = [] } = useQuery({ queryKey: ["items"], queryFn: getItems });
+  const { data: locations = [] } = useQuery({ queryKey: ["inventoryLocations"], queryFn: getInventoryLocations });
+
+  const matched = (workOrders || []).find((w: any) => {
+    const ref = String(w.wo_ref ?? w.reference ?? "");
+    return reference ? ref === String(reference) : false;
+  });
+
+  const workOrderData = matched
+    ? [
+        (() => {
+          // resolve item description
+          const stockKey = String(matched.stock_id ?? matched.stock ?? matched.item_id ?? "");
+          const itemRec = (items || []).find((it: any) => String(it.stock_id ?? it.id ?? it.stock_master_id ?? it.item_id ?? "") === stockKey);
+
+          // resolve location name
+          const locKey = String(matched.loc_code ?? matched.location ?? matched.loc ?? "");
+          const locRec = (locations || []).find((l: any) => String(l.loc_code ?? l.loccode ?? l.code ?? "") === locKey);
+
+          return {
+            id: matched.id ?? matched.wo_id ?? "-",
+            reference: matched.wo_ref ?? matched.reference ?? reference ?? "-",
+            manufacturedItem: itemRec ? (itemRec.description ?? itemRec.item_name ?? itemRec.name ?? String(stockKey)) : (matched.stock_description ?? matched.item_description ?? String(stockKey)),
+            intoLocation: locRec ? (locRec.location_name ?? String(locKey)) : (matched.loc_name ?? matched.location_name ?? String(locKey)),
+            date: matched.date ? String(matched.date).split("T")[0] : matched.tran_date ?? "-",
+            requiredBy: matched.required_by ?? matched.date_required_by ?? "-",
+            quantityRequired: matched.units_reqd ?? matched.quantity ?? matched.units_required ?? 0,
+            releasedDate: matched.released_date ?? matched.releasedDate ?? "-",
+            manufactured: matched.units_issued ?? matched.unitsIssued ?? 0,
+          };
+        })(),
+      ]
+    : [];
 
   // Dummy GL journal entries data
   const glJournalEntries = [
