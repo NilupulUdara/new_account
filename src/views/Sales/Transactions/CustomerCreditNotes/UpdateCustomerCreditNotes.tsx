@@ -38,6 +38,8 @@ import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
 import { getDebtorTrans, createDebtorTran, updateDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { createDebtorTransDetail, getDebtorTransDetails, updateDebtorTransDetail, deleteDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
+import { getChartMasters } from "../../../../api/GLAccounts/ChartMasterApi";
+import { createStockMove, getStockMoves, updateStockMove, deleteStockMove } from "../../../../api/StockMoves/StockMovesApi";
 import auditTrailApi from "../../../../api/AuditTrail/AuditTrailApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
@@ -45,6 +47,12 @@ import useCurrentUser from "../../../../hooks/useCurrentUser";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
+
+interface ChartMaster {
+    account_code: string;
+    account_name: string;
+    account_type: string;
+}
 
 export default function UpdateCustomerCreditNotes() {
     const navigate = useNavigate();
@@ -58,6 +66,7 @@ export default function UpdateCustomerCreditNotes() {
     const [salesType, setSalesType] = useState("");
     const [shippingCompany, setShippingCompany] = useState("");
     const [discount, setDiscount] = useState(0);
+    const [shipping, setShipping] = useState(0);
     const [creditNoteDate, setCreditNoteDate] = useState(
         new Date().toISOString().split("T")[0]
     );
@@ -93,6 +102,8 @@ export default function UpdateCustomerCreditNotes() {
     const { data: taxTypes = [] } = useQuery({ queryKey: ["taxTypes"], queryFn: getTaxTypes });
     const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
     const { data: debtorTransDetails = [] } = useQuery({ queryKey: ["debtorTransDetails"], queryFn: getDebtorTransDetails });
+    const { data: stockMoves = [] } = useQuery({ queryKey: ["stockMoves"], queryFn: getStockMoves });
+    const { data: chartMaster = [] } = useQuery<ChartMaster[]>({ queryKey: ["chartMaster"], queryFn: () => getChartMasters() });
     const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
     const { data: companyData } = useQuery({
         queryKey: ["company"],
@@ -101,54 +112,87 @@ export default function UpdateCustomerCreditNotes() {
 
     // Load transaction data when debtorTrans is available and we have trans_no
     useEffect(() => {
-        if (debtorTrans.length > 0 && location.state?.trans_no) {
-            const selectedTransaction = debtorTrans.find((t: any) => 
-                String(t.trans_no) === String(location.state.trans_no) && 
-                String(t.trans_type) === "11"
-            );
-            
-            if (selectedTransaction) {
-                // Populate additional form fields from the transaction
-                setCustomer(selectedTransaction.debtor_no || "");
-                setBranch(selectedTransaction.branch_code || "");
-                setSalesType(selectedTransaction.tpe || "");
-                setShippingCompany(selectedTransaction.ship_via || "");
-                setDiscount(selectedTransaction.discount || 0);
-                setReference(selectedTransaction.reference || "");
-                setCreditNoteDate(selectedTransaction.tran_date ? 
-                    selectedTransaction.tran_date.split(" ")[0] : 
-                    new Date().toISOString().split("T")[0]);
-                setMemo(selectedTransaction.memo || "");
-                
-                // Load transaction details for the table rows
-                if (debtorTransDetails.length > 0) {
-                    const transactionDetails = debtorTransDetails.filter((d: any) => 
-                        String(d.debtor_trans_no) === String(selectedTransaction.trans_no) &&
-                        String(d.debtor_trans_type) === "11"
+        const loadTransactionData = async () => {
+            if (debtorTrans.length > 0 && location.state?.trans_no) {
+                const selectedTransaction = debtorTrans.find((t: any) =>
+                    String(t.trans_no) === String(location.state.trans_no) &&
+                    String(t.trans_type) === "11"
+                );
+
+                if (selectedTransaction) {
+                    // Populate additional form fields from the transaction
+                    setCustomer(selectedTransaction.debtor_no || "");
+                    setBranch(selectedTransaction.branch_code || "");
+                    setSalesType(selectedTransaction.tpe || "");
+                    setShippingCompany(selectedTransaction.ship_via || "");
+                    setDiscount(selectedTransaction.discount || 0);
+                    setShipping(selectedTransaction.ov_freight || 0);
+                    setReference(selectedTransaction.reference || "");
+                    setCreditNoteDate(selectedTransaction.tran_date ?
+                        selectedTransaction.tran_date.split(" ")[0] :
+                        new Date().toISOString().split("T")[0]);
+                    setMemo(selectedTransaction.memo || "");
+
+                    // Check if there are stock moves for this transaction
+                    const transactionStockMoves = stockMoves.filter((sm: any) =>
+                        String(sm.trans_no) === String(selectedTransaction.trans_no) &&
+                        Number(sm.type) === 11
                     );
-                    
-                    if (transactionDetails.length > 0) {
-                        const detailRows = transactionDetails.map((detail: any, index: number) => ({
-                            id: index + 1,
-                            itemCode: detail.stock_id || "",
-                            description: detail.description || "",
-                            quantity: detail.quantity || 0,
-                            unit: "", // Would need to be populated from item data
-                            priceAfterTax: detail.unit_price || 0,
-                            priceBeforeTax: detail.unit_price || 0,
-                            discount: detail.discount_percent || 0,
-                            total: (detail.unit_price || 0) * (detail.quantity || 0) * (1 - (detail.discount_percent || 0) / 100),
-                            selectedItemId: detail.stock_id,
-                            materialCost: detail.standard_cost || 0,
-                        }));
-                        setRows(detailRows);
+
+                    if (transactionStockMoves.length > 0) {
+                        // If stock moves exist, set credit note type to Return
+                        setCreditNoteType("Return");
+                        // Use the location from the first stock move
+                        setReturnLocation(transactionStockMoves[0].loc_code || "");
                     }
+
+                    // Load transaction details for the table rows
+                    if (debtorTransDetails.length > 0) {
+                        const transactionDetails = debtorTransDetails.filter((d: any) =>
+                            String(d.debtor_trans_no) === String(selectedTransaction.trans_no) &&
+                            String(d.debtor_trans_type) === "11"
+                        );
+
+                        if (transactionDetails.length > 0) {
+                            const detailRows = await Promise.all(transactionDetails.map(async (detail: any, index: number) => {
+                                // Fetch item data to get unit information
+                                let unitName = "";
+                                if (detail.stock_id) {
+                                    try {
+                                        const itemData = await getItemById(detail.stock_id);
+                                        if (itemData && itemData.units) {
+                                            unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
+                                        }
+                                    } catch (error) {
+                                        console.warn("Failed to fetch item data for unit:", detail.stock_id, error);
+                                    }
+                                }
+
+                                return {
+                                    id: index + 1,
+                                    itemCode: detail.stock_id || "",
+                                    description: items.find((item: any) => item.stock_id === detail.stock_id)?.description || detail.description || "",
+                                    quantity: detail.quantity || 0,
+                                    unit: unitName,
+                                    price: detail.unit_price || 0,
+                                    discount: detail.discount_percent || 0,
+                                    total: (detail.unit_price || 0) * (detail.quantity || 0) * (1 - (detail.discount_percent || 0) / 100),
+                                    selectedItemId: detail.stock_id || null,
+                                    material_cost: detail.standard_cost || 0,
+                                    isExisting: true,
+                                };
+                            }));
+                            setRows(detailRows);
+                        }
+                    }
+
+                  //  console.log("Loading transaction data:", selectedTransaction);
                 }
-                
-                console.log("Loading transaction data:", selectedTransaction);
             }
-        }
-    }, [debtorTrans, debtorTransDetails, location.state]);
+        };
+
+        loadTransactionData();
+    }, [debtorTrans, debtorTransDetails, location.state, itemUnits]);
 
     // Find selected fiscal year from company setup
     const selectedFiscalYear = useMemo(() => {
@@ -188,13 +232,51 @@ export default function UpdateCustomerCreditNotes() {
         validateDate(value);
     };
 
-    // Validate date when fiscal year changes
+    // Validate date when fiscal year changes or when date changes
     useEffect(() => {
-        if (selectedFiscalYear) {
+        if (selectedFiscalYear && creditNoteDate) {
             validateDate(creditNoteDate);
         }
-    }, [selectedFiscalYear]);
+    }, [selectedFiscalYear, creditNoteDate]);
     const { user } = useCurrentUser();
+
+    // ===== GL Account Type Mapping =====
+    const accountTypeMap: Record<string, string> = {
+        "1": "Current Assets",
+        "2": "Inventory Assets",
+        "3": "Capital Assets",
+        "4": "Current Liabilities",
+        "5": "Long Term Liabilities",
+        "6": "Share Capital",
+        "7": "Retained Earnings",
+        "8": "Sales Revenue",
+        "9": "Other Revenue",
+        "10": "Cost of Good Sold",
+        "11": "Payroll Expenses",
+        "12": "General and Adminitrative Expenses",
+    };
+
+    // Group GL accounts by descriptive account type
+    const groupedGLAccounts = useMemo(() => {
+        return chartMaster.reduce((acc: Record<string, any[]>, account: any) => {
+            const typeText = accountTypeMap[account.account_type] || "Unknown";
+            if (!acc[typeText]) acc[typeText] = [];
+            acc[typeText].push(account);
+            return acc;
+        }, {});
+    }, [chartMaster]);
+
+    // Flatten the grouped accounts for menu items
+    const groupedGLMenuItems = useMemo(() => {
+        return Object.entries(groupedGLAccounts).flatMap(([typeText, accounts]) => [
+            <ListSubheader key={`header-${typeText}`}>{typeText}</ListSubheader>,
+            ...accounts.map((acc) => (
+                <MenuItem key={acc.account_code} value={acc.account_code}>
+                    {acc.account_code} - {acc.account_name}
+                </MenuItem>
+            )),
+        ]);
+    }, [groupedGLAccounts]);
 
     // ===== Tax-related state =====
     const [taxGroupItems, setTaxGroupItems] = useState<any[]>([]);
@@ -210,10 +292,16 @@ export default function UpdateCustomerCreditNotes() {
             total: 0,
             selectedItemId: null as string | number | null,
             material_cost: 0,
+            isExisting: false,
         },
     ]);
 
     const handleAddRow = () => {
+        // Get current customer's discount
+        const currentCustomerDiscount = customer 
+            ? (customers.find((c: any) => c.debtor_no === customer)?.discount || 0)
+            : 0;
+
         setRows((prev) => [
             ...prev,
             {
@@ -223,10 +311,11 @@ export default function UpdateCustomerCreditNotes() {
                 quantity: 0,
                 unit: "",
                 price: 0,
-                discount: 0,
+                discount: currentCustomerDiscount,
                 total: 0,
                 selectedItemId: null,
                 material_cost: 0,
+                isExisting: false,
             },
         ]);
     };
@@ -407,6 +496,17 @@ export default function UpdateCustomerCreditNotes() {
             // UPDATE EXISTING CREDIT NOTE
             const existingTransNo = location.state.trans_no;
 
+            // Validate that the transaction exists and has the correct type
+            const existingTransaction = debtorTrans.find((t: any) =>
+                String(t.trans_no) === String(existingTransNo) &&
+                String(t.trans_type) === "11"
+            );
+
+            if (!existingTransaction) {
+                alert("Invalid transaction or transaction type. Cannot update credit note.");
+                return;
+            }
+
             const debtorPayload = {
                 trans_type: 11,
                 version: 0,
@@ -419,7 +519,7 @@ export default function UpdateCustomerCreditNotes() {
                 order_no: 0,
                 ov_amount: total,
                 ov_gst: 0,
-                ov_freight: 0,
+                ov_freight: shipping,
                 ov_freight_tax: 0,
                 ov_discount: 0,
                 alloc: 0,
@@ -432,8 +532,8 @@ export default function UpdateCustomerCreditNotes() {
                 tax_included: selectedPriceList?.taxIncl ? 1 : 0,
             };
 
-            // Update the main debtor transaction
-            debtorResp = await updateDebtorTran(existingTransNo, debtorPayload);
+            // Update the main debtor transaction using the database id, not trans_no
+            debtorResp = await updateDebtorTran(existingTransaction.id, debtorPayload);
             console.log("Debtor trans updated:", debtorResp);
 
             // Get existing details for this transaction
@@ -445,7 +545,7 @@ export default function UpdateCustomerCreditNotes() {
             // Process current form rows
             const currentRows = rows.filter(r => r.selectedItemId);
 
-            // Only update existing details - don't create new ones when editing
+            // Update existing details and create new ones
             for (const row of currentRows) {
                 const existingDetail = existingDetails.find((d: any) => d.stock_id === row.itemCode);
 
@@ -462,14 +562,29 @@ export default function UpdateCustomerCreditNotes() {
                         discount_percent: row.discount,
                         standard_cost: row.material_cost,
                         qty_done: 0,
-                        src_id: 1,
+                        src_id: 0,
                     };
 
                     await updateDebtorTransDetail(existingDetail.id, detailPayload);
                     console.log("Debtor trans detail updated:", existingDetail.id);
-                } else {
-                    // Skip creating new details when editing - only update existing ones
-                    console.log("Skipping new detail creation for:", row.itemCode, "- only existing items can be updated");
+                } else if (row.isExisting === false) {
+                    // Create new detail for newly added items during update
+                    const detailPayload = {
+                        debtor_trans_no: existingTransNo,
+                        debtor_trans_type: 11,
+                        stock_id: row.itemCode,
+                        description: row.description,
+                        unit_price: row.price,
+                        unit_tax: 0,
+                        quantity: row.quantity,
+                        discount_percent: row.discount,
+                        standard_cost: row.material_cost,
+                        qty_done: 0,
+                        src_id: 0,
+                    };
+
+                    await createDebtorTransDetail(detailPayload);
+                    console.log("New debtor trans detail created during update:", detailPayload);
                 }
             }
 
@@ -480,6 +595,83 @@ export default function UpdateCustomerCreditNotes() {
             for (const detail of detailsToDelete) {
                 await deleteDebtorTransDetail(detail.id);
                 console.log("Debtor trans detail deleted:", detail.id);
+            }
+
+            // If credit note type is Return, update stock moves
+            if (creditNoteType === "Return" && returnLocation) {
+                // Get existing stock moves for this transaction
+                const existingStockMoves = stockMoves.filter((sm: any) =>
+                    String(sm.trans_no) === String(existingTransNo) &&
+                    Number(sm.type) === 11
+                );
+
+                console.log("Existing stock moves:", existingStockMoves);
+
+                // Update or create stock moves for current items
+                for (const row of currentRows) {
+                    const existingStockMove = existingStockMoves.find((sm: any) => sm.stock_id === row.itemCode);
+
+                    const stockMovePayload = {
+                        trans_no: existingTransNo,
+                        stock_id: row.itemCode,
+                        type: 11,
+                        loc_code: returnLocation,
+                        tran_date: creditNoteDate,
+                        price: row.price,
+                        reference: "Return",
+                        qty: row.quantity,
+                        standard_cost: row.material_cost,
+                    };
+
+                    if (existingStockMove) {
+                        console.log("Updating stock move with trans_id:", existingStockMove.trans_id);
+                        
+                        try {
+                            await updateStockMove(existingStockMove.trans_id, stockMovePayload);
+                            console.log("Stock move updated:", existingStockMove.trans_id);
+                        } catch (error) {
+                            console.error("Failed to update stock move:", error);
+                        }
+                    } else {
+                        // Create new stock move for newly added items
+                        try {
+                            await createStockMove(stockMovePayload);
+                            console.log("New stock move created during update:", stockMovePayload);
+                        } catch (error) {
+                            console.error("Failed to create stock move:", error);
+                        }
+                    }
+                }
+
+                // Delete stock moves for items that are no longer in the form
+                const currentStockIds2 = currentRows.map(r => r.itemCode);
+                const stockMovesToDelete = existingStockMoves.filter((sm: any) => !currentStockIds2.includes(sm.stock_id));
+
+                for (const stockMove of stockMovesToDelete) {
+                    console.log("Deleting stock move with trans_id:", stockMove.trans_id);
+                    
+                    try {
+                        await deleteStockMove(stockMove.trans_id);
+                        console.log("Stock move deleted:", stockMove.trans_id);
+                    } catch (error) {
+                        console.error("Failed to delete stock move:", error);
+                    }
+                }
+            } else {
+                // If credit note type is not Return (e.g., Allowance/item written off), remove all existing stock moves
+                const existingStockMoves = stockMoves.filter((sm: any) =>
+                    String(sm.trans_no) === String(existingTransNo) &&
+                    Number(sm.type) === 11
+                );
+
+                for (const stockMove of existingStockMoves) {
+                    try {
+                        await deleteStockMove(stockMove.trans_id);
+                        console.log("Stock move deleted for Allowance type:", stockMove.trans_id);
+                    } catch (error) {
+                        console.error("Failed to delete stock move:", error);
+                    }
+                }
             }
 
         } else {
@@ -504,7 +696,7 @@ export default function UpdateCustomerCreditNotes() {
                 order_no: 0,
                 ov_amount: total,
                 ov_gst: 0,
-                ov_freight: 0,
+                ov_freight: shipping,
                 ov_freight_tax: 0,
                 ov_discount: 0,
                 alloc: 0,
@@ -588,13 +780,10 @@ export default function UpdateCustomerCreditNotes() {
         alert(isEditing ? "Credit Note updated successfully!" : "Credit Note processed successfully!");
         queryClient.invalidateQueries({ queryKey: ["debtorTrans"] });
         queryClient.invalidateQueries({ queryKey: ["debtorTransDetails"] });
+        queryClient.invalidateQueries({ queryKey: ["stockMoves"] });
 
-        if (isEditing) {
-            navigate(-1);
-        } else {
-            const debtorTransNo = debtorResp?.trans_no ?? debtorResp?.id ?? null;
-            navigate("/sales/transactions/customer-credit-notes/success", { state: { trans_no: debtorTransNo, reference } });
-        }
+        const debtorTransNo = isEditing ? location.state.trans_no : (debtorResp?.trans_no ?? debtorResp?.id ?? null);
+        navigate("/sales/transactions/customer-credit-notes/success-updated", { state: { trans_no: debtorTransNo, reference } });
     };
 
     const breadcrumbItems = [
@@ -767,45 +956,86 @@ export default function UpdateCustomerCreditNotes() {
                                         size="small"
                                         value={row.itemCode}
                                         onChange={(e) => handleChange(row.id, "itemCode", e.target.value)}
+                                        InputProps={{ readOnly: row.isExisting }}
                                     />
                                 </TableCell>
                                 <TableCell>
-                                    <TextField
-                                        select
-                                        size="small"
-                                        value={row.description}
-                                        onChange={async (e) => {
-                                            const selected = items.find((item: any) => item.description === e.target.value);
-                                            handleChange(row.id, "description", e.target.value);
-                                            if (selected) {
-                                                handleChange(row.id, "itemCode", selected.stock_id);
-                                                handleChange(row.id, "selectedItemId", selected.stock_id);
-                                                const itemData = await getItemById(selected.stock_id);
-                                                if (itemData) {
-                                                    const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
-                                                    handleChange(row.id, "unit", unitName);
-                                                    handleChange(row.id, "price", 0); // Will be updated when sales type is selected
-                                                    handleChange(row.id, "material_cost", itemData.material_cost || 0);
+                                    {row.isExisting ? (
+                                        <TextField
+                                            size="small"
+                                            value={row.description}
+                                            InputProps={{ readOnly: true }}
+                                            fullWidth
+                                        />
+                                    ) : (
+                                        <TextField
+                                            select
+                                            size="small"
+                                            value={row.description}
+                                            onChange={async (e) => {
+                                                const selectedValue = e.target.value?.trim();
+                                                const selected = items.find((item: any) => 
+                                                    item.description?.trim() === selectedValue
+                                                );
+                                                
+                                                handleChange(row.id, "description", selectedValue);
+                                                
+                                                if (selected) {
+                                                    handleChange(row.id, "itemCode", selected.stock_id);
+                                                    handleChange(row.id, "selectedItemId", selected.stock_id);
+                                                    
+                                                    try {
+                                                        const itemData = await getItemById(selected.stock_id);
+                                                        if (itemData) {
+                                                            const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
+                                                            handleChange(row.id, "unit", unitName);
+                                                            
+                                                            // Look up price from current sales type
+                                                            let itemPrice = 0;
+                                                            if (salesType && salesPricing.length > 0) {
+                                                                const pricing = salesPricing.find(
+                                                                    (p: any) => p.stock_id === selected.stock_id && p.sales_type_id === salesType
+                                                                );
+                                                                itemPrice = pricing ? pricing.price : 0;
+                                                            }
+                                                            
+                                                            handleChange(row.id, "price", itemPrice);
+                                                            handleChange(row.id, "material_cost", itemData.material_cost || 0);
+                                                        }
+                                                    } catch (error) {
+                                                        console.error("Failed to fetch item data:", error);
+                                                        handleChange(row.id, "unit", "");
+                                                        handleChange(row.id, "price", 0);
+                                                        handleChange(row.id, "material_cost", 0);
+                                                    }
+                                                } else {
+                                                    // Clear related fields if item not found
+                                                    handleChange(row.id, "itemCode", "");
+                                                    handleChange(row.id, "selectedItemId", null);
+                                                    handleChange(row.id, "unit", "");
+                                                    handleChange(row.id, "price", 0);
+                                                    handleChange(row.id, "material_cost", 0);
                                                 }
-                                            }
-                                        }}
-                                    >
-                                        {Object.entries(
-                                            items.reduce((acc: any, item: any) => {
-                                                const category = categories.find((c: any) => c.category_id === item.category_id)?.description || "Uncategorized";
-                                                if (!acc[category]) acc[category] = [];
-                                                acc[category].push(item);
-                                                return acc;
-                                            }, {} as Record<string, any[]>)
-                                        ).map(([category, catItems]: [string, any[]]) => [
-                                            <ListSubheader key={category}>{category}</ListSubheader>,
-                                            ...catItems.map((item: any) => (
-                                                <MenuItem key={item.stock_id} value={item.description}>
-                                                    {item.description}
-                                                </MenuItem>
-                                            )),
-                                        ])}
-                                    </TextField>
+                                            }}
+                                            fullWidth
+                                        >
+                                            {Object.entries(
+                                                items.reduce((acc: any, item: any) => {
+                                                    const category = categories.find((c: any) => c.category_id === item.category_id)?.description || "Uncategorized";
+                                                    if (!acc[category]) acc[category] = [];
+                                                    acc[category].push(item);
+                                                    return acc;
+                                                }, {} as Record<string, any[]>)
+                                            ).map(([category, catItems]: [string, any[]]) => [
+                                                <ListSubheader key={category}>{category}</ListSubheader>,
+                                                ...catItems.map((item: any) => (
+                                                    <MenuItem key={item.stock_id} value={item.description}>
+                                                        {item.description}
+                                                    </MenuItem>
+                                                )),
+                                            ])}
+                                        </TextField>
+                                    )}
                                 </TableCell>
                                 <TableCell>
                                     <TextField
@@ -870,9 +1100,24 @@ export default function UpdateCustomerCreditNotes() {
                         ))}
                         <TableRow>
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>
-                                Total
+                                Shipping
                             </TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>{(subTotal + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount)).toFixed(2)}</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>
+                                <TextField
+                                    size="small"
+                                    type="number"
+                                    value={shipping}
+                                    onChange={(e) => setShipping(Number(e.target.value) || 0)}
+                                    sx={{ width: 100 }}
+                                />
+                            </TableCell>
+                            <TableCell></TableCell>
+                        </TableRow>
+                        <TableRow>
+                            <TableCell colSpan={7} sx={{ fontWeight: 600 }}>
+                                Credit Note Total
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>{(subTotal + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount) + shipping).toFixed(2)}</TableCell>
                             <TableCell></TableCell>
                         </TableRow>
                     </TableFooter>
@@ -897,20 +1142,33 @@ export default function UpdateCustomerCreditNotes() {
                     </Grid>
 
                     <Grid item xs={12} sm={6}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Items Returned To Location"
-                            value={returnLocation}
-                            onChange={(e) => setReturnLocation(e.target.value)}
-                            size="small"
-                        >
-                            {locations.map((loc: any) => (
-                                <MenuItem key={loc.loc_code} value={loc.loc_code}>
-                                    {loc.location_name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
+                        {creditNoteType === "Return" ? (
+                            <TextField
+                                select
+                                fullWidth
+                                label="Items Returned To Location"
+                                value={returnLocation}
+                                onChange={(e) => setReturnLocation(e.target.value)}
+                                size="small"
+                            >
+                                {locations.map((loc: any) => (
+                                    <MenuItem key={loc.loc_code} value={loc.loc_code}>
+                                        {loc.location_name}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                        ) : creditNoteType === "Allowance" ? (
+                            <TextField
+                                select
+                                fullWidth
+                                label="Write off the cost of the items to"
+                                value={returnLocation}
+                                onChange={(e) => setReturnLocation(e.target.value)}
+                                size="small"
+                            >
+                                {groupedGLMenuItems}
+                            </TextField>
+                        ) : null}
                     </Grid>
 
                     <Grid item xs={12}>

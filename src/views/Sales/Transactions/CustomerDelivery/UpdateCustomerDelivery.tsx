@@ -41,7 +41,7 @@ import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 export default function UpdateCustomerDelivery() {
   const navigate = useNavigate();
   const location = useLocation();
-  const deliveryNo = location.state?.id;
+  const deliveryNo = location.state?.trans_no;
 
   // === State ===
   const [salesOrder, setSalesOrder] = useState<any>(null);
@@ -178,7 +178,6 @@ export default function UpdateCustomerDelivery() {
         if (delivery) {
           setSalesOrder(delivery);
           const details = await getDebtorTransDetails();
-          //const deliveryDetails = details.filter((dd: any) => dd.debtor_trans_no === delivery.trans_no);
           const deliveryDetails = details.filter((dd: any) => dd.debtor_trans_no === delivery.trans_no && dd.debtor_trans_type === 13);
           setOrderDetails(deliveryDetails || []);
         }
@@ -241,7 +240,7 @@ export default function UpdateCustomerDelivery() {
           ordered: qty,
           units: unitName,
           deliveryQty: qty, // default to current quantity
-          invoice: 0, // assuming not invoiced
+          invoice: detail.qty_done || 0, // invoiced quantity
           price: price,
           taxType: taxTypeData?.name || "VAT 15%",
           discount: discountPercent,
@@ -332,7 +331,7 @@ export default function UpdateCustomerDelivery() {
 
   const breadcrumbItems = [
     { title: "Transactions", href: "/sales/transactions" },
-    { title: `Modifying Delivery Note #${deliveryNo || ""}` },
+    { title: `Modifying Delivery ote #${deliveryNo || ""}` },
   ];
 
   if (loading) {
