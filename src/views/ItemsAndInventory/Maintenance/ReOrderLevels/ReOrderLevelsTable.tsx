@@ -25,7 +25,7 @@ import {
   FormControlLabel,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import theme from "../../../../theme";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
@@ -58,6 +58,7 @@ export default function ReOrderLevelsTable({ itemId }: ItemReOderlevelProps) {
 
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
 
   // Fetch inventory locations
@@ -127,6 +128,18 @@ export default function ReOrderLevelsTable({ itemId }: ItemReOderlevelProps) {
       setReorderLevels(levels);
     }
   }, [locStocks, selectedItem]);
+
+  // Preselect item from navigation state when present
+  useEffect(() => {
+    try {
+      const navStock = (location as any)?.state?.stock_id;
+      if (navStock) {
+        setSelectedItem(String(navStock));
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [location]);
 
   // Find the unit text
   const unitText = useMemo(() => {

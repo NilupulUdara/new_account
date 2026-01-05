@@ -44,6 +44,7 @@ interface Row {
   type: string;
   location: string;
   item: string;
+  stock_id?: string | number;
   required: number;
   manufactured: number;
   date: string;
@@ -161,6 +162,7 @@ export default function OutstandingWorkOrders() {
         type: getTypeLabel(w.type),
         location: loc ? (loc.location_name ?? String(locCode)) : String(locCode),
         item: itemRec ? (itemRec.item_name ?? itemRec.name ?? itemRec.description ?? String(w.stock_id)) : String(w.stock_id ?? ""),
+        stock_id: w.stock_id ?? w.stock ?? w.item_id ?? "",
         required: Number(w.units_reqd ?? w.quantity ?? 0),
         manufactured: Number(w.units_issued ?? w.unitsIssued ?? 0),
         date: w.date ? String(w.date).split("T")[0] : (w.tran_date ?? today),
@@ -185,8 +187,8 @@ export default function OutstandingWorkOrders() {
     console.log("Outstanding Work Orders search", { numberText, referenceText, location, onlyOverdue, selectedItem });
   };
 
-  const handleGL = (id: number) => {
-    console.log("GL for", id);
+  const handleGL = (id: number, reference?: string) => {
+    navigate("/manufacturing/transactions/work-order-entry/view-gl-journal-entries", { state: { reference } });
   };
 
   const handleEdit = (id: number) => {
@@ -312,11 +314,11 @@ export default function OutstandingWorkOrders() {
         <Table>
           <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
             <TableRow>
-              <TableCell>#</TableCell>
+              <TableCell align="center">#</TableCell>
               <TableCell>Reference</TableCell>
               <TableCell>Type</TableCell>
               <TableCell>Location</TableCell>
-              <TableCell>Item</TableCell>
+              <TableCell align="center">Item</TableCell>
               <TableCell>Required</TableCell>
               <TableCell>Manufactured</TableCell>
               <TableCell>Date</TableCell>
@@ -331,17 +333,25 @@ export default function OutstandingWorkOrders() {
           <TableBody>
             {paginatedRows.map((r) => (
               <TableRow key={r.id} hover>
-                <TableCell>{r.id}</TableCell>
+                <TableCell>
+                  <Button variant="text" color="primary" onClick={() => navigate("/manufacturing/transactions/work-order-entry/view", { state: { id: r.id, reference: r.reference } })}>
+                    {r.id}
+                  </Button>
+                </TableCell>
                 <TableCell>{r.reference}</TableCell>
                 <TableCell>{r.type}</TableCell>
                 <TableCell>{r.location}</TableCell>
-                <TableCell>{r.item}</TableCell>
+                <TableCell>
+                  <Button variant="text" color="primary" onClick={() => navigate("/itemsandinventory/maintenance/reorder-levels", { state: { stock_id: r.stock_id } })}>
+                    {r.item}
+                  </Button>
+                </TableCell>
                 <TableCell>{r.required}</TableCell>
                 <TableCell>{r.manufactured}</TableCell>
                 <TableCell>{r.date}</TableCell>
                 <TableCell>{r.requiredBy}</TableCell>
                 <TableCell>
-                  <Button variant="outlined" size="small" onClick={() => handleGL(r.id)}>GL</Button>
+                  <Button variant="outlined" size="small" onClick={() => handleGL(r.id, r.reference)}>GL</Button>
                 </TableCell>
                 <TableCell>
                   {(() => {

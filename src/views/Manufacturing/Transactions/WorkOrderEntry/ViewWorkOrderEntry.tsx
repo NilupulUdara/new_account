@@ -14,6 +14,7 @@ import { getWOCostings } from "../../../../api/WorkOrders/WOCostingApi";
 import { getItems } from "../../../../api/Item/ItemApi";
 import { getWorkCentres } from "../../../../api/WorkCentre/WorkCentreApi";
 import { getStockMoves } from "../../../../api/StockMoves/StockMovesApi";
+import { getWoManufacturesByWorkOrder } from "../../../../api/WorkOrders/WOManufactureApi";
 
 export default function ViewWorkOrderEntry() {
   const { state } = useLocation();
@@ -29,6 +30,11 @@ export default function ViewWorkOrderEntry() {
   const { data: items = [] } = useQuery({ queryKey: ["items"], queryFn: getItems });
   const { data: workCentres = [] } = useQuery({ queryKey: ["workCentres"], queryFn: getWorkCentres });
   const { data: stockMoves = [], refetch: refetchStockMoves } = useQuery({ queryKey: ["stockMoves"], queryFn: getStockMoves });
+  const { data: woManufactures = [] } = useQuery({
+    queryKey: ["woManufactures", workOrder?.id],
+    queryFn: () => getWoManufacturesByWorkOrder(Number(workOrder?.id)),
+    enabled: !!workOrder?.id,
+  });
 
   const costsForWorkOrder = useMemo(() => {
     if (!workOrder || !Array.isArray(woCostings)) return [];
@@ -313,6 +319,47 @@ export default function ViewWorkOrderEntry() {
                 </TableRow>
               )}
             </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+
+      {/* Productions */}
+      <Paper sx={{ p: 2 }}>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: "bold" }}>
+          Productions
+        </Typography>
+        <TableContainer component={Paper} sx={{ p: 1 }}>
+          <Table>
+            <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
+              <TableRow>
+                <TableCell>#</TableCell>
+                <TableCell>Reference</TableCell>
+                <TableCell>Date</TableCell>
+                <TableCell align="right">Quantity</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {Array.isArray(woManufactures) && woManufactures.length > 0 ? (
+                woManufactures.map((m: any) => (
+                  <TableRow key={m.id ?? `${m.reference}_${m.date}`}>
+                    <TableCell>{m.id ?? "-"}</TableCell>
+                    <TableCell>{m.reference ?? m.ref ?? ""}</TableCell>
+                    <TableCell>{m.date ? String(m.date).split("T")[0] : (m.tran_date ?? "")}</TableCell>
+                    <TableCell align="right">{Number(m.quantity ?? m.qty ?? 0)}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4}>No production records found for this work order</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+            {Array.isArray(woManufactures) && woManufactures.length > 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} sx={{ fontWeight: "bold" }}>Total</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: "bold" }}>{woManufactures.reduce((s: number, r: any) => s + (Number(r.quantity ?? r.qty ?? 0) || 0), 0)}</TableCell>
+                </TableRow>
+            )}
           </Table>
         </TableContainer>
       </Paper>
