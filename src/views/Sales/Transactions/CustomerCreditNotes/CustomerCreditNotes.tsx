@@ -41,10 +41,18 @@ import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTrans
 import auditTrailApi from "../../../../api/AuditTrail/AuditTrailApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
+import { getChartMasters } from "../../../../api/GLAccounts/ChartMasterApi";
+import { createStockMove, getStockMoves } from "../../../../api/StockMoves/StockMovesApi";
 import useCurrentUser from "../../../../hooks/useCurrentUser";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
+
+interface ChartMaster {
+    account_code: string;
+    account_name: string;
+    account_type: string;
+}
 
 export default function CustomerCreditNotes() {
     const navigate = useNavigate();
@@ -57,6 +65,7 @@ export default function CustomerCreditNotes() {
     const [salesType, setSalesType] = useState("");
     const [shippingCompany, setShippingCompany] = useState("");
     const [discount, setDiscount] = useState(0);
+    const [shipping, setShipping] = useState(0);
     const [userSelectedCustomer, setUserSelectedCustomer] = useState(false);
     const [creditNoteDate, setCreditNoteDate] = useState(
         new Date().toISOString().split("T")[0]
@@ -64,6 +73,7 @@ export default function CustomerCreditNotes() {
     const [dimension, setDimension] = useState("");
     const [creditNoteType, setCreditNoteType] = useState("");
     const [returnLocation, setReturnLocation] = useState("");
+    const [glAccount, setGlAccount] = useState("");
     const [memo, setMemo] = useState("");
     const [dateError, setDateError] = useState("");
 
@@ -80,6 +90,8 @@ export default function CustomerCreditNotes() {
     const { data: salesPricing = [] } = useQuery({ queryKey: ["salesPricing"], queryFn: getSalesPricing });
     const { data: taxTypes = [] } = useQuery({ queryKey: ["taxTypes"], queryFn: getTaxTypes });
     const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
+    const { data: stockMoves = [] } = useQuery({ queryKey: ["stockMoves"], queryFn: getStockMoves });
+    const { data: chartMaster = [] } = useQuery<ChartMaster[]>({ queryKey: ["chartMaster"], queryFn: () => getChartMasters() });
     const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
     const { data: companyData } = useQuery({
         queryKey: ["company"],
@@ -131,6 +143,44 @@ export default function CustomerCreditNotes() {
         }
     }, [selectedFiscalYear]);
     const { user } = useCurrentUser();
+
+    // ===== GL Account Type Mapping =====
+    const accountTypeMap: Record<string, string> = {
+        "1": "Current Assets",
+        "2": "Inventory Assets",
+        "3": "Capital Assets",
+        "4": "Current Liabilities",
+        "5": "Long Term Liabilities",
+        "6": "Share Capital",
+        "7": "Retained Earnings",
+        "8": "Sales Revenue",
+        "9": "Other Revenue",
+        "10": "Cost of Good Sold",
+        "11": "Payroll Expenses",
+        "12": "General and Adminitrative Expenses",
+    };
+
+    // Group GL accounts by descriptive account type
+    const groupedGLAccounts = useMemo(() => {
+        return chartMaster.reduce((acc: Record<string, any[]>, account: any) => {
+            const typeText = accountTypeMap[account.account_type] || "Unknown";
+            if (!acc[typeText]) acc[typeText] = [];
+            acc[typeText].push(account);
+            return acc;
+        }, {});
+    }, [chartMaster]);
+
+    // Flatten the grouped accounts for menu items
+    const groupedGLMenuItems = useMemo(() => {
+        return Object.entries(groupedGLAccounts).flatMap(([typeText, accounts]) => [
+            <ListSubheader key={`header-${typeText}`}>{typeText}</ListSubheader>,
+            ...accounts.map((acc) => (
+                <MenuItem key={acc.account_code} value={acc.account_code}>
+                    {acc.account_code} - {acc.account_name}
+                </MenuItem>
+            )),
+        ]);
+    }, [groupedGLAccounts]);
 
     // ===== Tax-related state =====
     const [taxGroupItems, setTaxGroupItems] = useState<any[]>([]);
@@ -382,7 +432,7 @@ export default function CustomerCreditNotes() {
             order_no: 0,
             ov_amount: total,
             ov_gst: 0,
-            ov_freight: 0,
+            ov_freight: shipping,
             ov_freight_tax: 0,
             ov_discount: 0,
             alloc: 0,
@@ -425,6 +475,30 @@ export default function CustomerCreditNotes() {
             }
         }
 
+        // If credit note type is Return, create stock moves
+        if (creditNoteType === "Return" && returnLocation) {
+            for (const row of detailsToPost) {
+                const stockMovePayload = {
+                    trans_no: debtorTransNo,
+                    stock_id: row.itemCode,
+                    type: 11,
+                    loc_code: returnLocation,
+                    tran_date: creditNoteDate,
+                    price: row.price,
+                    reference: "Return",
+                    qty: row.quantity,
+                    standard_cost: row.material_cost,
+                };
+                console.log("Creating stock move:", stockMovePayload);
+                try {
+                    const moveResponse = await createStockMove(stockMovePayload);
+                    console.log("Stock move created successfully:", moveResponse);
+                } catch (error) {
+                    console.error("Failed to create stock move:", error);
+                }
+            }
+        }
+
         // Create audit trail entry for this debtor_trans (type 11)
         try {
             const auditDateObj = new Date(creditNoteDate || new Date());
@@ -463,6 +537,7 @@ export default function CustomerCreditNotes() {
         alert("Credit Note processed successfully!");
         queryClient.invalidateQueries({ queryKey: ["debtorTrans"] });
         queryClient.invalidateQueries({ queryKey: ["debtorTransDetails"] });
+        queryClient.invalidateQueries({ queryKey: ["stockMoves"] });
         navigate("/sales/transactions/customer-credit-notes/success", { state: { trans_no: debtorTransNo, reference } });
     };
 
@@ -751,9 +826,24 @@ export default function CustomerCreditNotes() {
                         ))}
                         <TableRow>
                             <TableCell colSpan={7} sx={{ fontWeight: 600 }}>
+                                Shipping
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>
+                                <TextField
+                                    size="small"
+                                    type="number"
+                                    value={shipping}
+                                    onChange={(e) => setShipping(Number(e.target.value) || 0)}
+                                    sx={{ width: 100 }}
+                                />
+                            </TableCell>
+                            <TableCell></TableCell>
+                        </TableRow>
+                        <TableRow>
+                            <TableCell colSpan={7} sx={{ fontWeight: 600 }}>
                                 Total
                             </TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>{(subTotal + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount)).toFixed(2)}</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>{(subTotal + (selectedPriceList?.taxIncl ? 0 : totalTaxAmount) + shipping).toFixed(2)}</TableCell>
                             <TableCell></TableCell>
                         </TableRow>
                     </TableFooter>
@@ -778,20 +868,33 @@ export default function CustomerCreditNotes() {
                     </Grid>
 
                     <Grid item xs={12} sm={6}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Items Returned To Location"
-                            value={returnLocation}
-                            onChange={(e) => setReturnLocation(e.target.value)}
-                            size="small"
-                        >
-                            {locations.map((loc: any) => (
-                                <MenuItem key={loc.loc_code} value={loc.loc_code}>
-                                    {loc.location_name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
+                        {creditNoteType === "Return" ? (
+                            <TextField
+                                select
+                                fullWidth
+                                label="Items Returned To Location"
+                                value={returnLocation}
+                                onChange={(e) => setReturnLocation(e.target.value)}
+                                size="small"
+                            >
+                                {locations.map((loc: any) => (
+                                    <MenuItem key={loc.loc_code} value={loc.loc_code}>
+                                        {loc.location_name}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
+                        ) : creditNoteType === "Allowance" ? (
+                            <TextField
+                                select
+                                fullWidth
+                                label="Write off the cost of the items to"
+                                value={glAccount}
+                                onChange={(e) => setGlAccount(e.target.value)}
+                                size="small"
+                            >
+                                {groupedGLMenuItems}
+                            </TextField>
+                        ) : null}
                     </Grid>
 
                     <Grid item xs={12}>

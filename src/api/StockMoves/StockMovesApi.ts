@@ -25,3 +25,9 @@ export const updateStockMove = async (id: number, data: any) => {
   const response = await axios.put(`${API_URL}/${id}`, data);
   return response.data;
 };
+
+//  Delete
+export const deleteStockMove = async (id: number) => {
+  const response = await axios.delete(`${API_URL}/${id}`);
+  return response.data;
+};

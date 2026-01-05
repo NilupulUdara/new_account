@@ -79,24 +79,20 @@ export default function CustomerTransactionInquiry() {
   const { data: branches = [] } = useQuery({ queryKey: ["branches"], queryFn: () => getBranches() });
   const { data: transTypes = [] } = useQuery({ queryKey: ["transTypes"], queryFn: getTransTypes });
   const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
-  
-  console.log('Fiscal years loaded:', fiscalYears);
 
   // Fetch debtor transactions
   const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
 
   // Function to check if a transaction's fiscal year is closed
   const isFiscalYearClosed = (transactionDate: string) => {
-    console.log('Checking fiscal year for date:', transactionDate);
     if (!fiscalYears || fiscalYears.length === 0) {
-      console.log('No fiscal years loaded');
       return false;
     }
     
     const transDate = new Date(transactionDate + 'T00:00:00'); // Ensure it's treated as local date
-    console.log('Parsed transaction date:', transDate);
+   // console.log('Parsed transaction date:', transDate);
     if (isNaN(transDate.getTime())) {
-      console.log('Invalid transaction date');
+    //  console.log('Invalid transaction date');
       return false;
     }
     
@@ -106,18 +102,18 @@ export default function CustomerTransactionInquiry() {
       const to = new Date(fy.fiscal_year_to + 'T00:00:00');
       if (isNaN(from.getTime()) || isNaN(to.getTime())) return false;
       const isInRange = transDate >= from && transDate <= to;
-      console.log('Checking fiscal year:', fy.id, 'from:', from, 'to:', to, 'isInRange:', isInRange);
+     // console.log('Checking fiscal year:', fy.id, 'from:', from, 'to:', to, 'isInRange:', isInRange);
       return isInRange;
     });
     
     // If no fiscal year found for this date, allow editing
     if (!matchingFiscalYear) {
-      console.log('No matching fiscal year found for date - allowing edit');
+     // console.log('No matching fiscal year found for date - allowing edit');
       return false;
     }
     
     const isClosed = matchingFiscalYear.closed == 1 || matchingFiscalYear.closed === true;
-    console.log('Fiscal year check result:', { transactionDate, matchingFiscalYear, closed: matchingFiscalYear.closed, isClosed });
+    // console.log('Fiscal year check result:', { transactionDate, matchingFiscalYear, closed: matchingFiscalYear.closed, isClosed });
     return isClosed;
   };
 

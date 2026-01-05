@@ -342,7 +342,8 @@ import ViewFixedAssetsDisposal from "./views/FixedAssets/Transactions/FixedAsset
 import UpdateSalesOrderEntry from "./views/Sales/Transactions/SalesOrderEntry/UpdateSalesOrderEntry";
 import UpdateCustomerInvoice from "./views/Sales/Transactions/CustomerInvoice/UpdateCustomerInvoice";
 import UpdateCustomerInvoiceSuccess from "./views/Sales/Transactions/CustomerInvoice/UpdateCustomerInvoiceSuccess";
-import UpdateCustomerDelivery from "./views/Sales/Transactions/InvoiceAgainstSalesDelivery/UpdateCustomerDelivery";
+//import UpdateCustomerDelivery from "./views/Sales/Transactions/InvoiceAgainstSalesDelivery/UpdateCustomerDelivery";
+import UpdateCustomerDelivery from "./views/Sales/Transactions/CustomerDelivery/UpdateCustomerDelivery";
 import UpdateCustomerDeliverySuccess from "./views/Sales/Transactions/InvoiceAgainstSalesDelivery/UpdateCustomerDeliverySuccess";
 import ViewCustomerAllocations from "./views/Sales/Transactions/CustomerAllocations/ViewCustomerAllocations";
 import UpdatePurchaseOrderEntry from "./views/Purchases/Transactions/PurchaseOrderEntry/UpdatePurchaseOrderEntry";
@@ -371,6 +372,8 @@ import ProduceWorkOrder from "./views/Manufacturing/Transactions/OutstandingWork
 import CreditInvoiceSuccess from "./views/Sales/Transactions/CustomerCreditNotes/CreditInvoiceSuccess";
 import ViewCreditInvoice from "./views/Sales/Transactions/CustomerCreditNotes/ViewCreditInvoice";
 import UpdateCustomerPayments from "./views/Sales/Transactions/CustomerPayments/UpdateCustomerPayments";
+import ViewUpdatedCustomerCreditNotes from "./views/Sales/Transactions/CustomerCreditNotes/ViewUpdatedCustomerCreditNotes";
+import UpdatedCustomerCreditNotesSuccess from "./views/Sales/Transactions/CustomerCreditNotes/UpdatedCustomerCreditNotesSuccess";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1372,6 +1375,22 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
               {withLayout(MainLayout, ViewCustomerCreditNotes)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/customer-credit-notes/view-updated-customer-credit-note"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
+              {withLayout(MainLayout, ViewUpdatedCustomerCreditNotes)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/customer-credit-notes/success-updated"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Recurrent invoices definitions']}>
+              {withLayout(MainLayout, UpdatedCustomerCreditNotesSuccess)}
             </ProtectedRoute>
           }
         />
