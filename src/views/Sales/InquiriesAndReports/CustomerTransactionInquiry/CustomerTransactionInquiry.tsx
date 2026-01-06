@@ -33,6 +33,7 @@ import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getTransTypes } from "../../../../api/Reflines/TransTypesApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
+import { getDebtorTransDetails } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -82,6 +83,7 @@ export default function CustomerTransactionInquiry() {
 
   // Fetch debtor transactions
   const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
+  const { data: debtorTransDetails = [] } = useQuery({ queryKey: ["debtorTransDetails"], queryFn: getDebtorTransDetails });
 
   // Function to check if a transaction's fiscal year is closed
   const isFiscalYearClosed = (transactionDate: string) => {
@@ -115,6 +117,24 @@ export default function CustomerTransactionInquiry() {
     const isClosed = matchingFiscalYear.closed == 1 || matchingFiscalYear.closed === true;
     // console.log('Fiscal year check result:', { transactionDate, matchingFiscalYear, closed: matchingFiscalYear.closed, isClosed });
     return isClosed;
+  };
+
+  // Function to check if a delivery is fully invoiced
+  const isDeliveryFullyInvoiced = (transNo: string) => {
+    const deliveryDetails = debtorTransDetails.filter((dd: any) =>
+      String(dd.debtor_trans_no) === String(transNo) && String(dd.debtor_trans_type) === "13"
+    );
+
+    if (deliveryDetails.length === 0) {
+      return false;
+    }
+
+    // Check if all delivery details have quantity = qty_done
+    return deliveryDetails.every((dd: any) => {
+      const quantity = parseFloat(dd.quantity || 0);
+      const qtyDone = parseFloat(dd.qty_done || 0);
+      return quantity === qtyDone;
+    });
   };
 
   // Map debtor_trans records to table rows, pulling currency and payment terms from debtor master when available
@@ -390,8 +410,14 @@ export default function CustomerTransactionInquiry() {
                     <Button
                       variant="outlined"
                       size="small"
-                      disabled={isFiscalYearClosed(r.date)}
-                      onClick={isFiscalYearClosed(r.date) ? undefined : () => {
+                      disabled={
+                        isFiscalYearClosed(r.date) || 
+                        (String(r.trans_type_id) === "13" && isDeliveryFullyInvoiced(r.number))
+                      }
+                      onClick={
+                        (isFiscalYearClosed(r.date) || 
+                        (String(r.trans_type_id) === "13" && isDeliveryFullyInvoiced(r.number))) 
+                        ? undefined : () => {
                         const t = String(r.trans_type_id);
                         // Sales Invoice -> open invoice update in inquiries
                         if (t === "10") {
@@ -425,11 +451,11 @@ export default function CustomerTransactionInquiry() {
                     >
                       Edit
                     </Button>
-                    {String(r.trans_type_id) === "13" && (
+                    {String(r.trans_type_id) === "13" && r.reference !== "auto" && !isDeliveryFullyInvoiced(r.number) && (
                       <Button
                         variant="outlined"
                         size="small"
-                        onClick={() => navigate("/sales/transactions/direct-delivery/customer-invoice", { state: { trans_no: r.number, reference: r.reference, date: r.date, debtor_no: r.debtor_no } })}
+                        onClick={() => navigate("/sales/transactions/direct-delivery/delivery-note-invoice", { state: { trans_no: r.number, reference: r.reference, date: r.date, debtor_no: r.debtor_no } })}
                       >
                         Invoice
                       </Button>

@@ -498,7 +498,7 @@ export default function DirectDelivery() {
                 reference: reference || "",
                 tpe: 1,
                 order_no: orderNo,
-                ov_amount: subTotal + shippingCharge,
+                ov_amount: subTotal,
                 ov_gst: 0,
                 ov_freight: shippingCharge || 0,
                 ov_freight_tax: 0,

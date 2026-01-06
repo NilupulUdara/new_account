@@ -38,7 +38,7 @@ import { updateDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTrans
 import { getSalesOrders, updateSalesOrder } from "../../../../api/SalesOrders/SalesOrdersApi";
 import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 
-export default function UpdateCustomerDelivery() {
+export default function UpdateCustomerDeliveryInvoice() {
   const navigate = useNavigate();
   const location = useLocation();
   const deliveryNo = location.state?.trans_no;
@@ -195,17 +195,18 @@ export default function UpdateCustomerDelivery() {
 
   // Set fields based on salesOrder
   useEffect(() => {
-    if (salesOrder && customers.length > 0 && branches.length > 0 && salesTypes.length > 0) {
+    if (salesOrder && customers.length > 0 && branches.length > 0 && salesTypes.length > 0 && allSalesOrders.length > 0) {
       const customerData = customers.find((c: any) => String(c.debtor_no) === String(salesOrder.debtor_no));
       const branchData = branches.find((b: any) => String(b.branch_code) === String(salesOrder.branch_code));
       const salesTypeData = salesTypes.find((st: any) => String(st.id) === String(salesOrder.tpe));
+      const orderData = allSalesOrders.find((o: any) => String(o.order_no) === String(salesOrder.order_no));
 
       setCustomer(customerData?.name || "");
       setBranch(branchData?.br_name || "");
       setCurrency(customerData?.curr_code || "");
       setReference(salesOrder.reference || "");
       setSalesType(salesTypeData?.typeName || "");
-      setDeliveryFrom(salesOrder.from_stk_loc || "");
+      setDeliveryFrom(orderData?.from_stk_loc || "");
       setDate(salesOrder.tran_date ? salesOrder.tran_date.split(" ")[0] : new Date().toISOString().split("T")[0]);
       setInvoiceDeadline(salesOrder.due_date ? salesOrder.due_date.split(" ")[0] : "");
       setMemo(salesOrder.comments || "");
@@ -216,7 +217,7 @@ export default function UpdateCustomerDelivery() {
       const initialDate = salesOrder.tran_date ? salesOrder.tran_date.split(" ")[0] : new Date().toISOString().split("T")[0];
       validateDate(initialDate);
     }
-  }, [salesOrder, customers, branches, salesTypes, selectedFiscalYear]);
+  }, [salesOrder, customers, branches, salesTypes, allSalesOrders, selectedFiscalYear]);
 
   // Set rows from orderDetails
   useEffect(() => {
@@ -227,9 +228,11 @@ export default function UpdateCustomerDelivery() {
         const unitName = unitData?.abbr || detail.units || "";
         const price = parseFloat(detail.unit_price || 0);
         const qty = parseFloat(detail.quantity || 0);
+        const invoiceQty = parseFloat(detail.qty_done || 0);
+        const remaining = Math.max(qty - invoiceQty, 0);
         const discountPercent = parseFloat(detail.discount_percent || 0);
         const discountedPrice = price * (1 - discountPercent / 100);
-        const total = discountedPrice * qty;
+        const total = discountedPrice * remaining;
         const taxTypeData = itemTaxTypes.find((t: any) => String(t.id) === String(itemData?.tax_type_id));
 
         return {
@@ -239,12 +242,13 @@ export default function UpdateCustomerDelivery() {
           description: detail.description || "",
           ordered: qty,
           units: unitName,
-          deliveryQty: qty, // default to current quantity
-          invoice: detail.qty_done || 0, // invoiced quantity
+          deliveryQty: remaining, // default to remaining quantity
+          invoice: invoiceQty, // invoiced quantity
           price: price,
           taxType: taxTypeData?.name || "VAT 15%",
           discount: discountPercent,
           total: total,
+          deliveryError: "",
         };
       });
       setRows(newRows);
@@ -264,18 +268,24 @@ export default function UpdateCustomerDelivery() {
     }
 
     try {
-      // Update debtor_trans
+      // Update debtor_trans - only update ov_freight, tran_date, and due_date
       const transData = {
-        ...salesOrder,
-        reference,
+        ov_freight: shippingCost,
         tran_date: date + " 00:00:00",
         due_date: invoiceDeadline + " 00:00:00",
-        ship_via: shippingCompany,
-        comments: memo,
-        from_stk_loc: deliveryFrom,
-        ov_freight: shippingCost,
       };
-      await updateDebtorTran(salesOrder.trans_no, transData);
+      console.log("Sending transData to updateDebtorTran:", transData);
+      console.log("Calling updateDebtorTran with trans_no:", salesOrder.trans_no);
+      const updateResponse = await updateDebtorTran(salesOrder.trans_no, transData);
+      console.log("updateDebtorTran response:", updateResponse);
+    
+
+      // Validate rows before submitting
+      const invalidRow = rows.find((r) => r.deliveryQty > Math.max(r.ordered - r.invoice, 0));
+      if (invalidRow) {
+        alert(`Delivery quantity for item ${invalidRow.itemCode} exceeds remaining quantity. Please correct it before updating.`);
+        return;
+      }
 
       // Update sales order version
       const orderData = allSalesOrders.find((o: any) => String(o.order_no) === String(salesOrder.order_no));
@@ -300,7 +310,7 @@ export default function UpdateCustomerDelivery() {
       }
 
       alert("Delivery updated successfully!");
-      navigate("/sales/transactions/update-customer-delivery/success", { state: { deliveryNo, reference, date } });
+     // navigate("/sales/transactions/update-customer-delivery/success", { state: { deliveryNo, reference, date } });
     } catch (error) {
       console.error("Error updating delivery:", error);
       alert("Failed to update delivery. Please try again.");
@@ -323,6 +333,7 @@ export default function UpdateCustomerDelivery() {
       }
 
       alert("Dispatch processed successfully!");
+      navigate("/sales/transactions/update-customer-delivery/success", { state: { deliveryNo, reference, date } });
     } catch (error) {
       console.error("Error processing dispatch:", error);
       alert("Failed to process dispatch. Please try again.");
@@ -331,7 +342,7 @@ export default function UpdateCustomerDelivery() {
 
   const breadcrumbItems = [
     { title: "Transactions", href: "/sales/transactions" },
-    { title: `Modifying Delivery ote #${deliveryNo || ""}` },
+    { title: `Modifying Delivery Note #${deliveryNo || ""}` },
   ];
 
   if (loading) {
@@ -491,12 +502,25 @@ export default function UpdateCustomerDelivery() {
                     size="small"
                     type="number"
                     value={row.deliveryQty}
+                    error={!!row.deliveryError}
+                    helperText={row.deliveryError}
                     onChange={(e) => {
-                      const value = Number(e.target.value);
+                      const input = e.target.value;
+                      const value = Number(input);
                       setRows((prev) =>
-                        prev.map((r) =>
-                          r.id === row.id ? { ...r, deliveryQty: value, total: value * r.price } : r
-                        )
+                        prev.map((r) => {
+                          if (r.id !== row.id) return r;
+                          const maxAllowed = Math.max(r.ordered - r.invoice, 0);
+                          const parsed = Number.isNaN(value) ? 0 : value;
+                          const exceeded = parsed > maxAllowed;
+                          const newValue = Math.max(0, Math.min(parsed, maxAllowed));
+                          return {
+                            ...r,
+                            deliveryQty: newValue,
+                            total: newValue * r.price,
+                            deliveryError: exceeded ? `Maximum allowed: ${maxAllowed}` : "",
+                          };
+                        })
                       );
                     }}
                   />

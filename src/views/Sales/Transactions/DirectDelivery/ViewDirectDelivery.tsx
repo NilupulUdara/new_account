@@ -103,7 +103,7 @@ export default function ViewDirectDelivery() {
   // Fetch debtor trans details for items
   const { data: debtorTransDetails = [] } = useQuery({
     queryKey: ["debtorTransDetails", trans_no],
-    queryFn: () => getDebtorTransDetails().then(details => details.filter((d: any) => String(d.debtor_trans_no) === String(trans_no))),
+    queryFn: () => getDebtorTransDetails().then(details => details.filter((d: any) => String(d.debtor_trans_no) === String(trans_no) && d.debtor_trans_type === 13)),
     enabled: !!trans_no,
   });
 
