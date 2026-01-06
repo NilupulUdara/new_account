@@ -139,6 +139,17 @@ export default function OutstandingPurchaseOrdersMaintenance() {
         if (!found) return false;
       }
 
+      // Exclude purchase orders that are fully received (quantity_ordered === quantity_received for all details)
+      const orderNoStr = String(p.order_no ?? p.id ?? "");
+      const hasOutstanding = (purchOrderDetails || []).some((d: any) => {
+        const detailOrderNo = String(d.order_no ?? d.purch_order_no ?? d.order ?? "");
+        if (detailOrderNo !== orderNoStr) return false;
+        const qtyOrdered = Number(d.quantity_ordered ?? d.quantity ?? d.qty ?? 0);
+        const qtyReceived = Number(d.quantity_received ?? d.qty_received ?? 0);
+        return qtyOrdered > qtyReceived;
+      });
+      if (!hasOutstanding) return false;
+
       return true;
     });
 
@@ -313,7 +324,7 @@ export default function OutstandingPurchaseOrdersMaintenance() {
           <TableBody>
             {paginatedRows.map((r, index) => (
               <TableRow key={r.id} hover>
-                <TableCell>{page * rowsPerPage + index + 1}</TableCell>
+                <TableCell>{r.deliveryNo}</TableCell>
                 <TableCell>{r.reference}</TableCell>
                 <TableCell>{r.supplier}</TableCell>
                 <TableCell>{r.branch}</TableCell>
