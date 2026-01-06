@@ -342,8 +342,8 @@ import ViewFixedAssetsDisposal from "./views/FixedAssets/Transactions/FixedAsset
 import UpdateSalesOrderEntry from "./views/Sales/Transactions/SalesOrderEntry/UpdateSalesOrderEntry";
 import UpdateCustomerInvoice from "./views/Sales/Transactions/CustomerInvoice/UpdateCustomerInvoice";
 import UpdateCustomerInvoiceSuccess from "./views/Sales/Transactions/CustomerInvoice/UpdateCustomerInvoiceSuccess";
-//import UpdateCustomerDelivery from "./views/Sales/Transactions/InvoiceAgainstSalesDelivery/UpdateCustomerDelivery";
-import UpdateCustomerDelivery from "./views/Sales/Transactions/CustomerDelivery/UpdateCustomerDelivery";
+import UpdateCustomerDelivery from "./views/Sales/Transactions/InvoiceAgainstSalesDelivery/UpdateCustomerDelivery";
+import UpdateCustomerDeliveryInvoice from "./views/Sales/Transactions/CustomerDelivery/UpdateCustomerDeliveryInvoice";
 import UpdateCustomerDeliverySuccess from "./views/Sales/Transactions/InvoiceAgainstSalesDelivery/UpdateCustomerDeliverySuccess";
 import ViewCustomerAllocations from "./views/Sales/Transactions/CustomerAllocations/ViewCustomerAllocations";
 import UpdatePurchaseOrderEntry from "./views/Purchases/Transactions/PurchaseOrderEntry/UpdatePurchaseOrderEntry";
@@ -374,6 +374,7 @@ import ViewCreditInvoice from "./views/Sales/Transactions/CustomerCreditNotes/Vi
 import UpdateCustomerPayments from "./views/Sales/Transactions/CustomerPayments/UpdateCustomerPayments";
 import ViewUpdatedCustomerCreditNotes from "./views/Sales/Transactions/CustomerCreditNotes/ViewUpdatedCustomerCreditNotes";
 import UpdatedCustomerCreditNotesSuccess from "./views/Sales/Transactions/CustomerCreditNotes/UpdatedCustomerCreditNotesSuccess";
+import DeliveyNoteInvoice from "./views/Sales/Transactions/CustomerInvoice/DeliveryNoteInvoice";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1235,6 +1236,14 @@ const AppRoutes = () => {
           }
         />
         <Route
+          path="/sales/transactions/direct-delivery/delivery-note-invoice"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
+              {withLayout(MainLayout, DeliveyNoteInvoice)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/sales/transactions/direct-delivery/customer-invoice/success"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Direct sales delivery']}>
@@ -1412,6 +1421,14 @@ const AppRoutes = () => {
         />
         <Route
           path="/sales/transactions/update-customer-delivery/"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Sales invoices edition']}>
+              {withLayout(MainLayout, UpdateCustomerDeliveryInvoice)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/transactions/update-delivery/"
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Sales invoices edition']}>
               {withLayout(MainLayout, UpdateCustomerDelivery)}

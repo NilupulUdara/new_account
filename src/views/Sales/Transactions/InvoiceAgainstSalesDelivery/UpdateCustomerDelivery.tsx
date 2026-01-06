@@ -272,7 +272,6 @@ export default function UpdateCustomerDelivery() {
         tran_date: date + " 00:00:00",
         due_date: invoiceDeadline + " 00:00:00",
         ship_via: shippingCompany,
-        comments: memo,
         from_stk_loc: deliveryFrom,
         ov_freight: shippingCost,
       };
