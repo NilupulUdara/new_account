@@ -27,6 +27,7 @@ import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
+import AddedConfirmationModal from "../../../../components/AddedConfirmationModal";
 import { getSuppliers } from "../../../../api/Supplier/SupplierApi";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
 import { getTags } from "../../../../api/DimensionTag/DimensionTagApi";
@@ -78,6 +79,7 @@ export default function UpdatePurchaseOrderEntry() {
   const [itemUnits, setItemUnits] = useState([]);
   const [categories, setCategories] = useState<{ category_id: number; description: string }[]>([]);
   const [deletedDetailIds, setDeletedDetailIds] = useState<any[]>([]);
+  const [openSuccess, setOpenSuccess] = useState(false);
 
   // ========= Generate Reference =========
   // Fetch fiscal years to build fiscal-year-aware reference
@@ -314,10 +316,23 @@ export default function UpdatePurchaseOrderEntry() {
         total: subTotal,
         prep_amount: 0,
         alloc: 0,
-        tax_included: false,
+        tax_included: true,
       };
 
-      await updatePurchOrder(Number(orderNo), payload);
+      // Merge with existing order values so unchanged fields are preserved
+      let mergedPayload: any = payload;
+      try {
+        const existing = await getPurchOrderByOrderNo(orderNo);
+        if (existing && typeof existing === "object") {
+          mergedPayload = { ...existing, ...payload };
+          // ensure order_no is the numeric order number
+          mergedPayload.order_no = Number(orderNo);
+        }
+      } catch (mergeErr) {
+        console.warn("Failed to fetch existing purchase order to merge payload, continuing with provided values", mergeErr);
+      }
+
+      await updatePurchOrder(Number(orderNo), mergedPayload);
 
       // handle deleted details
       for (const delId of deletedDetailIds) {
@@ -420,8 +435,7 @@ export default function UpdatePurchaseOrderEntry() {
         console.warn("Failed to invalidate/refetch queries:", e);
       }
 
-      alert("Purchase order updated successfully.");
-      navigate(-1);
+      setOpenSuccess(true);
     } catch (error) {
       console.error("Error updating purchase order:", error);
       alert("Failed to update purchase order. See console for details.");
@@ -691,6 +705,14 @@ export default function UpdatePurchaseOrderEntry() {
           </Button>
         </Box>
       </Paper>
+        <AddedConfirmationModal
+          open={openSuccess}
+          title="Success"
+          content="Purchase order updated successfully."
+          addFunc={async () => {}}
+          handleClose={() => setOpenSuccess(false)}
+          onSuccess={() => navigate(-1)}
+        />
     </Stack>
   );
 }

@@ -37,9 +37,12 @@ import { getItemCategories } from "../../../../api/ItemCategories/ItemCategories
 import { createPurchOrder, getPurchOrders } from '../../../../api/PurchOrders/PurchOrderApi';
 import { createPurchOrderDetail } from '../../../../api/PurchOrders/PurchOrderDetailsApi';
 import { getPurchDataById } from '../../../../api/PurchasingPricing/PurchasingPricingApi';
+import auditTrailApi from '../../../../api/AuditTrail/AuditTrailApi';
+import useCurrentUser from "../../../../hooks/useCurrentUser";
 
 export default function PurchaseOrderEntry() {
   const navigate = useNavigate();
+  const { user } = useCurrentUser();
 
   // ========= Form Fields =========
   const [supplier, setSupplier] = useState("");
@@ -379,12 +382,31 @@ export default function PurchaseOrderEntry() {
             delivery_date: r.deliveryDate || orderDate,
             qty_invoiced: 0,
             unit_price: Number(r.price) || 0,
-            act_price: Number(r.price) || 0,
+            act_price: 0,
             std_cost_unit: 0,
             quantity_ordered: Number(r.quantity) || 0,
             quantity_received: 0,
           };
           await createPurchOrderDetail(detail);
+        }
+
+        // Create audit trail entry for the purchase order
+        try {
+          const company = Array.isArray(companyData) && companyData.length > 0 ? companyData[0] : null;
+          const fiscalYearIdToUse = company ? (company.fiscal_year_id ?? company.fiscal_year ?? null) : null;
+          const currentUserId = user?.id ?? (Number(localStorage.getItem("userId")) || null);
+          await auditTrailApi.create({
+            type: 18,
+            trans_no: usedOrderNo,
+            user: currentUserId,
+            stamp: new Date().toISOString(),
+            description: "",
+            fiscal_year: fiscalYearIdToUse,
+            gl_date: orderDate,
+            gl_seq: 0,
+          });
+        } catch (atErr) {
+          console.warn('Failed to create audit trail for purchase order', atErr);
         }
 
         // Redirect to success page with relevant state
