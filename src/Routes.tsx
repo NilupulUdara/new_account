@@ -375,6 +375,7 @@ import UpdateCustomerPayments from "./views/Sales/Transactions/CustomerPayments/
 import ViewUpdatedCustomerCreditNotes from "./views/Sales/Transactions/CustomerCreditNotes/ViewUpdatedCustomerCreditNotes";
 import UpdatedCustomerCreditNotesSuccess from "./views/Sales/Transactions/CustomerCreditNotes/UpdatedCustomerCreditNotesSuccess";
 import DeliveyNoteInvoice from "./views/Sales/Transactions/CustomerInvoice/DeliveryNoteInvoice";
+import ViewReceivePurchaseOrderItems from "./views/Purchases/Transactions/ReceivePurchaseOrderItems/ViewReceivePurchaseOrderItems";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1881,6 +1882,14 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
               {withLayout(MainLayout, ReceivePurchaseOrderItemsSuccess)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/purchase/transactions/receive-purchase-order-items/view"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Purchase Transactions']}>
+              {withLayout(MainLayout, ViewReceivePurchaseOrderItems)}
             </ProtectedRoute>
           }
         />

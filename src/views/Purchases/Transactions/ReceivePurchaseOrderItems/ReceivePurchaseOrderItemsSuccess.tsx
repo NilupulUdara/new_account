@@ -51,7 +51,7 @@ export default function ReceivePurchaseOrderItemsSuccess() {
           <Button
             variant="outlined"
             sx={{ width: '500px' }}
-            onClick={() => navigate("/purchase/transactions/direct-grn/view-direct-grn", { state })}
+            onClick={() => navigate("/purchase/transactions/receive-purchase-order-items/view", { state })}
           >
            View this Delivery
           </Button>
