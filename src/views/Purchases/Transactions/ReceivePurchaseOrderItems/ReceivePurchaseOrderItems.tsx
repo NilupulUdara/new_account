@@ -16,6 +16,7 @@ import {
   Typography,
   MenuItem,
   Grid,
+  CircularProgress,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -35,6 +36,8 @@ import { createStockMove } from "../../../../api/StockMoves/StockMovesApi";
 import { updatePurchOrderDetail } from "../../../../api/PurchOrders/PurchOrderDetailsApi";
 import auditTrailApi from "../../../../api/AuditTrail/AuditTrailApi";
 import useCurrentUser from "../../../../hooks/useCurrentUser";
+import { getPurchDataById as getPurchasingPriceById } from "../../../../api/PurchasingPricing/PurchasingPricingApi";
+import { createPurchData, getPurchDataBySupplier, updatePurchData } from "../../../../api/PurchOrders/PurchDataApi";
 
 export default function ReceivePurchaseOrderItems() {
   const navigate = useNavigate();
@@ -55,6 +58,8 @@ export default function ReceivePurchaseOrderItems() {
   const [dateReceived, setDateReceived] = useState(new Date().toISOString().split("T")[0]);
 
   const [dateReceivedError, setDateReceivedError] = useState("");
+
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Fiscal year queries
   const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
@@ -243,6 +248,7 @@ export default function ReceivePurchaseOrderItems() {
 
   const handleUpdate = () => alert("Items updated!");
   const handleProcessReceive = async () => {
+    setIsProcessing(true);
     try {
       if (!purchaseOrder) { alert('No purchase order loaded'); return; }
       if (!supplierId) { alert('Missing supplier id'); return; }
@@ -311,6 +317,56 @@ export default function ReceivePurchaseOrderItems() {
           }
         }
 
+        // Upsert into `purch_data` so supplier/stock pricing is stored for future orders
+        try {
+          // try to get purchasing_pricing for this supplier & stock
+          let pricing: any = null;
+          try {
+            pricing = await getPurchasingPriceById(Number(supplierId), String(row.itemCode));
+          } catch (ppErr) {
+            pricing = null;
+          }
+
+          const priceToStore = pricing?.price ?? Number(row.price) ?? 0;
+          const suppliersUom = pricing?.suppliers_uom ?? "";
+
+          // check existing purch_data for this supplier
+          let existingList: any[] = [];
+          try {
+            existingList = await getPurchDataBySupplier(Number(supplierId));
+          } catch (e) {
+            existingList = [];
+          }
+
+          const existing = (existingList || []).find((pd: any) => String(pd.stock_id) === String(row.itemCode));
+
+          const purchDataPayload: any = {
+            supplier_id: Number(supplierId),
+            stock_id: String(row.itemCode),
+            price: Number(priceToStore),
+            suppliers_uom: suppliersUom,
+            conversion_factor: 1,
+            supplier_description: "",
+          };
+
+          if (existing && (existing.id || existing.purch_data_id)) {
+            const idToUse = existing.id ?? existing.purch_data_id;
+            try {
+              await updatePurchData(idToUse, purchDataPayload);
+            } catch (upPdErr) {
+              console.warn('Failed to update purch_data', upPdErr);
+            }
+          } else {
+            try {
+              await createPurchData(purchDataPayload);
+            } catch (createPdErr) {
+              console.warn('Failed to create purch_data', createPdErr);
+            }
+          }
+        } catch (pdErr) {
+          console.warn('Purch data upsert failed', pdErr);
+        }
+
         // 4) create stock_move
         try {
           const itemRec = (items || []).find((it: any) => String(it.stock_id ?? it.id) === String(row.itemCode));
@@ -331,11 +387,39 @@ export default function ReceivePurchaseOrderItems() {
         console.warn('Failed to create audit trail for GRN', atErr);
       }
 
+      // build view items for success/view page
+      const viewItems = (rows || []).map((r: any) => ({
+        itemCode: r.itemCode,
+        description: r.description,
+        requiredBy: r.deliveryDate ?? orderedOn ?? dateReceived,
+        quantity: r.ordered,
+        unit: r.units,
+        price: r.price,
+        lineTotal: r.total,
+        quantityInvoiced: Number(r.received || 0) + Number(r.thisDelivery || 0),
+      }));
+
+      const successState = {
+        reference,
+        deliveryDate: dateReceived,
+        deliveryAddress,
+        supplierId: supplierId ?? null,
+        deliverIntoLocation: locCode,
+        suppliersReference: suppliersRef,
+        purchaseOrderRef: purchaseOrder,
+        items: viewItems,
+        subtotal: subTotal,
+        totalAmount: subTotal,
+        orderComments,
+      };
+
       alert('Purchase order items received successfully!');
-      navigate("/purchase/transactions/receive-purchase-order-items/success", { state: { location: locCode, reference, date: dateReceived } });
+      navigate("/purchase/transactions/receive-purchase-order-items/success", { state: successState });
     } catch (err) {
       console.error('Process receive failed', err);
       alert('Failed to process receive: ' + String(err));
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -467,7 +551,7 @@ export default function ReceivePurchaseOrderItems() {
         Items to Receive
       </Typography>
 
-      <TableContainer component={Paper}>
+      <TableContainer component={Paper} sx={{ px: 2 }}>
         <Table size="small">
           <TableHead sx={{ backgroundColor: "var(--pallet-lighter-blue)" }}>
             <TableRow>
@@ -543,12 +627,18 @@ export default function ReceivePurchaseOrderItems() {
       </TableContainer>
 
       {/* Buttons */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
-        <Button variant="contained" color="primary" onClick={handleUpdate} disabled={!!dateReceivedError}>
+      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, pr: 2, mb: 4 }}>
+        <Button variant="contained" color="primary" onClick={handleUpdate} disabled={!!dateReceivedError || isProcessing}>
           Update
         </Button>
-        <Button variant="contained" color="success" onClick={handleProcessReceive} disabled={!!dateReceivedError}>
-          Process Receive Items
+        <Button variant="contained" color="success" onClick={handleProcessReceive} disabled={!!dateReceivedError || isProcessing}>
+          {isProcessing ? (
+            <>
+              <CircularProgress size={18} sx={{ mr: 1, color: 'white' }} /> Processing...
+            </>
+          ) : (
+            'Process Receive Items'
+          )}
         </Button>
       </Box>
     </Stack>

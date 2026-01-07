@@ -17,6 +17,7 @@ import {
   MenuItem,
   Grid,
   ListSubheader,
+  CircularProgress,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -80,6 +81,7 @@ export default function UpdatePurchaseOrderEntry() {
   const [categories, setCategories] = useState<{ category_id: number; description: string }[]>([]);
   const [deletedDetailIds, setDeletedDetailIds] = useState<any[]>([]);
   const [openSuccess, setOpenSuccess] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // ========= Generate Reference =========
   // Fetch fiscal years to build fiscal-year-aware reference
@@ -293,6 +295,7 @@ export default function UpdatePurchaseOrderEntry() {
 
   // ========= Place Order =========
   const handlePlaceOrder = async () => {
+    setIsUpdating(true);
     // Update header and details
     try {
       const orderNo = orderNoFromState;
@@ -439,6 +442,8 @@ export default function UpdatePurchaseOrderEntry() {
     } catch (error) {
       console.error("Error updating purchase order:", error);
       alert("Failed to update purchase order. See console for details.");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -697,11 +702,17 @@ export default function UpdatePurchaseOrderEntry() {
         <TextField fullWidth multiline rows={3} value={memo} onChange={(e) => setMemo(e.target.value)} />
 
         <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2, gap: 2 }}>
-          <Button variant="outlined" onClick={() => navigate(-1)}>
+          <Button variant="outlined" onClick={() => navigate(-1)} disabled={isUpdating}>
             Cancel Order
           </Button>
-          <Button variant="contained" color="primary" onClick={handlePlaceOrder}>
-            Update Order
+          <Button variant="contained" color="primary" onClick={handlePlaceOrder} disabled={isUpdating}>
+            {isUpdating ? (
+              <>
+                <CircularProgress size={18} sx={{ mr: 1, color: 'white' }} /> Updating...
+              </>
+            ) : (
+              'Update Order'
+            )}
           </Button>
         </Box>
       </Paper>
