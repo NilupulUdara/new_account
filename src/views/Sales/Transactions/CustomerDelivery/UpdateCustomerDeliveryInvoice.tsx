@@ -262,6 +262,7 @@ export default function UpdateCustomerDeliveryInvoice() {
   const amountTotal = subTotal + shippingCost;
 
   const handleUpdate = async () => {
+    console.log("handleUpdate called");
     if (!salesOrder || !deliveryNo) {
       alert("No delivery data available.");
       return;
@@ -271,13 +272,14 @@ export default function UpdateCustomerDeliveryInvoice() {
       // Update debtor_trans - only update ov_freight, tran_date, and due_date
       const transData = {
         ov_freight: shippingCost,
-        tran_date: date + " 00:00:00",
-        due_date: invoiceDeadline + " 00:00:00",
+        tran_date: date,
+        due_date: invoiceDeadline,
       };
       console.log("Sending transData to updateDebtorTran:", transData);
       console.log("Calling updateDebtorTran with trans_no:", salesOrder.trans_no);
       const updateResponse = await updateDebtorTran(salesOrder.trans_no, transData);
       console.log("updateDebtorTran response:", updateResponse);
+      console.log("Update successful, proceeding with details");
     
 
       // Validate rows before submitting
@@ -286,7 +288,6 @@ export default function UpdateCustomerDeliveryInvoice() {
         alert(`Delivery quantity for item ${invalidRow.itemCode} exceeds remaining quantity. Please correct it before updating.`);
         return;
       }
-
       // Update sales order version
       const orderData = allSalesOrders.find((o: any) => String(o.order_no) === String(salesOrder.order_no));
       if (orderData) {
@@ -306,6 +307,7 @@ export default function UpdateCustomerDeliveryInvoice() {
           qty_done: row.deliveryQty,
           src_id: row.detailId,
         };
+        console.log("Updating detail:", row.detailId, detailData);
         await updateDebtorTransDetail(row.detailId, detailData);
       }
 

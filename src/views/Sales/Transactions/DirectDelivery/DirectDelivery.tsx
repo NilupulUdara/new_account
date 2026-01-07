@@ -399,10 +399,23 @@ export default function DirectDelivery() {
                             if (pricing) {
                                 const after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
                                 const before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
+                                const priceToUse = after || before;
+                                const total = row.quantity * priceToUse * (1 - row.discount / 100);
                                 return {
                                     ...row,
                                     priceAfterTax: after,
                                     priceBeforeTax: before,
+                                    total: total,
+                                };
+                            } else {
+                                // Fallback to material_cost
+                                const priceToUse = row.materialCost || 0;
+                                const total = row.quantity * priceToUse * (1 - row.discount / 100);
+                                return {
+                                    ...row,
+                                    priceAfterTax: priceToUse,
+                                    priceBeforeTax: priceToUse,
+                                    total: total,
                                 };
                             }
                         }

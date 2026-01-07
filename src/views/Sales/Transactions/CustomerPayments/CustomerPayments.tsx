@@ -16,14 +16,14 @@ import {
   TableRow,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
 import { getBankAccounts } from "../../../../api/BankAccount/BankAccountApi";
 // import { getDimensions } from "../../../../api/Dimension/DimensionApi"; // hypothetical API
-import { getDebtorTrans, createDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { getDebtorTrans, createDebtorTran, updateDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { createBankTrans } from "../../../../api/BankTrans/BankTransApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
@@ -44,12 +44,14 @@ interface AllocationRow {
   otherAllocations: number;
   leftToAllocate: number;
   thisAllocation: number;
+  transType: number;
   all: string;
   none: string;
 }
 
 export default function CustomerPayments() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   // ====== Form State ======
   const [customer, setCustomer] = useState("");
@@ -69,6 +71,7 @@ export default function CustomerPayments() {
 
   // ====== Allocation Table State ======
   const [allocationRows, setAllocationRows] = useState<AllocationRow[]>([]);
+  const [preSelectedTrans, setPreSelectedTrans] = useState<{transNo: number, transType: number} | null>(null);
 
   // ====== Fetch Data ======
   const { data: customers = [] } = useQuery({
@@ -161,33 +164,89 @@ export default function CustomerPayments() {
       return;
     }
 
-    if (!salesOrders || salesOrders.length === 0) {
-      setAllocationRows([]);
-      return;
+    const rows: AllocationRow[] = [];
+
+    // Add sales orders
+    if (salesOrders && salesOrders.length > 0) {
+      const orderRows = salesOrders
+        .filter((so: any) => Number(so.trans_type) === 30 && Number(so.prep_amount) !== Number(so.alloc) && Number(so.debtor_no) === Number(customer))
+        .map((so: any) => ({
+          transactionType: "Sales Order",
+          number: so.order_no,
+          ref: so.reference || "",
+          date: so.ord_date || depositDate,
+          dueDate: so.delivery_date || so.ord_date || depositDate,
+          amount: Number(so.prep_amount || 0),
+          otherAllocations: Number(so.alloc || 0),
+          leftToAllocate: Number((so.prep_amount || 0) - (so.alloc || 0)),
+          thisAllocation: 0,
+          transType: 30,
+          all: "All",
+          none: "None",
+        }));
+      rows.push(...orderRows);
     }
 
-    const rows = salesOrders
-      .filter((so: any) => Number(so.trans_type) === 30 && Number(so.prep_amount) !== Number(so.alloc) && Number(so.debtor_no) === Number(customer))
-      .map((so: any) => ({
-        transactionType: Number(so.trans_type) === 30 ? "Sales Order" : "Sales Invoice",
-        number: so.order_no,
-        ref: so.reference || "",
-        date: so.ord_date || depositDate,
-        dueDate: so.delivery_date || so.ord_date || depositDate,
-        amount: Number(so.prep_amount || 0),
-        otherAllocations: Number(so.alloc || 0),
-        leftToAllocate: Number((so.prep_amount || 0) - (so.alloc || 0)),
-        thisAllocation: Number(so.alloc || 0),
-        all: "All",
-        none: "None",
-      }));
+    // Add sales invoices
+    if (debtorTrans && debtorTrans.length > 0) {
+      const invoiceRows = debtorTrans
+        .filter((dt: any) => {
+          const transType = Number(dt.trans_type);
+          if (transType !== 10) return false;
+          const total = (dt.ov_amount || 0) + (dt.ov_gst || 0) + (dt.ov_freight || 0) + (dt.ov_freight_tax || 0) + (dt.ov_discount || 0);
+          return Number(dt.debtor_no) === Number(customer) && total !== Number(dt.alloc || 0);
+        })
+        .map((dt: any) => {
+          const total = (dt.ov_amount || 0) + (dt.ov_gst || 0) + (dt.ov_freight || 0) + (dt.ov_freight_tax || 0) + (dt.ov_discount || 0);
+          return {
+            transactionType: "Sales Invoice",
+            number: dt.trans_no,
+            ref: dt.reference || "",
+            date: dt.tran_date || depositDate,
+            dueDate: dt.due_date || dt.tran_date || depositDate,
+            amount: total,
+            otherAllocations: Number(dt.alloc || 0),
+            leftToAllocate: total - Number(dt.alloc || 0),
+            thisAllocation: 0,
+            transType: 10,
+            all: "All",
+            none: "None",
+          };
+        });
+      rows.push(...invoiceRows);
+    }
 
     setAllocationRows(rows);
-    const initialTotal = rows.reduce((s: number, r: any) => s + (Number(r.thisAllocation || 0)), 0);
+    let initialTotal = rows.reduce((s: number, r: any) => s + (Number(r.thisAllocation || 0)), 0);
+
+    // Auto-allocate pre-selected transaction
+    if (preSelectedTrans) {
+      const index = rows.findIndex(r => r.number == preSelectedTrans.transNo && r.transType == preSelectedTrans.transType);
+      if (index !== -1) {
+        rows[index].thisAllocation = rows[index].leftToAllocate;
+        initialTotal += rows[index].leftToAllocate;
+        setAllocationRows([...rows]);
+      }
+      setPreSelectedTrans(null); // Clear after use
+    }
+
     setAmount(initialTotal);
-  }, [salesOrders, customer, depositDate]);
+  }, [salesOrders, debtorTrans, customer, depositDate]);
 
-
+  // Handle navigation state for pre-filling from inquiry
+  useEffect(() => {
+    if (location.state && location.state.transNo && location.state.transType && debtorTrans.length > 0) {
+      const { transNo, transType } = location.state;
+      const dt = debtorTrans.find((d: any) => d.trans_no == transNo && d.trans_type == transType);
+      if (dt) {
+        setCustomer(String(dt.debtor_no));
+        const total = (dt.ov_amount || 0) + (dt.ov_gst || 0) + (dt.ov_freight || 0) + (dt.ov_freight_tax || 0) + (dt.ov_discount || 0);
+        const outstanding = total - (dt.alloc || 0);
+        setAmount(outstanding);
+        setPreSelectedTrans({transNo, transType});
+      }
+    }
+  }, [location.state, debtorTrans]);
 
   // Reset branch when customer changes
   useEffect(() => {
@@ -300,44 +359,61 @@ export default function CustomerPayments() {
       };
       await createBankTrans(bankTransPayload);
 
-      // Update alloc on related sales orders for each allocation row with an allocation
+      // Update alloc on related transactions for each allocation row with an allocation
       const allocationsToApply = allocationRows.filter((r) => Number(r.thisAllocation) > 0);
       if (allocationsToApply.length > 0) {
         await Promise.all(
           allocationsToApply.map(async (r) => {
             try {
-              const so = await getSalesOrderByOrderNo(r.number);
-              if (!so) return;
+              const transTypeTo = Number(r.transType);
+              if (transTypeTo === 30) {
+                // Update sales order
+                const so = await getSalesOrderByOrderNo(r.number);
+                if (!so) return;
 
-              const updatedAlloc = Number(so.alloc || 0) + Number(r.thisAllocation || 0);
+                const updatedAlloc = Number(so.alloc || 0) + Number(r.thisAllocation || 0);
 
-              const payload = {
-                order_no: so.order_no,
-                trans_type: so.trans_type ?? 30,
-                version: so.version ?? 0,
-                type: so.type ?? 0,
-                debtor_no: so.debtor_no ?? 0,
-                branch_code: so.branch_code ?? 0,
-                reference: so.reference ?? "",
-                ord_date: so.ord_date ?? depositDate,
-                order_type: so.order_type ?? 0,
-                ship_via: so.ship_via ?? 0,
-                customer_ref: so.customer_ref ?? null,
-                delivery_address: so.delivery_address ?? null,
-                contact_phone: so.contact_phone ?? null,
-                contact_email: so.contact_email ?? null,
-                deliver_to: so.deliver_to ?? null,
-                freight_cost: so.freight_cost ?? 0,
-                from_stk_loc: so.from_stk_loc ?? "",
-                delivery_date: so.delivery_date ?? null,
-                payment_terms: so.payment_terms ?? null,
-                total: so.total ?? 0,
-                prep_amount: so.prep_amount ?? 0,
-                alloc: updatedAlloc,
-              };
+                const payload = {
+                  order_no: so.order_no,
+                  trans_type: so.trans_type ?? 30,
+                  version: so.version ?? 0,
+                  type: so.type ?? 0,
+                  debtor_no: so.debtor_no ?? 0,
+                  branch_code: so.branch_code,
+                  reference: so.reference ?? "",
+                  ord_date: so.ord_date ?? depositDate,
+                  order_type: so.order_type ?? 0,
+                  ship_via: so.ship_via ?? 0,
+                  customer_ref: so.customer_ref ?? null,
+                  delivery_address: so.delivery_address ?? null,
+                  contact_phone: so.contact_phone ?? null,
+                  contact_email: so.contact_email ?? null,
+                  deliver_to: so.deliver_to ?? null,
+                  freight_cost: so.freight_cost ?? 0,
+                  from_stk_loc: so.from_stk_loc ?? "",
+                  delivery_date: so.delivery_date ?? null,
+                  payment_terms: so.payment_terms ?? null,
+                  total: so.total ?? 0,
+                  prep_amount: so.prep_amount ?? 0,
+                  alloc: updatedAlloc,
+                };
 
-              await updateSalesOrder(so.order_no, payload);
-              // Create cust_allocations record linking this payment to the sales order
+                await updateSalesOrder(so.order_no, payload);
+              } else if (transTypeTo === 10) {
+                // Update debtor trans for invoice
+                const dt = debtorTrans.find((d: any) => d.trans_no === r.number && Number(d.trans_type) === 10);
+                if (!dt) return;
+
+                const updatedAlloc = Number(dt.alloc || 0) + Number(r.thisAllocation || 0);
+
+                const payload = {
+                  alloc: updatedAlloc,
+                };
+
+                await updateDebtorTran(dt.id, payload);
+              }
+
+              // Create cust_allocations record linking this payment to the transaction
               try {
                 const custAllocPayload = {
                   person_id: Number(customer),
@@ -345,20 +421,20 @@ export default function CustomerPayments() {
                   date_alloc: depositDate,
                   trans_no_from: nextTransNo,
                   trans_type_from: 12, // customer payment
-                  trans_no_to: so.order_no,
-                  trans_type_to: Number(so.trans_type) || 30,
+                  trans_no_to: r.number,
+                  trans_type_to: transTypeTo,
                 };
                 await createCustAllocation(custAllocPayload);
               } catch (err) {
-                console.error("Failed to create cust_allocation for order", r.number, err);
+                console.error("Failed to create cust_allocation for transaction", r.number, err);
               }
             } catch (err) {
-              console.error("Failed to update sales order alloc for order", r.number, err);
+              console.error("Failed to update allocation for transaction", r.number, err);
             }
           })
         );
 
-        // Refresh sales orders and debtorTrans data
+        // Refresh data
         queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
         queryClient.invalidateQueries({ queryKey: ["debtorTrans"] });
         queryClient.invalidateQueries({ queryKey: ["custAllocations"] });
@@ -560,7 +636,7 @@ export default function CustomerPayments() {
                       <TableCell>{row.dueDate}</TableCell>
                       <TableCell>{row.amount.toFixed(2)}</TableCell>
                       <TableCell>{row.otherAllocations.toFixed(2)}</TableCell>
-                      <TableCell>{Math.max(0, (Number(row.amount || 0) - Number(row.otherAllocations || 0) - Number(row.thisAllocation || 0))).toFixed(2)}</TableCell>
+                      <TableCell>{row.leftToAllocate.toFixed(2)}</TableCell>
                       <TableCell>
                         <TextField
                           size="small"

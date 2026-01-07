@@ -28,6 +28,12 @@ import SearchIcon from "@mui/icons-material/Search";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
+import { getCustAllocations } from "../../../../api/CustAllocation/CustAllocationApi";
+import { getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
+import { getPaymentTerms } from "../../../../api/PaymentTerm/PaymentTermApi";
+import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
+import { getTransTypes } from "../../../../api/Reflines/TransTypesApi";
+import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -44,6 +50,7 @@ interface Row {
   credit: number;
   allocated: number;
   balance: number;
+  trans_type: string;
 }
 
 export default function CustomerAllocationInquiry() {
@@ -62,25 +69,93 @@ export default function CustomerAllocationInquiry() {
   const [showSettled, setShowSettled] = useState(false);
 
   const { data: customers = [] } = useQuery({ queryKey: ["customers"], queryFn: getCustomers });
+  const { data: custAllocations = [] } = useQuery({ queryKey: ["custAllocations"], queryFn: getCustAllocations });
+  const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
+  const { data: paymentTerms = [] } = useQuery({ queryKey: ["paymentTerms"], queryFn: getPaymentTerms });
+  const { data: branches = [] } = useQuery({ queryKey: ["branches"], queryFn: () => getBranches() });
+  const { data: transTypes = [] } = useQuery({ queryKey: ["transTypes"], queryFn: getTransTypes });
+  const { data: fiscalYears = [] } = useQuery({ queryKey: ["fiscalYears"], queryFn: getFiscalYears });
 
-  // sample data
-  const today = new Date().toISOString().split("T")[0];
-  const rows: Row[] = [
-    { id: 1, type: "Sales Invoice", number: "SI-1001", reference: "REF-001", order: "ORD-001", date: today, dueDate: "2025-12-14", debit: 150.0, credit: 0, allocated: 50, balance: 100 },
-    { id: 2, type: "Customer Payment", number: "CP-1002", reference: "REF-002", order: "ORD-002", date: today, dueDate: "2025-12-15", debit: 0, credit: 320.0, allocated: 120, balance: 200 },
-  ];
+  // Map debtor trans to table rows
+  const rows: Row[] = (debtorTrans || []).map((dt: any, idx: number) => {
+    const total = (dt.ov_amount || 0) + (dt.ov_gst || 0) + (dt.ov_freight || 0) + (dt.ov_freight_tax || 0) + (dt.ov_discount || 0);
+    const allocatedTotal = dt.alloc || 0;
+    
+    // Resolve transaction type
+    const transTypeObj = transTypes.find((tt: any) => String(tt.trans_type) === String(dt.trans_type));
+    const transTypeLabel = transTypeObj ? (transTypeObj.description || transTypeObj.name || String(dt.trans_type)) : String(dt.trans_type);
+    
+    return {
+      id: dt.id ?? idx,
+      type: transTypeLabel,
+      number: String(dt.trans_no || ""),
+      reference: dt.reference || "",
+      order: dt.order_no || "",
+      date: dt.tran_date ? String(dt.tran_date).split(" ")[0] : "",
+      dueDate: dt.due_date ? String(dt.due_date).split(" ")[0] : "",
+      debit: (String(dt.trans_type) === "10" || String(dt.trans_type) === "13") ? total : 0,
+      credit: (String(dt.trans_type) === "12" || String(dt.trans_type) === "11") ? total : 0,
+      allocated: allocatedTotal,
+      balance: total - allocatedTotal,
+      trans_type: String(dt.trans_type || ""),
+    } as Row;
+  });
 
   // pagination
-  const paginatedRows = React.useMemo(() => {
-    if (rowsPerPage === -1) return rows;
-    return rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  }, [rows, page, rowsPerPage]);
+  const { filteredRows, paginatedRows } = React.useMemo(() => {
+    let filtered = rows;
+    if (selectedCustomer && selectedCustomer !== "ALL_CUSTOMERS") {
+      filtered = filtered.filter((r) => {
+        // Find debtor trans to match customer
+        const debtorTransFrom = debtorTrans.find((dt: any) => String(dt.trans_no) === String(r.number));
+        return String(debtorTransFrom?.debtor_no ?? "") === String(selectedCustomer);
+      });
+    }
+    if (type && type !== "ALL_TYPES") {
+      // If type is numeric, match against the trans_type directly from the row
+      const isNumeric = /^\d+$/.test(String(type));
+      if (isNumeric) {
+        filtered = filtered.filter((r) => String(r.trans_type ?? "") === String(type));
+      } else {
+        // For non-numeric, match by type label
+        filtered = filtered.filter((r) => String(r.type ?? "").toUpperCase().includes(type.toUpperCase()));
+      }
+    }
+    // date range filtering if provided
+    if (fromDate) {
+      filtered = filtered.filter((r) => r.date ? String(r.date) >= String(fromDate) : false);
+    }
+    if (toDate) {
+      filtered = filtered.filter((r) => r.date ? String(r.date) <= String(toDate) : false);
+    }
+    // Show settled filtering
+    filtered = filtered.filter((r) => {
+      const debtorTransFrom = debtorTrans.find((dt: any) => String(dt.trans_no) === String(r.number));
+      if (debtorTransFrom) {
+        const total = (debtorTransFrom.ov_amount || 0) + (debtorTransFrom.ov_gst || 0) + (debtorTransFrom.ov_freight || 0) + (debtorTransFrom.ov_freight_tax || 0) + (debtorTransFrom.ov_discount || 0);
+        const isSettled = total === (debtorTransFrom.alloc || 0);
+        return showSettled ? isSettled : !isSettled;
+      }
+      return !showSettled; // If no debtor trans, treat as unsettled
+    });
+
+    const paginated = rowsPerPage === -1 ? filtered : filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+    return { filteredRows: filtered, paginatedRows: paginated };
+  }, [rows, page, rowsPerPage, selectedCustomer, type, fromDate, toDate, showSettled, debtorTrans]);
 
   const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
+
+  // Reset page if out of range
+  React.useEffect(() => {
+    const maxPage = Math.ceil(filteredRows.length / rowsPerPage) - 1;
+    if (page > maxPage) {
+      setPage(Math.max(0, maxPage));
+    }
+  }, [filteredRows.length, rowsPerPage, page]);
 
   return (
     <Stack spacing={2}>
@@ -121,13 +196,16 @@ export default function CustomerAllocationInquiry() {
                 labelId="customer-label"
                 value={selectedCustomer}
                 label="Select Customer"
-                onChange={(e) => setSelectedCustomer(String(e.target.value))}
+                onChange={(e) => {
+                  setSelectedCustomer(String(e.target.value));
+                  setPage(0);
+                }}
               >
                 <MenuItem value="ALL_CUSTOMERS">All Customers</MenuItem>
                 {(customers || []).map((c: any) => (
                   <MenuItem
                     key={c.customer_id ?? c.id ?? c.debtor_no}
-                    value={String(c.customer_id ?? c.id ?? c.debtor_no)}
+                    value={String(c.debtor_no ?? c.customer_id ?? c.id ?? "")}
                   >
                     {c.name ?? c.customer_name ?? c.debtor_name}
                   </MenuItem>
@@ -143,7 +221,10 @@ export default function CustomerAllocationInquiry() {
               label="From Date"
               type="date"
               value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
+              onChange={(e) => {
+                setFromDate(e.target.value);
+                setPage(0);
+              }}
               InputLabelProps={{ shrink: true }}
             />
           </Grid>
@@ -155,7 +236,10 @@ export default function CustomerAllocationInquiry() {
               label="To Date"
               type="date"
               value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
+              onChange={(e) => {
+                setToDate(e.target.value);
+                setPage(0);
+              }}
               InputLabelProps={{ shrink: true }}
             />
           </Grid>
@@ -167,13 +251,18 @@ export default function CustomerAllocationInquiry() {
                 labelId="type-label"
                 value={type}
                 label="Type"
-                onChange={(e) => setType(String(e.target.value))}
+                onChange={(e) => {
+                  setType(String(e.target.value));
+                  setPage(0);
+                }}
               >
                 <MenuItem value="ALL_TYPES">All Types</MenuItem>
-                <MenuItem value="SALES_INVOICE">Sales Invoice</MenuItem>
-                <MenuItem value="CUSTOMER_PAYMENT">Customer Payment</MenuItem>
-                <MenuItem value="CREDIT_NOTE">Credit Note</MenuItem>
-              </Select>
+                <MenuItem value="10">Sales Invoices</MenuItem>
+                <MenuItem value="UNSETTLE_TRANSACTIONS">Unsettle Transactions</MenuItem>
+                <MenuItem value="12">Payments</MenuItem>
+                <MenuItem value="11">Credit Notes</MenuItem>
+                <MenuItem value="13">Delivery Notes</MenuItem>
+                <MenuItem value="0">Journal Entries</MenuItem>             </Select>
             </FormControl>
           </Grid>
 
@@ -182,7 +271,10 @@ export default function CustomerAllocationInquiry() {
               control={
                 <Checkbox
                   checked={showSettled}
-                  onChange={(e) => setShowSettled(e.target.checked)}
+                  onChange={(e) => {
+                    setShowSettled(e.target.checked);
+                    setPage(0);
+                  }}
                   color="primary"
                 />
               }
@@ -238,7 +330,21 @@ export default function CustomerAllocationInquiry() {
                 <TableCell align="right">{r.balance.toFixed(2)}</TableCell>
                 <TableCell align="center">
                   <Stack direction="row" spacing={1} justifyContent="center">
-                    <Button variant="outlined" size="small">Allocation</Button>
+                    {(() => {
+                      const debtorTransFrom = debtorTrans.find((dt: any) => String(dt.trans_no) === String(r.number));
+                      if (debtorTransFrom) {
+                        const total = (debtorTransFrom.ov_amount || 0) + (debtorTransFrom.ov_gst || 0) + (debtorTransFrom.ov_freight || 0) + (debtorTransFrom.ov_freight_tax || 0) + (debtorTransFrom.ov_discount || 0);
+                        const isSettled = total === (debtorTransFrom.alloc || 0);
+                        if (!isSettled || String(debtorTransFrom.trans_type) === "12") {
+                          const buttonText = String(debtorTransFrom.trans_type) === "10" ? "Payment" : "Allocation";
+                          const onClickHandler = buttonText === "Payment" 
+                            ? () => navigate('/sales/transactions/customer-payments', { state: { transNo: r.number, transType: debtorTransFrom.trans_type } })
+                            : () => navigate('/sales/transactions/allocate-customer-payments-credit-notes/view-allocations', { state: { transNo: r.number, transType: debtorTransFrom.trans_type } });
+                          return <Button variant="outlined" size="small" onClick={onClickHandler}>{buttonText}</Button>;
+                        }
+                      }
+                      return null;
+                    })()}
                   </Stack>
                 </TableCell>
               </TableRow>
@@ -250,7 +356,7 @@ export default function CustomerAllocationInquiry() {
               <TablePagination
                 rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
                 colSpan={11}
-                count={rows.length}
+                count={filteredRows.length}
                 rowsPerPage={rowsPerPage}
                 page={page}
                 onPageChange={handleChangePage}
