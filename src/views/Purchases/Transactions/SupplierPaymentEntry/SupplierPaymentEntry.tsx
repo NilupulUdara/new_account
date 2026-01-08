@@ -17,7 +17,7 @@ import {
   Grid,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 import { useQuery } from "@tanstack/react-query";
 import Breadcrumb from "../../../../components/BreadCrumb";
@@ -39,9 +39,13 @@ import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 
 export default function SupplierPaymentEntry() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // try to read supplier passed via navigation state (supplier, supplierId, supplier_id)
+  const initialSupplier = Number(location?.state?.supplier ?? location?.state?.supplierId ?? location?.state?.supplier_id ?? 0) || 0;
 
   // ================== FORM STATES ==================
-  const [supplier, setSupplier] = useState(0);
+  const [supplier, setSupplier] = useState(initialSupplier);
   const [datePaid, setDatePaid] = useState(
     new Date().toISOString().split("T")[0]
   );

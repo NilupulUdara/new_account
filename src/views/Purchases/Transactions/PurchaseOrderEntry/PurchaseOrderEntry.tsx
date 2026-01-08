@@ -17,11 +17,13 @@ import {
   MenuItem,
   Grid,
   ListSubheader,
+  Alert,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
@@ -58,6 +60,8 @@ export default function PurchaseOrderEntry() {
 
   const [memo, setMemo] = useState("");
   const [dateError, setDateError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   // order number will be generated from server-side sequence (client will request max+1)
 
@@ -273,24 +277,70 @@ export default function PurchaseOrderEntry() {
       deliveryDate: new Date().toISOString().split("T")[0],
       price: 0,
       total: 0,
+      isEditing: true,
     },
   ]);
 
   const handleAddRow = () => {
-    setRows((prev) => [
-      ...prev,
-      {
-        id: prev.length + 1,
-        stockId: "",
-        itemCode: "",
-        description: "",
-        quantity: 0,
-        unit: "",
-        deliveryDate: new Date().toISOString().split("T")[0],
-        price: 0,
-        total: 0,
-      },
-    ]);
+    setRows((prev) => {
+      if (prev.length === 0) {
+        return [
+          ...prev,
+          {
+            id: prev.length + 1,
+            stockId: "",
+            itemCode: "",
+            description: "",
+            quantity: 0,
+            unit: "",
+            deliveryDate: new Date().toISOString().split("T")[0],
+            price: 0,
+            total: 0,
+            isEditing: true,
+          },
+        ];
+      }
+
+      const last = prev[prev.length - 1];
+      // If last row is being edited, validate and commit it (set isEditing=false) and append a new editable row
+      if (last && last.isEditing) {
+        if (!validateRow(last)) return prev;
+        const committed = { ...last, isEditing: false };
+        return [
+          ...prev.slice(0, -1),
+          committed,
+          {
+            id: prev.length + 1,
+            stockId: "",
+            itemCode: "",
+            description: "",
+            quantity: 0,
+            unit: "",
+            deliveryDate: new Date().toISOString().split("T")[0],
+            price: 0,
+            total: 0,
+            isEditing: true,
+          },
+        ];
+      }
+
+      // otherwise just add a new editable row
+      return [
+        ...prev,
+        {
+          id: prev.length + 1,
+          stockId: "",
+          itemCode: "",
+          description: "",
+          quantity: 0,
+          unit: "",
+          deliveryDate: new Date().toISOString().split("T")[0],
+          price: 0,
+          total: 0,
+          isEditing: true,
+        },
+      ];
+    });
   };
 
   const handleRemoveRow = (id) => {
@@ -298,6 +348,7 @@ export default function PurchaseOrderEntry() {
   };
 
   const handleChange = (id, field, value) => {
+    setValidationMsg("");
     setRows((prev) =>
       prev.map((r) =>
         r.id === id
@@ -315,6 +366,35 @@ export default function PurchaseOrderEntry() {
     );
   };
 
+  const setRowEditing = (id, editing) => {
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, isEditing: editing } : r)));
+    if (editing) setValidationMsg("");
+  };
+
+  const [validationMsg, setValidationMsg] = useState("");
+
+  const validateRow = (r: any) => {
+    const qty = Number(r.quantity ?? 0);
+    const hasItem = !!(r.itemCode || r.stockId || r.description);
+    if (!hasItem) {
+      setValidationMsg('Please select an item before confirming.');
+      return false;
+    }
+    if (isNaN(qty) || qty <= 0) {
+      setValidationMsg('Quantity must be greater than zero.');
+      return false;
+    }
+    setValidationMsg("");
+    return true;
+  };
+
+  const validateAndConfirm = (id: number) => {
+    const row = rows.find((x) => x.id === id);
+    if (!row) return;
+    if (!validateRow(row)) return;
+    setRowEditing(id, false);
+  };
+
   // ========= Subtotal =========
   const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
 
@@ -323,9 +403,9 @@ export default function PurchaseOrderEntry() {
     (async () => {
       try {
         // basic validations
-        if (!supplier) { alert('Select supplier first'); return; }
+        if (!supplier) { setSaveError('Select supplier first'); return; }
         const detailsToPost = rows.filter(r => r.itemCode && r.quantity > 0);
-        if (detailsToPost.length === 0) { alert('Add at least one item with quantity > 0'); return; }
+        if (detailsToPost.length === 0) { setSaveError('Add at least one item with quantity > 0'); return; }
 
         // resolve supplier id and location code
         const selectedSupplierObj = suppliers.find((s: any) => String(resolveSupplierId(s)) === String(supplier));
@@ -335,6 +415,9 @@ export default function PurchaseOrderEntry() {
 
         const selectedLocationObj = locations.find((l: any) => String(l.id) === String(receiveInto));
         const intoLocationCode = selectedLocationObj ? (selectedLocationObj.loc_code || selectedLocationObj.location_name || String(receiveInto)) : String(receiveInto || "");
+
+        setIsSaving(true);
+        setSaveError("");
 
         // determine next order_no by querying existing purchase orders (safe small int)
         let nextOrderNo: number | null = null;
@@ -421,7 +504,9 @@ export default function PurchaseOrderEntry() {
       } catch (err: any) {
         console.error('Failed to create purchase order', err);
         const detail = err?.response?.data ? JSON.stringify(err.response.data) : err?.message || String(err);
-        alert('Failed to save purchase order: ' + detail);
+        setSaveError('Failed to save purchase order: ' + detail);
+      } finally {
+        setIsSaving(false);
       }
     })();
   };
@@ -541,7 +626,7 @@ export default function PurchaseOrderEntry() {
 
                 {/* Item Code */}
                 <TableCell>
-                  <TextField size="small" value={row.itemCode} InputProps={{ readOnly: true }} />
+                  <TextField size="small" value={row.itemCode} InputProps={{ readOnly: true }} disabled={!row.isEditing} />
                 </TableCell>
 
                 {/* Description */}
@@ -550,6 +635,7 @@ export default function PurchaseOrderEntry() {
                     select
                     size="small"
                     value={row.description}
+                    disabled={!row.isEditing}
                     onChange={(e) => {
                       const selected = items.find((item) => item.description === e.target.value);
                       if (selected) {
@@ -593,12 +679,12 @@ export default function PurchaseOrderEntry() {
 
                 {/* Quantity */}
                 <TableCell>
-                  <TextField size="small" type="number" value={row.quantity} onChange={(e) => handleChange(row.id, "quantity", Number(e.target.value))} />
+                  <TextField size="small" type="number" value={row.quantity} disabled={!row.isEditing} onChange={(e) => handleChange(row.id, "quantity", Number(e.target.value))} />
                 </TableCell>
 
                 {/* Unit */}
                 <TableCell>
-                  <TextField size="small" value={row.unit} InputProps={{ readOnly: true }} />
+                  <TextField size="small" value={row.unit} InputProps={{ readOnly: true }} disabled={!row.isEditing} />
                 </TableCell>
 
                 {/* Delivery Date */}
@@ -607,13 +693,14 @@ export default function PurchaseOrderEntry() {
                     size="small"
                     type="date"
                     value={row.deliveryDate}
+                    disabled={!row.isEditing}
                     onChange={(e) => handleChange(row.id, "deliveryDate", e.target.value)}
                   />
                 </TableCell>
 
                 {/* Price Before Tax */}
                 <TableCell>
-                  <TextField size="small" type="number" value={row.price} onChange={(e) => handleChange(row.id, "price", Number(e.target.value))} />
+                  <TextField size="small" type="number" value={row.price} disabled={!row.isEditing} onChange={(e) => handleChange(row.id, "price", Number(e.target.value))} />
                 </TableCell>
 
                 {/* Line Total */}
@@ -627,9 +714,15 @@ export default function PurchaseOrderEntry() {
                     </Button>
                   ) : (
                     <Stack direction="row" spacing={1}>
-                      <Button variant="outlined" size="small" startIcon={<EditIcon />} onClick={() => alert(`Edit row ${row.id}`)}>
-                        Edit
-                      </Button>
+                      {row.isEditing ? (
+                        <Button variant="contained" size="small" onClick={() => setRowEditing(row.id, false)}>
+                          Confirm
+                        </Button>
+                      ) : (
+                        <Button variant="outlined" size="small" startIcon={<EditIcon />} onClick={() => setRowEditing(row.id, true)}>
+                          Edit
+                        </Button>
+                      )}
                       <Button variant="outlined" color="error" size="small" startIcon={<DeleteIcon />} onClick={() => handleRemoveRow(row.id)}>
                         Delete
                       </Button>
@@ -660,6 +753,27 @@ export default function PurchaseOrderEntry() {
         </Table>
       </TableContainer>
 
+      {validationMsg ? (
+        <Box sx={{ mt: 1 }}>
+          <Alert
+            severity="error"
+            icon={<ErrorOutlineIcon />}
+            sx={{
+              backgroundColor: (theme) => theme.palette.error.light + '22',
+              borderRadius: 1,
+            }}
+          >
+            {validationMsg}
+          </Alert>
+        </Box>
+      ) : null}
+
+      {saveError ? (
+        <Box sx={{ mt: 2 }}>
+          <Alert severity="error">{saveError}</Alert>
+        </Box>
+      ) : null}
+
       {/* Memo Section */}
       <Paper sx={{ p: 2, borderRadius: 2 }}>
         <Typography variant="subtitle1" sx={{ mb: 1 }}>
@@ -671,8 +785,8 @@ export default function PurchaseOrderEntry() {
           <Button variant="outlined" onClick={() => navigate(-1)}>
             Cancel Order
           </Button>
-          <Button variant="contained" color="primary" onClick={handlePlaceOrder}>
-            Place Order
+          <Button variant="contained" color="primary" disabled={isSaving} onClick={handlePlaceOrder}>
+            {isSaving ? "Placing..." : "Place Order"}
           </Button>
         </Box>
       </Paper>

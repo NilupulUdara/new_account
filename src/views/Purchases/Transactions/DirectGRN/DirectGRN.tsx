@@ -17,11 +17,13 @@ import {
   MenuItem,
   Grid,
   ListSubheader,
+  Alert,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { useNavigate } from "react-router-dom";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
@@ -251,8 +253,13 @@ export default function DirectGRN() {
       deliveryDate: new Date().toISOString().split("T")[0],
       price: 0,
       total: 0,
+      isEditing: true,
     },
   ]);
+
+  const [validationMsg, setValidationMsg] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   // auto-fill Deliver To from Receive Into but allow edits
   const prevAutoDeliverRef = React.useRef<string>("");
@@ -276,20 +283,63 @@ export default function DirectGRN() {
   }, [receiveInto, locations]);
 
   const handleAddRow = () => {
-    setRows((prev) => [
-      ...prev,
-      {
-        id: prev.length + 1,
-        stockId: "",
-        itemCode: "",
-        description: "",
-        quantity: 0,
-        unit: "",
-        deliveryDate: new Date().toISOString().split("T")[0],
-        price: 0,
-        total: 0,
-      },
-    ]);
+    setRows((prev) => {
+      if (prev.length === 0) {
+        return [
+          ...prev,
+          {
+            id: prev.length + 1,
+            stockId: "",
+            itemCode: "",
+            description: "",
+            quantity: 0,
+            unit: "",
+            deliveryDate: new Date().toISOString().split("T")[0],
+            price: 0,
+            total: 0,
+            isEditing: true,
+          },
+        ];
+      }
+
+      const last = prev[prev.length - 1];
+      if (last && last.isEditing) {
+        if (!validateRow(last)) return prev;
+        const committed = { ...last, isEditing: false };
+        return [
+          ...prev.slice(0, -1),
+          committed,
+          {
+            id: prev.length + 1,
+            stockId: "",
+            itemCode: "",
+            description: "",
+            quantity: 0,
+            unit: "",
+            deliveryDate: new Date().toISOString().split("T")[0],
+            price: 0,
+            total: 0,
+            isEditing: true,
+          },
+        ];
+      }
+
+      return [
+        ...prev,
+        {
+          id: prev.length + 1,
+          stockId: "",
+          itemCode: "",
+          description: "",
+          quantity: 0,
+          unit: "",
+          deliveryDate: new Date().toISOString().split("T")[0],
+          price: 0,
+          total: 0,
+          isEditing: true,
+        },
+      ];
+    });
   };
 
   const handleRemoveRow = (id) => {
@@ -297,6 +347,7 @@ export default function DirectGRN() {
   };
 
   const handleChange = (id, field, value) => {
+    setValidationMsg("");
     setRows((prev) =>
       prev.map((r) =>
         r.id === id
@@ -314,6 +365,33 @@ export default function DirectGRN() {
     );
   };
 
+  const setRowEditing = (id, editing) => {
+    setValidationMsg("");
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, isEditing: editing } : r)));
+  };
+
+  const validateRow = (r: any) => {
+    const qty = Number(r.quantity ?? 0);
+    const hasItem = !!(r.itemCode || r.stockId || r.description);
+    if (!hasItem) {
+      setValidationMsg('Please select an item before confirming.');
+      return false;
+    }
+    if (isNaN(qty) || qty <= 0) {
+      setValidationMsg('Quantity must be greater than zero.');
+      return false;
+    }
+    setValidationMsg("");
+    return true;
+  };
+
+  const validateAndConfirm = (id: number) => {
+    const row = rows.find((x) => x.id === id);
+    if (!row) return;
+    if (!validateRow(row)) return;
+    setRowEditing(id, false);
+  };
+
   // ========= Subtotal =========
   const subTotal = rows.reduce((sum, r) => sum + r.total, 0);
 
@@ -322,10 +400,13 @@ export default function DirectGRN() {
     (async () => {
       try {
         // basic validations
-        if (!supplier) { alert('Select supplier first'); return; }
-        if (dateError) { alert(dateError); return; }
+        if (!supplier) { setSaveError('Select supplier first'); return; }
+        if (dateError) { setSaveError(dateError); return; }
         const detailsToPost = rows.filter(r => (r.itemCode || r.stockId) && r.quantity > 0);
-        if (detailsToPost.length === 0) { alert('Add at least one item with quantity > 0'); return; }
+        if (detailsToPost.length === 0) { setValidationMsg('Add at least one item with quantity > 0'); return; }
+
+        setIsSaving(true);
+        setSaveError("");
 
         // resolve supplier id (supplier holds supplier_id numeric)
         const supplierIdToSend = Number(supplier) || null;
@@ -498,7 +579,9 @@ export default function DirectGRN() {
       } catch (err: any) {
         console.error('Failed to place GRN', err);
         const detail = err?.response?.data ? JSON.stringify(err.response.data) : err?.message || String(err);
-        alert('Failed to place GRN: ' + detail);
+        setSaveError('Failed to place GRN: ' + detail);
+      } finally {
+        setIsSaving(false);
       }
     })();
   };
@@ -604,7 +687,7 @@ export default function DirectGRN() {
 
                 {/* Item Code */}
                 <TableCell>
-                  <TextField size="small" value={row.itemCode} InputProps={{ readOnly: true }} />
+                  <TextField size="small" value={row.itemCode} InputProps={{ readOnly: true }} disabled={!row.isEditing} />
                 </TableCell>
 
                 {/* Description */}
@@ -613,6 +696,7 @@ export default function DirectGRN() {
                     select
                     size="small"
                     value={row.stockId}
+                    disabled={!row.isEditing}
                     onChange={(e) => {
                           const selectedStockId = e.target.value;
                           const selected = items.find((it) => it.stock_id === selectedStockId);
@@ -671,7 +755,7 @@ export default function DirectGRN() {
 
                 {/* Quantity */}
                 <TableCell>
-                  <TextField size="small" type="number" value={row.quantity} onChange={(e) => handleChange(row.id, "quantity", Number(e.target.value))} />
+                  <TextField size="small" type="number" value={row.quantity} disabled={!row.isEditing} onChange={(e) => handleChange(row.id, "quantity", Number(e.target.value))} />
                 </TableCell>
 
                 {/* Unit */}
@@ -681,7 +765,7 @@ export default function DirectGRN() {
 
                 {/* Price Before Tax */}
                 <TableCell>
-                  <TextField size="small" type="number" value={row.price} onChange={(e) => handleChange(row.id, "price", Number(e.target.value))} />
+                  <TextField size="small" type="number" value={row.price} disabled={!row.isEditing} onChange={(e) => handleChange(row.id, "price", Number(e.target.value))} />
                 </TableCell>
 
                 {/* Line Total */}
@@ -695,9 +779,15 @@ export default function DirectGRN() {
                     </Button>
                   ) : (
                     <Stack direction="row" spacing={1}>
-                      <Button variant="outlined" size="small" startIcon={<EditIcon />} onClick={() => alert(`Edit row ${row.id}`)}>
-                        Edit
-                      </Button>
+                      {row.isEditing ? (
+                        <Button variant="contained" size="small" onClick={() => validateAndConfirm(row.id)}>
+                          Confirm
+                        </Button>
+                      ) : (
+                        <Button variant="outlined" size="small" startIcon={<EditIcon />} onClick={() => setRowEditing(row.id, true)}>
+                          Edit
+                        </Button>
+                      )}
                       <Button variant="outlined" color="error" size="small" startIcon={<DeleteIcon />} onClick={() => handleRemoveRow(row.id)}>
                         Delete
                       </Button>
@@ -728,6 +818,27 @@ export default function DirectGRN() {
         </Table>
       </TableContainer>
 
+      {validationMsg ? (
+        <Box sx={{ mt: 1 }}>
+          <Alert
+            severity="error"
+            icon={<ErrorOutlineIcon />}
+            sx={{
+              backgroundColor: (theme) => theme.palette.error.light + '22',
+              borderRadius: 1,
+            }}
+          >
+            {validationMsg}
+          </Alert>
+        </Box>
+      ) : null}
+
+      {saveError ? (
+        <Box sx={{ mt: 2 }}>
+          <Alert severity="error">{saveError}</Alert>
+        </Box>
+      ) : null}
+
       {/* Memo Section */}
       <Paper sx={{ p: 2, borderRadius: 2 }}>
         <Typography variant="subtitle1" sx={{ mb: 1 }}>
@@ -739,8 +850,8 @@ export default function DirectGRN() {
           <Button variant="outlined" onClick={() => navigate(-1)}>
             Cancel GRN
           </Button>
-          <Button variant="contained" color="primary" onClick={handlePlaceOrder} disabled={!!dateError}>
-            Place GRN
+          <Button variant="contained" color="primary" onClick={handlePlaceOrder} disabled={isSaving || !!dateError}>
+            {isSaving ? "Placing..." : "Place GRN"}
           </Button>
         </Box>
       </Paper>
