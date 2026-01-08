@@ -282,7 +282,7 @@ export default function TemplateDelivery() {
                 <TableCell>{row.orderTotal}</TableCell>
                 <TableCell>{row.currency}</TableCell>
                 <TableCell>
-                  <Button variant="contained" size="small" onClick={() => console.log("Delivery", row.orderNo)}>Delivery</Button>
+                  <Button variant="contained" size="small" onClick={() => navigate("/sales/transactions/direct-delivery", { state: { orderNo: row.orderNo } })}>Delivery</Button>
                 </TableCell>
               </TableRow>
             ))}

@@ -102,6 +102,17 @@ export default function SalesOrderInquiry() {
   const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
   const { data: orderDetails = [] } = useQuery({ queryKey: ["orderDetails"], queryFn: getSalesOrderDetails });
 
+  // Initialize tmplSelected based on order.type
+  useEffect(() => {
+    const initialTmpl: Record<number, boolean> = {};
+    (salesOrders || []).forEach((order: any) => {
+      if (Number(order.type) === 1) {
+        initialTmpl[order.order_no] = true;
+      }
+    });
+    setTmplSelected(initialTmpl);
+  }, [salesOrders]);
+
   // Apply filters then map to rows
   let filteredOrders = (salesOrders || []).filter((order: any) => Number(order.trans_type) === 30);
 

@@ -22,10 +22,10 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createSalesOrder, getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
-import { createSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
+import { createSalesOrderDetail, getSalesOrderDetailsByOrderNo } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 import { createDebtorTran, getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { createBankTrans, getBankTrans } from "../../../../api/BankTrans/BankTransApi";
 import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
@@ -47,6 +47,7 @@ import auditTrailApi from "../../../../api/AuditTrail/AuditTrailApi";
 import useCurrentUser from "../../../../hooks/useCurrentUser";
 import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
 import { getTaxTypes } from "../../../../api/Tax/taxServices";
+import { createTransTaxDetail } from "../../../../api/TransTaxDetail/TransTaxDetailApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -54,9 +55,12 @@ import AddedConfirmationModal from "../../../../components/AddedConfirmationModa
 
 export default function DirectInvoice() {
     const navigate = useNavigate();
+    const location = useLocation();
     const queryClient = useQueryClient();
 
     const [open, setOpen] = useState(false);
+    const [templateOrderNo, setTemplateOrderNo] = useState<number | null>(null);
+    const [hasPopulatedFromTemplate, setHasPopulatedFromTemplate] = useState(false);
 
     // ===== Form fields =====
     const [customer, setCustomer] = useState("");
@@ -149,6 +153,67 @@ export default function DirectInvoice() {
         return true;
     };
 
+    // Set templateOrderNo from navigation state
+    useEffect(() => {
+        if (location.state?.orderNo) {
+            setTemplateOrderNo(location.state.orderNo);
+        }
+    }, [location.state]);
+
+    // Populate form from template order
+    useEffect(() => {
+        if (templateOrderNo && salesOrders.length > 0 && !hasPopulatedFromTemplate) {
+            const order = salesOrders.find((o: any) => o.order_no === templateOrderNo);
+            if (order) {
+                // Populate form fields
+                setCustomer(order.debtor_no || "");
+                setBranch(order.branch_code || "");
+                setInvoiceDate(order.ord_date || new Date().toISOString().split("T")[0]);
+                setPriceList(String(order.order_type || ""));
+                setDeliverFrom(String(order.from_stk_loc || ""));
+                setComments(order.comments || "");
+                setShippingCharge(order.freight_cost || 0);
+                setValidUntil(order.delivery_date || "");
+                setDeliverTo(order.deliver_to || "");
+                setAddress(order.delivery_address || "");
+                setContactPhoneNumber(order.contact_phone || "");
+                setCustomerReference(order.customer_ref || "");
+                setShippingCompany(String(order.ship_via || ""));
+
+                // Fetch order details and populate rows
+                const fetchOrderDetails = async () => {
+                    try {
+                        const orderDetails = await getSalesOrderDetailsByOrderNo(templateOrderNo);
+                        if (orderDetails && orderDetails.length > 0) {
+                            const populatedRows = await Promise.all(orderDetails.map(async (detail: any, index: number) => {
+                                const itemData = await getItemById(detail.stk_code);
+                                const unitName = itemData ? itemUnits.find((u: any) => u.id === itemData.units)?.abbr || "" : "";
+                                return {
+                                    id: index + 1,
+                                    itemCode: detail.stk_code || "",
+                                    description: detail.description || "",
+                                    quantity: detail.quantity || 0,
+                                    unit: unitName,
+                                    priceAfterTax: detail.unit_price || 0,
+                                    priceBeforeTax: detail.unit_price || 0, // Assuming same for now
+                                    discount: detail.discount_percent || 0,
+                                    total: (detail.quantity || 0) * (detail.unit_price || 0) * (1 - (detail.discount_percent || 0) / 100),
+                                    selectedItemId: detail.stk_code,
+                                    materialCost: itemData?.material_cost || 0,
+                                };
+                            }));
+                            setRows(populatedRows);
+                        }
+                    } catch (error) {
+                        console.error('Failed to fetch order details:', error);
+                    }
+                };
+                fetchOrderDetails();
+                setHasPopulatedFromTemplate(true);
+            }
+        }
+    }, [templateOrderNo, hasPopulatedFromTemplate]);
+
     // Handle date change with validation
     const handleDateChange = (value: string) => {
         setInvoiceDate(value);
@@ -228,7 +293,7 @@ export default function DirectInvoice() {
         handleChange(rowId, "quantity", 1);
         const itemData = await getItemById(selectedItem.stock_id);
         if (itemData) {
-            const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
+            const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.abbr || "";
             handleChange(rowId, "unit", unitName);
             handleChange(rowId, "materialCost", itemData.material_cost || 0);
             // Fetch pricing
@@ -339,6 +404,7 @@ export default function DirectInvoice() {
     useEffect(() => {
         if (priceList) {
             const updatePrices = async () => {
+                const selectedPriceList = priceLists.find((pl: any) => String(pl.id) === String(priceList));
                 const newRows = await Promise.all(
                     rows.map(async (row) => {
                         if (row.selectedItemId) {
@@ -350,10 +416,13 @@ export default function DirectInvoice() {
                             if (pricing) {
                                 const after = pricing.price_after_tax ?? pricing.priceAfterTax ?? pricing.price;
                                 const before = pricing.price_before_tax ?? pricing.priceBeforeTax ?? pricing.price;
+                                const priceToUse = selectedPriceList?.taxIncl ? after : before;
+                                const total = row.quantity * priceToUse * (1 - row.discount / 100);
                                 return {
                                     ...row,
                                     priceAfterTax: after,
                                     priceBeforeTax: before,
+                                    total: total,
                                 };
                             }
                         }
@@ -593,6 +662,47 @@ export default function DirectInvoice() {
             const debtorTransNo13 = debtorResp13?.trans_no ?? debtorResp13?.id ?? null;
             const debtorTransNo12 = debtorResp12?.trans_no ?? debtorResp12?.id ?? null;
 
+              // Create trans_tax_details for debtor_trans 13
+            if (taxCalculations.length > 0 && debtorTransNo13) {
+                for (const tax of taxCalculations) {
+                    const taxDetailPayload = {
+                        trans_no: debtorTransNo13,
+                        trans_type: 13,
+                        tax_type_id: tax.tax_type_id,
+                        amount: tax.amount,
+                        ex_rat: 1,
+                        included_in_price: selectedPriceList?.taxIncl ? 1 : 0,
+                        rate: tax.rate,
+                        tran_date: invoiceDate,
+                        net_amount: selectedPriceList?.taxIncl ? (subTotal - totalTaxAmount) : subTotal,
+                        ex_rate: 1,
+                        memo: "auto",
+                        reg_type: null,
+                    };
+                    await createTransTaxDetail(taxDetailPayload);
+                }
+            }
+            // Create trans_tax_details for debtor_trans 10
+            if (taxCalculations.length > 0 && debtorTransNo10) {
+                for (const tax of taxCalculations) {
+                    const taxDetailPayload = {
+                        trans_no: debtorTransNo10,
+                        trans_type: 10,
+                        tax_type_id: tax.tax_type_id,
+                        amount: tax.amount,
+                        ex_rat: 1,
+                        included_in_price: selectedPriceList?.taxIncl ? 1 : 0,
+                        rate: tax.rate,
+                        tran_date: invoiceDate,
+                        net_amount: selectedPriceList?.taxIncl ? (subTotal - totalTaxAmount) : subTotal,
+                        ex_rate: 1,
+                        memo: reference,
+                        reg_type:0
+                    };
+                    await createTransTaxDetail(taxDetailPayload);
+                }
+            }
+
             // Generate bank_trans reference (separate sequence for type=12)
             const year = selectedFiscalYear
                 ? new Date(selectedFiscalYear.fiscal_year_from).getFullYear()
@@ -797,6 +907,7 @@ export default function DirectInvoice() {
                 name: taxName,
                 rate: taxRate,
                 amount: taxAmount,
+                tax_type_id: item.tax_type_id,
             };
         });
     }, [selectedPriceList, taxGroupItems, taxTypes, subTotal]);
