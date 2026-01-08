@@ -195,7 +195,9 @@ export default function ViewDirectDelivery() {
     return itemsFromDetails.reduce((sum, item) => sum + (item.total || 0), 0);
   }, [itemsFromDetails]);
 
-  const totalAmountFromDetails = subtotalFromDetails; // Assuming no additional charges for now
+  const totalAmountFromDetails = useMemo(() => {
+    return (debtorTrans?.ov_amount || 0) + (debtorTrans?.ov_gst || 0) + (debtorTrans?.ov_freight || 0) + (debtorTrans?.ov_discount || 0);
+  }, [debtorTrans]);
 
   const breadcrumbItems = [
     { title: "Home", href: "/home" },
@@ -338,6 +340,20 @@ export default function ViewDirectDelivery() {
                 <TableCell>Subtotal</TableCell>
                 <TableCell>{subtotalFromDetails?.toFixed(2) ?? "-"}</TableCell>
               </TableRow>
+              {debtorTrans?.ov_freight > 0 && (
+                <TableRow>
+                  <TableCell colSpan={5}></TableCell>
+                  <TableCell>Shipping</TableCell>
+                  <TableCell>{debtorTrans.ov_freight?.toFixed(2) ?? "-"}</TableCell>
+                </TableRow>
+              )}
+              {debtorTrans?.ov_gst > 0 && (
+                <TableRow>
+                  <TableCell colSpan={5}></TableCell>
+                  <TableCell>Tax</TableCell>
+                  <TableCell>{debtorTrans.ov_gst?.toFixed(2) ?? "-"}</TableCell>
+                </TableRow>
+              )}
               <TableRow>
                 <TableCell colSpan={5}></TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Total</TableCell>

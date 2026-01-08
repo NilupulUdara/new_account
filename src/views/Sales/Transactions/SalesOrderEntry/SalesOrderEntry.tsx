@@ -163,7 +163,7 @@ export default function SalesOrderEntry() {
         handleChange(rowId, "quantity", 1);
         const itemData = await getItemById(selectedItem.stock_id);
         if (itemData) {
-            const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
+            const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.abbr || "";
             handleChange(rowId, "unit", unitName);
             // Fetch pricing
             const pricingList = await getSalesPricingByStockId(selectedItem.stock_id);
@@ -268,6 +268,7 @@ export default function SalesOrderEntry() {
     useEffect(() => {
         if (priceList) {
             const updatePrices = async () => {
+                const selectedPriceList = priceLists.find((pl: any) => pl.id === priceList);
                 const newRows = await Promise.all(
                     rows.map(async (row) => {
                         if (row.selectedItemId) {
@@ -284,10 +285,10 @@ export default function SalesOrderEntry() {
                                     ...row,
                                     priceAfterTax: after,
                                     priceBeforeTax: before,
+                                    total: row.quantity * (selectedPriceList?.taxIncl ? after : before) * (1 - row.discount / 100),
                                 };
                             } else {
                                 // No pricing record found for this sales_type
-                                const selectedPriceList = priceLists.find((pl: any) => pl.id === priceList);
                                 let fallbackPrice = 0; // No material_cost available here, so start with 0
 
                                 if (selectedPriceList && selectedPriceList.typeName === "Wholesale") {
@@ -310,6 +311,7 @@ export default function SalesOrderEntry() {
                                     ...row,
                                     priceAfterTax: fallbackPrice,
                                     priceBeforeTax: fallbackPrice,
+                                    total: row.quantity * fallbackPrice * (1 - row.discount / 100),
                                 };
                             }
                         }
@@ -341,7 +343,12 @@ export default function SalesOrderEntry() {
                 if (newPayment !== payment) setPayment(newPayment);
                 if (newPriceList !== priceList) setPriceList(newPriceList);
                 setRows((prev) => {
-                    const updated = prev.map((r) => ({ ...r, discount: newDiscount }));
+                    const selectedPriceListForTotal = priceLists.find((pl: any) => pl.id === newPriceList);
+                    const updated = prev.map((r) => {
+                        const priceForTotal = selectedPriceListForTotal?.taxIncl ? r.priceAfterTax : r.priceBeforeTax;
+                        const newTotal = r.quantity * priceForTotal * (1 - newDiscount / 100);
+                        return { ...r, discount: newDiscount, total: newTotal };
+                    });
                     try {
                         const same = JSON.stringify(updated) === JSON.stringify(prev);
                         return same ? prev : updated;
@@ -356,7 +363,11 @@ export default function SalesOrderEntry() {
             if (payment !== "") setPayment("");
             if (priceList !== "") setPriceList("");
             setRows((prev) => {
-                const updated = prev.map((r) => ({ ...r, discount: 0 }));
+                const updated = prev.map((r) => {
+                    const priceForTotal = priceColumnLabel === "Price after Tax" ? r.priceAfterTax : r.priceBeforeTax;
+                    const newTotal = r.quantity * priceForTotal * (1 - 0 / 100);
+                    return { ...r, discount: 0, total: newTotal };
+                });
                 try {
                     const same = JSON.stringify(updated) === JSON.stringify(prev);
                     return same ? prev : updated;
@@ -483,7 +494,7 @@ export default function SalesOrderEntry() {
                         if (details.length > 0) {
                             const newRows = details.map((detail: any, index: number) => {
                                 const item = items.find((i: any) => i.stock_id === detail.stk_code);
-                                const unitName = item ? itemUnits.find((u: any) => u.id === item.units)?.name || "" : "";
+                                const unitName = item ? itemUnits.find((u: any) => u.id === item.units)?.abbr || "" : "";
                                 return {
                                     id: index + 1,
                                     itemCode: detail.stk_code,

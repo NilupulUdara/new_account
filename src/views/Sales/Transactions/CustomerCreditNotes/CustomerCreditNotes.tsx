@@ -38,6 +38,7 @@ import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
 import { getDebtorTrans, createDebtorTran } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
+import { createTransTaxDetail } from "../../../../api/TransTaxDetail/TransTaxDetailApi";
 import auditTrailApi from "../../../../api/AuditTrail/AuditTrailApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
@@ -387,6 +388,7 @@ export default function CustomerCreditNotes() {
                 name: taxName,
                 rate: taxRate,
                 amount: taxAmount,
+                tax_type_id: item.tax_type_id,
             };
         });
     }, [selectedPriceList, taxGroupItems, taxTypes, subTotal]);
@@ -475,6 +477,32 @@ export default function CustomerCreditNotes() {
             }
         }
 
+        // Create trans_tax_details for trans_type 11
+        if (taxCalculations.length > 0 && debtorTransNo) {
+            for (const tax of taxCalculations) {
+                const transTaxDetailPayload = {
+                    trans_no: debtorTransNo,
+                    trans_type: 11,
+                    tax_type_id: tax.tax_type_id,
+                    amount: tax.amount,
+                    included_in_price: selectedPriceList?.taxIncl ? 1 : 0,
+                    rate: tax.rate,
+                    tran_date: creditNoteDate,
+                    net_amount: selectedPriceList?.taxIncl ? subTotal - tax.amount : subTotal,
+                    ex_rate: 1,
+                    memo: reference,
+                    region_type: 0,
+                };
+                console.log("Creating trans_tax_detail:", transTaxDetailPayload);
+                try {
+                    const taxResponse = await createTransTaxDetail(transTaxDetailPayload);
+                    console.log("Trans tax detail created successfully:", taxResponse);
+                } catch (error) {
+                    console.error("Failed to create trans tax detail:", error);
+                }
+            }
+        }
+
         // If credit note type is Return, create stock moves
         if (creditNoteType === "Return" && returnLocation) {
             for (const row of detailsToPost) {
@@ -537,6 +565,7 @@ export default function CustomerCreditNotes() {
         alert("Credit Note processed successfully!");
         queryClient.invalidateQueries({ queryKey: ["debtorTrans"] });
         queryClient.invalidateQueries({ queryKey: ["debtorTransDetails"] });
+        queryClient.invalidateQueries({ queryKey: ["transTaxDetails"] });
         queryClient.invalidateQueries({ queryKey: ["stockMoves"] });
         navigate("/sales/transactions/customer-credit-notes/success", { state: { trans_no: debtorTransNo, reference } });
     };
@@ -729,7 +758,7 @@ export default function CustomerCreditNotes() {
                                                 handleChange(row.id, "selectedItemId", selected.stock_id);
                                                 const itemData = await getItemById(selected.stock_id);
                                                 if (itemData) {
-                                                    const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
+                                                    const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.abbr || "";
                                                     handleChange(row.id, "unit", unitName);
                                                     handleChange(row.id, "material_cost", itemData.material_cost || 0);
                                                     

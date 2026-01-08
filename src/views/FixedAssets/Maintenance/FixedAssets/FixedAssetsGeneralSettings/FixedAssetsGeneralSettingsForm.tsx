@@ -484,9 +484,6 @@ export default function FixedAssetsGeneralSettingsForm({ itemId }: ItemGeneralSe
                     })
                   ) : (
                     <>
-                      <MenuItem value="straight-line">Straight Line</MenuItem>
-                      <MenuItem value="declining-balance">Declining Balance</MenuItem>
-                      <MenuItem value="units-of-production">Units of Production</MenuItem>
                     </>
                   )}
                 </Select>

@@ -22,7 +22,7 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 import { getBranches } from "../../../../api/CustomerBranch/CustomerBranchApi";
@@ -37,12 +37,13 @@ import { getItemCategories } from "../../../../api/ItemCategories/ItemCategories
 import { getSalesPricingByStockId } from "../../../../api/SalesPricing/SalesPricingApi";
 import { getShippingCompanies } from "../../../../api/ShippingCompany/ShippingCompanyApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
-import { createSalesOrder, getSalesOrders } from "../../../../api/SalesOrders/SalesOrdersApi";
-import { createSalesOrderDetail } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
+import { createSalesOrder, getSalesOrders, getSalesOrderByOrderNo } from "../../../../api/SalesOrders/SalesOrdersApi";
+import { createSalesOrderDetail, getSalesOrderDetailsByOrderNo } from "../../../../api/SalesOrders/SalesOrderDetailsApi";
 import { createDebtorTran, getDebtorTrans } from "../../../../api/DebtorTrans/DebtorTransApi";
 import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTransDetailsApi";
 import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
 import { getTaxTypes } from "../../../../api/Tax/taxServices";
+import { createTransTaxDetail } from "../../../../api/TransTaxDetail/TransTaxDetailApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -50,6 +51,7 @@ import AddedConfirmationModal from "../../../../components/AddedConfirmationModa
 
 export default function DirectDelivery() {
     const navigate = useNavigate();
+    const location = useLocation();
     const queryClient = useQueryClient();
 
     const [open, setOpen] = useState(false);
@@ -96,6 +98,71 @@ export default function DirectDelivery() {
     const { data: salesOrders = [] } = useQuery({ queryKey: ["salesOrders"], queryFn: getSalesOrders });
     const { data: debtorTrans = [] } = useQuery({ queryKey: ["debtorTrans"], queryFn: getDebtorTrans });
     const { data: taxTypes = [] } = useQuery({ queryKey: ["taxTypes"], queryFn: getTaxTypes });
+
+    // Handle order data if coming from template delivery
+    useEffect(() => {
+        const state = location.state;
+        if (state && state.orderNo && items.length > 0 && itemUnits.length > 0 && customers.length > 0 && branches.length > 0) {
+            const fetchOrder = async () => {
+                try {
+                    const order = await getSalesOrderByOrderNo(state.orderNo);
+                    if (order && order.trans_type === 30) { // Ensure it's a sales order
+                        setCustomer(String(order.debtor_no));
+                        setBranch(String(order.branch_code));
+                        setPriceList(String(order.order_type));
+                        setComments(`Direct Delivery for Order # ${state.orderNo}`);
+                        setDeliverFrom(order.from_stk_loc || "");
+                        setDeliverTo(order.deliver_to || "");
+                        setAddress(order.delivery_address || "");
+                        setContactPhoneNumber(order.contact_phone || "");
+                        setCustomerReference(order.customer_ref || "");
+                        setShippingCompany(order.ship_via ? String(order.ship_via) : "");
+                        setDeliveryDate(order.delivery_date || new Date().toISOString().split("T")[0]);
+                        setPayment(order.payment_terms ? String(order.payment_terms) : "");
+                        // Fetch details
+                        const details = await getSalesOrderDetailsByOrderNo(state.orderNo);
+                        if (details.length > 0) {
+                            const newRows = details.map((detail: any, index: number) => {
+                                const item = items.find((i: any) => i.stock_id === detail.stk_code);
+                                const unitName = item ? itemUnits.find((u: any) => u.id === item.units)?.abbr || "" : "";
+                                return {
+                                    id: index + 1,
+                                    itemCode: detail.stk_code,
+                                    description: detail.description,
+                                    quantity: detail.quantity - (detail.qty_sent || 0), // Remaining quantity
+                                    unit: unitName,
+                                    priceAfterTax: detail.unit_price,
+                                    priceBeforeTax: detail.unit_price,
+                                    discount: detail.discount_percent || 0,
+                                    total: (detail.quantity - (detail.qty_sent || 0)) * detail.unit_price * (1 - (detail.discount_percent || 0) / 100),
+                                    selectedItemId: detail.stk_code,
+                                    materialCost: item?.material_cost ?? 0,
+                                };
+                            });
+                            // Add empty row at end
+                            newRows.push({
+                                id: newRows.length + 1,
+                                itemCode: "",
+                                description: "",
+                                quantity: 0,
+                                unit: "",
+                                priceAfterTax: 0,
+                                priceBeforeTax: 0,
+                                discount: 0,
+                                total: 0,
+                                selectedItemId: null,
+                                materialCost: 0,
+                            });
+                            setRows(newRows);
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error fetching order data:", error);
+                }
+            };
+            fetchOrder();
+        }
+    }, [location.state, items, itemUnits, customers, branches]);
 
     // Find selected fiscal year from company setup
     const selectedFiscalYear = useMemo(() => {
@@ -220,7 +287,7 @@ export default function DirectDelivery() {
         handleChange(rowId, "quantity", 1);
         const itemData = await getItemById(selectedItem.stock_id);
         if (itemData) {
-            const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
+            const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.abbr || "";
             handleChange(rowId, "unit", unitName);
             handleChange(rowId, "materialCost", itemData.material_cost || 0);
             // Fetch pricing
@@ -279,15 +346,15 @@ export default function DirectDelivery() {
 
     // Reset branch when customer changes and auto-select first branch
     useEffect(() => {
-        const customerBranches = branches.filter((b: any) => b.debtor_no === customer);
-        const newBranch = customerBranches.length > 0 ? customerBranches[0].branch_code : "";
+        const customerBranches = branches.filter((b: any) => b.debtor_no == customer);
+        const newBranch = customerBranches.length > 0 ? String(customerBranches[0].branch_code) : "";
         if (newBranch !== branch) setBranch(newBranch);
     }, [customer, branches]);
 
     // Update deliver to and address when branch changes
     useEffect(() => {
         if (branch) {
-            const selectedBranch = branches.find((b: any) => b.branch_code === branch);
+            const selectedBranch = branches.find((b: any) => b.branch_code == branch);
             if (selectedBranch) {
                 setDeliverTo(selectedBranch.br_name || "");
                 setAddress(selectedBranch.br_address || "");
@@ -431,7 +498,7 @@ export default function DirectDelivery() {
             };
             updatePrices();
         }
-    }, [priceList]);
+    }, [priceList, priceLists]);
 
     // === Additional derived fields for backend mapping ===
     const [submitting, setSubmitting] = useState(false);
@@ -509,10 +576,10 @@ export default function DirectDelivery() {
                 tran_date: deliveryDate,
                 due_date: validUntil || deliveryDate,
                 reference: reference || "",
-                tpe: 1,
+                tpe: Number(priceList) || 1,
                 order_no: orderNo,
                 ov_amount: subTotal,
-                ov_gst: 0,
+                ov_gst: selectedPriceList?.taxIncl ? 0 : totalTaxAmount,
                 ov_freight: shippingCharge || 0,
                 ov_freight_tax: 0,
                 ov_discount: 0,
@@ -528,6 +595,26 @@ export default function DirectDelivery() {
             console.log("Posting debtor_trans payload", debtorPayload);
             const debtorResp = await createDebtorTran(debtorPayload as any);
             const debtorTransNo = debtorResp?.trans_no ?? debtorResp?.id ?? null;
+
+            // Create trans_tax_details for each tax
+            if (taxCalculations.length > 0 && debtorTransNo) {
+                for (const tax of taxCalculations) {
+                    const taxDetailPayload = {
+                        trans_no: debtorTransNo,
+                        trans_type: 13,
+                        tax_type_id: tax.tax_type_id,
+                        amount: tax.amount,
+                        included_in_price: selectedPriceList?.taxIncl ? 1 : 0,
+                        rate: tax.rate,
+                        tran_date: deliveryDate,
+                        net_amount: selectedPriceList?.taxIncl ? (subTotal - totalTaxAmount) : subTotal,
+                        ex_rate: 1,
+                        memo: reference,
+                        reg_type: 0,
+                    };
+                    await createTransTaxDetail(taxDetailPayload);
+                }
+            }
 
             // Now create sales order details and matching debtor_trans_details (linking src_id to detail id)
             const detailsToPost = rows.filter(r => r.selectedItemId);
@@ -609,7 +696,7 @@ export default function DirectDelivery() {
                 amount = subTotal * (rate / 100);
             }
 
-            return { name, rate, amount };
+            return { name, rate, amount, tax_type_id: taxItem.tax_type_id };
         }).filter(Boolean);
     }, [selectedPriceList, taxGroupItems, taxTypes, subTotal]);
 
@@ -681,9 +768,9 @@ export default function DirectDelivery() {
                                 size="small"
                             >
                                 {branches
-                                    .filter((b: any) => b.debtor_no === customer)
+                                    .filter((b: any) => b.debtor_no == customer)
                                     .map((b: any) => (
-                                        <MenuItem key={b.branch_code} value={b.branch_code}>
+                                        <MenuItem key={b.branch_code} value={String(b.branch_code)}>
                                             {b.br_name}
                                         </MenuItem>
                                     ))}

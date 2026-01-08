@@ -987,7 +987,7 @@ export default function UpdateCustomerCreditNotes() {
                                                     try {
                                                         const itemData = await getItemById(selected.stock_id);
                                                         if (itemData) {
-                                                            const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.name || "";
+                                                            const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.abbr || "";
                                                             handleChange(row.id, "unit", unitName);
                                                             
                                                             // Look up price from current sales type
