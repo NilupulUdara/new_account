@@ -259,6 +259,9 @@ export default function SupplierCreditNote() {
             const ptCandidates = Array.isArray(termList) ? termList : ((termList && Array.isArray((termList as any).data)) ? (termList as any).data : termList ? [termList] : []);
             const pt = (ptCandidates || []).find((t: any) => t.terms_indicator === supplierPaymentTerms || t.id === supplierPaymentTerms);
             setTermsDesc(pt ? pt.description : "");
+                // populate supplier credit limit into credit field (handle common variants)
+                const supplierCredit = Number(find.credit_limit ?? find.creditlimit ?? find.credit_limit_amount ?? find.credit ?? 0) || 0;
+                setCredit(supplierCredit);
         } else {
             setTaxGroup(0);
             setTerms(0);
@@ -859,9 +862,9 @@ export default function SupplierCreditNote() {
                             <TextField
                                 label="Current Credit"
                                 size="small"
-                                type="number"
-                                value={credit}
-                                onChange={(e) => setCredit(Number(e.target.value))}
+                                type="text"
+                                value={Number(credit || 0).toFixed(2)}
+                                InputProps={{ readOnly: true }}
                             />
 
                         </Stack>

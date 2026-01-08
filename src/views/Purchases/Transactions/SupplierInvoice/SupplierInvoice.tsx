@@ -269,11 +269,15 @@ export default function SupplierInvoice() {
                 const ptCandidates = Array.isArray(termList) ? termList : ((termList && Array.isArray((termList as any).data)) ? (termList as any).data : termList ? [termList] : []);
                 const pt = (ptCandidates || []).find((t: any) => t.terms_indicator === supplierPaymentTerms || t.id === supplierPaymentTerms);
                 setTermsDesc(pt ? pt.description : "");
+                // set supplier credit limit into credit field (handle common field variants)
+                const supplierCredit = Number(find.credit_limit ?? find.creditlimit ?? find.credit_limit_amount ?? find.credit ?? 0) || 0;
+                setCredit(supplierCredit);
             } else {
                 setTaxGroup(0);
                 setTerms(0);
                 setTaxGroupDesc("");
                 setTermsDesc("");
+                setCredit(0);
             }
     }, [supplier, suppliers, taxGroups, termList]);
 
@@ -812,9 +816,9 @@ export default function SupplierInvoice() {
                             <TextField
                                 label="Current Credit"
                                 size="small"
-                                type="number"
-                                value={credit}
-                                onChange={(e) => setCredit(Number(e.target.value))}
+                                type="text"
+                                value={Number(credit || 0).toFixed(2)}
+                                InputProps={{ readOnly: true }}
                             />
 
                         </Stack>
