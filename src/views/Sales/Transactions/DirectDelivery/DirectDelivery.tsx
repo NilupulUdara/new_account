@@ -44,6 +44,7 @@ import { createDebtorTransDetail } from "../../../../api/DebtorTrans/DebtorTrans
 import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
 import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import { createTransTaxDetail } from "../../../../api/TransTaxDetail/TransTaxDetailApi";
+import { getStockMoves, createStockMove } from "../../../../api/StockMoves/StockMovesApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -137,6 +138,7 @@ export default function DirectDelivery() {
                                     total: (detail.quantity - (detail.qty_sent || 0)) * detail.unit_price * (1 - (detail.discount_percent || 0) / 100),
                                     selectedItemId: detail.stk_code,
                                     materialCost: item?.material_cost ?? 0,
+                                    availableQuantity: 0, // Will be updated by the useEffect
                                 };
                             });
                             // Add empty row at end
@@ -152,6 +154,7 @@ export default function DirectDelivery() {
                                 total: 0,
                                 selectedItemId: null,
                                 materialCost: 0,
+                                availableQuantity: 0,
                             });
                             setRows(newRows);
                         }
@@ -232,6 +235,7 @@ export default function DirectDelivery() {
             total: 0,
             selectedItemId: null as string | number | null,
             materialCost: 0,
+            availableQuantity: 0,
         },
     ]);
 
@@ -250,6 +254,7 @@ export default function DirectDelivery() {
                 total: 0,
                 selectedItemId: null,
                 materialCost: 0,
+                availableQuantity: 0,
             },
         ]);
     };
@@ -284,7 +289,26 @@ export default function DirectDelivery() {
         handleChange(rowId, "description", selectedItem.description);
         handleChange(rowId, "itemCode", selectedItem.stock_id);
         handleChange(rowId, "selectedItemId", selectedItem.stock_id);
-        handleChange(rowId, "quantity", 1);
+
+        // Fetch available quantity from stock_moves table
+        let availableQty = 0;
+        if (deliverFrom && selectedItem.stock_id) {
+            try {
+                const stockMoves = await getStockMoves();
+                // Filter stock moves by location and stock_id, then sum quantities
+                const relevantMoves = stockMoves.filter((move: any) =>
+                    String(move.loc_code) === String(deliverFrom) &&
+                    String(move.stock_id) === String(selectedItem.stock_id)
+                );
+                availableQty = relevantMoves.reduce((sum: number, move: any) => sum + (move.qty || 0), 0);
+            } catch (error) {
+                console.error("Error fetching stock moves:", error);
+                availableQty = 0;
+            }
+        }
+        handleChange(rowId, "availableQuantity", availableQty);
+        handleChange(rowId, "quantity", Math.min(1, availableQty));
+
         const itemData = await getItemById(selectedItem.stock_id);
         if (itemData) {
             const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.abbr || "";
@@ -372,6 +396,13 @@ export default function DirectDelivery() {
         }
     }, [branch, branches]);
 
+    // Auto-select first location on load
+    useEffect(() => {
+        if (locations.length > 0 && !deliverFrom) {
+            setDeliverFrom(locations[0].loc_code);
+        }
+    }, [locations, deliverFrom]);
+
 
     // Update price column label when price list changes
     useEffect(() => {
@@ -388,6 +419,41 @@ export default function DirectDelivery() {
             setPriceColumnLabel("Price after Tax");
         }
     }, [priceList, priceLists]);
+
+    // Update available quantities when deliverFrom location changes
+    useEffect(() => {
+        const updateAvailableQuantities = async () => {
+            if (deliverFrom) {
+                try {
+                    const stockMoves = await getStockMoves();
+                    const updatedRows = await Promise.all(
+                        rows.map(async (row) => {
+                            if (row.selectedItemId) {
+                                // Filter stock moves by location and stock_id, then sum quantities
+                                const relevantMoves = stockMoves.filter((move: any) =>
+                                    String(move.loc_code) === String(deliverFrom) &&
+                                    String(move.stock_id) === String(row.selectedItemId)
+                                );
+                                const availableQty = relevantMoves.reduce((sum: number, move: any) => sum + (move.qty || 0), 0);
+                                return { ...row, availableQuantity: availableQty };
+                            }
+                            return row;
+                        })
+                    );
+                    setRows(updatedRows);
+                } catch (error) {
+                    console.error("Error updating available quantities:", error);
+                    // Reset available quantities if there's an error
+                    setRows(rows.map(row => ({ ...row, availableQuantity: 0 })));
+                }
+            } else {
+                // Reset available quantities if no location selected
+                setRows(rows.map(row => ({ ...row, availableQuantity: 0 })));
+            }
+        };
+
+        updateAvailableQuantities();
+    }, [deliverFrom]);
 
     // Only show payment terms where payment_type != 1
     const visiblePaymentTerms = useMemo(() => {
@@ -527,6 +593,15 @@ export default function DirectDelivery() {
             alert("At least one item must be added to the delivery.");
             return;
         }
+
+        // Check if any item quantity exceeds available stock
+        const invalidRows = rows.filter(r => r.selectedItemId && r.quantity > r.availableQuantity && r.availableQuantity > 0);
+        if (invalidRows.length > 0) {
+            const itemNames = invalidRows.map(r => r.description).join(", ");
+            alert(`Cannot process delivery. The following items have quantities exceeding available stock: ${itemNames}`);
+            return;
+        }
+
         setSubmitting(true);
         try {
             const payload = {
@@ -653,8 +728,22 @@ export default function DirectDelivery() {
                 };
                 console.log("Posting debtor_trans_detail", debtorDetailPayload);
                 await createDebtorTransDetail(debtorDetailPayload);
+
+                // Create stock move for delivery (negative quantity)
+                const stockMovePayload = {
+                    stock_id: row.itemCode,
+                    loc_code: deliverFrom,
+                    qty: -row.quantity,
+                    trans_no: debtorTransNo,
+                    type: 13,
+                    tran_date: deliveryDate,
+                    reference: reference || "",
+                    standard_cost: row.materialCost,
+                };
+                console.log("Posting stock move", stockMovePayload);
+                await createStockMove(stockMovePayload);
             }
-           // alert("Saved to sales_orders (order_no: " + orderNo + ")");
+            // alert("Saved to sales_orders (order_no: " + orderNo + ")");
             setOpen(true);
             await queryClient.invalidateQueries({ queryKey: ["salesOrders"] });
             navigate("/sales/transactions/direct-delivery/success", { state: { orderNo, reference, deliveryDate, trans_no: debtorTransNo } });
@@ -915,7 +1004,18 @@ export default function DirectDelivery() {
                                         size="small"
                                         type="number"
                                         value={row.quantity}
-                                        onChange={(e) => handleChange(row.id, "quantity", Number(e.target.value))}
+                                        onChange={(e) => {
+                                            // const newValue = Number(e.target.value);
+                                            // // Prevent entering quantity greater than available stock
+                                            // if (newValue > row.availableQuantity && row.availableQuantity > 0) {
+                                            //     // Don't update if it exceeds available quantity
+                                            //     return;
+                                            // }
+                                            const inputValue = Number(e.target.value);
+                                            const clampedValue = Math.min(inputValue, row.availableQuantity || 0);
+                                            handleChange(row.id, "quantity", clampedValue);
+                                        }}
+                                        inputProps={{ min: 0 }}
                                     />
                                 </TableCell>
                                 <TableCell>
@@ -1184,7 +1284,16 @@ export default function DirectDelivery() {
                     <Button variant="outlined" onClick={() => navigate(-1)}>
                         Cancel Delivery
                     </Button>
-                    <Button variant="contained" color="primary" onClick={handlePlaceQuotation} disabled={!!dateError || submitting}>
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={handlePlaceQuotation}
+                        disabled={
+                            !!dateError ||
+                            submitting ||
+                            rows.some(r => r.selectedItemId && r.quantity > r.availableQuantity && r.availableQuantity > 0)
+                        }
+                    >
                         {submitting ? "Saving..." : "Place Delivery"}
                     </Button>
                 </Box>
@@ -1196,8 +1305,8 @@ export default function DirectDelivery() {
                 addFunc={async () => { }}
                 handleClose={() => setOpen(false)}
                 onSuccess={() => {
-                   
-                   
+
+
                 }}
             />
         </Stack>

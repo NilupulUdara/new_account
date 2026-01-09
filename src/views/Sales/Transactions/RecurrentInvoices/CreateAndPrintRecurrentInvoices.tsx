@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -12,62 +12,77 @@ import {
   TableRow,
   Typography,
   TableFooter,
+  TablePagination,
   TableRow as MuiTableRow,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
+import { getRecurrentInvoices } from "../../../../api/RecurrentInvoice/RecurrentInvoiceApi";
+import { getSalesGroups } from "../../../../api/SalesMaintenance/salesService";
+import { getCustomers } from "../../../../api/Customer/AddCustomerApi";
 
 export default function CreateAndPrintRecurrentInvoices() {
   const breadcrumbItems = [
-    { title: "Home", href: "/home" },
+    { title: "Transactions", href: "/sales/transactions/" },
     { title: "Recurrent Invoices" },
   ];
 
   const navigate = useNavigate();
 
+  const { data: recurrentInvoices = [] } = useQuery({
+    queryKey: ["recurrentInvoices"],
+    queryFn: getRecurrentInvoices,
+  });
+
+  const { data: salesGroups = [] } = useQuery({
+    queryKey: ["salesGroups"],
+    queryFn: getSalesGroups,
+  });
+
+  const { data: customers = [] } = useQuery({
+    queryKey: ["customers"],
+    queryFn: getCustomers,
+  });
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+
+  const paginatedInvoices = useMemo(() => {
+    if (rowsPerPage === -1) return recurrentInvoices;
+    return recurrentInvoices.slice(
+      page * rowsPerPage,
+      page * rowsPerPage + rowsPerPage
+    );
+  }, [recurrentInvoices, page, rowsPerPage]);
+
+  const handleChangePage = (_event: unknown, newPage: number) => setPage(newPage);
+  const handleChangeRowsPerPage = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+  const calculateNextInvoiceDate = (begin: string, monthly: number, days: number) => {
+    if (!begin) return 'Not set';
+    
+    const beginDate = new Date(begin);
+    const nextDate = new Date(beginDate);
+    
+    // Add monthly months
+    nextDate.setMonth(nextDate.getMonth() + monthly);
+    
+    // Add days - 1 days
+    nextDate.setDate(nextDate.getDate() + days - 1);
+    
+    return nextDate.toISOString().split('T')[0];
+  };
+
   // Dummy data to display in the table
   const today = new Date().toISOString().split("T")[0];
-  const rows = [
-    {
-      id: 1,
-      description: "Monthly maintenance fee",
-      templateNo: "T-1001",
-      customer: "Acme Corporation",
-      branchGroup: "Main/Group A",
-      days: 30,
-      monthly: "Yes",
-      begin: "2025-01-01",
-      end: "2025-12-31",
-      nextInvoice: today,
-    },
-    {
-      id: 2,
-      description: "Subscription - Premium",
-      templateNo: "T-1002",
-      customer: "Beta Ltd",
-      branchGroup: "Branch B",
-      days: 7,
-      monthly: "No",
-      begin: "2025-03-01",
-      end: "2026-02-28",
-      nextInvoice: today,
-    },
-    {
-      id: 3,
-      description: "Service retainer",
-      templateNo: "T-1003",
-      customer: "Gamma PLC",
-      branchGroup: "Group C",
-      days: 15,
-      monthly: "Yes",
-      begin: "2025-06-01",
-      end: "2025-11-30",
-      nextInvoice: today,
-    },
-  ];
 
   return (
     <Stack spacing={2}>
@@ -100,29 +115,49 @@ export default function CreateAndPrintRecurrentInvoices() {
           </TableHead>
 
           <TableBody>
-            {rows.map((r) => (
-              <TableRow key={r.id} hover>
-                <TableCell>{r.description}</TableCell>
-                <TableCell>{r.templateNo}</TableCell>
-                <TableCell>{r.customer}</TableCell>
-                <TableCell>{r.branchGroup}</TableCell>
-                <TableCell>{r.days}</TableCell>
-                <TableCell>{r.monthly}</TableCell>
-                <TableCell>{r.begin}</TableCell>
-                <TableCell>{r.end}</TableCell>
-                <TableCell>{r.nextInvoice}</TableCell>
-                <TableCell>
-                  <Button variant="contained" size="small" onClick={() => console.log("Create invoice for", r.templateNo)}>
-                    Create Invoice
-                  </Button>
+            {paginatedInvoices.length > 0 ? (
+              paginatedInvoices.map((invoice) => (
+                <TableRow key={invoice.id} hover>
+                  <TableCell>{invoice.description}</TableCell>
+                  <TableCell>{invoice.order_no}</TableCell>
+                  <TableCell>{customers.find(c => c.debtor_no === invoice.debtor_no)?.name || (invoice.debtor_no ? invoice.debtor_no : '')}</TableCell>
+                  <TableCell>{salesGroups.find(g => g.id === invoice.group_no)?.name || invoice.group_no}</TableCell>
+                  <TableCell>{invoice.days}</TableCell>
+                  <TableCell>{invoice.monthly}</TableCell>
+                  <TableCell>{invoice.begin ? new Date(invoice.begin).toISOString().split('T')[0] : ''}</TableCell>
+                  <TableCell>{invoice.end ? new Date(invoice.end).toISOString().split('T')[0] : ''}</TableCell>
+                  <TableCell>{calculateNextInvoiceDate(invoice.begin, invoice.monthly, invoice.days)}</TableCell>
+                  <TableCell>
+                    <Button 
+                      variant="contained" 
+                      size="small" 
+                      onClick={() => navigate(`/sales/maintenance/create-recurrent-invoices/${invoice.id}`)}
+                    >
+                      Create Invoice
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={10} align="center">
+                  <Typography variant="body2">No Recurrent Invoices Found</Typography>
                 </TableCell>
               </TableRow>
-            ))}
+            )}
           </TableBody>
 
           <TableFooter>
             <MuiTableRow>
-              <TableCell colSpan={10} />
+              <TablePagination
+                rowsPerPageOptions={[5, 10, 25, { label: "All", value: -1 }]}
+                colSpan={10}
+                count={recurrentInvoices.length}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+              />
             </MuiTableRow>
           </TableFooter>
         </Table>
