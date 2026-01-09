@@ -29,6 +29,7 @@ import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
 import { getSuppliers } from "../../../../api/Supplier/SupplierApi";
+import { createRef } from "../../../../api/Refs/RefsApi";
 import { getFiscalYears } from "../../../../api/FiscalYear/FiscalYearApi";
 import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
 import { getInventoryLocations } from "../../../../api/InventoryLocation/InventoryLocationApi";
@@ -457,6 +458,9 @@ export default function PurchaseOrderEntry() {
         for (let idx = 0; idx < detailsToPost.length; idx++) {
           const r = detailsToPost[idx];
           // use incremental positive placeholders for po_detail_item: 1,2,3...
+          const foundItem = (items || []).find((it: any) => String(it.stock_id) === String(r.itemCode));
+          const stdCost = Number(foundItem?.material_cost ?? foundItem?.standard_cost ?? 0) || 0;
+
           const detail: any = {
             po_detail_item: idx + 1,
             order_no: usedOrderNo,
@@ -466,10 +470,11 @@ export default function PurchaseOrderEntry() {
             qty_invoiced: 0,
             unit_price: Number(r.price) || 0,
             act_price: 0,
-            std_cost_unit: 0,
+            std_cost_unit: stdCost,
             quantity_ordered: Number(r.quantity) || 0,
             quantity_received: 0,
           };
+
           await createPurchOrderDetail(detail);
         }
 
@@ -490,6 +495,13 @@ export default function PurchaseOrderEntry() {
           });
         } catch (atErr) {
           console.warn('Failed to create audit trail for purchase order', atErr);
+        }
+
+        // Save reference record in refs table (id = order no, type = 18)
+        try {
+          await createRef({ id: usedOrderNo, type: 18, reference: reference });
+        } catch (refErr) {
+          console.warn('Failed to create ref record for purchase order', refErr);
         }
 
         // Redirect to success page with relevant state

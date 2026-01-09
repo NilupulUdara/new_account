@@ -41,9 +41,13 @@ import { createPurchOrderDetail } from "../../../../api/PurchOrders/PurchOrderDe
 import { createGrnBatch, getGrnBatches } from "../../../../api/GRN/GrnBatchApi";
 import { createGrnItem } from "../../../../api/GRN/GrnItemsApi";
 import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
+import { createStockMove } from "../../../../api/StockMoves/StockMovesApi";
+import auditTrailApi from "../../../../api/AuditTrail/AuditTrailApi";
+import useCurrentUser from "../../../../hooks/useCurrentUser";
 
 export default function DirectGRN() {
   const navigate = useNavigate();
+  const { user } = useCurrentUser();
 
   // ========= Form Fields =========
   const [supplier, setSupplier] = useState(0);
@@ -453,10 +457,38 @@ export default function DirectGRN() {
         const createdPo = await createPurchOrder(poPayload);
         const usedOrderNo = (createdPo && (createdPo.order_no ?? createdPo.id)) || nextOrderNo;
 
+        // create audit trail record for Purchase Order (type 18)
+        try {
+          const company = Array.isArray(companyData) && companyData.length > 0 ? companyData[0] : null;
+          const fiscalYearIdToUse = company ? (company.fiscal_year_id ?? company.fiscal_year ?? null) : (selectedFiscalYear?.id ?? null);
+          const currentUserId = user?.id ?? (Number(localStorage.getItem("userId")) || null);
+          if (currentUserId) {
+            const auditPo: any = {
+              type: 18,
+              trans_no: usedOrderNo,
+              user: currentUserId,
+              stamp: new Date().toISOString(),
+              description: '',
+              fiscal_year: fiscalYearIdToUse,
+              gl_date: deliveryDate,
+              gl_seq: 0,
+            };
+            await auditTrailApi.create(auditPo);
+          } else {
+            console.warn('Skipping audit trail create for PO: missing user id');
+          }
+        } catch (auditErr) {
+          console.warn('Failed to create audit trail record for PO', auditErr);
+        }
+
         // create purchase order details and collect returned detail objects
         const createdDetails: any[] = [];
         for (let idx = 0; idx < detailsToPost.length; idx++) {
           const r = detailsToPost[idx];
+          // determine standard cost from items (material_cost preferred)
+          const foundItem = (items || []).find((it: any) => String(it.stock_id) === String(r.itemCode ?? r.stockId));
+          const stdCost = Number(foundItem?.material_cost ?? foundItem?.standard_cost ?? 0) || 0;
+
           const detail: any = {
             po_detail_item: idx + 1,
             order_no: usedOrderNo,
@@ -466,7 +498,7 @@ export default function DirectGRN() {
             qty_invoiced: 0,
             unit_price: Number(r.price) || 0,
             act_price: Number(r.price) || 0,
-            std_cost_unit: 0,
+            std_cost_unit: stdCost,
             quantity_ordered: Number(r.quantity) || 0,
             quantity_received: Number(r.quantity) || 0,
           };
@@ -526,6 +558,30 @@ export default function DirectGRN() {
           throw new Error('Failed to obtain grn_batch id from createGrnBatch response');
         }
 
+        // create audit trail record for GRN Batch (type 25)
+        try {
+          const company = Array.isArray(companyData) && companyData.length > 0 ? companyData[0] : null;
+          const fiscalYearIdToUse = company ? (company.fiscal_year_id ?? company.fiscal_year ?? null) : (selectedFiscalYear?.id ?? null);
+          const currentUserId = user?.id ?? (Number(localStorage.getItem("userId")) || null);
+          if (currentUserId) {
+            const auditGrn: any = {
+              type: 25,
+              trans_no: grnBatchId,
+              user: currentUserId,
+              stamp: new Date().toISOString(),
+              description: '',
+              fiscal_year: fiscalYearIdToUse,
+              gl_date: deliveryDate,
+              gl_seq: 0,
+            };
+            await auditTrailApi.create(auditGrn);
+          } else {
+            console.warn('Skipping audit trail create for GRN batch: missing user id');
+          }
+        } catch (auditErr) {
+          console.warn('Failed to create audit trail record for GRN batch', auditErr);
+        }
+
         // create GRN items using the authoritative po_detail_item returned by the server
         for (let idx = 0; idx < detailsToPost.length; idx++) {
           const r = detailsToPost[idx];
@@ -543,6 +599,31 @@ export default function DirectGRN() {
             await createGrnItem(grnItem);
           } catch (err) {
             console.warn('Failed to create GRN item:', err, 'payload:', grnItem);
+          }
+
+          // create corresponding stock move record
+          try {
+            const stockId = grnItem.item_code;
+            const qty = Number(grnItem.qty_recd) || 0;
+            const priceVal = Number(r.price) || Number(createdDetail?.unit_price) || 0;
+            const foundItem = (items || []).find((it: any) => String(it.stock_id) === String(stockId));
+            const standardCost = Number(foundItem?.material_cost ?? foundItem?.standard_cost ?? 0) || 0;
+
+            const stockMovePayload: any = {
+              trans_no: grnBatchId,
+              stock_id: stockId,
+              type: 25,
+              loc_code: intoLocationCode,
+              tran_date: deliveryDate,
+              price: priceVal,
+              reference: '',
+              qty: qty,
+              standard_cost: standardCost,
+            };
+
+            await createStockMove(stockMovePayload);
+          } catch (smErr) {
+            console.warn('Failed to create stock move for GRN item', smErr);
           }
         }
 
@@ -851,7 +932,7 @@ export default function DirectGRN() {
             Cancel GRN
           </Button>
           <Button variant="contained" color="primary" onClick={handlePlaceOrder} disabled={isSaving || !!dateError}>
-            {isSaving ? "Placing..." : "Place GRN"}
+            {isSaving ? "Processing..." : "Process GRN"}
           </Button>
         </Box>
       </Paper>

@@ -45,9 +45,12 @@ import { createGrnItem, getGrnItems } from "../../../../api/GRN/GrnItemsApi";
 import { createSuppTrans, getSuppTrans } from "../../../../api/SuppTrans/SuppTransApi";
 import { createSuppInvoiceItem } from "../../../../api/SuppInvoiceItems/SuppInvoiceItemsApi";
 import { getCompanies } from "../../../../api/CompanySetup/CompanySetupApi";
+import auditTrailApi from "../../../../api/AuditTrail/AuditTrailApi";
+import useCurrentUser from "../../../../hooks/useCurrentUser";
 
 export default function DirectSupplierInvoice() {
   const navigate = useNavigate();
+  const { user } = useCurrentUser();
 
   // ========= Form Fields =========
   const [supplier, setSupplier] = useState(0);
@@ -433,10 +436,33 @@ export default function DirectSupplierInvoice() {
         const createdPo = await createPurchOrder(poPayload);
         const usedOrderNo = (createdPo && (createdPo.order_no ?? createdPo.id)) || nextOrderNo;
 
+        // audit trail: Purchase Order (type 18)
+        try {
+          const company = Array.isArray(companyData) && companyData.length > 0 ? companyData[0] : null;
+          const fiscalYearIdToUse = company ? (company.fiscal_year_id ?? company.fiscal_year ?? null) : (selectedFiscalYear?.id ?? null);
+          const currentUserId = user?.id ?? Number(localStorage.getItem("userId")) ?? 0;
+          const auditPo: any = {
+            type: 18,
+            trans_no: usedOrderNo,
+            user: currentUserId,
+            stamp: new Date().toISOString(),
+            description: '',
+            fiscal_year: fiscalYearIdToUse,
+            gl_date: orderDate,
+            gl_seq: 0,
+          };
+          try { const resp = await auditTrailApi.create(auditPo); console.log('Audit PO created', resp); } catch (e) { console.warn('Audit PO create failed', e); }
+        } catch (e) {
+          console.warn('Failed to prepare audit PO payload', e);
+        }
+
         // create purchase order details and collect returned detail objects
         const createdDetails: any[] = [];
         for (let idx = 0; idx < detailsToPost.length; idx++) {
           const r = detailsToPost[idx];
+          // derive std_cost_unit from items/material_cost when available
+          const matchedItem = (items || []).find((it: any) => String(it.stock_id ?? it.item_code ?? it.item) === String(r.itemCode ?? r.stockId ?? ""));
+          const materialCost = matchedItem ? Number(matchedItem.material_cost ?? matchedItem.cost_price ?? 0) : 0;
           const detail: any = {
             po_detail_item: idx + 1,
             order_no: usedOrderNo,
@@ -446,7 +472,7 @@ export default function DirectSupplierInvoice() {
             qty_invoiced: 0,
             unit_price: Number(r.price) || 0,
             act_price: Number(r.price) || 0,
-            std_cost_unit: 0,
+            std_cost_unit: materialCost || 0,
             quantity_ordered: Number(r.quantity) || 0,
             quantity_received: Number(r.quantity) || 0,
           };
@@ -493,6 +519,26 @@ export default function DirectSupplierInvoice() {
           }
         }
         if (!grnBatchId) throw new Error('Failed to obtain grn_batch id');
+
+        // audit trail: GRN batch (type 25)
+        try {
+          const company = Array.isArray(companyData) && companyData.length > 0 ? companyData[0] : null;
+          const fiscalYearIdToUse = company ? (company.fiscal_year_id ?? company.fiscal_year ?? null) : (selectedFiscalYear?.id ?? null);
+          const currentUserId = user?.id ?? Number(localStorage.getItem("userId")) ?? 0;
+          const auditGrn: any = {
+            type: 25,
+            trans_no: grnBatchId,
+            user: currentUserId,
+            stamp: new Date().toISOString(),
+            description: '',
+            fiscal_year: fiscalYearIdToUse,
+            gl_date: orderDate,
+            gl_seq: 0,
+          };
+          try { const resp = await auditTrailApi.create(auditGrn); console.log('Audit GRN created', resp); } catch (e) { console.warn('Audit GRN create failed', e); }
+        } catch (e) {
+          console.warn('Failed to prepare audit GRN payload', e);
+        }
 
         // create GRN items and collect created items (store extracted id)
         const createdGrnItems: any[] = [];
@@ -576,6 +622,26 @@ export default function DirectSupplierInvoice() {
         };
         const createdSuppTrans = await createSuppTrans(suppTransPayload);
         const suppTransNo = createdSuppTrans?.trans_no ?? createdSuppTrans?.id ?? createdSuppTrans?.supp_trans_no ?? null;
+
+        // audit trail: supplier transaction (type 20)
+        try {
+          const company = Array.isArray(companyData) && companyData.length > 0 ? companyData[0] : null;
+          const fiscalYearIdToUse = company ? (company.fiscal_year_id ?? company.fiscal_year ?? null) : (selectedFiscalYear?.id ?? null);
+          const currentUserId = user?.id ?? Number(localStorage.getItem("userId")) ?? 0;
+          const auditSupp: any = {
+            type: 20,
+            trans_no: suppTransNo,
+            user: currentUserId,
+            stamp: new Date().toISOString(),
+            description: '',
+            fiscal_year: fiscalYearIdToUse,
+            gl_date: orderDate,
+            gl_seq: 0,
+          };
+          try { const resp = await auditTrailApi.create(auditSupp); console.log('Audit supp_trans created', resp); } catch (e) { console.warn('Audit supp_trans create failed', e); }
+        } catch (e) {
+          console.warn('Failed to prepare audit supp_trans payload', e);
+        }
 
         // create supp_invoice_items for each detail
         for (let idx = 0; idx < detailsToPost.length; idx++) {
