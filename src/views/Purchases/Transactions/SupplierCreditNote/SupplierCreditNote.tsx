@@ -992,10 +992,10 @@ export default function SupplierCreditNote() {
             <Box display="flex" justifyContent="center" position="relative" mb={2}>
                 <Typography variant="h6">GL Items for this Credit Note</Typography>
                 <Stack direction="row" spacing={1} style={{ position: 'absolute', right: 0 }}>
-                    <TextField select label="Quick enter" size="small">
+                    <TextField select label="Quick entry" size="small" sx={{ width: 150 }}>
                         <MenuItem value="">Select</MenuItem>
                     </TextField>
-                    <TextField label="Amount" size="small" type="number" />
+                    <TextField label="Amount" size="small" type="number" sx={{ width: 150 }} />
                     <Button variant="contained">GO</Button>
                 </Stack>
             </Box>
