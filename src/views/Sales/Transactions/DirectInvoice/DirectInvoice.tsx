@@ -48,6 +48,7 @@ import useCurrentUser from "../../../../hooks/useCurrentUser";
 import { getTaxGroupItemsByGroupId } from "../../../../api/Tax/TaxGroupItemApi";
 import { getTaxTypes } from "../../../../api/Tax/taxServices";
 import { createTransTaxDetail } from "../../../../api/TransTaxDetail/TransTaxDetailApi";
+import { getStockMoves, createStockMove } from "../../../../api/StockMoves/StockMovesApi";
 import Breadcrumb from "../../../../components/BreadCrumb";
 import PageTitle from "../../../../components/PageTitle";
 import theme from "../../../../theme";
@@ -237,6 +238,7 @@ export default function DirectInvoice() {
             total: 0,
             selectedItemId: null as string | number | null,
             materialCost: 0,
+            availableQuantity: 0,
         },
     ]);
 
@@ -255,6 +257,7 @@ export default function DirectInvoice() {
                 total: 0,
                 selectedItemId: null,
                 materialCost: 0,
+                availableQuantity: 0,
             },
         ]);
     };
@@ -289,8 +292,25 @@ export default function DirectInvoice() {
         handleChange(rowId, "description", selectedItem.description);
         handleChange(rowId, "itemCode", selectedItem.stock_id);
         handleChange(rowId, "selectedItemId", selectedItem.stock_id);
-        // default quantity to 1 when selecting an item (same as DirectDelivery)
-        handleChange(rowId, "quantity", 1);
+
+        // Fetch available quantity from stock_moves table
+        let availableQty = 0;
+        if (deliverFrom && selectedItem.stock_id) {
+            try {
+                const stockMoves = await getStockMoves();
+                // Filter stock moves by location and stock_id, then sum quantities
+                const relevantMoves = stockMoves.filter((move: any) =>
+                    String(move.loc_code) === String(deliverFrom) &&
+                    String(move.stock_id) === String(selectedItem.stock_id)
+                );
+                availableQty = relevantMoves.reduce((sum: number, move: any) => sum + (move.qty || 0), 0);
+            } catch (error) {
+                console.error("Error fetching stock moves:", error);
+                availableQty = 0;
+            }
+        }
+        handleChange(rowId, "availableQuantity", availableQty);
+        handleChange(rowId, "quantity", Math.min(1, availableQty));
         const itemData = await getItemById(selectedItem.stock_id);
         if (itemData) {
             const unitName = itemUnits.find((u: any) => u.id === itemData.units)?.abbr || "";
@@ -349,6 +369,13 @@ export default function DirectInvoice() {
             setCustomer(customers[0].debtor_no);
         }
     }, [customers, customer]);
+
+    // Auto-select first location for deliverFrom on load
+    useEffect(() => {
+        if (locations.length > 0 && !deliverFrom) {
+            setDeliverFrom(locations[0].loc_code);
+        }
+    }, [locations, deliverFrom]);
 
     // Reset branch when customer changes and auto-select first branch
     useEffect(() => {
@@ -440,6 +467,41 @@ export default function DirectInvoice() {
         }
     }, [priceList]);
 
+    // Update available quantities when deliverFrom location changes
+    useEffect(() => {
+        const updateAvailableQuantities = async () => {
+            if (deliverFrom) {
+                try {
+                    const stockMoves = await getStockMoves();
+                    const updatedRows = await Promise.all(
+                        rows.map(async (row) => {
+                            if (row.selectedItemId) {
+                                // Filter stock moves by location and stock_id, then sum quantities
+                                const relevantMoves = stockMoves.filter((move: any) =>
+                                    String(move.loc_code) === String(deliverFrom) &&
+                                    String(move.stock_id) === String(row.selectedItemId)
+                                );
+                                const availableQty = relevantMoves.reduce((sum: number, move: any) => sum + (move.qty || 0), 0);
+                                return { ...row, availableQuantity: availableQty };
+                            }
+                            return row;
+                        })
+                    );
+                    setRows(updatedRows);
+                } catch (error) {
+                    console.error("Error updating available quantities:", error);
+                    // Reset available quantities if there's an error
+                    setRows(rows.map(row => ({ ...row, availableQuantity: 0 })));
+                }
+            } else {
+                // Reset available quantities if no location selected
+                setRows(rows.map(row => ({ ...row, availableQuantity: 0 })));
+            }
+        };
+
+        updateAvailableQuantities();
+    }, [deliverFrom]);
+
     // Update credit, discount, payment and priceList when customer changes (guarded updates)
     useEffect(() => {
         if (customer) {
@@ -520,6 +582,15 @@ export default function DirectInvoice() {
             alert("At least one item must be added to the invoice.");
             return;
         }
+
+        // Check if any item quantity exceeds available stock
+        const invalidRows = rows.filter(r => r.selectedItemId && r.quantity > r.availableQuantity && r.availableQuantity > 0);
+        if (invalidRows.length > 0) {
+            const itemNames = invalidRows.map(r => r.description).join(", ");
+            alert(`Cannot process invoice. The following items have quantities exceeding available stock: ${itemNames}`);
+            return;
+        }
+
         setSubmitting(true);
         try {
             const payload = {
@@ -662,7 +733,7 @@ export default function DirectInvoice() {
             const debtorTransNo13 = debtorResp13?.trans_no ?? debtorResp13?.id ?? null;
             const debtorTransNo12 = debtorResp12?.trans_no ?? debtorResp12?.id ?? null;
 
-              // Create trans_tax_details for debtor_trans 13
+            // Create trans_tax_details for debtor_trans 13
             if (taxCalculations.length > 0 && debtorTransNo13) {
                 for (const tax of taxCalculations) {
                     const taxDetailPayload = {
@@ -697,7 +768,7 @@ export default function DirectInvoice() {
                         net_amount: selectedPriceList?.taxIncl ? (subTotal - totalTaxAmount) : subTotal,
                         ex_rate: 1,
                         memo: reference,
-                        reg_type:0
+                        reg_type: 0
                     };
                     await createTransTaxDetail(taxDetailPayload);
                 }
@@ -852,6 +923,20 @@ export default function DirectInvoice() {
 
                 console.log("Posting debtor_trans_detail 10", debtorDetail10);
                 await createDebtorTransDetail(debtorDetail10);
+
+                // Create stock move for invoice (negative quantity)
+                const stockMovePayload = {
+                    stock_id: row.itemCode,
+                    loc_code: deliverFrom,
+                    qty: -row.quantity,
+                    trans_no: debtorTransNo13,
+                    type: 13,
+                    tran_date: invoiceDate,
+                    reference: "auto",
+                    standard_cost: row.materialCost,
+                };
+                console.log("Posting stock move", stockMovePayload);
+                await createStockMove(stockMovePayload);
             }
 
             // alert("Saved to sales_orders (order_no: " + orderNo + ")");
@@ -1136,7 +1221,19 @@ export default function DirectInvoice() {
                                         size="small"
                                         type="number"
                                         value={row.quantity}
-                                        onChange={(e) => handleChange(row.id, "quantity", Number(e.target.value))}
+                                        onChange={(e) => {
+                                            // const newValue = Number(e.target.value);
+                                            // // Prevent entering quantity greater than available stock
+                                            // if (newValue > row.availableQuantity && row.availableQuantity > 0) {
+                                            //     // Don't update if it exceeds available quantity
+                                            //     return;
+                                            // }
+                                            // handleChange(row.id, "quantity", newValue);
+                                            const inputValue = Number(e.target.value);
+                                            const clampedValue = Math.min(inputValue, row.availableQuantity || 0);
+                                            handleChange(row.id, "quantity", clampedValue);
+                                        }}
+                                        inputProps={{ min: 0 }}
                                     />
                                 </TableCell>
                                 <TableCell>

@@ -376,6 +376,10 @@ import ViewUpdatedCustomerCreditNotes from "./views/Sales/Transactions/CustomerC
 import UpdatedCustomerCreditNotesSuccess from "./views/Sales/Transactions/CustomerCreditNotes/UpdatedCustomerCreditNotesSuccess";
 import DeliveyNoteInvoice from "./views/Sales/Transactions/CustomerInvoice/DeliveryNoteInvoice";
 import ViewReceivePurchaseOrderItems from "./views/Purchases/Transactions/ReceivePurchaseOrderItems/ViewReceivePurchaseOrderItems";
+import UpdateRecurrentInvoices from "./views/Sales/Maintenance/RecurrentInvoices/UpdateRecurrentInvoices";
+import AddRecurrentInvoices from "./views/Sales/Maintenance/RecurrentInvoices/AddRecurrentInvoices";
+import ViewRecurrentInvoices from "./views/Sales/Maintenance/RecurrentInvoices/ViewRecurrentInvoices";
+import CreateInvoice from "./views/Sales/Transactions/RecurrentInvoices/CreateInvoice";
 
 const LoginPage = React.lazy(() => import("./views/LoginPage/LoginPage"));
 const RegistrationPage = React.lazy(
@@ -1828,7 +1832,38 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-
+        <Route
+          path="/sales/maintenance/update-recurrent-invoice/:id"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Credit status definitions changes']}>
+              {withLayout(MainLayout, UpdateRecurrentInvoices)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/maintenance/add-recurrent-invoice/"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Credit status definitions changes']}>
+              {withLayout(MainLayout, AddRecurrentInvoices)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/maintenance/recurrent-invoices/"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Credit status definitions changes']}>
+              {withLayout(MainLayout, ViewRecurrentInvoices)}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/maintenance/create-recurrent-invoices/:id"
+          element={
+            <ProtectedRoute required={PERMISSION_ID_MAP['Credit status definitions changes']}>
+              {withLayout(MainLayout, CreateInvoice)}
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/purchase/transactions"
           element={
