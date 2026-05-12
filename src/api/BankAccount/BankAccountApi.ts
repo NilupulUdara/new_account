@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/bank-accounts";
+const API_URL = "http://127.0.0.1:8000/api/bank-accounts";
 
 export const createBankAccount = async (bankAccountData: any) => {
   try {
@@ -54,3 +54,4 @@ export const deleteBankAccount = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

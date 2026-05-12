@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/account-types";
+const API_URL = "http://127.0.0.1:8000/api/account-types";
 
 export const createAccountType = async (accountTypeData: any) => {
   try {
@@ -54,3 +54,4 @@ export const deleteAccountType = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

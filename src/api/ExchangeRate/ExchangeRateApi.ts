@@ -8,7 +8,7 @@ export interface ExchangeRate {
   curr_code: string; 
 }
 
-const API_URL = "http://localhost:8000/api/exchange-rates";
+const API_URL = "http://127.0.0.1:8000/api/exchange-rates";
 
 export const getExchangeRates = async (): Promise<ExchangeRate[]> => {
   const response = await axios.get(API_URL);
@@ -33,3 +33,4 @@ export const updateExchangeRate = async (
 export const deleteExchangeRate = async (id: number | string): Promise<void> => {
   await axios.delete(`${API_URL}/${id}`);
 };
+

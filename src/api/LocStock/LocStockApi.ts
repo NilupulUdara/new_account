@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // Set your backend URL
-const API_URL = "http://localhost:8000/api/loc-stocks";
+const API_URL = "http://127.0.0.1:8000/api/loc-stocks";
 
 export interface LocStock {
   loc_code: string;
@@ -43,3 +43,4 @@ export const updateLocStock = async (
 export const deleteLocStock = async (loc_code: string, stock_id: string): Promise<void> => {
   await axios.delete(`${API_URL}/${loc_code}/${stock_id}`);
 };
+

@@ -1,7 +1,7 @@
 // api/salesPosApi.ts
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/sales-points";
+const API_URL = "http://127.0.0.1:8000/api/sales-points";
 
 // TypeScript Interface
 export interface SalesPos {
@@ -72,3 +72,4 @@ export const deleteSalesPos = async (
     throw error.response?.data || error;
   }
 };
+

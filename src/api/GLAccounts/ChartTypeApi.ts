@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/chart-types";
+const API_URL = "http://127.0.0.1:8000/api/chart-types";
 
 export const createChartType = async (chartTypeData: any) => {
   try {
@@ -51,3 +51,4 @@ export const deleteChartType = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

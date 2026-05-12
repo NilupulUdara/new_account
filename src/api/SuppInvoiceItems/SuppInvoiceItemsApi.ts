@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE = "http://localhost:8000/api/supp-invoice-items";
+const API_BASE = "http://127.0.0.1:8000/api/supp-invoice-items";
 
 export const getSuppInvoiceItems = async () => {
   const res = await axios.get(API_BASE);
@@ -26,3 +26,4 @@ export const deleteSuppInvoiceItem = async (id: string | number) => {
   const res = await axios.delete(`${API_BASE}/${id}`);
   return res.data;
 };
+

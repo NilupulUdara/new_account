@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/crm-persons";
+const API_URL = "http://127.0.0.1:8000/api/crm-persons";
 
 // ✅ Create a new contact for a customer
 export const createCustomerContact = async (contactData: any) => {
@@ -19,7 +19,7 @@ export const getCustomerContacts = async (customerId: string | number) => {
     if (!customerId) return []; // Return empty if no customerId is provided
     
     // 1. Fetch contacts for this customer only
-    const contactsResponse = await axios.get(`http://localhost:8000/api/crm-contacts`, {
+    const contactsResponse = await axios.get(`http://127.0.0.1:8000/api/crm-contacts`, {
       params: { 
         entity_id: customerId
         // Removed action filter to get all contacts for this entity_id
@@ -31,14 +31,14 @@ export const getCustomerContacts = async (customerId: string | number) => {
 
     // 2. Fetch all related person details
     const personIds = crmContacts.map((c: any) => c.person_id);
-    const personsResponse = await axios.get(`http://localhost:8000/api/crm-persons`, {
+    const personsResponse = await axios.get(`http://127.0.0.1:8000/api/crm-persons`, {
       params: { ids: personIds.join(",") },
     });
     const crmPersons = personsResponse.data;
 
     // 3. Fetch all relevant contact categories - now accepting both customer and cust_branch types
     const typeIds = crmContacts.map((c: any) => c.type);
-    const categoriesResponse = await axios.get(`http://localhost:8000/api/crm-categories`, {
+    const categoriesResponse = await axios.get(`http://127.0.0.1:8000/api/crm-categories`, {
       params: { 
         ids: Array.from(new Set(typeIds)).join(","), // unique IDs only
         // Removed type filter to get all relevant categories
@@ -89,7 +89,7 @@ export const getCustomerContacts = async (customerId: string | number) => {
 export const updateCustomerContact = async (id: string | number, contactData: any) => {
   try {
     // First, get the contact record to find the person_id
-    const contactResponse = await axios.get(`http://localhost:8000/api/crm-contacts/${id}`);
+    const contactResponse = await axios.get(`http://127.0.0.1:8000/api/crm-contacts/${id}`);
     const contact = contactResponse.data;
     
     if (!contact) {
@@ -106,7 +106,7 @@ export const updateCustomerContact = async (id: string | number, contactData: an
     
     // 1. Update the contact type if assignment is provided
     if (contactData.assignment !== undefined) {
-      await axios.put(`http://localhost:8000/api/crm-contacts/${id}`, {
+      await axios.put(`http://127.0.0.1:8000/api/crm-contacts/${id}`, {
         ...contact,
         type: contactData.assignment // Update the type field with the new assignment value
       });
@@ -141,7 +141,7 @@ export const deleteCustomerContact = async (id: string | number) => {
     // The id passed is the crm_contacts.id, not the person_id
     
     // First, get the contact to find the related person_id
-    const contactResponse = await axios.get(`http://localhost:8000/api/crm-contacts/${id}`);
+    const contactResponse = await axios.get(`http://127.0.0.1:8000/api/crm-contacts/${id}`);
     const contact = contactResponse.data;
     
     if (!contact) {
@@ -149,10 +149,10 @@ export const deleteCustomerContact = async (id: string | number) => {
     }
     
     // Delete the contact from crm_contacts
-    await axios.delete(`http://localhost:8000/api/crm-contacts/${id}`);
+    await axios.delete(`http://127.0.0.1:8000/api/crm-contacts/${id}`);
     
     // Check if this person has other contacts before deleting the person
-    const relatedContactsResponse = await axios.get(`http://localhost:8000/api/crm-contacts`, {
+    const relatedContactsResponse = await axios.get(`http://127.0.0.1:8000/api/crm-contacts`, {
       params: { person_id: contact.person_id }
     });
     
@@ -167,3 +167,4 @@ export const deleteCustomerContact = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

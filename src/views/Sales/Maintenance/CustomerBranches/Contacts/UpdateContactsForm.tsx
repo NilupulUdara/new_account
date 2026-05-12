@@ -95,7 +95,7 @@ export default function UpdateContactsForm() {
         console.log('Fetching contact with ID:', id);
         
         // First, get the contact record to find the person_id
-        const contactResponse = await axios.get(`http://localhost:8000/api/crm-contacts/${id}`);
+        const contactResponse = await axios.get(`http://127.0.0.1:8000/api/crm-contacts/${id}`);
         const contact = contactResponse.data;
         
         if (!contact) {
@@ -106,7 +106,7 @@ export default function UpdateContactsForm() {
         }
         
         // Get the person details
-        const personResponse = await axios.get(`http://localhost:8000/api/crm-persons/${contact.person_id}`);
+        const personResponse = await axios.get(`http://127.0.0.1:8000/api/crm-persons/${contact.person_id}`);
         const personData = personResponse.data;
         
         if (!personData) {
@@ -117,7 +117,7 @@ export default function UpdateContactsForm() {
         }
         
         // Get the category details
-        const categoryResponse = await axios.get(`http://localhost:8000/api/crm-categories/${contact.type}`);
+        const categoryResponse = await axios.get(`http://127.0.0.1:8000/api/crm-categories/${contact.type}`);
         const categoryData = categoryResponse.data;
         console.log('Category data:', categoryData);
         
@@ -380,3 +380,4 @@ export default function UpdateContactsForm() {
     </Stack>
   );
 }
+

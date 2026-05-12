@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const SALES_ORDERS_URL = "http://localhost:8000/api/sales-orders"; // Adjust if backend base differs
+const SALES_ORDERS_URL = "http://127.0.0.1:8000/api/sales-orders"; // Adjust if backend base differs
 
 // Backend validation lists order_no as required|integer. Until backend changes, send a provisional value.
 export interface SalesOrderPayload {
@@ -57,3 +57,4 @@ export const getSalesOrderByOrderNo = async (orderNo: string | number) => {
     return null;
   }
 };
+

@@ -3,7 +3,7 @@ import axios from "axios";
 // --------------------
 // API URL
 // --------------------
-const API_URL = "http://localhost:8000/api/inventory-locations";
+const API_URL = "http://127.0.0.1:8000/api/inventory-locations";
 
 // --------------------
 // Interface
@@ -54,3 +54,4 @@ export const deleteInventoryLocation = async (id: number): Promise<{ success: bo
   const response = await axios.delete<{ success: boolean }>(`${API_URL}/${id}`);
   return response.data;
 };
+

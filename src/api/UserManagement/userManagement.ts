@@ -1,7 +1,7 @@
 import axios from "axios";
 import api from "../apiClient";
 
-const API_URL = "http://localhost:8000/api/user-managements";
+const API_URL = "http://127.0.0.1:8000/api/user-managements";
 
 export const createUser = async (userData: any) => {
   try {

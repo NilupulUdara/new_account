@@ -9,7 +9,7 @@ export function useCurrentOrganization() {
   });
 
   return {
-    organizationName: data?.organizationName ?? 'Loading...',
+    organizationName: data?.organizationName ?? 'Grow Ledger',
     organizationLogo: data?.logoUrl?.signedUrl,
   };
 }

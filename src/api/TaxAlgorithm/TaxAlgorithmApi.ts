@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/tax-algorithms";
+const API_URL = "http://127.0.0.1:8000/api/tax-algorithms";
 
 // GET all Tax Algorithms
 export const getTaxAlgorithms = async () => {
@@ -26,3 +26,4 @@ export const updateTaxAlgorithm = async (id, data) => {
 export const deleteTaxAlgorithm = async (id) => {
   return await axios.delete(`${API_URL}/${id}`);
 };
+

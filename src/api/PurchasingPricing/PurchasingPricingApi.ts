@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/purchasing-pricings"; // adjust if needed
+const API_URL = "http://127.0.0.1:8000/api/purchasing-pricings"; // adjust if needed
 
 export interface PurchData {
   supplier_id: number;
@@ -57,3 +57,4 @@ export const deletePurchData = async (
 ): Promise<void> => {
   await axios.delete(`${API_URL}/${supplier_id}/${stock_id}`);
 };
+

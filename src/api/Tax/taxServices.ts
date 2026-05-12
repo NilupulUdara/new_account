@@ -1,7 +1,7 @@
 import axios from "axios";
 
 //TAX TYPES API
-const TAX_TYPES_API_URL = "http://localhost:8000/api/tax-types";
+const TAX_TYPES_API_URL = "http://127.0.0.1:8000/api/tax-types";
 
 export const createTaxType = async (taxTypeData: any) => {
   try {
@@ -58,7 +58,7 @@ export const deleteTaxType = async (id: string | number) => {
 
 
 //TAX GROUPS API
-const TAX_GROUPS_API_URL = "http://localhost:8000/api/tax-groups";
+const TAX_GROUPS_API_URL = "http://127.0.0.1:8000/api/tax-groups";
 
 export interface TaxGroup {
   id?: number;               // optional for create
@@ -101,4 +101,5 @@ export const deleteTaxGroup = async (id: number): Promise<{ success: boolean }> 
   const response = await axios.delete<{ success: boolean }>(`${TAX_GROUPS_API_URL}/${id}`);
   return response.data;
 };
+
 

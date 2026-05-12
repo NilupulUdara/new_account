@@ -121,7 +121,7 @@ export default function UpdateCustomersContactsForm() {
         setLoading(true);
         
         // First, get the crm_contact record to get the type ID and person_id
-        const contactResponse = await axios.get(`http://localhost:8000/api/crm-contacts/${id}`);
+        const contactResponse = await axios.get(`http://127.0.0.1:8000/api/crm-contacts/${id}`);
         const contactRecord = contactResponse.data;
         
         if (!contactRecord) {
@@ -142,7 +142,7 @@ export default function UpdateCustomersContactsForm() {
         }
         
         // Get the person details directly
-        const personResponse = await axios.get(`http://localhost:8000/api/crm-persons/${personId}`);
+        const personResponse = await axios.get(`http://127.0.0.1:8000/api/crm-persons/${personId}`);
         const personData = personResponse.data;
         
         if (!personData) {
@@ -464,3 +464,4 @@ export default function UpdateCustomersContactsForm() {
     </Stack>
   );
 }
+

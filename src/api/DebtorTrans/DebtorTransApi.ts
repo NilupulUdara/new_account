@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/debtor-trans";
+const API_URL = "http://127.0.0.1:8000/api/debtor-trans";
 
 export const getDebtorTrans = async () => {
   try {
@@ -52,3 +52,4 @@ export const deleteDebtorTran = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/fiscal-years";
+const API_URL = "http://127.0.0.1:8000/api/fiscal-years";
 
 export const createFiscalYear = async (fiscalYearData: any) => {
   try {
@@ -52,3 +52,4 @@ export const deleteFiscalYear = async (id: string | number) => {
   }
  
 }; 
+

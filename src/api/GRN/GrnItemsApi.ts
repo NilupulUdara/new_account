@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/grn-items";
+const API_URL = "http://127.0.0.1:8000/api/grn-items";
 
 export const getGrnItems = async () => {
   try {
@@ -60,3 +60,4 @@ export const deleteGrnItem = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

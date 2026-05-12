@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/recurrent-invoices";
+const API_URL = "http://127.0.0.1:8000/api/recurrent-invoices";
 
 // Create Recurrent Invoice
 export const createRecurrentInvoice = async (data: any) => {
@@ -31,3 +31,4 @@ export const deleteRecurrentInvoice = async (id: number) => {
   const response = await axios.delete(`${API_URL}/${id}`);
   return response.data;
 };
+

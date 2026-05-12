@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/item-codes";
+const API_URL = "http://127.0.0.1:8000/api/item-codes";
 
 export const getItemCodes = async () => {
     try {
@@ -51,3 +51,4 @@ export const deleteItemCode = async (id: string | number) => {
         throw error.response?.data || error;
     }
 };
+

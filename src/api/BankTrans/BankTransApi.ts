@@ -1,7 +1,7 @@
 // src/api/BankTransApi.ts
 import axios from 'axios';
 
-const BASE_URL = 'http://localhost:8000/api/bank-trans';
+const BASE_URL = 'http://127.0.0.1:8000/api/bank-trans';
 
 export const getBankTrans = async () => {
   try {
@@ -52,3 +52,4 @@ export const deleteBankTrans = async (id: number) => {
     throw error;
   }
 };
+

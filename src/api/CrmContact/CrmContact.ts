@@ -18,7 +18,7 @@ export interface CrmContactPayload {
 }
 
 // Base URL for backend API (replace with your actual endpoint)
-const BASE_URL = "http://localhost:8000/api/crm-contacts";
+const BASE_URL = "http://127.0.0.1:8000/api/crm-contacts";
 
 // ---------------- CRUD FUNCTIONS ---------------- //
 
@@ -75,3 +75,4 @@ export const deleteCrmContact = async (id: number): Promise<void> => {
     throw error;
   }
 };
+

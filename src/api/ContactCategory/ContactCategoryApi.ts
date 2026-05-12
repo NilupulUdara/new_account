@@ -2,7 +2,7 @@
 import axios from "axios";
 
 // Backend base URL
-const BASE_URL = "http://localhost:8000/api/crm-categories";
+const BASE_URL = "http://127.0.0.1:8000/api/crm-categories";
 
 
 export interface ContactCategory {
@@ -43,3 +43,4 @@ export const updateContactCategory = async (id: number, data: ContactCategory): 
 export const deleteContactCategory = async (id: number): Promise<void> => {
   await axios.delete(`${BASE_URL}/${id}`);
 };
+

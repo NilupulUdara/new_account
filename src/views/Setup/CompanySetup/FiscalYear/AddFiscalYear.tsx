@@ -163,7 +163,7 @@ export default function AddFiscalYear() {
                 >
                     <Button
                         fullWidth={isMobile}
-                        onClick={() => window.history.back()}
+                        onClick={() => navigate("/setup/companysetup/fiscal-years")}
                         variant="outlined"
                     >
                         Back
@@ -185,7 +185,7 @@ export default function AddFiscalYear() {
                 content="Fiscal Year has been added successfully!"
                 addFunc={async () => { }}
                 handleClose={() => setOpen(false)}
-                onSuccess={() => window.history.back()}
+                onSuccess={() => navigate("/setup/companysetup/fiscal-years")}
             />
             <ErrorModal
                 open={errorOpen}

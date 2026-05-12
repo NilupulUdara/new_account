@@ -197,13 +197,16 @@ export default function MainLayout({ children }: Props) {
                 <MenuIcon />
               </IconButton>
               {logoUrl && (
-                <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                   <img
                     src={logoUrl?.signedUrl}
                     alt="logo"
                     height="45rem"
                     style={{ marginTop: "10px" }}
                   />
+                  <Typography variant="h5" sx={{ fontWeight: 800, color: '#024271', mt: 1, display: { xs: 'none', sm: 'block' } }}>
+                    Grow Ledger
+                  </Typography>
                 </Box>
               )}
             </Box>
@@ -355,9 +358,9 @@ const DrawerContent = ({
           variant="subtitle1"
           noWrap
           component="div"
-          sx={{ color: "#7db0ff" }}
+          sx={{ color: "#7db0ff", fontWeight: 700, letterSpacing: '0.05rem' }}
         >
-          Accounting
+          Grow Ledger
         </Typography>
       </DrawerHeader>
       {/* <Divider sx={{ marginBottom: "1rem", }} /> */}
@@ -494,6 +497,19 @@ const DrawerContent = ({
           >
             Log Out
           </Button>
+
+          <Typography
+            variant="caption"
+            sx={{
+              textAlign: "center",
+              mt: 4,
+              opacity: 0.5,
+              fontSize: "0.65rem",
+              fontWeight: 500
+            }}
+          >
+            © 2026 Grow Ledger ERP
+          </Typography>
         </Box>
       </Box>
 

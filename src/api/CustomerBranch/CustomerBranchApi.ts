@@ -21,7 +21,7 @@ export interface CustomerBranch {
   inactive: boolean;
 }
 
-const API_URL = "http://localhost:8000/api/customer-branch";
+const API_URL = "http://127.0.0.1:8000/api/customer-branch";
 
 //  Create a new branch
 export const createBranch = async (branchData: any) => {
@@ -90,3 +90,4 @@ export const getBranchContacts = async (branchId: string | number) => {
     return [];
   }
 };
+

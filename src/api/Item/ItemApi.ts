@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/stock-masters";
+const API_URL = "http://127.0.0.1:8000/api/stock-masters";
 
 export const getItems = async () => {
   try {
@@ -51,3 +51,4 @@ export const deleteItem = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

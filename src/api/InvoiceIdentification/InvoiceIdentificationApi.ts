@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/invoice-identifications";
+const API_URL = "http://127.0.0.1:8000/api/invoice-identifications";
 
 // GET all Invoice Identifications
 export const getInvoiceIdentifications = async () => {
@@ -26,3 +26,4 @@ export const updateInvoiceIdentification = async (id, data) => {
 export const deleteInvoiceIdentification = async (id) => {
   return await axios.delete(`${API_URL}/${id}`);
 };
+

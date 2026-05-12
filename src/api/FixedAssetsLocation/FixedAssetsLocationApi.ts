@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/fixed-assets-locations";
+const API_URL = "http://127.0.0.1:8000/api/fixed-assets-locations";
 
 export const createLocation = async (locationData: any) => {
   try {
@@ -51,3 +51,4 @@ export const deleteLocation = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

@@ -1,10 +1,10 @@
-// apiClient.ts
+﻿// apiClient.ts
 import axios from "axios";
 
 const token = localStorage.getItem("token");
 
 const api = axios.create({
-  baseURL: "http://localhost:8000",
+  baseURL: "http://127.0.0.1:8000",
   headers: {
     Authorization: token ? `Bearer ${token}` : "",
   },
@@ -20,3 +20,4 @@ api.interceptors.request.use((config) => {
 });
 
 export default api;
+

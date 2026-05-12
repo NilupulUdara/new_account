@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/shipping-companies";
+const API_URL = "http://127.0.0.1:8000/api/shipping-companies";
 
 export interface ShippingCompany {
   shipper_id?: number; // optional for create
@@ -41,3 +41,4 @@ export const deleteShippingCompany = async (shipper_id: number): Promise<{ succe
   const response = await axios.delete<{ success: boolean }>(`${API_URL}/${shipper_id}`);
   return response.data;
 };
+

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/sales-pricings"; 
+const API_URL = "http://127.0.0.1:8000/api/sales-pricings"; 
 
 // Create
 export const createSalesPricing = async (data: any) => {
@@ -70,3 +70,4 @@ export const deleteSalesPricing = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

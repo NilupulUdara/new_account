@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/cust-allocations";
+const API_URL = "http://127.0.0.1:8000/api/cust-allocations";
 
 // GET all Depreciation Methods
 export const getCustAllocations = async () => {
@@ -56,3 +56,4 @@ export const deleteCustAllocation = async (id) => {
     throw error;
   }
 };
+

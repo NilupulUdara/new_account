@@ -11,7 +11,7 @@ export interface Currency {
 }
 
 
-const API_URL = "http://localhost:8000/api/currencies"; 
+const API_URL = "http://127.0.0.1:8000/api/currencies"; 
 
 export const createCurrency = async (currencyData: Partial<Currency>): Promise<Currency> => {
   const response = await axios.post(API_URL, currencyData);

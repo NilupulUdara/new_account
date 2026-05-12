@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const PURCH_ORDERS_URL = "http://localhost:8000/api/purch-orders"; 
+const PURCH_ORDERS_URL = "http://127.0.0.1:8000/api/purch-orders"; 
 // Adjust if backend base differs
 
 // Backend validation requires order_no as primary integer
@@ -74,3 +74,4 @@ export const generateProvisionalPurchOrderNo = (): number => {
   // Replace with backend sequence when available
   return Date.now();
 };
+

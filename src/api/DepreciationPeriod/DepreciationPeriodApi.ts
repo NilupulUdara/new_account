@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/depreciation-periods";
+const API_URL = "http://127.0.0.1:8000/api/depreciation-periods";
 
 // GET all Depreciation Periods
 export const getDepreciationPeriods = async () => {
@@ -26,3 +26,4 @@ export const updateDepreciationPeriod = async (id, data) => {
 export const deleteDepreciationPeriod = async (id) => {
   return await axios.delete(`${API_URL}/${id}`);
 };
+

@@ -8,7 +8,7 @@ export interface TaxGroupItem {
 }
 
 
-const API_URL = "http://localhost:8000/api/tax-group-items"; // Adjust if needed
+const API_URL = "http://127.0.0.1:8000/api/tax-group-items"; // Adjust if needed
 
 //  Create a new Tax Group Item
 export const createTaxGroupItem = async (data: TaxGroupItem) => {
@@ -53,5 +53,6 @@ export const deleteTaxGroupItem = async (taxGroupId: number, taxTypeId: number) 
   const response = await axios.delete(`${API_URL}/${taxGroupId}/${taxTypeId}`);
   return response.data;
 };
+
 
 

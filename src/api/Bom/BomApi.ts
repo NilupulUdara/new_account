@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BOM_API_URL = "http://localhost:8000/api/bom";
+const BOM_API_URL = "http://127.0.0.1:8000/api/bom";
 
 export interface BomPayload {
   parent: string;
@@ -62,3 +62,4 @@ export const deleteBom = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

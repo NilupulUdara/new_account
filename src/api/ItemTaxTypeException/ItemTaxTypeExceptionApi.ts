@@ -7,7 +7,7 @@ export interface ItemTaxTypeExemption {
 }
 
 // Base API URL
-const API_URL = "http://localhost:8000/api/item-tax-type-exceptions";
+const API_URL = "http://127.0.0.1:8000/api/item-tax-type-exceptions";
 
 //  Create a new exemption
 export const createItemTaxTypeExemption = async (data: ItemTaxTypeExemption) => {
@@ -43,3 +43,4 @@ export const deleteItemTaxTypeExemption = async (
   const response = await axios.delete(`${API_URL}/${itemTaxTypeId}/${taxTypeId}`);
   return response.data;
 };
+

@@ -16,7 +16,7 @@ function App() {
       <LocalizationProvider dateAdapter={AdapterDateFns}>
         <ThemeProvider theme={theme}>
           <CssBaseline />
-          <BrowserRouter>
+          <BrowserRouter basename="/erp">
             <AuthProvider>
               <SnackbarProvider maxSnack={3} autoHideDuration={2500}>
                 <OrganizationHeadSetter />

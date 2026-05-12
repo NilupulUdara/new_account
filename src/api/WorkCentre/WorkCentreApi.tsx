@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/work-centres"; 
+const API_URL = "http://127.0.0.1:8000/api/work-centres"; 
 
 // Create WorkCentre
 export const createWorkCentre = async (workCentreData: any) => {
@@ -56,3 +56,4 @@ export const deleteWorkCentre = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

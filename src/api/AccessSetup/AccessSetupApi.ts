@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/security-roles"; 
+const API_URL = "http://127.0.0.1:8000/api/security-roles"; 
 
 // Create
 export const createSecurityRole = async (roleData: any) => {
@@ -59,3 +59,4 @@ export const deleteSecurityRole = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

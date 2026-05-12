@@ -6,9 +6,10 @@ export interface RevaluateCurrenciesPayload {
   memo: string;
 }
 
-const API_URL = "http://localhost:8000/api/revaluate-currencies";
+const API_URL = "http://127.0.0.1:8000/api/revaluate-currencies";
 
 export const revaluateCurrencies = async (data: RevaluateCurrenciesPayload) => {
   const response = await axios.post(API_URL, data);
   return response.data;
 };
+

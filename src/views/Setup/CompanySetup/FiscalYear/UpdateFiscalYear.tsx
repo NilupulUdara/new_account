@@ -117,6 +117,7 @@ export default function UpdateFiscalYear() {
                     <Controller
                         name="fiscalYearFrom"
                         control={control}
+                        rules={{ required: "Fiscal Year Begin is required" }}
                         render={({ field }) => (
                             <TextField
                                 {...field}
@@ -125,7 +126,8 @@ export default function UpdateFiscalYear() {
                                 type="date"
                                 InputLabelProps={{ shrink: true }}
                                 fullWidth
-                                disabled
+                                error={!!errors.fiscalYearFrom}
+                                helperText={errors.fiscalYearFrom?.message}
                             />
                         )}
                     />
@@ -133,6 +135,13 @@ export default function UpdateFiscalYear() {
                     <Controller
                         name="fiscalYearTo"
                         control={control}
+                        rules={{
+                            required: "Fiscal Year End is required",
+                            validate: (value) =>
+                                !fiscalYearFrom || value >= fiscalYearFrom
+                                    ? true
+                                    : "Fiscal Year End must be after Begin",
+                        }}
                         render={({ field }) => (
                             <TextField
                                 {...field}
@@ -141,7 +150,8 @@ export default function UpdateFiscalYear() {
                                 type="date"
                                 InputLabelProps={{ shrink: true }}
                                 fullWidth
-                                disabled
+                                error={!!errors.fiscalYearTo}
+                                helperText={errors.fiscalYearTo?.message}
                             />
                         )}
                     />
@@ -178,7 +188,7 @@ export default function UpdateFiscalYear() {
                 >
                     <Button
                         fullWidth={isMobile}
-                        onClick={() => window.history.back()}
+                        onClick={() => navigate("/setup/companysetup/fiscal-years")}
                         variant="outlined"
                     >
                         Back
@@ -199,7 +209,7 @@ export default function UpdateFiscalYear() {
                 title="Success"
                 content="Fiscal year has been updated successfully!"
                 handleClose={() => setOpen(false)}
-                onSuccess={() => window.history.back()}
+                onSuccess={() => navigate("/setup/companysetup/fiscal-years")}
             />
             <ErrorModal
                 open={errorOpen}

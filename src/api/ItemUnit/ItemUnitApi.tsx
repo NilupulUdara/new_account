@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const ITEM_UNIT_API_URL = "http://localhost:8000/api/item-units";
+const ITEM_UNIT_API_URL = "http://127.0.0.1:8000/api/item-units";
 
 // Create ItemUnit
 export const createItemUnit = async (itemUnitData: any) => {
@@ -56,3 +56,4 @@ export const deleteItemUnit = async (id: number | string) => {
     throw error.response?.data || error;
   }
 };
+

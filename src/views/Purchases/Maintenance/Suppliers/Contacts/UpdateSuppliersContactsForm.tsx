@@ -127,7 +127,7 @@ export default function UpdateSuppliersContactsForm() {
         }
 
         // fetch person details
-        const personResp = await axios.get(`http://localhost:8000/api/crm-persons/${personId}`);
+        const personResp = await axios.get(`http://127.0.0.1:8000/api/crm-persons/${personId}`);
         const person = personResp.data;
 
         // split name into first/last
@@ -433,3 +433,4 @@ export default function UpdateSuppliersContactsForm() {
     </Stack>
   );
 }
+

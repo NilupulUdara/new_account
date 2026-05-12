@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/journals";
+const API_URL = "http://127.0.0.1:8000/api/journals";
 
 export interface JournalPayload {
   type: number;          // reflines.trans_type
@@ -88,3 +88,4 @@ export const deleteJournal = async (id: number | string) => {
     throw error.response?.data || error;
   }
 };
+

@@ -1,7 +1,7 @@
 // api/salesPersonApi.ts
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/sales-persons";
+const API_URL = "http://127.0.0.1:8000/api/sales-persons";
 
 // Define TypeScript interface
 export interface SalesPerson {
@@ -69,3 +69,4 @@ export const deleteSalesPerson = async (id: string | number): Promise<{ message:
     throw error.response?.data || error;
   }
 };
+

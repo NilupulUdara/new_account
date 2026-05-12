@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const SUPP_ALLOCATIONS_URL = "http://localhost:8000/api/supp-allocations";
+const SUPP_ALLOCATIONS_URL = "http://127.0.0.1:8000/api/supp-allocations";
 
 export interface SuppAllocationPayload {
   person_id: number | null;
@@ -78,3 +78,4 @@ export const deleteSuppAllocation = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

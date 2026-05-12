@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/user-profiles";
+const API_URL = "http://127.0.0.1:8000/api/user-profiles";
 
 export const createUser = async (userData: FormData) => {
   try {
@@ -55,3 +55,4 @@ export const deleteUser = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

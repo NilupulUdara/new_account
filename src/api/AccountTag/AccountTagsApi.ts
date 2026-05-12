@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/account-tags"; 
+const API_URL = "http://127.0.0.1:8000/api/account-tags"; 
 
 // Create
 export const createAccountTag = async (tagData: any) => {
@@ -59,3 +59,4 @@ export const deleteAccountTag = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/crm-persons";
+const API_URL = "http://127.0.0.1:8000/api/crm-persons";
 
 //  Create a new contact for a Supplier
 export const createSupplierContact = async (contactData: any) => {
@@ -21,7 +21,7 @@ export const getSupplierContacts = async (supplierId: string | number) => {
     if (!supplierId) return [];
 
     // 1. Fetch contacts for this supplier only
-    const contactsResponse = await axios.get(`http://localhost:8000/api/crm-contacts`, {
+    const contactsResponse = await axios.get(`http://127.0.0.1:8000/api/crm-contacts`, {
       params: { entity_id: supplierId, action: "supplier" },
     });
     const crmContacts = contactsResponse.data;
@@ -30,14 +30,14 @@ export const getSupplierContacts = async (supplierId: string | number) => {
 
     // 2. Fetch all related person details
     const personIds = crmContacts.map((c: any) => c.person_id);
-    const personsResponse = await axios.get(`http://localhost:8000/api/crm-persons`, {
+    const personsResponse = await axios.get(`http://127.0.0.1:8000/api/crm-persons`, {
       params: { ids: personIds.join(",") },
     });
     const crmPersons = personsResponse.data;
 
     // 3. Fetch all relevant contact categories
     const typeIds = crmContacts.map((c: any) => c.type);
-    const categoriesResponse = await axios.get(`http://localhost:8000/api/crm-categories`, {
+    const categoriesResponse = await axios.get(`http://127.0.0.1:8000/api/crm-categories`, {
       params: { ids: Array.from(new Set(typeIds)).join(","), type: "supplier" }, // unique IDs only, only supplier categories
     });
     const contactCategories = categoriesResponse.data;
@@ -116,3 +116,4 @@ export const deleteSupplierContact = async (id: string | number) => {
     throw error.response?.data || error;
   }
 };
+

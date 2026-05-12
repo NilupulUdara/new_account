@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/depreciation-methods";
+const API_URL = "http://127.0.0.1:8000/api/depreciation-methods";
 
 // GET all Depreciation Methods
 export const getDepreciationMethods = async () => {
@@ -26,3 +26,4 @@ export const updateDepreciationMethod = async (id, data) => {
 export const deleteDepreciationMethod = async (id) => {
   return await axios.delete(`${API_URL}/${id}`);
 };
+

@@ -43,6 +43,21 @@ export default function FiscalYearTable() {
   const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down("md"));
   const navigate = useNavigate();
 
+  const formatFiscalDate = (dateValue: string) => {
+    if (!dateValue) return "";
+    const parts = dateValue.split("-");
+    if (parts.length !== 3) return dateValue;
+
+    const year = Number(parts[0]);
+    const month = Number(parts[1]);
+    const day = Number(parts[2]);
+
+    if (!year || !month || !day) return dateValue;
+
+    // Build a local date (not UTC) so date-only values do not shift by timezone.
+    return new Date(year, month - 1, day).toLocaleDateString();
+  };
+
   const loadData = async () => {
     try {
       const data = await getFiscalYears();
@@ -60,8 +75,8 @@ export default function FiscalYearTable() {
     if (!searchQuery.trim()) return fiscalYears;
     const lower = searchQuery.toLowerCase();
     return fiscalYears.filter((fy) => {
-      const from = new Date(fy.fiscal_year_from).toLocaleDateString();
-      const to = new Date(fy.fiscal_year_to).toLocaleDateString();
+      const from = formatFiscalDate(fy.fiscal_year_from);
+      const to = formatFiscalDate(fy.fiscal_year_to);
       const closed = fy.isClosed ? "yes" : "no";
       return (
         from.toLowerCase().includes(lower) ||
@@ -194,10 +209,10 @@ export default function FiscalYearTable() {
                   <TableRow key={fy.id} hover>
                     <TableCell>{page * rowsPerPage + index + 1}</TableCell>
                     <TableCell>
-                      {new Date(fy.fiscal_year_from).toLocaleDateString()}
+                      {formatFiscalDate(fy.fiscal_year_from)}
                     </TableCell>
                     <TableCell>
-                      {new Date(fy.fiscal_year_to).toLocaleDateString()}
+                      {formatFiscalDate(fy.fiscal_year_to)}
                     </TableCell>
                     <TableCell>{fy.closed ? "Yes" : "No"}</TableCell>
                     <TableCell align="center">

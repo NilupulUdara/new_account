@@ -1,7 +1,7 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/crm-persons";
-const CONTACTS_API_URL = "http://localhost:8000/api/crm-contacts";
+const API_URL = "http://127.0.0.1:8000/api/crm-persons";
+const CONTACTS_API_URL = "http://127.0.0.1:8000/api/crm-contacts";
 
 // ✅ Create a new contact for a customer
 export const createCustomerContact = async (contactData: any) => {

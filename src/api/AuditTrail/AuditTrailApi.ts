@@ -1,7 +1,7 @@
 // src/api/AuditTrail/auditTrailApi.ts
 import axios from "axios";
 
-const BASE_URL = "http://localhost:8000/api/audit-trails";
+const BASE_URL = "http://127.0.0.1:8000/api/audit-trails";
 
 const auditTrailApi = {
 
@@ -33,3 +33,4 @@ const auditTrailApi = {
 };
 
 export default auditTrailApi;
+

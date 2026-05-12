@@ -236,17 +236,17 @@ export default function BackupRestore() {
 
     const getCompressionIcon = (compression: string) => {
         switch (compression) {
-            case 'zip': return '🗜️';
-            case 'gzip': return '🗜️';
-            default: return '📄';
+            case 'zip': return <RestoreIcon fontSize="small" />;
+            case 'gzip': return <RestoreIcon fontSize="small" />;
+            default: return <DeleteIcon fontSize="small" />;
         }
     };
 
     const getCompressionColor = (compression: string) => {
         switch (compression) {
-            case 'zip': return theme.palette.info.main;
-            case 'gzip': return theme.palette.info.main;
-            default: return theme.palette.grey[600];
+            case 'zip': return "#0288d1"; // Blue
+            case 'gzip': return "#0288d1"; // Blue
+            default: return "#757575"; // Grey
         }
     };
 
@@ -453,9 +453,12 @@ export default function BackupRestore() {
                                 <Divider />
                                 
                                 {backups.length === 0 ? (
-                                    <Box sx={{ textAlign: 'center', py: 4 }}>
-                                        <Typography color="textSecondary">
-                                            No backups found. Create your first backup!
+                                    <Box sx={{ textAlign: 'center', py: 4, px: 2 }}>
+                                        <Typography color="textSecondary" gutterBottom>
+                                            No backups found in the system.
+                                        </Typography>
+                                        <Typography variant="caption" color="textSecondary">
+                                            If you have a manual SQL dump, you can upload it above or place it in the backend root directory and click "Refresh List".
                                         </Typography>
                                     </Box>
                                 ) : (
@@ -547,7 +550,7 @@ export default function BackupRestore() {
                                                                             handleRestoreBackup(backup.id);
                                                                         }}
                                                                         disabled={loading}
-                                                                        sx={{ color: theme.palette.warning.main }}
+                                                                        sx={{ color: "#ed6c02" }}
                                                                     >
                                                                         <RestoreIcon fontSize="small" />
                                                                     </IconButton>
@@ -560,7 +563,7 @@ export default function BackupRestore() {
                                                                             handleDeleteBackup(backup.id);
                                                                         }}
                                                                         disabled={loading}
-                                                                        sx={{ color: theme.palette.error.main }}
+                                                                        sx={{ color: "#d32f2f" }}
                                                                     >
                                                                         <DeleteIcon fontSize="small" />
                                                                     </IconButton>

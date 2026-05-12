@@ -3,7 +3,7 @@
 import axios from 'axios';
 
 // Define API base URL
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
 // Create axios instance
 const backupApi = axios.create({
@@ -171,13 +171,14 @@ export const backupApiService = {
   /**
    * Upload a backup file
    */
-  uploadBackup: async (file: File, comments?: string): Promise<CreateBackupResponse> => {
+  uploadBackup: async (file: File, comments?: string, autoRestore: boolean = true): Promise<CreateBackupResponse> => {
     try {
       const formData = new FormData();
       formData.append('file', file);
       if (comments) {
         formData.append('comments', comments);
       }
+      formData.append('auto_restore', autoRestore ? '1' : '0');
 
       const response = await backupApi.post('/backups/upload', formData, {
         headers: {

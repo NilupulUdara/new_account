@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/wo-costing";
+const API_URL = "http://127.0.0.1:8000/api/wo-costing";
 
 export interface WOCostingPayload {
   workorder_id: number;
@@ -91,3 +91,4 @@ export const deleteWOCosting = async (id: number | string) => {
     throw error.response?.data || error;
   }
 };
+

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8000/api/item-categories";
+const API_BASE_URL = "http://127.0.0.1:8000/api/item-categories";
 
 // Create a new Item Category
 export const createItemCategory = async (data: any) => {
@@ -58,3 +58,4 @@ export const deleteItemCategory = async (id: number) => {
     throw error;
   }
 };
+

@@ -2,7 +2,7 @@
 import axios from "axios";
 
 
-const API_URL = "http://localhost:8000/api/item-types"; // adjust if needed
+const API_URL = "http://127.0.0.1:8000/api/item-types"; // adjust if needed
 
 interface ItemType {
   id?: number;       // optional for creation
@@ -39,3 +39,4 @@ export const updateItemType = async (id: number, data: Partial<ItemType>): Promi
 export const deleteItemType = async (id: number): Promise<void> => {
   await axios.delete(`${API_URL}/${id}`);
 };
+

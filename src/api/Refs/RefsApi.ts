@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8000/api/refs";
+const API_BASE_URL = "http://127.0.0.1:8000/api/refs";
 
 export interface Ref {
   id?: number | null;
@@ -32,3 +32,4 @@ export const deleteRef = async (id: number | string) => {
   const response = await axios.delete(`${API_BASE_URL}/${id}`);
   return response.data;
 };
+

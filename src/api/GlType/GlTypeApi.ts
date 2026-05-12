@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/gl-types";
+const API_URL = "http://127.0.0.1:8000/api/gl-types";
 
 // GET all GL Types
 export const getGlTypes = async () => {
@@ -26,3 +26,4 @@ export const updateGlType = async (id, data) => {
 export const deleteGlType = async (id) => {
   return await axios.delete(`${API_URL}/${id}`);
 };
+

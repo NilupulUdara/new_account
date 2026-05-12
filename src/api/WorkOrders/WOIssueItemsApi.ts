@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/wo-issue-items";
+const API_URL = "http://127.0.0.1:8000/api/wo-issue-items";
 
 export interface WoIssueItemPayload {
   stock_id: string;
@@ -84,3 +84,4 @@ export const deleteWoIssueItem = async (id: number | string) => {
     throw error.response?.data || error;
   }
 };
+

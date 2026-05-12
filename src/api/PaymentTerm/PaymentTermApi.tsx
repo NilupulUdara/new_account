@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/payment-terms";
+const API_URL = "http://127.0.0.1:8000/api/payment-terms";
 
 // Create Payment Term
 export const createPaymentTerm = async (data: any) => {
@@ -31,3 +31,4 @@ export const deletePaymentTerm = async (id: number) => {
   const response = await axios.delete(`${API_URL}/${id}`);
   return response.data;
 };
+

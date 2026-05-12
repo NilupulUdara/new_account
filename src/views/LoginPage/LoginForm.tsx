@@ -94,14 +94,11 @@ function LoginForm() {
         marginBottom: isMdUp ? "2.5rem" : "22vh",
       }}
     >
-      <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         <img src={companyLogo} alt="logo" height={"65em"} />
-        {/* <img
-          src={groupLogo}
-          alt="logo"
-          style={{ marginLeft: "1rem" }}
-          height={"50rem"}
-        /> */}
+        <Typography variant="h4" sx={{ fontWeight: 800, color: 'var(--pallet-blue)', letterSpacing: '-0.05em' }}>
+          Grow Ledger
+        </Typography>
       </Box>
       <Box>
         <Typography variant={"body2"}>

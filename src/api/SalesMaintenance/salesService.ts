@@ -1,8 +1,8 @@
 import axios from "axios";
 
-const SALES_TYPE_API = "http://localhost:8000/api/sales-types";
-const SALES_GROUP_API = "http://localhost:8000/api/sales-groups";
-const SALES_AREA_API = "http://localhost:8000/api/sales-areas";
+const SALES_TYPE_API = "http://127.0.0.1:8000/api/sales-types";
+const SALES_GROUP_API = "http://127.0.0.1:8000/api/sales-groups";
+const SALES_AREA_API = "http://127.0.0.1:8000/api/sales-areas";
 
 /** ----- SalesType ----- */
 export interface SalesType {
@@ -112,3 +112,4 @@ export const patchSalesArea = async (id: number, payload: Partial<SalesArea>): P
 export const deleteSalesArea = async (id: number): Promise<void> => {
   await axios.delete(`${SALES_AREA_API}/${id}`);
 };
+

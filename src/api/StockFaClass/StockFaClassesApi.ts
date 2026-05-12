@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8000/api/stock-fa-classes";
+const API_URL = "http://127.0.0.1:8000/api/stock-fa-classes";
 
 /* TypeScript interface */
 export interface StockFaClass {
@@ -80,3 +80,4 @@ export const deleteStockFaClass = async (
     throw error.response?.data || error;
   }
 };
+
